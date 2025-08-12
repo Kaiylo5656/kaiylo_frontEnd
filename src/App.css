@@ -1,0 +1,9 @@
+/* Kaiylo Fitness Platform Styles */
+
+/* Remove default Vite styles and use Tailwind CSS for styling */
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Custom styles can be added here if needed */
