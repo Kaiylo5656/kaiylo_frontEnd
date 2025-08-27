@@ -165,7 +165,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-qsd
+
   // Check if user has specific role
   const hasRole = (role) => {
     return user?.role === role;

@@ -4,6 +4,10 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
+import StudentDashboard from './pages/StudentDashboard';
+import ExerciseManagement from './pages/ExerciseManagement';
+import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
+import Navigation from './components/Navigation';
 import LoadingSpinner from './components/LoadingSpinner';
 import './App.css';
 
@@ -33,7 +37,12 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     }
   }
 
-  return children;
+  return (
+    <>
+      <Navigation />
+      {children}
+    </>
+  );
 };
 
 // Main App Component
@@ -66,13 +75,29 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/coach/exercises" 
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <ExerciseManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/coach/sessions" 
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <WorkoutSessionManagement />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Student Routes */}
             <Route 
               path="/student/dashboard" 
               element={
                 <ProtectedRoute allowedRoles={['student']}>
-                  <Dashboard />
+                  <StudentDashboard />
                 </ProtectedRoute>
               } 
             />
@@ -83,6 +108,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/exercises" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ExerciseManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/sessions" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <WorkoutSessionManagement />
                 </ProtectedRoute>
               } 
             />
