@@ -174,6 +174,16 @@ const LoginPage = () => {
             <p><strong>Coach:</strong> coach@kaiylo.com / password123</p>
             <p><strong>Student:</strong> student@kaiylo.com / password123</p>
           </div>
+          <div className="mt-3 pt-3 border-t border-blue-200">
+            <p className="text-blue-800 font-medium text-xs">New Student?</p>
+            <p className="text-xs text-blue-700">If you have an invitation code from your coach:</p>
+            <a
+              href="/invite"
+              className="inline-block mt-2 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 transition-colors"
+            >
+              Join with Invitation Code
+            </a>
+          </div>
         </div>
       </div>
     </div>

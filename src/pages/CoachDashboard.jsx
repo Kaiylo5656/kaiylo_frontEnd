@@ -311,15 +311,31 @@ const CoachDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           {invitation.status === 'pending' && (
-                            <button
-                              onClick={() => handleCancelInvitation(invitation.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Cancel
-                            </button>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => {
+                                  const invitationLink = `${window.location.origin}/invite?code=${invitation.invitation_code}`;
+                                  navigator.clipboard.writeText(invitationLink);
+                                  alert('Invitation link copied to clipboard!');
+                                }}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="Copy invitation link"
+                              >
+                                Copy Link
+                              </button>
+                              <button
+                                onClick={() => handleCancelInvitation(invitation.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           )}
                           {invitation.status === 'accepted' && (
                             <span className="text-green-600">Accepted</span>
+                          )}
+                          {invitation.status === 'expired' && (
+                            <span className="text-gray-500">Expired</span>
                           )}
                         </td>
                       </tr>

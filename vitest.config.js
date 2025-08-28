@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.test.jsx'],
     // you might want to disable CSS modules for testing
     css: false,
   },

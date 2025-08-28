@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
-const RegisterPage = () => {
+const StudentInvitationPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invitationData, setInvitationData] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
-  const { register: registerUser } = useAuth();
+  const [isValidating, setIsValidating] = useState(false);
   const API_BASE_URL = 'http://localhost:3001/api';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invitationCode = searchParams.get('code');
+  const { register: registerUser } = useAuth(); // Use the register function from AuthContext
 
   // Form handling with react-hook-form
   const {
@@ -28,7 +29,7 @@ const RegisterPage = () => {
   const password = watch('password');
 
   // Check invitation code on component mount
-  useState(() => {
+  useEffect(() => {
     if (invitationCode) {
       validateInvitationCode(invitationCode);
     }
@@ -36,8 +37,9 @@ const RegisterPage = () => {
 
   // Validate invitation code
   const validateInvitationCode = async (code) => {
+    setIsValidating(true);
     try {
-      const response = await axios.get(`http://localhost:3001/api/invitations/validate/${code}`);
+      const response = await axios.get(`${API_BASE_URL}/invitations/validate/${code}`);
       if (response.data.success) {
         setInvitationData(response.data.data);
         setValue('email', response.data.data.student_email);
@@ -46,6 +48,8 @@ const RegisterPage = () => {
     } catch (error) {
       setInvitationError(error.response?.data?.message || 'Invalid invitation code');
       setInvitationData(null);
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -64,49 +68,26 @@ const RegisterPage = () => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     
-    try {
-      let result;
+    const registrationData = {
+      role: 'student',
+      invitationCode: invitationCode || data.invitationCode,
+      name: data.name,
+      password: data.password,
+    };
 
-      // Coach registration
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, {
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        role: 'coach'
-      }).catch(error => {
-        console.error('Registration error:', error);
-        throw new Error(error.response?.data?.message || 'Registration failed. Please try again.');
-      });
-      
-      result = response.data;
-      
-      if (result.success) {
-        // Redirect based on user role
-        switch (result.user.role) {
-          case 'coach':
-            navigate('/coach/dashboard');
-            break;
-          case 'student':
-            navigate('/student/dashboard');
-            break;
-          default:
-            navigate('/dashboard');
-        }
-      } else {
-        // Set form error
-        setError('root', {
-          type: 'manual',
-          message: result.error
-        });
-      }
-    } catch (error) {
+    const result = await registerUser(registrationData);
+
+    if (result.success) {
+      // The context now has the correct user. Navigation should work correctly.
+      navigate('/student/dashboard');
+    } else {
       setError('root', {
         type: 'manual',
-        message: 'An unexpected error occurred. Please try again.'
+        message: result.error || 'An unexpected error occurred. Please try again.'
       });
-    } finally {
-      setIsLoading(false);
     }
+    
+    setIsLoading(false);
   };
 
   return (
@@ -115,16 +96,97 @@ const RegisterPage = () => {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Coach Registration
+            Join Your Coach's Program
           </h1>
           <p className="text-gray-600">
-            Create your coach account to start managing workout programs
+            Complete your registration to access your personalized workout program
           </p>
         </div>
+
+        {/* Invitation Status */}
+        {invitationCode && (
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Invitation Code Detected
+                </h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  Code: <span className="font-mono">{invitationCode}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Registration Form */}
         <div className="bg-white rounded-lg shadow-lg p-8">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Invitation Code Field (if not in URL) */}
+            {!invitationCode && (
+              <div>
+                <label htmlFor="invitationCode" className="block text-sm font-medium text-gray-700 mb-2">
+                  Invitation Code
+                </label>
+                <input
+                  id="invitationCode"
+                  type="text"
+                  {...register('invitationCode', {
+                    required: 'Invitation code is required',
+                    minLength: {
+                      value: 8,
+                      message: 'Invitation code must be 8 characters'
+                    },
+                    maxLength: {
+                      value: 8,
+                      message: 'Invitation code must be 8 characters'
+                    }
+                  })}
+                  onChange={handleInvitationCodeChange}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.invitationCode ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter your 8-digit invitation code"
+                  maxLength={8}
+                />
+                {errors.invitationCode && (
+                  <p className="mt-1 text-sm text-red-600">{errors.invitationCode.message}</p>
+                )}
+                {invitationError && (
+                  <p className="mt-1 text-sm text-red-600">{invitationError}</p>
+                )}
+                {isValidating && (
+                  <p className="mt-1 text-sm text-blue-600">Validating invitation code...</p>
+                )}
+              </div>
+            )}
+
+            {/* Invitation Validation Status */}
+            {invitationData && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-green-800">
+                      Valid Invitation
+                    </h3>
+                    <p className="text-sm text-green-700 mt-1">
+                      You're invited to join as: <span className="font-medium">{invitationData.student_email}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Name Field */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -150,34 +212,24 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* Hidden Role Field - Always Coach */}
-            <input type="hidden" {...register('role')} value="coach" />
-
-            {/* Email Field */}
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  {...register('email', {
-                    required: 'Email is required',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address'
-                    }
-                  })}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter your email"
-                />
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-                )}
-              </div>
-            {/* Password fields follow */}
+            {/* Email Field (read-only if from invitation) */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                {...register('email')}
+                value={invitationData?.student_email || ''}
+                readOnly={!!invitationData}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
+                placeholder="Email will be set from invitation"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Email is automatically set from your invitation
+              </p>
+            </div>
 
             {/* Password Field */}
             <div>
@@ -240,9 +292,9 @@ const RegisterPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !invitationData || isValidating}
               className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                isLoading
+                isLoading || !invitationData || isValidating
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
@@ -256,7 +308,7 @@ const RegisterPage = () => {
                   Creating account...
                 </div>
               ) : (
-                'Create Account'
+                'Join Program'
               )}
             </button>
           </form>
@@ -265,33 +317,23 @@ const RegisterPage = () => {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
-              <Link
-                to="/login"
+              <a
+                href="/login"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
                 Sign in here
-              </Link>
+              </a>
             </p>
           </div>
         </div>
 
         {/* Information Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">How to Join Kaiylo</h3>
+          <h3 className="text-sm font-medium text-blue-800 mb-2">How Student Registration Works</h3>
           <div className="text-xs text-blue-700 space-y-2">
-            <p>Register as a coach to create and manage workout programs for your students.</p>
-            <p>After registration, you can invite your students via email from your dashboard.</p>
-            <p><strong>Note:</strong> Students can only join through coach invitations.</p>
-            <div className="mt-3 pt-3 border-t border-blue-200">
-              <p className="text-blue-800 font-medium">Are you a student?</p>
-              <p>If you have an invitation code from your coach, click here:</p>
-              <a
-                href="/invite"
-                className="inline-block mt-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
-              >
-                Join with Invitation Code
-              </a>
-            </div>
+            <p>Students can only join Kaiylo through invitations from their coaches.</p>
+            <p>If you don't have an invitation code, please contact your coach to receive one.</p>
+            <p><strong>Note:</strong> Each invitation code can only be used once.</p>
           </div>
         </div>
       </div>
@@ -299,4 +341,4 @@ const RegisterPage = () => {
   );
 };
 
-export default RegisterPage;
+export default StudentInvitationPage;

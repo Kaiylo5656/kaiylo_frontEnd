@@ -8,6 +8,7 @@ const ExerciseManagement = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -221,14 +222,23 @@ const ExerciseManagement = () => {
           </p>
         </div>
 
-        {/* Add Exercise Button */}
-        <div className="mb-6">
+        {/* Add Exercise Button and Search */}
+        <div className="flex justify-between items-center mb-6">
           <button
             onClick={() => setShowForm(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             + Add New Exercise
           </button>
+          <div className="w-1/3">
+            <input
+              type="text"
+              placeholder="Search exercises by title..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
         {/* Exercise Form */}
@@ -406,12 +416,16 @@ const ExerciseManagement = () => {
           </div>
           
           <div className="divide-y divide-gray-200">
-            {exercises.length === 0 ? (
+            {exercises.length === 0 && !loading ? (
               <div className="px-6 py-8 text-center text-gray-500">
                 No exercises found. Create your first exercise to get started!
               </div>
             ) : (
-              exercises.map(exercise => (
+              exercises
+                .filter(exercise => 
+                  exercise.title.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+                .map(exercise => (
                 <div key={exercise.id} className="px-6 py-4 hover:bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">

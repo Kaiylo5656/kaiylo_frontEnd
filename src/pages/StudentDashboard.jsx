@@ -16,18 +16,20 @@ const StudentDashboard = () => {
   const fetchAssignments = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/assignments/my', {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('http://localhost:3001/api/assigned-sessions/my-assignments', {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
       if (response.ok) {
         const data = await response.json();
-        setAssignments(data);
+        setAssignments(data.assignments || []);
       } else {
         console.error('Failed to fetch assignments');
+        setAssignments([]);
       }
     } catch (error) {
       console.error('Error fetching assignments:', error);
@@ -39,9 +41,10 @@ const StudentDashboard = () => {
   // View session details
   const handleViewSession = async (sessionId) => {
     try {
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`http://localhost:3001/api/sessions/${sessionId}`, {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
