@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Login function
-  const login = async (email, password) => {
+  const login = async (email, password, navigate) => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +74,22 @@ export const AuthProvider = ({ children }) => {
       // Update user state
       setUser(user);
       
-      return { success: true, user };
+      // Navigate based on user role
+      switch (user.role) {
+        case 'admin':
+          navigate('/admin/dashboard');
+          break;
+        case 'coach':
+          navigate('/coach/dashboard');
+          break;
+        case 'student':
+          navigate('/student/dashboard');
+          break;
+        default:
+          navigate('/dashboard');
+      }
+
+      return { success: true };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Login failed';
       setError(errorMessage);
@@ -85,7 +100,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Register function (updated to handle invitations)
-  const register = async (userData) => {
+  const register = async (userData, navigate) => {
     try {
       setLoading(true);
       setError(null);
@@ -111,18 +126,37 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid registration data');
       }
       
-      const { token, user } = response.data;
-      
-      // Store token in localStorage
-      localStorage.setItem('authToken', token);
-      
-      // Set token in axios headers
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
-      // Update user state
-      setUser(user);
-      
-      return { success: true, user };
+      // Check if the response has the expected structure
+      if (response.data.success && response.data.token && response.data.user) {
+        const { token, user } = response.data;
+        
+        // Store token in localStorage
+        localStorage.setItem('authToken', token);
+        
+        // Set token in axios headers
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Update user state
+        setUser(user);
+        
+        // Navigate based on user role
+        switch (user.role) {
+          case 'coach':
+            navigate('/coach/dashboard');
+            break;
+          case 'student':
+            navigate('/student/dashboard');
+            break;
+          default:
+            navigate('/dashboard');
+        }
+
+        return { success: true };
+      } else {
+        // Handle unexpected response structure
+        console.error('Unexpected response structure:', response.data);
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Registration failed';
       setError(errorMessage);

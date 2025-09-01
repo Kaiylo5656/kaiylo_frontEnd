@@ -12,6 +12,18 @@ const CoachDashboard = () => {
     studentEmail: '',
     message: ''
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [recentlyRemoved, setRecentlyRemoved] = useState([]);
+  const [showUndoNotification, setShowUndoNotification] = useState(false);
+  const [invitationSearchTerm, setInvitationSearchTerm] = useState('');
+  const [invitationStatusFilter, setInvitationStatusFilter] = useState('all');
+
+  // Debug logging for modal state
+  useEffect(() => {
+    console.log('🔍 showInviteForm state changed to:', showInviteForm);
+  }, [showInviteForm]);
 
   // Fetch coach data on component mount
   useEffect(() => {
@@ -33,14 +45,22 @@ const CoachDashboard = () => {
         setInvitations(invitationsResponse.data.data);
       }
 
-      // TODO: Fetch students list
-      // const studentsResponse = await axios.get('http://localhost:3001/api/coach/students');
-      // if (studentsResponse.data.success) {
-      //   setStudents(studentsResponse.data.data);
-      // }
+      // Fetch students list
+      const studentsResponse = await axios.get('http://localhost:3001/api/coach/students', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+      
+      if (studentsResponse.data.success) {
+        setStudents(studentsResponse.data.data);
+      } else {
+        console.error('❌ Students response not successful:', studentsResponse.data);
+      }
 
     } catch (error) {
-      console.error('Error fetching coach data:', error);
+      console.error('❌ Error fetching coach data:', error);
+      console.error('❌ Error response:', error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -49,12 +69,20 @@ const CoachDashboard = () => {
   const handleInviteSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('🎯 Invitation form submitted with data:', inviteForm);
+    
     try {
+      const token = localStorage.getItem('authToken');
+      console.log('🔑 Using auth token:', token ? 'Token exists' : 'No token found');
+      
       const response = await axios.post('http://localhost:3001/api/invitations/create', inviteForm, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
+
+      console.log('✅ Invitation creation response:', response.data);
 
       if (response.data.success) {
         setInviteForm({ studentEmail: '', message: '' });
@@ -63,7 +91,9 @@ const CoachDashboard = () => {
         alert('Invitation sent successfully!');
       }
     } catch (error) {
-      console.error('Error sending invitation:', error);
+      console.error('❌ Error sending invitation:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
       alert(error.response?.data?.message || 'Failed to send invitation');
     }
   };
@@ -88,10 +118,201 @@ const CoachDashboard = () => {
     }
   };
 
+  const handleRemoveStudent = async (studentId, studentName) => {
+    const student = students.find(s => s.id === studentId);
+    const studentEmail = student?.email || 'Unknown email';
+    
+    const confirmMessage = `Are you sure you want to remove ${studentName} from your student list?
+
+Student Details:
+• Name: ${studentName}
+• Email: ${studentEmail}
+
+This action will:
+• Remove the student from your dashboard
+• Delete the coach-student relationship
+• The student will no longer see your workouts
+
+This action cannot be undone.`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const response = await axios.delete(`http://localhost:3001/api/coach/students/${studentId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+
+      if (response.data.success) {
+        fetchCoachData(); // Refresh the list
+        alert(`✅ ${studentName} has been successfully removed from your student list.`);
+        addToRecentlyRemoved(student); // Add to recently removed
+      }
+    } catch (error) {
+      console.error('Error removing student:', error);
+      alert(error.response?.data?.message || 'Failed to remove student');
+    }
+  };
+
+  // Bulk selection functions
+  const handleSelectStudent = (studentId) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+    setShowBulkActions(newSelected.size > 0);
+  };
+
+  const handleSelectAll = () => {
+    const filteredStudents = students.filter(student => 
+      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    if (selectedStudents.size === filteredStudents.length) {
+      setSelectedStudents(new Set());
+      setShowBulkActions(false);
+    } else {
+      const allIds = new Set(filteredStudents.map(s => s.id));
+      setSelectedStudents(allIds);
+      setShowBulkActions(true);
+    }
+  };
+
+  const handleBulkRemove = async () => {
+    const selectedStudentNames = students
+      .filter(s => selectedStudents.has(s.id))
+      .map(s => s.name)
+      .join(', ');
+
+    const confirmMessage = `Are you sure you want to remove ${selectedStudents.size} student(s) from your list?
+
+Selected students:
+${students
+  .filter(s => selectedStudents.has(s.id))
+  .map(s => `• ${s.name} (${s.email})`)
+  .join('\n')}
+
+This action cannot be undone.`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const removePromises = Array.from(selectedStudents).map(studentId =>
+        axios.delete(`http://localhost:3001/api/coach/students/${studentId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }
+        })
+      );
+
+      await Promise.all(removePromises);
+      setSelectedStudents(new Set());
+      setShowBulkActions(false);
+      
+      // Add removed students to recently removed list
+      const removedStudents = students.filter(s => selectedStudents.has(s.id));
+      removedStudents.forEach(student => addToRecentlyRemoved(student));
+      
+      fetchCoachData();
+      alert(`✅ Successfully removed ${selectedStudents.size} student(s) from your list.`);
+    } catch (error) {
+      console.error('Error in bulk removal:', error);
+      alert('Some students could not be removed. Please try again.');
+    }
+  };
+
+  // Undo functionality
+  const addToRecentlyRemoved = (student) => {
+    const removedStudent = {
+      ...student,
+      removedAt: new Date(),
+      id: student.id
+    };
+    setRecentlyRemoved(prev => [...prev, removedStudent]);
+    setShowUndoNotification(true);
+    
+    // Auto-hide undo notification after 10 seconds
+    setTimeout(() => {
+      setShowUndoNotification(false);
+    }, 10000);
+  };
+
+  const handleUndoRemove = async (studentId) => {
+    try {
+      // Re-add the student to the coach's list
+      const response = await axios.post('http://localhost:3001/api/coach/students', {
+        studentId: studentId
+      }, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+
+      if (response.data.success) {
+        // Remove from recently removed list
+        setRecentlyRemoved(prev => prev.filter(s => s.id !== studentId));
+        setShowUndoNotification(recentlyRemoved.length > 1);
+        
+        // Refresh the students list
+        fetchCoachData();
+        alert('✅ Student has been restored to your list.');
+      }
+    } catch (error) {
+      console.error('Error restoring student:', error);
+      alert('Failed to restore student. Please try again.');
+    }
+  };
+
+  // Handle re-inviting a removed student
+  const handleReinviteStudent = async (studentEmail) => {
+    try {
+      const response = await axios.post('http://localhost:3001/api/invitations/create', {
+        studentEmail: studentEmail,
+        message: 'You have been re-invited to join my fitness program.'
+      }, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.success) {
+        fetchCoachData(); // Refresh the list
+        alert(`✅ New invitation sent to ${studentEmail}`);
+      }
+    } catch (error) {
+      console.error('Error re-inviting student:', error);
+      alert(error.response?.data?.message || 'Failed to send new invitation');
+    }
+  };
+
+  // Check if an accepted student is still active
+  const getStudentStatus = (invitation) => {
+    if (invitation.status !== 'accepted') {
+      return invitation.status;
+    }
+    
+    // Check if the student is still in the active students list
+    const isActive = students.some(student => student.email === invitation.student_email);
+    
+    if (isActive) {
+      return 'active';
+    } else {
+      return 'removed';
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'accepted': return 'bg-green-100 text-green-800';
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'removed': return 'bg-red-100 text-red-800';
       case 'expired': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -178,7 +399,10 @@ const CoachDashboard = () => {
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-4 mb-8">
             <button
-              onClick={() => setShowInviteForm(true)}
+              onClick={() => {
+                console.log('🎯 Invite Student button clicked');
+                setShowInviteForm(true);
+              }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium transition-colors"
             >
               <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -202,47 +426,131 @@ const CoachDashboard = () => {
 
           {/* Invitation Modal */}
           {showInviteForm && (
-            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-              <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                <div className="mt-3">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Invite a Student</h3>
-                  <form onSubmit={handleInviteSubmit} className="space-y-4">
+            <>
+              {/* Debug indicator */}
+              <div style={{ position: 'fixed', top: '10px', right: '10px', background: 'red', color: 'white', padding: '10px', zIndex: 9999 }}>
+                MODAL IS RENDERED - showInviteForm: {showInviteForm.toString()}
+              </div>
+              
+              {/* Simple Modal with Inline Styles */}
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  padding: '24px',
+                  maxWidth: '400px',
+                  width: '100%',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '16px'
+                  }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '500', color: '#111827', margin: 0 }}>
+                      Invite a Student
+                    </h3>
+                    <button
+                      onClick={() => setShowInviteForm(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: '24px',
+                        cursor: 'pointer',
+                        color: '#9CA3AF',
+                        padding: '4px'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleInviteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
                         Student Email
                       </label>
                       <input
                         type="email"
                         required
                         value={inviteForm.studentEmail}
-                        onChange={(e) => setInviteForm({...inviteForm, studentEmail: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          console.log('📧 Email input changed:', e.target.value);
+                          setInviteForm({...inviteForm, studentEmail: e.target.value});
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          fontSize: '14px'
+                        }}
                         placeholder="student@example.com"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
                         Personal Message (Optional)
                       </label>
                       <textarea
                         value={inviteForm.message}
-                        onChange={(e) => setInviteForm({...inviteForm, message: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          console.log('💬 Message input changed:', e.target.value);
+                          setInviteForm({...inviteForm, message: e.target.value});
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          minHeight: '80px',
+                          resize: 'vertical'
+                        }}
                         rows="3"
                         placeholder="Add a personal message to your invitation..."
                       />
                     </div>
-                    <div className="flex justify-end space-x-3">
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                       <button
                         type="button"
                         onClick={() => setShowInviteForm(false)}
-                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+                        style={{
+                          padding: '8px 16px',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          backgroundColor: 'white',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        style={{
+                          padding: '8px 16px',
+                          border: 'none',
+                          borderRadius: '6px',
+                          backgroundColor: '#2563EB',
+                          color: 'white',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
                       >
                         Send Invitation
                       </button>
@@ -250,13 +558,48 @@ const CoachDashboard = () => {
                   </form>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Invitations Section */}
           <div className="bg-white rounded-lg shadow mb-8">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Recent Invitations</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-900">Recent Invitations</h2>
+                <div className="flex items-center space-x-4">
+                  <div className="w-48">
+                    <select
+                      value={invitationStatusFilter}
+                      onChange={(e) => setInvitationStatusFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="active">Active</option>
+                      <option value="removed">Removed</option>
+                      <option value="expired">Expired</option>
+                    </select>
+                  </div>
+                  <div className="w-64">
+                    <input
+                      type="text"
+                      placeholder="Search invitations by email..."
+                      value={invitationSearchTerm}
+                      onChange={(e) => setInvitationSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+              <div className="flex items-center space-x-6 text-sm text-gray-600">
+                <span>Total: {invitations.length}</span>
+                <span>Pending: {invitations.filter(inv => inv.status === 'pending').length}</span>
+                <span>Active: {invitations.filter(inv => getStudentStatus(inv) === 'active').length}</span>
+                <span>Removed: {invitations.filter(inv => getStudentStatus(inv) === 'removed').length}</span>
+                <span>Expired: {invitations.filter(inv => inv.status === 'expired').length}</span>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -290,7 +633,18 @@ const CoachDashboard = () => {
                       </td>
                     </tr>
                   ) : (
-                    invitations.map((invitation) => (
+                    invitations
+                      .filter(invitation => {
+                        // Apply search filter
+                        const matchesSearch = invitation.student_email.toLowerCase().includes(invitationSearchTerm.toLowerCase());
+                        
+                        // Apply status filter
+                        const currentStatus = getStudentStatus(invitation);
+                        const matchesStatus = invitationStatusFilter === 'all' || currentStatus === invitationStatusFilter;
+                        
+                        return matchesSearch && matchesStatus;
+                      })
+                      .map((invitation) => (
                       <tr key={invitation.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {invitation.student_email}
@@ -299,8 +653,8 @@ const CoachDashboard = () => {
                           {invitation.invitation_code}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(invitation.status)}`}>
-                            {invitation.status}
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(getStudentStatus(invitation))}`}>
+                            {getStudentStatus(invitation)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -331,8 +685,44 @@ const CoachDashboard = () => {
                               </button>
                             </div>
                           )}
-                          {invitation.status === 'accepted' && (
-                            <span className="text-green-600">Accepted</span>
+                          {getStudentStatus(invitation) === 'active' && (
+                            <div className="flex space-x-2">
+                              <span className="text-green-600">Active Student</span>
+                              <button
+                                onClick={() => {
+                                  const student = students.find(s => s.email === invitation.student_email);
+                                  if (student) {
+                                    handleRemoveStudent(student.id, student.name);
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-900 text-xs"
+                                title="Remove student from your list"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                          {getStudentStatus(invitation) === 'removed' && (
+                            <div className="flex space-x-2">
+                              <span className="text-red-600">Removed</span>
+                              <button
+                                onClick={() => {
+                                  // Find the student in recently removed list
+                                  const removedStudent = recentlyRemoved.find(s => s.email === invitation.student_email);
+                                  if (removedStudent) {
+                                    handleUndoRemove(removedStudent.id);
+                                  } else {
+                                    if (confirm(`Would you like to send a new invitation to ${invitation.student_email}?`)) {
+                                      handleReinviteStudent(invitation.student_email);
+                                    }
+                                  }
+                                }}
+                                className="text-blue-600 hover:text-blue-900 text-xs"
+                                title={`${recentlyRemoved.find(s => s.email === invitation.student_email) ? 'Restore student to your list' : 'Send new invitation to student'}`}
+                              >
+                                {recentlyRemoved.find(s => s.email === invitation.student_email) ? 'Restore' : 'Re-invite'}
+                              </button>
+                            </div>
                           )}
                           {invitation.status === 'expired' && (
                             <span className="text-gray-500">Expired</span>
@@ -349,7 +739,33 @@ const CoachDashboard = () => {
           {/* Students Section */}
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">My Students</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-900">My Students</h2>
+                <div className="flex items-center space-x-4">
+                  {showBulkActions && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">
+                        {selectedStudents.size} selected
+                      </span>
+                      <button
+                        onClick={handleBulkRemove}
+                        className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                      >
+                        Remove Selected
+                      </button>
+                    </div>
+                  )}
+                  <div className="w-64">
+                    <input
+                      type="text"
+                      placeholder="Search students by name or email..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="p-6">
               {students.length === 0 ? (
@@ -375,23 +791,73 @@ const CoachDashboard = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {students.map((student) => (
-                    <div key={student.id} className="border rounded-lg p-4">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
-                            <span className="text-white font-medium">
-                              {student.name?.charAt(0) || 'S'}
-                            </span>
+                  {/* Select All Checkbox */}
+                  {students.filter(student => 
+                    student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                  ).length > 0 && (
+                    <div className="col-span-full mb-4">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.size === students.filter(student => 
+                            student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                          ).length && selectedStudents.size > 0}
+                          onChange={handleSelectAll}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Select all ({students.filter(student => 
+                            student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                          ).length} students)
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  
+                  {students
+                    .filter(student => 
+                      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((student) => (
+                      <div key={student.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedStudents.has(student.id)}
+                              onChange={() => handleSelectStudent(student.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0">
+                                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
+                                  <span className="text-white font-medium">
+                                    {student.name?.charAt(0) || 'S'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="ml-4">
+                                <h3 className="text-sm font-medium text-gray-900">{student.name}</h3>
+                                <p className="text-sm text-gray-500">{student.email}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleRemoveStudent(student.id, student.name)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                              title="Remove student from your list"
+                            >
+                              Remove
+                            </button>
                           </div>
                         </div>
-                        <div className="ml-4">
-                          <h3 className="text-sm font-medium text-gray-900">{student.name}</h3>
-                          <p className="text-sm text-gray-500">{student.email}</p>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </div>

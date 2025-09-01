@@ -1,7 +1,9 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { BrowserRouter } from 'react-router-dom';
 import StudentInvitationPage from '../StudentInvitationPage';
+import { AuthProvider } from '../../contexts/AuthContext';
 
 // Mock axios
 vi.mock('axios', () => ({
@@ -15,10 +17,26 @@ vi.mock('axios', () => ({
 const mockNavigate = vi.fn();
 const mockUseSearchParams = vi.fn(() => [new URLSearchParams(), vi.fn()]);
 
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-  useSearchParams: () => mockUseSearchParams()
-}));
+vi.mock('react-router-dom', async (importOriginal) => {
+  const mod = await importOriginal();
+  return {
+    ...mod,
+    useNavigate: () => mockNavigate,
+    useSearchParams: () => mockUseSearchParams()
+  };
+});
+
+// Mock the AuthContext
+const mockRegister = vi.fn();
+vi.mock('../../contexts/AuthContext', async (importOriginal) => {
+  const mod = await importOriginal();
+  return {
+    ...mod,
+    useAuth: () => ({
+      register: mockRegister
+    })
+  };
+});
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -27,6 +45,15 @@ const mockLocalStorage = {
   removeItem: vi.fn()
 };
 Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
+
+// Helper to render with providers
+const renderWithProviders = (ui) => {
+  return render(
+    <AuthProvider>
+      <BrowserRouter>{ui}</BrowserRouter>
+    </AuthProvider>
+  );
+};
 
 describe('StudentInvitationPage', () => {
   let mockAxios;
@@ -39,6 +66,7 @@ describe('StudentInvitationPage', () => {
     vi.clearAllMocks();
     mockNavigate.mockClear();
     mockLocalStorage.setItem.mockClear();
+    mockRegister.mockClear();
     
     // Reset useSearchParams to default
     mockUseSearchParams.mockReturnValue([new URLSearchParams(), vi.fn()]);
@@ -46,12 +74,12 @@ describe('StudentInvitationPage', () => {
 
   describe('Rendering', () => {
     test('renders invitation page with title', () => {
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       expect(screen.getByText('Join Your Coach\'s Program')).toBeInTheDocument();
     });
 
     test('renders form fields', () => {
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       expect(screen.getByPlaceholderText('Enter your 8-digit invitation code')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Enter your full name')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Create a strong password')).toBeInTheDocument();
@@ -76,7 +104,7 @@ describe('StudentInvitationPage', () => {
         }
       });
       
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       
       // Wait for the component to process the URL parameter
       await waitFor(() => {
@@ -92,7 +120,7 @@ describe('StudentInvitationPage', () => {
       const searchParams = new URLSearchParams();
       mockUseSearchParams.mockReturnValue([searchParams, vi.fn()]);
       
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       
       const codeInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       expect(codeInput).toBeInTheDocument();
@@ -111,7 +139,7 @@ describe('StudentInvitationPage', () => {
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'ABC12345');
@@ -135,7 +163,7 @@ describe('StudentInvitationPage', () => {
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'INVALIDC');
@@ -149,8 +177,10 @@ describe('StudentInvitationPage', () => {
 
   describe('Error Display', () => {
     test('displays API errors', async () => {
-      mockAxios.post.mockRejectedValue({
-        response: { data: { message: 'Server error occurred' } }
+      // Mock the register function to return an error
+      mockRegister.mockResolvedValue({
+        success: false,
+        error: 'Server error occurred'
       });
 
       // Mock successful invitation validation first
@@ -164,7 +194,7 @@ describe('StudentInvitationPage', () => {
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
 
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'ABC12345');
@@ -204,20 +234,18 @@ describe('StudentInvitationPage', () => {
       });
 
       // Mock successful registration
-      mockAxios.post.mockResolvedValue({
+      mockRegister.mockResolvedValue({
+        success: true,
+        token: 'fake-token',
         data: {
-          success: true,
-          token: 'fake-token',
-          data: {
-            user: {
-              role: 'student',
-              email: 'student@example.com'
-            }
+          user: {
+            role: 'student',
+            email: 'student@example.com'
           }
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
 
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'ABC12345');
@@ -238,26 +266,22 @@ describe('StudentInvitationPage', () => {
       fireEvent.click(submitButton);
       
       await waitFor(() => {
-        expect(mockAxios.post).toHaveBeenCalledWith(
-          'http://localhost:3001/api/invitations/accept',
+        expect(mockRegister).toHaveBeenCalledWith(
           {
+            role: 'student',
             invitationCode: 'ABC12345',
             name: 'Test Student',
             password: 'TestPassword123'
-          }
+          },
+          mockNavigate
         );
-      });
-      
-      await waitFor(() => {
-        expect(mockLocalStorage.setItem).toHaveBeenCalledWith('authToken', 'fake-token');
-        expect(mockNavigate).toHaveBeenCalledWith('/student/dashboard');
       });
     });
   });
 
   describe('Form Validation', () => {
     test('requires all fields to be filled', async () => {
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
       
       const submitButton = screen.getByRole('button', { name: /join program/i });
       expect(submitButton).toBeDisabled(); // Should be disabled without valid invitation
@@ -275,7 +299,7 @@ describe('StudentInvitationPage', () => {
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
 
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'ABC12345');
@@ -312,7 +336,7 @@ describe('StudentInvitationPage', () => {
         }
       });
 
-      render(<StudentInvitationPage />);
+      renderWithProviders(<StudentInvitationPage />);
 
       const invitationInput = screen.getByPlaceholderText('Enter your 8-digit invitation code');
       await userEvent.type(invitationInput, 'ABC12345');

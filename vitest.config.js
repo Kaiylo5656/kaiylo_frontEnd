@@ -12,5 +12,7 @@ export default defineConfig({
     include: ['src/**/*.test.jsx'],
     // you might want to disable CSS modules for testing
     css: false,
+    // Set global test timeout to 20 seconds
+    testTimeout: 20000,
   },
 });

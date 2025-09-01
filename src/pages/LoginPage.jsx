@@ -21,24 +21,9 @@ const LoginPage = () => {
     setIsLoading(true);
     
     try {
-      const result = await login(data.email, data.password);
+      const result = await login(data.email, data.password, navigate);
       
-      if (result.success) {
-        // Redirect based on user role
-        switch (result.user.role) {
-          case 'admin':
-            navigate('/admin/dashboard');
-            break;
-          case 'coach':
-            navigate('/coach/dashboard');
-            break;
-          case 'student':
-            navigate('/student/dashboard');
-            break;
-          default:
-            navigate('/dashboard');
-        }
-      } else {
+      if (!result.success) {
         // Set form error
         setError('root', {
           type: 'manual',

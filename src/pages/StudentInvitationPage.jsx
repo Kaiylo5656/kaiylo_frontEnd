@@ -75,16 +75,23 @@ const StudentInvitationPage = () => {
       password: data.password,
     };
 
-    const result = await registerUser(registrationData);
+    console.log('🎯 Submitting registration with data:', {
+      ...registrationData,
+      password: '***'
+    });
 
-    if (result.success) {
-      // The context now has the correct user. Navigation should work correctly.
-      navigate('/student/dashboard');
-    } else {
+    const result = await registerUser(registrationData, navigate);
+
+    console.log('📋 Registration result:', result);
+
+    if (!result.success) {
+      console.error('❌ Registration failed:', result.error);
       setError('root', {
         type: 'manual',
         message: result.error || 'An unexpected error occurred. Please try again.'
       });
+    } else {
+      console.log('✅ Registration successful, should redirect to student dashboard');
     }
     
     setIsLoading(false);
