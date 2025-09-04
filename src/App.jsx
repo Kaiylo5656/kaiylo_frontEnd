@@ -10,6 +10,8 @@ import ExerciseManagement from './pages/ExerciseManagement';
 import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
 import Navigation from './components/Navigation';
 import LoadingSpinner from './components/LoadingSpinner';
+import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
+
 import './App.css';
 
 // Protected Route Component
@@ -90,6 +92,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['coach']}>
                   <WorkoutSessionManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/coach/assignments" 
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <WorkoutAssignmentManagement />
                 </ProtectedRoute>
               } 
             />

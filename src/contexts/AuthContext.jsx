@@ -219,6 +219,30 @@ export const AuthProvider = ({ children }) => {
   // Check if user is student
   const isStudent = () => hasRole('student');
 
+  // Get auth token function
+  const getAuthToken = () => {
+    console.log('🔍 Debug - getAuthToken called');
+    
+    // Try localStorage first
+    let token = localStorage.getItem('authToken');
+    console.log('🔍 Debug - localStorage token:', token ? 'Found' : 'Not found');
+    
+    // If not in localStorage, try sessionStorage
+    if (!token) {
+      token = sessionStorage.getItem('authToken');
+      console.log('🔍 Debug - sessionStorage token:', token ? 'Found' : 'Not found');
+    }
+    
+    // If still not found, try to get from axios defaults
+    if (!token && axios.defaults.headers.common['Authorization']) {
+      token = axios.defaults.headers.common['Authorization'].replace('Bearer ', '');
+      console.log('🔍 Debug - axios defaults token:', token ? 'Found' : 'Not found');
+    }
+    
+    console.log('🔍 Debug - Final token returned:', token ? `Length: ${token.length}` : 'No token');
+    return token;
+  };
+
   // Value object to provide to consumers
   const value = {
     user,
@@ -233,7 +257,8 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isCoach,
     isStudent,
-    checkAuthStatus
+    checkAuthStatus,
+    getAuthToken
   };
 
   return (

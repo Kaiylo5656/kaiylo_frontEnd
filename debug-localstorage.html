@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage Debug</title>
+</head>
+<body>
+    <h1>LocalStorage Debug Tool</h1>
+    
+    <div id="output"></div>
+    
+    <script>
+        function checkLocalStorage() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>LocalStorage Contents:</h2>';
+            
+            // Check all localStorage keys
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                output.innerHTML += `
+                    <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+                        <strong>Key:</strong> ${key}<br>
+                        <strong>Value:</strong> ${value}<br>
+                        <strong>Length:</strong> ${value ? value.length : 0}
+                    </div>
+                `;
+            }
+            
+            if (localStorage.length === 0) {
+                output.innerHTML += '<p style="color: red;">❌ LocalStorage is completely empty!</p>';
+            }
+            
+            // Check specific auth-related keys
+            const authToken = localStorage.getItem('authToken');
+            const user = localStorage.getItem('user');
+            const auth = localStorage.getItem('auth');
+            
+            output.innerHTML += '<h3>Auth-Related Keys:</h3>';
+            output.innerHTML += `<p><strong>authToken:</strong> ${authToken ? '✅ Found' : '❌ Not found'}</p>`;
+            output.innerHTML += `<p><strong>user:</strong> ${user ? '✅ Found' : '❌ Not found'}</p>`;
+            output.innerHTML += `<p><strong>auth:</strong> ${auth ? '✅ Found' : '❌ Not found'}</p>`;
+            
+            if (authToken) {
+                output.innerHTML += `<p><strong>Token Preview:</strong> ${authToken.substring(0, 50)}...</p>`;
+            }
+        }
+        
+        // Check on page load
+        checkLocalStorage();
+        
+        // Add refresh button
+        document.body.innerHTML += '<button onclick="checkLocalStorage()" style="margin: 20px; padding: 10px;">Refresh Check</button>';
+    </script>
+</body>
+</html>

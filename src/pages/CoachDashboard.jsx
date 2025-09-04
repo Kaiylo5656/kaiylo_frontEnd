@@ -862,6 +862,23 @@ This action cannot be undone.`;
               )}
             </div>
           </div>
+
+          {/* Workout Assignments Section */}
+          <div className="bg-white rounded-lg shadow p-6 mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Workout Assignments</h3>
+              <button
+                onClick={() => window.location.href = '/coach/assignments'}
+                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                Manage Assignments
+              </button>
+            </div>
+            <p className="text-gray-600">
+              Assign workout sessions to your students and track their progress.
+            </p>
+          </div>
+
         </div>
       </main>
     </div>

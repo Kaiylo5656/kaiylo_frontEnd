@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const StudentDashboard = () => {
-  const { user } = useAuth();
+  const { user, getAuthToken } = useAuth();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -15,48 +15,63 @@ const StudentDashboard = () => {
 
   const fetchAssignments = async () => {
     try {
+      console.log('🔍 StudentDashboard: Starting to fetch assignments...');
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/assigned-sessions/my-assignments', {
+      const token = getAuthToken();
+      console.log('🔍 StudentDashboard: Token retrieved:', token ? `Length: ${token.length}` : 'No token');
+      
+      // Updated to use the correct endpoint that matches where coaches create assignments
+      const url = 'http://localhost:3001/api/assignments/student';
+      console.log('🔍 StudentDashboard: Fetching from URL:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
+      console.log('🔍 StudentDashboard: Response status:', response.status);
+      console.log('🔍 StudentDashboard: Response ok:', response.ok);
+      
       if (response.ok) {
         const data = await response.json();
-        setAssignments(data.assignments || []);
+        console.log('🔍 StudentDashboard: Response data:', data);
+        // The response structure is different - it returns { success: true, data: [...] }
+        const assignmentsData = data.data || [];
+        console.log('🔍 StudentDashboard: Assignments data:', assignmentsData);
+        setAssignments(assignmentsData);
       } else {
-        console.error('Failed to fetch assignments');
+        console.error('❌ StudentDashboard: Failed to fetch assignments, status:', response.status);
+        const errorText = await response.text();
+        console.error('❌ StudentDashboard: Error response body:', errorText);
         setAssignments([]);
       }
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error('❌ StudentDashboard: Error fetching assignments:', error);
     } finally {
       setLoading(false);
+      console.log('🔍 StudentDashboard: Fetch completed, loading set to false');
     }
   };
 
   // View session details
-  const handleViewSession = async (sessionId) => {
+  const handleViewSession = (assignment) => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:3001/api/sessions/${sessionId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      console.log('🔍 handleViewSession called with assignment:', assignment);
+      console.log('🔍 Workout sessions data:', assignment.workout_sessions);
       
-      if (response.ok) {
-        const session = await response.json();
-        setSelectedSession(session);
+      // The assignment data already contains the workout session details from our backend join
+      // No need to make another API call
+      if (assignment.workout_sessions) {
+        console.log('🔍 Setting selected session:', assignment.workout_sessions);
+        setSelectedSession(assignment.workout_sessions);
+        console.log('🔍 selectedSession state should now be:', assignment.workout_sessions);
       } else {
-        console.error('Failed to fetch session details');
+        console.error('No workout session data available for this assignment');
       }
     } catch (error) {
-      console.error('Error fetching session details:', error);
+      console.error('Error setting session details:', error);
     }
   };
 
@@ -161,7 +176,7 @@ const StudentDashboard = () => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <h4 className="text-lg font-medium text-gray-900">
-                          {assignment.session?.title || 'Loading...'}
+                          {assignment.workout_sessions?.title || 'Loading...'}
                         </h4>
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           assignment.status === 'completed' 
@@ -174,11 +189,11 @@ const StudentDashboard = () => {
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">
-                        {assignment.session?.description || 'No description available'}
+                        {assignment.workout_sessions?.general_objective || 'No description available'}
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         <span className="text-xs text-gray-500">
-                          Assigned by: {assignment.coach?.email || 'Unknown Coach'}
+                          Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No due date'}
                         </span>
                         <span className="text-xs text-gray-500">
                           Assigned on: {new Date(assignment.created_at).toLocaleDateString()}
@@ -187,12 +202,12 @@ const StudentDashboard = () => {
                     </div>
                     
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleViewSession(assignment.session_id)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View Details
-                      </button>
+                                             <button
+                         onClick={() => handleViewSession(assignment)}
+                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                       >
+                         View Details
+                       </button>
                     </div>
                   </div>
                 </div>
@@ -203,89 +218,114 @@ const StudentDashboard = () => {
       </div>
 
       {/* Session Details Modal */}
+      {console.log('🔍 About to render modal. selectedSession:', selectedSession)}
       {selectedSession && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  {selectedSession.title}
-                </h3>
-                <button
-                  onClick={closeSessionDetails}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl p-6 mx-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            style={{ 
+              backgroundColor: 'white', 
+              zIndex: 9999 
+            }}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">
+                {selectedSession.title || 'Workout Session'}
+              </h3>
+              <button
+                onClick={closeSessionDetails}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold hover:bg-gray-100 p-2 rounded-full transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Objective Section */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 text-lg mb-2">🎯 Workout Objective</h4>
+                <p className="text-blue-800 text-base leading-relaxed">
+                  {selectedSession.general_objective || 'No objective available'}
+                </p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-900">Description</h4>
-                  <p className="text-gray-600">{selectedSession.description || 'No description available'}</p>
+              {/* Status Section */}
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h4 className="font-semibold text-green-900 text-lg mb-2">📊 Status</h4>
+                <div className="flex items-center">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    selectedSession.status === 'published' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedSession.status === 'published' ? '✅ Published' : '⏳ Draft'}
+                  </span>
                 </div>
+              </div>
 
-                {selectedSession.general_objective && (
-                  <div>
-                    <h4 className="font-medium text-gray-900">Objective</h4>
-                    <p className="text-gray-600">{selectedSession.general_objective}</p>
-                  </div>
-                )}
-
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Exercises</h4>
-                  {selectedSession.exercises && selectedSession.exercises.length > 0 ? (
-                    <div className="space-y-3">
-                      {selectedSession.exercises.map((exercise, index) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-3">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h5 className="font-medium text-gray-900">
-                                {exercise.exercise?.name || 'Exercise Name Not Available'}
-                              </h5>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-sm">
-                                <div>
-                                  <span className="text-gray-500">Sets:</span>
-                                  <span className="ml-1 font-medium">{exercise.sets}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Reps:</span>
-                                  <span className="ml-1 font-medium">{exercise.reps}</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Rest:</span>
-                                  <span className="ml-1 font-medium">{exercise.rest}s</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">RPE:</span>
-                                  <span className="ml-1 font-medium">{exercise.rpe}/10</span>
-                                </div>
-                              </div>
-                              {exercise.notes && (
-                                <p className="text-sm text-gray-600 mt-2">
-                                  <span className="font-medium">Notes:</span> {exercise.notes}
-                                </p>
-                              )}
-                            </div>
+              {/* Exercises Section */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-gray-900 text-lg mb-4">
+                  💪 Exercises ({selectedSession.exercises?.length || 0})
+                </h4>
+                {selectedSession.exercises && selectedSession.exercises.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedSession.exercises.map((exercise, index) => (
+                      <div key={index} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-semibold text-gray-900 text-lg">
+                            Exercise {index + 1}
+                          </h5>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">{exercise.sets || 0}</div>
+                            <div className="text-xs text-gray-600 uppercase tracking-wide">Sets</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600">{exercise.reps || 0}</div>
+                            <div className="text-xs text-gray-600 uppercase tracking-wide">Reps</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-orange-600">{exercise.rest || 0}s</div>
+                            <div className="text-xs text-gray-600 uppercase tracking-wide">Rest</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-600">{exercise.rpe || 0}/10</div>
+                            <div className="text-xs text-gray-600 uppercase tracking-wide">RPE</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">No exercises available for this session.</p>
-                  )}
-                </div>
+                        
+                        {exercise.notes && exercise.notes.trim() && (
+                          <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                            <p className="text-sm text-yellow-800">
+                              <span className="font-medium">📝 Notes:</span> {exercise.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 text-6xl mb-2">🏋️</div>
+                    <p className="text-gray-500 text-lg">No exercises available for this session.</p>
+                  </div>
+                )}
+              </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    onClick={closeSessionDetails}
-                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
+              {/* Close Button */}
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={closeSessionDetails}
+                  className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
+                >
+                  Close Workout Details
+                </button>
               </div>
             </div>
           </div>
