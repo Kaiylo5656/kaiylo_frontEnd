@@ -32,7 +32,8 @@ const Navigation = () => {
         ...baseItems,
         { name: 'Coach Dashboard', path: '/coach/dashboard' },
         { name: 'Exercise Management', path: '/coach/exercises' },
-        { name: 'Session Management', path: '/coach/sessions' }
+        { name: 'Session Management', path: '/coach/sessions' },
+        { name: 'Progress Analytics', path: '/coach/progress' }
       ];
     }
 

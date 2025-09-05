@@ -11,6 +11,7 @@ import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
 import Navigation from './components/Navigation';
 import LoadingSpinner from './components/LoadingSpinner';
 import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
+import CoachProgressDashboard from './pages/CoachProgressDashboard';
 
 import './App.css';
 
@@ -100,6 +101,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['coach']}>
                   <WorkoutAssignmentManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/coach/progress" 
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <CoachProgressDashboard />
                 </ProtectedRoute>
               } 
             />
