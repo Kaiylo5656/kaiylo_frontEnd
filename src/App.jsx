@@ -12,6 +12,7 @@ import Navigation from './components/Navigation';
 import LoadingSpinner from './components/LoadingSpinner';
 import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
 import CoachProgressDashboard from './pages/CoachProgressDashboard';
+import ChatPage from './pages/ChatPage';
 
 import './App.css';
 
@@ -145,6 +146,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <WorkoutSessionManagement />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Chat Route */}
+            <Route 
+              path="/chat" 
+              element={
+                <ProtectedRoute allowedRoles={['coach', 'student']}>
+                  <ChatPage />
                 </ProtectedRoute>
               } 
             />

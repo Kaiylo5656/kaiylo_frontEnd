@@ -365,3 +365,4 @@ const ProgressAnalytics = ({ userRole = 'student' }) => {
 };
 
 export default ProgressAnalytics;
+

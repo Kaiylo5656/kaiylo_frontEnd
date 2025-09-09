@@ -19,3 +19,4 @@ const CoachProgressDashboard = () => {
 };
 
 export default CoachProgressDashboard;
+
