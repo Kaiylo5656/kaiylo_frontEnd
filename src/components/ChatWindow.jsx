@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
+import FileUpload from './FileUpload';
+import FileMessage from './FileMessage';
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) => {
   const { getAuthToken } = useAuth();
@@ -11,6 +13,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -127,6 +131,42 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       setNewMessage(messageContent);
     } finally {
       setSending(false);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (file) => {
+    if (!conversation?.id || uploadingFile) return;
+
+    setUploadingFile(true);
+    setShowFileUpload(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversationId', conversation.id);
+      formData.append('content', ''); // Optional caption
+
+      const token = await getAuthToken();
+      const response = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ File uploaded successfully:', result);
+    } catch (error) {
+      console.error('❌ File upload failed:', error);
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -341,24 +381,31 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
               key={message.id}
               className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
             >
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.sender_id === currentUser?.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-900 border border-gray-200'
-                }`}
-              >
-                <div className="text-sm">{message.content}</div>
+              {message.message_type === 'file' ? (
+                <FileMessage 
+                  message={message} 
+                  isOwnMessage={message.sender_id === currentUser?.id}
+                />
+              ) : (
                 <div
-                  className={`text-xs mt-1 ${
+                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                     message.sender_id === currentUser?.id
-                      ? 'text-blue-100'
-                      : 'text-gray-500'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-900 border border-gray-200'
                   }`}
                 >
-                  {formatMessageTime(message.created_at)}
+                  <div className="text-sm">{message.content}</div>
+                  <div
+                    className={`text-xs mt-1 ${
+                      message.sender_id === currentUser?.id
+                        ? 'text-blue-100'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    {formatMessageTime(message.created_at)}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))
         )}
@@ -385,20 +432,41 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
         <div ref={messagesEndRef} />
       </div>
 
+      {/* File Upload */}
+      {showFileUpload && (
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <FileUpload
+            onFileSelect={(file) => console.log('File selected:', file)}
+            onUpload={handleFileUpload}
+            isUploading={uploadingFile}
+            disabled={sending || uploadingFile}
+          />
+        </div>
+      )}
+
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
         <form onSubmit={sendMessage} className="flex space-x-2">
+          <button
+            type="button"
+            onClick={() => setShowFileUpload(!showFileUpload)}
+            disabled={sending || uploadingFile}
+            className="bg-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Attach file"
+          >
+            📎
+          </button>
           <input
             type="text"
             value={newMessage}
             onChange={handleInputChange}
             placeholder="Type a message..."
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={sending}
+            disabled={sending || uploadingFile}
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || sending}
+            disabled={!newMessage.trim() || sending || uploadingFile}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {sending ? 'Sending...' : 'Send'}
