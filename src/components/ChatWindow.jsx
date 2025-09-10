@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import useSocket from '../hooks/useSocket';
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) => {
   const { getAuthToken } = useAuth();
+  const { socket, isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, startTyping, stopTyping, markMessagesAsRead } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
-  const wsRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
@@ -47,56 +51,178 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
 
+    const messageContent = newMessage.trim();
+    setNewMessage('');
+    setSending(true);
+
     try {
-      setSending(true);
-      const token = await getAuthToken();
-      const response = await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Stop typing indicator
+      stopTyping(conversation.id);
+      setIsTyping(false);
+
+      // Send via WebSocket if connected, otherwise fallback to HTTP
+      if (isConnected && socket) {
+        console.log('🔌 Sending message via WebSocket');
+        sendSocketMessage(conversation.id, messageContent);
+        
+        // Create optimistic message for immediate UI update
+        const optimisticMessage = {
+          id: `temp_${Date.now()}`,
+          content: messageContent,
+          sender_id: currentUser.id,
+          message_type: 'text',
+          created_at: new Date().toISOString(),
           conversationId: conversation.id,
-          content: newMessage.trim()
-        })
-      });
+          sender: {
+            id: currentUser.id,
+            email: currentUser.email
+          }
+        };
+        
+        setMessages(prev => [...prev, optimisticMessage]);
+        
+        // Notify parent component
+        if (onMessageSent) {
+          onMessageSent(conversation.id, optimisticMessage);
+        }
+      } else {
+        console.log('🔌 WebSocket not connected, using HTTP fallback');
+        
+        // Fallback to HTTP API
+        const token = await getAuthToken();
+        const response = await fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            conversationId: conversation.id,
+            content: messageContent
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+
+        const data = await response.json();
+        const sentMessage = data.data;
+        
+        // Add message to local state
+        setMessages(prev => [...prev, sentMessage]);
+        
+        // Notify parent component
+        if (onMessageSent) {
+          onMessageSent(conversation.id, sentMessage);
+        }
       }
-
-      const data = await response.json();
-      const sentMessage = data.data;
-      
-      // Add message to local state
-      setMessages(prev => [...prev, sentMessage]);
-      setNewMessage('');
-      
-      // Notify parent component
-      onMessageSent(conversation.id, sentMessage);
       
       // Scroll to bottom
       setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
+      // Restore message content on error
+      setNewMessage(messageContent);
     } finally {
       setSending(false);
     }
   };
 
-  // Setup WebSocket connection for real-time updates
+  // Handle WebSocket events
   useEffect(() => {
-    if (!conversation?.id) return;
+    if (!socket || !conversation?.id) return;
 
-    // For now, we'll use polling for real-time updates
-    // In a production app, you'd use WebSockets
-    const pollInterval = setInterval(() => {
-      fetchMessages();
-    }, 2000); // Poll every 2 seconds
+    // Join conversation room
+    joinConversation(conversation.id);
 
-    return () => clearInterval(pollInterval);
-  }, [conversation?.id]);
+    // Listen for new messages
+    const handleNewMessage = (messageData) => {
+      console.log('🔌 Received new message via WebSocket:', messageData);
+      
+      // Check if message already exists to prevent duplicates
+      setMessages(prev => {
+        // Check for exact ID match first
+        const exactMatch = prev.find(msg => msg.id === messageData.id);
+        if (exactMatch) {
+          console.log('🔌 Message with exact ID already exists, skipping duplicate');
+          return prev;
+        }
+        
+        // Check for temporary message that should be replaced
+        const tempMessageIndex = prev.findIndex(msg => 
+          msg.id?.startsWith('temp_') && 
+          msg.content === messageData.content && 
+          msg.sender_id === messageData.sender_id
+        );
+        
+        if (tempMessageIndex !== -1) {
+          console.log('🔌 Replacing temporary message with real message');
+          const newMessages = [...prev];
+          newMessages[tempMessageIndex] = messageData;
+          return newMessages;
+        }
+        
+        // Add new message if no duplicate found
+        return [...prev, messageData];
+      });
+      
+      // Notify parent component
+      if (onNewMessage) {
+        onNewMessage(conversation.id, messageData);
+      }
+      
+      // Mark messages as read if this is the current conversation
+      markMessagesAsRead(conversation.id);
+    };
+
+    // Listen for typing indicators
+    const handleUserTyping = (data) => {
+      if (data.userId !== currentUser?.id) {
+        setTypingUsers(prev => {
+          if (data.isTyping) {
+            return [...prev.filter(u => u.userId !== data.userId), data];
+          } else {
+            return prev.filter(u => u.userId !== data.userId);
+          }
+        });
+      }
+    };
+
+    // Listen for user join/leave events
+    const handleUserJoined = (data) => {
+      console.log('🔌 User joined conversation:', data);
+    };
+
+    const handleUserLeft = (data) => {
+      console.log('🔌 User left conversation:', data);
+    };
+
+    // Listen for messages read events
+    const handleMessagesRead = (data) => {
+      console.log('🔌 Messages marked as read by:', data);
+    };
+
+    // Register event listeners
+    socket.on('new_message', handleNewMessage);
+    socket.on('user_typing', handleUserTyping);
+    socket.on('user_joined', handleUserJoined);
+    socket.on('user_left', handleUserLeft);
+    socket.on('messages_read', handleMessagesRead);
+
+    // Cleanup function
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('user_typing', handleUserTyping);
+      socket.off('user_joined', handleUserJoined);
+      socket.off('user_left', handleUserLeft);
+      socket.off('messages_read', handleMessagesRead);
+      
+      // Leave conversation room
+      leaveConversation(conversation.id);
+    };
+  }, [socket, conversation?.id, currentUser?.id, joinConversation, leaveConversation, onNewMessage, markMessagesAsRead]);
 
   // Fetch messages when conversation changes
   useEffect(() => {
@@ -107,6 +233,43 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Handle typing indicators
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setNewMessage(value);
+
+    // Handle typing indicators
+    if (value.trim() && !isTyping) {
+      setIsTyping(true);
+      startTyping(conversation.id);
+    } else if (!value.trim() && isTyping) {
+      setIsTyping(false);
+      stopTyping(conversation.id);
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping) {
+        setIsTyping(false);
+        stopTyping(conversation.id);
+      }
+    }, 1000);
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Format timestamp for messages
   const formatMessageTime = (timestamp) => {
@@ -199,6 +362,26 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             </div>
           ))
         )}
+        
+        {/* Typing Indicators */}
+        {typingUsers.length > 0 && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 max-w-xs">
+              <div className="text-sm text-gray-600">
+                {typingUsers.length === 1 
+                  ? `${typingUsers[0].userEmail} is typing...`
+                  : `${typingUsers.length} people are typing...`
+                }
+              </div>
+              <div className="flex space-x-1 mt-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
 
@@ -208,7 +391,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Type a message..."
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={sending}

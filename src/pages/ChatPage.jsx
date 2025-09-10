@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
+import useSocket from '../hooks/useSocket';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ChatPage = () => {
   const { getAuthToken, user } = useAuth();
+  const { isConnected, connectionError } = useSocket();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -163,6 +165,24 @@ const ChatPage = () => {
     });
   };
 
+  // Handle conversation deletion
+  const handleDeleteConversation = (conversationId) => {
+    console.log('🔍 ChatPage: Handling conversation deletion for ID:', conversationId);
+    
+    // Remove the conversation from the list
+    setConversations(prev => {
+      const updated = prev.filter(conv => conv.id !== conversationId);
+      console.log('🔍 ChatPage: Updated conversations after deletion:', updated.length);
+      return updated;
+    });
+    
+    // If the deleted conversation was selected, clear the selection
+    if (selectedConversation?.id === conversationId) {
+      console.log('🔍 ChatPage: Clearing selected conversation');
+      setSelectedConversation(null);
+    }
+  };
+
   useEffect(() => {
     fetchConversations();
   }, []);
@@ -196,10 +216,33 @@ const ChatPage = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
-          <p className="mt-2 text-gray-600">
-            Chat with your {user?.role === 'coach' ? 'students' : 'coach'}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+              <p className="mt-2 text-gray-600">
+                Chat with your {user?.role === 'coach' ? 'students' : 'coach'}
+              </p>
+            </div>
+            
+            {/* Connection Status Indicator */}
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className={`text-sm font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isConnected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+          </div>
+          
+          {/* Connection Error Message */}
+          {connectionError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <div className="text-red-600 text-sm">
+                  <strong>Connection Error:</strong> {connectionError}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -212,6 +255,7 @@ const ChatPage = () => {
                 onSelectConversation={handleSelectConversation}
                 onCreateConversation={createConversation}
                 currentUser={user}
+                onDeleteConversation={handleDeleteConversation}
               />
             </div>
 

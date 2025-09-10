@@ -6,12 +6,16 @@ const ChatList = ({
   selectedConversation, 
   onSelectConversation, 
   onCreateConversation, 
-  currentUser 
+  currentUser,
+  onDeleteConversation // New prop for handling deletion
 }) => {
   const { getAuthToken } = useAuth();
   const [availableUsers, setAvailableUsers] = useState([]);
   const [showUserList, setShowUserList] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch available users to chat with
   const fetchAvailableUsers = async () => {
@@ -52,18 +56,24 @@ const ChatList = ({
     }
   };
 
-  // Delete conversation function
-  const handleDeleteConversation = async (conversationId, event) => {
+  // Show delete confirmation modal
+  const handleDeleteClick = (conversationId, event) => {
     event.stopPropagation(); // Prevent triggering the conversation selection
-    
-    const confirmed = window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.');
-    if (!confirmed) return;
+    const conversation = conversations.find(c => c.id === conversationId);
+    setConversationToDelete(conversation);
+    setShowDeleteModal(true);
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!conversationToDelete) return;
 
     try {
+      setDeleting(true);
       console.log('🔍 Starting delete conversation process...');
-      console.log('🔍 Conversation ID:', conversationId);
+      console.log('🔍 Conversation ID:', conversationToDelete.id);
       
-      const token = getAuthToken();
+      const token = await getAuthToken();
       console.log('🔍 Token obtained:', token ? 'Token found' : 'No token');
       
       if (!token) {
@@ -72,7 +82,7 @@ const ChatList = ({
         return;
       }
 
-      const response = await fetch(`/api/chat/conversations/${conversationId}`, {
+      const response = await fetch(`/api/chat/conversations/${conversationToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,8 +95,15 @@ const ChatList = ({
 
       if (response.ok) {
         console.log('✅ Conversation deleted successfully');
-        // Refresh the conversations list
-        window.location.reload(); // Simple refresh for now
+        
+        // Call the parent component's delete handler
+        if (onDeleteConversation) {
+          onDeleteConversation(conversationToDelete.id);
+        }
+        
+        // Close modal and reset state
+        setShowDeleteModal(false);
+        setConversationToDelete(null);
       } else {
         const errorData = await response.json();
         console.error('❌ Error deleting conversation:', errorData);
@@ -95,7 +112,15 @@ const ChatList = ({
     } catch (error) {
       console.error('❌ Error deleting conversation:', error);
       alert('Failed to delete conversation. Please try again.');
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  // Handle delete cancellation
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setConversationToDelete(null);
   };
 
   // Format last message preview
@@ -157,6 +182,30 @@ const ChatList = ({
       fetchAvailableUsers();
     }
   }, [showUserList]);
+
+  // Handle keyboard events for the modal
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (showDeleteModal) {
+        if (event.key === 'Escape') {
+          handleDeleteCancel();
+        } else if (event.key === 'Enter' && !deleting) {
+          handleDeleteConfirm();
+        }
+      }
+    };
+
+    if (showDeleteModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [showDeleteModal, deleting]);
 
   return (
     <div className="h-full flex flex-col">
@@ -262,7 +311,7 @@ const ChatList = ({
                 
                 {/* Delete Button - Well Positioned */}
                 <button
-                  onClick={(e) => handleDeleteConversation(conversation.id, e)}
+                  onClick={(e) => handleDeleteClick(conversation.id, e)}
                   className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all duration-200 z-10"
                   title="Delete conversation"
                   style={{ 
@@ -280,6 +329,70 @@ const ChatList = ({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={handleDeleteCancel}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Delete Conversation</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700">
+                Are you sure you want to delete the conversation with{' '}
+                <span className="font-medium">
+                  {conversationToDelete ? getUserDisplayName(conversationToDelete) : 'this user'}
+                </span>?
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                All messages in this conversation will be permanently deleted.
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
+              >
+                {deleting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
