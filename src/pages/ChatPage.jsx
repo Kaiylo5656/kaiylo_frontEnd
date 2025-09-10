@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
 import useSocket from '../hooks/useSocket';
+import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ChatPage = () => {
@@ -17,7 +18,7 @@ const ChatPage = () => {
   const fetchConversations = async () => {
     try {
       const token = await getAuthToken();
-      const response = await fetch('/api/chat/conversations', {
+      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -68,7 +69,7 @@ const ChatPage = () => {
       const token = await getAuthToken();
       console.log('🔍 Frontend token exists:', !!token);
       
-      const response = await fetch('/api/chat/conversations', {
+      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

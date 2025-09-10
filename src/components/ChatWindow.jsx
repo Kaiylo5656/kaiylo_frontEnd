@@ -3,6 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileUpload from './FileUpload';
 import FileMessage from './FileMessage';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card, CardContent } from './ui/card';
+import { buildApiUrl } from '../config/api';
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) => {
   const { getAuthToken } = useAuth();
@@ -30,7 +34,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const response = await fetch(`/api/chat/conversations/${conversation.id}/messages`, {
+      const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/messages`), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -94,7 +98,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
         
         // Fallback to HTTP API
         const token = await getAuthToken();
-        const response = await fetch('/api/chat/messages', {
+        const response = await fetch(buildApiUrl('/api/chat/messages'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -148,7 +152,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       formData.append('content', ''); // Optional caption
 
       const token = await getAuthToken();
-      const response = await fetch('/api/chat/messages', {
+      const response = await fetch(buildApiUrl('/api/chat/messages'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -387,24 +391,26 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
                   isOwnMessage={message.sender_id === currentUser?.id}
                 />
               ) : (
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                <Card
+                  className={`max-w-xs lg:max-w-md ${
                     message.sender_id === currentUser?.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-900 border border-gray-200'
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-card text-card-foreground'
                   }`}
                 >
-                  <div className="text-sm">{message.content}</div>
-                  <div
-                    className={`text-xs mt-1 ${
-                      message.sender_id === currentUser?.id
-                        ? 'text-blue-100'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    {formatMessageTime(message.created_at)}
-                  </div>
-                </div>
+                  <CardContent className="p-3">
+                    <div className="text-sm">{message.content}</div>
+                    <div
+                      className={`text-xs mt-1 ${
+                        message.sender_id === currentUser?.id
+                          ? 'text-primary-foreground/70'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {formatMessageTime(message.created_at)}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           ))
@@ -413,19 +419,21 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
         {/* Typing Indicators */}
         {typingUsers.length > 0 && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 max-w-xs">
-              <div className="text-sm text-gray-600">
-                {typingUsers.length === 1 
-                  ? `${typingUsers[0].userEmail} is typing...`
-                  : `${typingUsers.length} people are typing...`
-                }
-              </div>
-              <div className="flex space-x-1 mt-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
+            <Card className="max-w-xs">
+              <CardContent className="p-3">
+                <div className="text-sm text-muted-foreground">
+                  {typingUsers.length === 1 
+                    ? `${typingUsers[0].userEmail} is typing...`
+                    : `${typingUsers.length} people are typing...`
+                  }
+                </div>
+                <div className="flex space-x-1 mt-1">
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
         
@@ -447,30 +455,30 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
         <form onSubmit={sendMessage} className="flex space-x-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => setShowFileUpload(!showFileUpload)}
             disabled={sending || uploadingFile}
-            className="bg-gray-200 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Attach file"
           >
             📎
-          </button>
-          <input
+          </Button>
+          <Input
             type="text"
             value={newMessage}
             onChange={handleInputChange}
             placeholder="Type a message..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1"
             disabled={sending || uploadingFile}
           />
-          <button
+          <Button
             type="submit"
             disabled={!newMessage.trim() || sending || uploadingFile}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {sending ? 'Sending...' : 'Send'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

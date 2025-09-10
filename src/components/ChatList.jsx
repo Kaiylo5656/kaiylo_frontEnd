@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/button';
+import { Card, CardContent } from './ui/card';
+import { buildApiUrl } from '../config/api';
 
 const ChatList = ({ 
   conversations, 
@@ -28,7 +31,7 @@ const ChatList = ({
         ? '/api/coach/students' 
         : '/api/coach'; // This would need to be implemented to get the student's coach
       
-      const response = await fetch(endpoint, {
+      const response = await fetch(buildApiUrl(endpoint), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -82,7 +85,7 @@ const ChatList = ({
         return;
       }
 
-      const response = await fetch(`/api/chat/conversations/${conversationToDelete.id}`, {
+      const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversationToDelete.id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -213,12 +216,12 @@ const ChatList = ({
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Conversations</h2>
-          <button
+          <Button
             onClick={() => setShowUserList(!showUserList)}
-            className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            size="sm"
           >
             New Chat
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -269,22 +272,22 @@ const ChatList = ({
             <div className="text-xs mt-1">Start a new chat to begin messaging</div>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="space-y-2 p-2">
             {conversations.map((conversation) => (
-              <div
+              <Card
                 key={conversation.id}
-                className={`relative group hover:bg-gray-50 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-blue-50 border-r-2 border-blue-600' : ''
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedConversation?.id === conversation.id 
+                    ? 'ring-2 ring-primary bg-primary/5' 
+                    : 'hover:bg-muted/50'
                 }`}
+                onClick={() => onSelectConversation(conversation)}
               >
-                <button
-                  onClick={() => onSelectConversation(conversation)}
-                  className="w-full text-left p-4"
-                >
+                <CardContent className="p-4">
                   <div className="flex items-start space-x-3">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
                         {getUserDisplayName(conversation).charAt(0).toUpperCase()}
                       </div>
                     </div>
@@ -292,39 +295,36 @@ const ChatList = ({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-foreground truncate">
                           {getUserDisplayName(conversation)}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           {formatTimestamp(conversation.last_message_at)}
                         </div>
                       </div>
                       
                       <div className="mt-1">
-                        <div className="text-sm text-gray-600 truncate">
+                        <div className="text-sm text-muted-foreground truncate">
                           {formatLastMessage(conversation.last_message)}
                         </div>
                       </div>
                     </div>
                   </div>
-                </button>
+                </CardContent>
                 
                 {/* Delete Button - Well Positioned */}
-                <button
+                <Button
+                  variant="destructive"
+                  size="icon"
                   onClick={(e) => handleDeleteClick(conversation.id, e)}
-                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all duration-200 z-10"
+                  className="absolute top-2 right-2 w-8 h-8 z-10"
                   title="Delete conversation"
-                  style={{ 
-                    backgroundColor: '#ef4444',
-                    border: '2px solid white',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                  }}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                </button>
-              </div>
+                </Button>
+              </Card>
             ))}
           </div>
         )}

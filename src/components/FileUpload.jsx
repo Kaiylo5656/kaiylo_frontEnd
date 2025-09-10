@@ -1,5 +1,6 @@
 // frontend/src/components/FileUpload.jsx
 import React, { useState, useRef } from 'react';
+import { Button } from './ui/button';
 
 const FileUpload = ({ onFileSelect, onUpload, isUploading = false, disabled = false }) => {
   const [dragActive, setDragActive] = useState(false);
@@ -165,22 +166,21 @@ const FileUpload = ({ onFileSelect, onUpload, isUploading = false, disabled = fa
           )}
           
           <div className="file-actions">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={clearFile}
               disabled={isUploading}
-              className="btn-secondary"
             >
               Remove
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleUpload}
               disabled={isUploading}
-              className="btn-primary"
             >
               {isUploading ? 'Uploading...' : 'Send File'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
