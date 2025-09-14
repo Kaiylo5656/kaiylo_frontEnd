@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
-import { getSocketBaseUrl } from '../config/api';
+import { getSocketBaseUrl, connectionManager } from '../config/api';
 
 const useSocket = () => {
   const { getAuthToken, user } = useAuth();
@@ -16,6 +16,9 @@ const useSocket = () => {
   useEffect(() => {
     if (!user) return;
 
+    // Initialize connection manager first
+    connectionManager.initialize();
+
     const initializeSocket = async () => {
       try {
         const token = await getAuthToken();
@@ -25,29 +28,34 @@ const useSocket = () => {
         }
 
         console.log('🔌 Initializing WebSocket connection...');
-        const socketUrl = getSocketBaseUrl();
+        const socketUrl = connectionManager.getSocketUrl() || getSocketBaseUrl();
         console.log('🔌 Socket URL:', socketUrl);
 
         const newSocket = io(socketUrl, {
           auth: {
             token: token
           },
-          transports: ['polling', 'websocket'], // Try polling first, then websocket
-          timeout: 45000,
+          transports: ['polling'], // Use polling only to avoid upgrade issues
+          timeout: 30000, // Reduced timeout for faster failure detection
           forceNew: true,
           reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          maxReconnectionAttempts: 5,
+          reconnectionDelay: 3000, // Increased delay
+          reconnectionDelayMax: 15000, // Increased max delay
+          maxReconnectionAttempts: 15, // More attempts
           autoConnect: true,
-          upgrade: true,
-          rememberUpgrade: false
+          upgrade: false, // Disable upgrade to prevent transport errors
+          rememberUpgrade: false,
+          // Add ping/pong settings for better connection monitoring
+          pingTimeout: 120000,
+          pingInterval: 30000
         });
 
         // Connection event handlers
         newSocket.on('connect', () => {
           console.log('✅ WebSocket connected:', newSocket.id);
           console.log('🔌 Transport used:', newSocket.io.engine.transport.name);
+          console.log('🔌 Connection state:', newSocket.connected);
+          console.log('🔌 Engine state:', newSocket.io.engine.readyState);
           setIsConnected(true);
           setConnectionError(null);
           reconnectAttempts.current = 0;
@@ -55,11 +63,12 @@ const useSocket = () => {
 
         newSocket.on('disconnect', (reason) => {
           console.log('❌ WebSocket disconnected:', reason);
+          console.log('❌ Disconnect reason type:', typeof reason);
           setIsConnected(false);
           
           // Attempt to reconnect if not a manual disconnect
           if (reason !== 'io client disconnect' && reconnectAttempts.current < maxReconnectAttempts) {
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+            const delay = Math.min(2000 * Math.pow(1.5, reconnectAttempts.current), 20000);
             console.log(`🔄 Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
             
             reconnectTimeoutRef.current = setTimeout(() => {
@@ -69,10 +78,27 @@ const useSocket = () => {
           }
         });
 
+        // Add specific handler for transport errors
+        newSocket.io.engine.on('upgradeError', (error) => {
+          console.error('❌ Transport upgrade error:', error);
+          console.log('🔄 Will continue with polling transport');
+        });
+
+        newSocket.io.engine.on('error', (error) => {
+          console.error('❌ Engine error:', error);
+        });
+
         newSocket.on('connect_error', (error) => {
           console.error('❌ WebSocket connection error:', error);
+          console.error('❌ Error type:', error.type);
+          console.error('❌ Error description:', error.description);
           setConnectionError(error.message);
           setIsConnected(false);
+          
+          // Handle specific transport errors
+          if (error.type === 'TransportError' || error.message.includes('probe error') || error.message.includes('socket closed')) {
+            console.log('🔄 Transport error detected, will retry with different configuration');
+          }
           
           // If we're trying to connect to network IP and it fails, try localhost as fallback
           const currentUrl = getSocketBaseUrl();
@@ -83,16 +109,18 @@ const useSocket = () => {
               // Temporarily override the URL to use localhost
               const fallbackSocket = io('http://localhost:3001', {
                 auth: { token: token },
-                transports: ['polling', 'websocket'],
-                timeout: 45000,
+                transports: ['polling'], // Use polling only for fallback too
+                timeout: 30000,
                 forceNew: true,
                 reconnection: true,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                maxReconnectionAttempts: 5,
+                reconnectionDelay: 3000,
+                reconnectionDelayMax: 15000,
+                maxReconnectionAttempts: 10,
                 autoConnect: true,
-                upgrade: true,
-                rememberUpgrade: false
+                upgrade: false, // Disable upgrade for fallback too
+                rememberUpgrade: false,
+                pingTimeout: 120000,
+                pingInterval: 30000
               });
               
               // Copy all event handlers to the fallback socket
@@ -176,7 +204,19 @@ const useSocket = () => {
     initializeSocket();
 
     // Cleanup function
+    // Listen for connection changes
+    const handleConnectionChange = ({ apiUrl, socketUrl }) => {
+      console.log('🔄 Connection changed, reinitializing socket...', { apiUrl, socketUrl });
+      if (socket) {
+        socket.disconnect();
+      }
+      initializeSocket();
+    };
+
+    connectionManager.addListener(handleConnectionChange);
+
     return () => {
+      connectionManager.removeListener(handleConnectionChange);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -202,13 +242,14 @@ const useSocket = () => {
     }
   };
 
-  const sendMessage = (conversationId, content, messageType = 'text') => {
+  const sendMessage = (conversationId, content, messageType = 'text', replyToMessageId = null) => {
     if (socket && isConnected) {
       console.log(`🔌 Sending message via WebSocket to conversation: ${conversationId}`);
       socket.emit('send_message', {
         conversationId,
         content,
-        messageType
+        messageType,
+        replyToMessageId
       });
     }
   };

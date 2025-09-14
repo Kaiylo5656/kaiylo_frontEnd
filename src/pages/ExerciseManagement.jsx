@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ExerciseManagement = () => {
@@ -41,7 +42,7 @@ const ExerciseManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/exercises', {
+      const response = await fetch(`${getApiBaseUrlWithApi()}/exercises`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -111,8 +112,8 @@ const ExerciseManagement = () => {
     
     try {
       const url = editingExercise 
-        ? `http://localhost:3001/api/exercises/${editingExercise.id}`
-        : 'http://localhost:3001/api/exercises';
+        ? `${getApiBaseUrlWithApi()}/exercises/${editingExercise.id}`
+        : `${getApiBaseUrlWithApi()}/exercises`;
       
       const method = editingExercise ? 'PATCH' : 'POST';
       
@@ -169,7 +170,7 @@ const ExerciseManagement = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:3001/api/exercises/${exerciseId}`, {
+      const response = await fetch(`${getApiBaseUrlWithApi()}/exercises/${exerciseId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

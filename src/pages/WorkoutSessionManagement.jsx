@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const WorkoutSessionManagement = () => {
@@ -29,7 +30,7 @@ const WorkoutSessionManagement = () => {
       const token = getAuthToken();
       
       // Fetch sessions
-      const sessionsResponse = await fetch('http://localhost:3001/api/workout-sessions', {
+      const sessionsResponse = await fetch(`${getApiBaseUrlWithApi()}/workout-sessions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -37,7 +38,7 @@ const WorkoutSessionManagement = () => {
       });
       
       // Fetch exercises
-      const exercisesResponse = await fetch('http://localhost:3001/api/exercises', {
+      const exercisesResponse = await fetch(`${getApiBaseUrlWithApi()}/exercises`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -116,8 +117,8 @@ const WorkoutSessionManagement = () => {
     
     try {
       const url = editingSession 
-        ? `http://localhost:3001/api/workout-sessions/${editingSession.id}`
-        : 'http://localhost:3001/api/workout-sessions';
+        ? `${getApiBaseUrlWithApi()}/workout-sessions/${editingSession.id}`
+        : `${getApiBaseUrlWithApi()}/workout-sessions`;
       
       const method = editingSession ? 'PATCH' : 'POST';
       
@@ -173,7 +174,7 @@ const WorkoutSessionManagement = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`http://localhost:3001/api/workout-sessions/${sessionId}`, {
+      const response = await fetch(`${getApiBaseUrlWithApi()}/workout-sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -195,7 +196,7 @@ const WorkoutSessionManagement = () => {
   const handlePublish = async (sessionId) => {
     try {
       const token = getAuthToken();
-      const response = await fetch(`http://localhost:3001/api/workout-sessions/${sessionId}/publish`, {
+      const response = await fetch(`${getApiBaseUrlWithApi()}/workout-sessions/${sessionId}/publish`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

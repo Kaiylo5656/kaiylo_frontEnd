@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
 const RegisterPage = () => {
@@ -9,7 +10,7 @@ const RegisterPage = () => {
   const [invitationData, setInvitationData] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
   const { register: registerUser } = useAuth();
-  const API_BASE_URL = 'http://localhost:3001/api';
+  const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invitationCode = searchParams.get('code');
@@ -37,7 +38,7 @@ const RegisterPage = () => {
   // Validate invitation code
   const validateInvitationCode = async (code) => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/invitations/validate/${code}`);
+      const response = await axios.get(`${API_BASE_URL}/invitations/validate/${code}`);
       if (response.data.success) {
         setInvitationData(response.data.data);
         setValue('email', response.data.data.student_email);

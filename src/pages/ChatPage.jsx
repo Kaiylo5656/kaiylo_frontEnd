@@ -13,6 +13,7 @@ const ChatPage = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showChatList, setShowChatList] = useState(true); // Mobile: show chat list by default
 
   // Fetch user's conversations
   const fetchConversations = async () => {
@@ -118,6 +119,10 @@ const ChatPage = () => {
   // Handle conversation selection
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
+    // On mobile, hide chat list when conversation is selected
+    if (window.innerWidth < 768) {
+      setShowChatList(false);
+    }
   };
 
   // Handle new message (for real-time updates)
@@ -215,7 +220,44 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between">
+          {selectedConversation && !showChatList ? (
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowChatList(true)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {selectedConversation.other_participant_name}
+                </h1>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">Messages</h1>
+              <p className="text-sm text-gray-600">
+                Chat with your {user?.role === 'coach' ? 'students' : 'coach'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -245,9 +287,22 @@ const ChatPage = () => {
             </div>
           )}
         </div>
+      </div>
 
+      {/* Connection Error Message - Mobile */}
+      {connectionError && (
+        <div className="md:hidden mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="text-red-600 text-sm">
+            <strong>Connection Error:</strong> {connectionError}
+          </div>
+        </div>
+      )}
+
+      {/* Chat Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex h-[600px]">
+          {/* Desktop Layout */}
+          <div className="hidden md:flex h-[600px]">
             {/* Chat List Sidebar */}
             <div className="w-1/3 border-r border-gray-200">
               <ChatList 
@@ -279,6 +334,35 @@ const ChatPage = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Mobile Layout */}
+          <div className="md:hidden h-[calc(100vh-200px)]">
+            {showChatList ? (
+              <ChatList 
+                conversations={conversations}
+                selectedConversation={selectedConversation}
+                onSelectConversation={handleSelectConversation}
+                onCreateConversation={createConversation}
+                currentUser={user}
+                onDeleteConversation={handleDeleteConversation}
+              />
+            ) : selectedConversation ? (
+              <ChatWindow 
+                conversation={selectedConversation}
+                currentUser={user}
+                onNewMessage={handleNewMessage}
+                onMessageSent={handleMessageSent}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-2xl mb-2">💬</div>
+                  <div className="text-lg font-medium mb-1">Select a conversation</div>
+                  <div className="text-sm">Choose a conversation from the list to start chatting</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

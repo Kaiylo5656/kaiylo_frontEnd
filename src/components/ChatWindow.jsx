@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileUpload from './FileUpload';
 import FileMessage from './FileMessage';
+import ReplyMessage from './ReplyMessage';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
@@ -19,8 +20,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   const [isTyping, setIsTyping] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [connectionQuality, setConnectionQuality] = useState('good');
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const messageRefs = useRef({});
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
@@ -47,6 +52,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
       const data = await response.json();
       setMessages(data.data || []);
+      // Clear old message refs when fetching new messages
+      messageRefs.current = {};
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
@@ -60,7 +67,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     if (!newMessage.trim() || sending) return;
 
     const messageContent = newMessage.trim();
+    const replyToMessageId = replyingTo?.id || null;
+    
+    // Clear input and reply state immediately for better UX
     setNewMessage('');
+    setReplyingTo(null);
     setSending(true);
 
     try {
@@ -71,7 +82,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       // Send via WebSocket if connected, otherwise fallback to HTTP
       if (isConnected && socket) {
         console.log('🔌 Sending message via WebSocket');
-        sendSocketMessage(conversation.id, messageContent);
+        sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
         
         // Create optimistic message for immediate UI update
         const optimisticMessage = {
@@ -79,6 +90,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
           content: messageContent,
           sender_id: currentUser.id,
           message_type: 'text',
+          reply_to_message_id: replyToMessageId,
           created_at: new Date().toISOString(),
           conversationId: conversation.id,
           sender: {
@@ -86,6 +98,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             email: currentUser.email
           }
         };
+
+        // Add reply information if this is a reply
+        if (replyToMessageId && replyingTo) {
+          optimisticMessage.replyTo = {
+            id: replyingTo.id,
+            content: replyingTo.content,
+            sender_id: replyingTo.sender_id,
+            message_type: replyingTo.message_type,
+            file_name: replyingTo.file_name
+          };
+        }
         
         setMessages(prev => [...prev, optimisticMessage]);
         
@@ -183,6 +206,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
     // Listen for new messages
     const handleNewMessage = (messageData) => {
+      const receiveTime = Date.now();
       console.log('🔌 Received new message via WebSocket:', messageData);
       
       // Check if message already exists to prevent duplicates
@@ -219,6 +243,10 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       
       // Mark messages as read if this is the current conversation
       markMessagesAsRead(conversation.id);
+      
+      // Log processing time
+      const processingTime = Date.now() - receiveTime;
+      console.log(`⚡ Message processed in ${processingTime}ms`);
     };
 
     // Listen for typing indicators
@@ -340,6 +368,49 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     return `User ${userId.substring(0, 8)}`;
   };
 
+  // Handle reply to message
+  const handleReplyToMessage = (message) => {
+    setReplyingTo(message);
+    // Focus on the input field
+    const inputElement = document.querySelector('input[type="text"]');
+    if (inputElement) {
+      inputElement.focus();
+    }
+  };
+
+  // Cancel reply
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  // Handle clicking on a reply to navigate to the original message
+  const handleReplyClick = (messageId) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      // Scroll to the message
+      messageElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      
+      // Highlight the message temporarily
+      setHighlightedMessageId(messageId);
+      
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 3000);
+    } else {
+      console.warn(`Message with ID ${messageId} not found in current view`);
+      // If message is not in current view, we might need to load more messages
+      // For now, just show a notification
+      console.log('Message not found in current view. Try scrolling up to load more messages.');
+      
+      // You could implement a toast notification here instead of console.log
+      // For now, we'll just log it to avoid interrupting the user experience
+    }
+  };
+
   if (!conversation) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
@@ -354,8 +425,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
   return (
     <div className="h-full flex flex-col">
-      {/* Chat Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
+      {/* Chat Header - Hidden on mobile (shown in page header) */}
+      <div className="hidden md:block p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
             {getUserDisplayName(conversation.other_participant_id).charAt(0).toUpperCase()}
@@ -364,13 +435,27 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             <div className="font-medium text-gray-900">
               {getUserDisplayName(conversation.other_participant_id)}
             </div>
-            <div className="text-sm text-gray-500">Online</div>
+            <div className="text-sm text-gray-500">
+              {isConnected ? (
+                <span className="flex items-center space-x-1">
+                  <span>🟢 Online</span>
+                  <span className={`text-xs ${
+                    connectionQuality === 'good' ? 'text-green-600' : 
+                    connectionQuality === 'slow' ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    ({connectionQuality})
+                  </span>
+                </span>
+              ) : (
+                '🔴 Offline'
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-gray-50">
         {loading ? (
           <div className="text-center text-gray-500">Loading messages...</div>
         ) : messages.length === 0 ? (
@@ -383,35 +468,64 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+              ref={(el) => {
+                if (el) {
+                  messageRefs.current[message.id] = el;
+                }
+              }}
+              className={`message-container flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} ${
+                highlightedMessageId === message.id ? 'message-highlighted' : ''
+              }`}
             >
-              {message.message_type === 'file' ? (
-                <FileMessage 
-                  message={message} 
-                  isOwnMessage={message.sender_id === currentUser?.id}
-                />
-              ) : (
-                <Card
-                  className={`max-w-xs lg:max-w-md ${
-                    message.sender_id === currentUser?.id
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-card text-card-foreground'
-                  }`}
-                >
-                  <CardContent className="p-3">
-                    <div className="text-sm">{message.content}</div>
-                    <div
-                      className={`text-xs mt-1 ${
-                        message.sender_id === currentUser?.id
-                          ? 'text-primary-foreground/70'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {formatMessageTime(message.created_at)}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <div className="relative group">
+                {/* Reply indicator */}
+                {message.replyTo && (
+                  <ReplyMessage 
+                    replyTo={message.replyTo} 
+                    isOwnMessage={message.sender_id === currentUser?.id}
+                    onReplyClick={handleReplyClick}
+                  />
+                )}
+                
+                {message.message_type === 'file' ? (
+                  <FileMessage 
+                    message={message} 
+                    isOwnMessage={message.sender_id === currentUser?.id}
+                  />
+                ) : (
+                  <Card
+                    className={`max-w-[85%] sm:max-w-xs lg:max-w-md ${
+                      message.sender_id === currentUser?.id
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-card text-card-foreground'
+                    }`}
+                  >
+                    <CardContent className="p-3">
+                      <div className="text-sm">{message.content}</div>
+                      <div
+                        className={`text-xs mt-1 ${
+                          message.sender_id === currentUser?.id
+                            ? 'text-primary-foreground/70'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {formatMessageTime(message.created_at)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {/* Reply button - only show for other users' messages */}
+                {message.sender_id !== currentUser?.id && (
+                  <button
+                    className="reply-button"
+                    onClick={() => handleReplyToMessage(message)}
+                    title="Reply to this message"
+                  >
+                    ↩️ Reply
+                  </button>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -452,9 +566,33 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
         </div>
       )}
 
+      {/* Reply Indicator */}
+      {replyingTo && (
+        <div className="p-2 md:p-4 border-t border-gray-200 bg-blue-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-blue-600">↩️ Replying to:</span>
+              <div className="text-sm text-gray-700 max-w-xs truncate">
+                {replyingTo.message_type === 'file' 
+                  ? `📎 ${replyingTo.file_name || 'File'}`
+                  : replyingTo.content
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={cancelReply}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              ✕ Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
-      <div className="p-4 border-t border-gray-200 bg-white">
-        <form onSubmit={sendMessage} className="flex space-x-2">
+      <div className="p-2 md:p-4 border-t border-gray-200 bg-white">
+        <form onSubmit={sendMessage} className="flex space-x-1 md:space-x-2">
           <Button
             type="button"
             variant="outline"
@@ -462,6 +600,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             onClick={() => setShowFileUpload(!showFileUpload)}
             disabled={sending || uploadingFile}
             title="Attach file"
+            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0"
           >
             📎
           </Button>
@@ -470,12 +609,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             value={newMessage}
             onChange={handleInputChange}
             placeholder="Type a message..."
-            className="flex-1"
+            className="flex-1 text-sm md:text-base"
             disabled={sending || uploadingFile}
           />
           <Button
             type="submit"
             disabled={!newMessage.trim() || sending || uploadingFile}
+            className="px-3 md:px-4 text-sm md:text-base flex-shrink-0"
           >
             {sending ? 'Sending...' : 'Send'}
           </Button>

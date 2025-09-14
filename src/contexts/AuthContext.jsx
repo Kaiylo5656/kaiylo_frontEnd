@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 
 // Create the authentication context
 const AuthContext = createContext();
@@ -20,8 +21,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // API base URL - adjust this to match your backend
-  const API_BASE_URL = 'http://localhost:3001/api';
+  // Get API base URL dynamically
+  const API_BASE_URL = getApiBaseUrlWithApi();
+  console.log('🔧 AuthContext using API_BASE_URL:', API_BASE_URL);
 
   // Check if user is already logged in on app start
   useEffect(() => {
@@ -39,7 +41,7 @@ export const AuthProvider = ({ children }) => {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Try to get user info from backend
-        const response = await axios.get(`${API_BASE_URL}/auth/me`);
+        const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`);
         setUser(response.data.user);
       }
     } catch (error) {
@@ -58,10 +60,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      const loginUrl = `${getApiBaseUrlWithApi()}/auth/login`;
+      console.log('🔐 Login attempt to URL:', loginUrl);
+      console.log('🔐 Login data:', { email, password: password ? '[PROVIDED]' : '[MISSING]' });
+      
+      const response = await axios.post(loginUrl, {
         email,
         password
       });
+
+      console.log('🔐 Login response status:', response.status);
+      console.log('🔐 Login response data:', response.data);
 
       const { token, user } = response.data;
       
@@ -91,6 +100,9 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true };
     } catch (error) {
+      console.error('🔐 Login error:', error);
+      console.error('🔐 Error response:', error.response);
+      console.error('🔐 Error message:', error.message);
       const errorMessage = error.response?.data?.message || 'Login failed';
       setError(errorMessage);
       return { success: false, error: errorMessage };
@@ -109,14 +121,14 @@ export const AuthProvider = ({ children }) => {
       
       if (userData.role === 'student' && userData.invitationCode) {
         // Student registration with invitation
-        response = await axios.post(`${API_BASE_URL}/invitations/accept`, {
+        response = await axios.post(`${getApiBaseUrlWithApi()}/invitations/accept`, {
           invitationCode: userData.invitationCode,
           name: userData.name,
           password: userData.password
         });
       } else if (userData.role === 'coach') {
         // Coach registration (direct)
-        response = await axios.post(`${API_BASE_URL}/auth/register`, {
+        response = await axios.post(`${getApiBaseUrlWithApi()}/auth/register`, {
           name: userData.name,
           email: userData.email,
           password: userData.password,
@@ -185,7 +197,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.put(`${API_BASE_URL}/auth/profile`, userData);
+      const response = await axios.put(`${getApiBaseUrlWithApi()}/auth/profile`, userData);
       
       // Update user state with new data
       setUser(response.data.user);

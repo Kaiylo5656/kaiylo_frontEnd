@@ -13,6 +13,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
 import CoachProgressDashboard from './pages/CoachProgressDashboard';
 import ChatPage from './pages/ChatPage';
+import ConnectionStatus from './components/ConnectionStatus';
 
 import './App.css';
 
@@ -165,6 +166,7 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
+        <ConnectionStatus />
       </Router>
     </AuthProvider>
   );

@@ -213,12 +213,13 @@ const ChatList = ({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-3 md:p-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Conversations</h2>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">Conversations</h2>
           <Button
             onClick={() => setShowUserList(!showUserList)}
             size="sm"
+            className="text-xs md:text-sm px-2 md:px-3"
           >
             New Chat
           </Button>
@@ -228,8 +229,8 @@ const ChatList = ({
       {/* User List (when creating new conversation) */}
       {showUserList && (
         <div className="border-b border-gray-200 bg-gray-50">
-          <div className="p-3">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">
+          <div className="p-2 md:p-3">
+            <h3 className="text-xs md:text-sm font-medium text-gray-700 mb-2">
               Start a conversation with:
             </h3>
             {loading ? (
@@ -266,13 +267,13 @@ const ChatList = ({
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">
-            <div className="text-2xl mb-2">💬</div>
-            <div className="text-sm">No conversations yet</div>
+          <div className="p-3 md:p-4 text-center text-gray-500">
+            <div className="text-xl md:text-2xl mb-2">💬</div>
+            <div className="text-xs md:text-sm">No conversations yet</div>
             <div className="text-xs mt-1">Start a new chat to begin messaging</div>
           </div>
         ) : (
-          <div className="space-y-2 p-2">
+          <div className="space-y-1 md:space-y-2 p-1 md:p-2">
             {conversations.map((conversation) => (
               <Card
                 key={conversation.id}
@@ -283,11 +284,11 @@ const ChatList = ({
                 }`}
                 onClick={() => onSelectConversation(conversation)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex items-start space-x-2 md:space-x-3">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium text-sm md:text-base">
                         {getUserDisplayName(conversation).charAt(0).toUpperCase()}
                       </div>
                     </div>
@@ -295,16 +296,16 @@ const ChatList = ({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <div className="font-medium text-foreground truncate">
+                        <div className="font-medium text-foreground truncate text-sm md:text-base">
                           {getUserDisplayName(conversation)}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground flex-shrink-0 ml-2">
                           {formatTimestamp(conversation.last_message_at)}
                         </div>
                       </div>
                       
                       <div className="mt-1">
-                        <div className="text-sm text-muted-foreground truncate">
+                        <div className="text-xs md:text-sm text-muted-foreground truncate">
                           {formatLastMessage(conversation.last_message)}
                         </div>
                       </div>

@@ -3,13 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 
 const StudentInvitationPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invitationData, setInvitationData] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
-  const API_BASE_URL = 'http://localhost:3001/api';
+  const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const invitationCode = searchParams.get('code');

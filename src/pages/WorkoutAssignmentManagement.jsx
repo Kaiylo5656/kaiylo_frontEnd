@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 
 const WorkoutAssignmentManagement = () => {
   const { user, getAuthToken } = useAuth();
@@ -44,7 +45,7 @@ const WorkoutAssignmentManagement = () => {
     try {
       console.log('📚 Fetching students...');
       setLoading(true);
-      const response = await axios.get('http://localhost:3001/api/coach/students', {
+      const response = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`, {
         headers: getAuthHeaders()
       });
       console.log('📚 Students API response:', response.data);
@@ -80,7 +81,7 @@ const WorkoutAssignmentManagement = () => {
     try {
       console.log('💪 Fetching workout sessions...');
       setLoading(true);
-              const response = await axios.get('http://localhost:3001/api/workout-sessions', {
+              const response = await axios.get(`${getApiBaseUrlWithApi()}/workout-sessions`, {
         headers: getAuthHeaders()
       });
       console.log('💪 Workout Sessions API response:', response.data);
@@ -108,7 +109,7 @@ const WorkoutAssignmentManagement = () => {
   const fetchAssignments = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:3001/api/assignments/coach', {
+      const response = await axios.get(`${getApiBaseUrlWithApi()}/assignments/coach`, {
         headers: getAuthHeaders()
       });
       if (response.data.success) {
@@ -145,7 +146,7 @@ const WorkoutAssignmentManagement = () => {
       setError('');
       setSuccess('');
 
-      const response = await axios.post('http://localhost:3001/api/assignments', formData, {
+      const response = await axios.post(`${getApiBaseUrlWithApi()}/assignments`, formData, {
         headers: getAuthHeaders()
       });
       
@@ -176,7 +177,7 @@ const WorkoutAssignmentManagement = () => {
 
     try {
       setLoading(true);
-      const response = await axios.delete(`http://localhost:3001/api/assignments/${assignmentId}`, {
+      const response = await axios.delete(`${getApiBaseUrlWithApi()}/assignments/${assignmentId}`, {
         headers: getAuthHeaders()
       });
       

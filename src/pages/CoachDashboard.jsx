@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
 const CoachDashboard = () => {
@@ -35,7 +36,7 @@ const CoachDashboard = () => {
       setLoading(true);
       
       // Fetch invitations
-      const invitationsResponse = await axios.get('http://localhost:3001/api/invitations/coach', {
+      const invitationsResponse = await axios.get(`${getApiBaseUrlWithApi()}/invitations/coach`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -46,7 +47,7 @@ const CoachDashboard = () => {
       }
 
       // Fetch students list
-      const studentsResponse = await axios.get('http://localhost:3001/api/coach/students', {
+      const studentsResponse = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -75,7 +76,7 @@ const CoachDashboard = () => {
       const token = localStorage.getItem('authToken');
       console.log('🔑 Using auth token:', token ? 'Token exists' : 'No token found');
       
-      const response = await axios.post('http://localhost:3001/api/invitations/create', inviteForm, {
+      const response = await axios.post(`${getApiBaseUrlWithApi()}/invitations/create`, inviteForm, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -102,7 +103,7 @@ const CoachDashboard = () => {
     if (!confirm('Are you sure you want to cancel this invitation?')) return;
 
     try {
-      const response = await axios.delete(`http://localhost:3001/api/invitations/cancel/${invitationId}`, {
+      const response = await axios.delete(`${getApiBaseUrlWithApi()}/invitations/cancel/${invitationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -138,7 +139,7 @@ This action cannot be undone.`;
     if (!confirm(confirmMessage)) return;
 
     try {
-      const response = await axios.delete(`http://localhost:3001/api/coach/students/${studentId}`, {
+      const response = await axios.delete(`${getApiBaseUrlWithApi()}/coach/students/${studentId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -203,7 +204,7 @@ This action cannot be undone.`;
 
     try {
       const removePromises = Array.from(selectedStudents).map(studentId =>
-        axios.delete(`http://localhost:3001/api/coach/students/${studentId}`, {
+        axios.delete(`${getApiBaseUrlWithApi()}/coach/students/${studentId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           }
@@ -245,7 +246,7 @@ This action cannot be undone.`;
   const handleUndoRemove = async (studentId) => {
     try {
       // Re-add the student to the coach's list
-      const response = await axios.post('http://localhost:3001/api/coach/students', {
+      const response = await axios.post(`${getApiBaseUrlWithApi()}/coach/students`, {
         studentId: studentId
       }, {
         headers: {
@@ -271,7 +272,7 @@ This action cannot be undone.`;
   // Handle re-inviting a removed student
   const handleReinviteStudent = async (studentEmail) => {
     try {
-      const response = await axios.post('http://localhost:3001/api/invitations/create', {
+      const response = await axios.post(`${getApiBaseUrlWithApi()}/invitations/create`, {
         studentEmail: studentEmail,
         message: 'You have been re-invited to join my fitness program.'
       }, {

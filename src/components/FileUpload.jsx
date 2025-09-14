@@ -139,14 +139,14 @@ const FileUpload = ({ onFileSelect, onUpload, isUploading = false, disabled = fa
           />
           
           <div className="drop-zone-content">
-            <div className="upload-icon">📎</div>
-            <p className="upload-text">
+            <div className="upload-icon text-2xl md:text-3xl">📎</div>
+            <p className="upload-text text-sm md:text-base">
               {dragActive ? 'Drop file here' : 'Click or drag to upload'}
             </p>
-            <p className="upload-subtext">
+            <p className="upload-subtext text-xs md:text-sm">
               Images: JPEG, PNG, GIF, WebP • Videos: MP4, MOV, AVI, WebM
             </p>
-            <p className="upload-subtext">Max size: 50MB</p>
+            <p className="upload-subtext text-xs md:text-sm">Max size: 50MB</p>
           </div>
         </div>
       ) : (
