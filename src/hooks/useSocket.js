@@ -1,215 +1,78 @@
 // frontend/src/hooks/useSocket.js
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getSocketBaseUrl, connectionManager } from '../config/api';
 
 const useSocket = () => {
   const { getAuthToken, user } = useAuth();
-  const [socket, setSocket] = useState(null);
+  const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
-  const reconnectTimeoutRef = useRef(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
+
+  const initializeSocket = useCallback(async () => {
+    if (socketRef.current) {
+      console.log('🔌 Socket already initialized. Disconnecting before creating a new one.');
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        console.error('No auth token available for WebSocket connection');
+        return;
+      }
+
+      console.log('🔌 Initializing WebSocket connection...');
+      const socketUrl = connectionManager.getSocketUrl() || getSocketBaseUrl();
+      console.log('🔌 Socket URL:', socketUrl);
+
+      const newSocket = io(socketUrl, {
+        auth: { token },
+        transports: ['polling'],
+        reconnection: true,
+        reconnectionAttempts: 15,
+        reconnectionDelay: 3000,
+        reconnectionDelayMax: 15000,
+        timeout: 20000,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        upgrade: false,
+      });
+
+      newSocket.on('connect', () => {
+        console.log('✅ WebSocket connected:', newSocket.id);
+        setIsConnected(true);
+        setConnectionError(null);
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.log('❌ WebSocket disconnected:', reason);
+        setIsConnected(false);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('❌ WebSocket connection error:', error);
+        setConnectionError(error.message);
+        setIsConnected(false);
+      });
+
+      socketRef.current = newSocket;
+    } catch (error) {
+      console.error('Error initializing WebSocket:', error);
+      setConnectionError(error.message);
+    }
+  }, [getAuthToken]);
 
   useEffect(() => {
-    if (!user) return;
+    if (user && !socketRef.current) {
+      connectionManager.initialize();
+      initializeSocket();
+    }
 
-    // Initialize connection manager first
-    connectionManager.initialize();
-
-    const initializeSocket = async () => {
-      try {
-        const token = await getAuthToken();
-        if (!token) {
-          console.error('No auth token available for WebSocket connection');
-          return;
-        }
-
-        console.log('🔌 Initializing WebSocket connection...');
-        const socketUrl = connectionManager.getSocketUrl() || getSocketBaseUrl();
-        console.log('🔌 Socket URL:', socketUrl);
-
-        const newSocket = io(socketUrl, {
-          auth: {
-            token: token
-          },
-          transports: ['polling'], // Use polling only to avoid upgrade issues
-          timeout: 30000, // Reduced timeout for faster failure detection
-          forceNew: true,
-          reconnection: true,
-          reconnectionDelay: 3000, // Increased delay
-          reconnectionDelayMax: 15000, // Increased max delay
-          maxReconnectionAttempts: 15, // More attempts
-          autoConnect: true,
-          upgrade: false, // Disable upgrade to prevent transport errors
-          rememberUpgrade: false,
-          // Add ping/pong settings for better connection monitoring
-          pingTimeout: 120000,
-          pingInterval: 30000
-        });
-
-        // Connection event handlers
-        newSocket.on('connect', () => {
-          console.log('✅ WebSocket connected:', newSocket.id);
-          console.log('🔌 Transport used:', newSocket.io.engine.transport.name);
-          console.log('🔌 Connection state:', newSocket.connected);
-          console.log('🔌 Engine state:', newSocket.io.engine.readyState);
-          setIsConnected(true);
-          setConnectionError(null);
-          reconnectAttempts.current = 0;
-        });
-
-        newSocket.on('disconnect', (reason) => {
-          console.log('❌ WebSocket disconnected:', reason);
-          console.log('❌ Disconnect reason type:', typeof reason);
-          setIsConnected(false);
-          
-          // Attempt to reconnect if not a manual disconnect
-          if (reason !== 'io client disconnect' && reconnectAttempts.current < maxReconnectAttempts) {
-            const delay = Math.min(2000 * Math.pow(1.5, reconnectAttempts.current), 20000);
-            console.log(`🔄 Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
-            
-            reconnectTimeoutRef.current = setTimeout(() => {
-              reconnectAttempts.current++;
-              initializeSocket();
-            }, delay);
-          }
-        });
-
-        // Add specific handler for transport errors
-        newSocket.io.engine.on('upgradeError', (error) => {
-          console.error('❌ Transport upgrade error:', error);
-          console.log('🔄 Will continue with polling transport');
-        });
-
-        newSocket.io.engine.on('error', (error) => {
-          console.error('❌ Engine error:', error);
-        });
-
-        newSocket.on('connect_error', (error) => {
-          console.error('❌ WebSocket connection error:', error);
-          console.error('❌ Error type:', error.type);
-          console.error('❌ Error description:', error.description);
-          setConnectionError(error.message);
-          setIsConnected(false);
-          
-          // Handle specific transport errors
-          if (error.type === 'TransportError' || error.message.includes('probe error') || error.message.includes('socket closed')) {
-            console.log('🔄 Transport error detected, will retry with different configuration');
-          }
-          
-          // If we're trying to connect to network IP and it fails, try localhost as fallback
-          const currentUrl = getSocketBaseUrl();
-          if (currentUrl.includes('192.168.') && reconnectAttempts.current === 0) {
-            console.log('🔄 Network connection failed, trying localhost fallback...');
-            reconnectAttempts.current++;
-            setTimeout(() => {
-              // Temporarily override the URL to use localhost
-              const fallbackSocket = io('http://localhost:3001', {
-                auth: { token: token },
-                transports: ['polling'], // Use polling only for fallback too
-                timeout: 30000,
-                forceNew: true,
-                reconnection: true,
-                reconnectionDelay: 3000,
-                reconnectionDelayMax: 15000,
-                maxReconnectionAttempts: 10,
-                autoConnect: true,
-                upgrade: false, // Disable upgrade for fallback too
-                rememberUpgrade: false,
-                pingTimeout: 120000,
-                pingInterval: 30000
-              });
-              
-              // Copy all event handlers to the fallback socket
-              fallbackSocket.on('connect', () => {
-                console.log('✅ WebSocket connected via localhost fallback:', fallbackSocket.id);
-                console.log('🔌 Transport used:', fallbackSocket.io.engine.transport.name);
-                setIsConnected(true);
-                setConnectionError(null);
-                reconnectAttempts.current = 0;
-              });
-              
-              // Copy other event handlers...
-              fallbackSocket.on('disconnect', (reason) => {
-                console.log('❌ WebSocket disconnected:', reason);
-                setIsConnected(false);
-              });
-              
-              setSocket(fallbackSocket);
-            }, 1000);
-            return;
-          }
-          
-          // Attempt to reconnect with exponential backoff
-          if (reconnectAttempts.current < maxReconnectAttempts) {
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-            console.log(`🔄 Connection failed, retrying in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
-            
-            reconnectTimeoutRef.current = setTimeout(() => {
-              reconnectAttempts.current++;
-              initializeSocket();
-            }, delay);
-          } else {
-            console.error('❌ Max reconnection attempts reached');
-            setConnectionError('Connection failed after multiple attempts');
-          }
-        });
-
-        newSocket.on('error', (error) => {
-          console.error('❌ WebSocket error:', error);
-          setConnectionError(error.message);
-        });
-
-        newSocket.on('reconnect', (attemptNumber) => {
-          console.log(`✅ WebSocket reconnected after ${attemptNumber} attempts`);
-          setIsConnected(true);
-          setConnectionError(null);
-          reconnectAttempts.current = 0;
-        });
-
-        newSocket.on('reconnect_attempt', (attemptNumber) => {
-          console.log(`🔄 WebSocket reconnection attempt ${attemptNumber}`);
-        });
-
-        newSocket.on('reconnect_error', (error) => {
-          console.error('❌ WebSocket reconnection error:', error);
-        });
-
-        newSocket.on('reconnect_failed', () => {
-          console.error('❌ WebSocket reconnection failed');
-          setConnectionError('Failed to reconnect to server');
-          setIsConnected(false);
-        });
-
-        // Transport upgrade events
-        newSocket.io.engine.on('upgrade', () => {
-          console.log('🔌 Transport upgraded to:', newSocket.io.engine.transport.name);
-        });
-
-        newSocket.io.engine.on('upgradeError', (error) => {
-          console.error('❌ Transport upgrade failed:', error);
-        });
-
-        setSocket(newSocket);
-
-      } catch (error) {
-        console.error('Error initializing WebSocket:', error);
-        setConnectionError(error.message);
-      }
-    };
-
-    initializeSocket();
-
-    // Cleanup function
-    // Listen for connection changes
-    const handleConnectionChange = ({ apiUrl, socketUrl }) => {
-      console.log('🔄 Connection changed, reinitializing socket...', { apiUrl, socketUrl });
-      if (socket) {
-        socket.disconnect();
-      }
+    const handleConnectionChange = () => {
+      console.log('🔄 Network connection changed, re-initializing socket...');
       initializeSocket();
     };
 
@@ -217,63 +80,57 @@ const useSocket = () => {
 
     return () => {
       connectionManager.removeListener(handleConnectionChange);
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (socket) {
-        console.log('🔌 Disconnecting WebSocket...');
-        socket.disconnect();
+      if (socketRef.current) {
+        console.log('🔌 Disconnecting WebSocket on cleanup...');
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
-  }, [user, getAuthToken]);
+  }, [user, initializeSocket]);
 
-  // Helper functions
-  const joinConversation = (conversationId) => {
-    if (socket && isConnected) {
-      console.log(`🔌 Joining conversation: ${conversationId}`);
-      socket.emit('join_conversation', conversationId);
+  const joinConversation = useCallback((conversationId) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('join_conversation', conversationId);
     }
-  };
+  }, [isConnected]);
 
-  const leaveConversation = (conversationId) => {
-    if (socket && isConnected) {
-      console.log(`🔌 Leaving conversation: ${conversationId}`);
-      socket.emit('leave_conversation', conversationId);
+  const leaveConversation = useCallback((conversationId) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('leave_conversation', conversationId);
     }
-  };
+  }, [isConnected]);
 
-  const sendMessage = (conversationId, content, messageType = 'text', replyToMessageId = null) => {
-    if (socket && isConnected) {
-      console.log(`🔌 Sending message via WebSocket to conversation: ${conversationId}`);
-      socket.emit('send_message', {
+  const sendMessage = useCallback((conversationId, content, messageType = 'text', replyToMessageId = null) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('send_message', {
         conversationId,
         content,
         messageType,
         replyToMessageId
       });
     }
-  };
+  }, [isConnected]);
 
-  const startTyping = (conversationId) => {
-    if (socket && isConnected) {
-      socket.emit('typing_start', { conversationId });
+  const startTyping = useCallback((conversationId) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('typing_start', { conversationId });
     }
-  };
+  }, [isConnected]);
 
-  const stopTyping = (conversationId) => {
-    if (socket && isConnected) {
-      socket.emit('typing_stop', { conversationId });
+  const stopTyping = useCallback((conversationId) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('typing_stop', { conversationId });
     }
-  };
-
-  const markMessagesAsRead = (conversationId) => {
-    if (socket && isConnected) {
-      socket.emit('mark_messages_read', { conversationId });
+  }, [isConnected]);
+  
+  const markMessagesAsRead = useCallback((conversationId) => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('mark_messages_read', { conversationId });
     }
-  };
+  }, [isConnected]);
 
   return {
-    socket,
+    socket: socketRef.current,
     isConnected,
     connectionError,
     joinConversation,

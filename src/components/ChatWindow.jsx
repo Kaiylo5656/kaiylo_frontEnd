@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileUpload from './FileUpload';
@@ -23,17 +23,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   const [replyingTo, setReplyingTo] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [connectionQuality, setConnectionQuality] = useState('good');
-  const messagesEndRef = useRef(null);
+  const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-  // Fetch messages for the conversation
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!conversation?.id) return;
 
     try {
@@ -59,110 +57,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [conversation?.id, getAuthToken]);
 
-  // Send a message
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || sending) return;
-
-    const messageContent = newMessage.trim();
-    const replyToMessageId = replyingTo?.id || null;
-    
-    // Clear input and reply state immediately for better UX
-    setNewMessage('');
-    setReplyingTo(null);
-    setSending(true);
-
-    try {
-      // Stop typing indicator
-      stopTyping(conversation.id);
-      setIsTyping(false);
-
-      // Send via WebSocket if connected, otherwise fallback to HTTP
-      if (isConnected && socket) {
-        console.log('🔌 Sending message via WebSocket');
-        sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
-        
-        // Create optimistic message for immediate UI update
-        const optimisticMessage = {
-          id: `temp_${Date.now()}`,
-          content: messageContent,
-          sender_id: currentUser.id,
-          message_type: 'text',
-          reply_to_message_id: replyToMessageId,
-          created_at: new Date().toISOString(),
-          conversationId: conversation.id,
-          sender: {
-            id: currentUser.id,
-            email: currentUser.email
-          }
-        };
-
-        // Add reply information if this is a reply
-        if (replyToMessageId && replyingTo) {
-          optimisticMessage.replyTo = {
-            id: replyingTo.id,
-            content: replyingTo.content,
-            sender_id: replyingTo.sender_id,
-            message_type: replyingTo.message_type,
-            file_name: replyingTo.file_name
-          };
-        }
-        
-        setMessages(prev => [...prev, optimisticMessage]);
-        
-        // Notify parent component
-        if (onMessageSent) {
-          onMessageSent(conversation.id, optimisticMessage);
-        }
-      } else {
-        console.log('🔌 WebSocket not connected, using HTTP fallback');
-        
-        // Fallback to HTTP API
-        const token = await getAuthToken();
-        const response = await fetch(buildApiUrl('/api/chat/messages'), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            conversationId: conversation.id,
-            content: messageContent
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send message');
-        }
-
-        const data = await response.json();
-        const sentMessage = data.data;
-        
-        // Add message to local state
-        setMessages(prev => [...prev, sentMessage]);
-        
-        // Notify parent component
-        if (onMessageSent) {
-          onMessageSent(conversation.id, sentMessage);
-        }
-      }
-      
-      // Scroll to bottom
-      setTimeout(scrollToBottom, 100);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
-      // Restore message content on error
-      setNewMessage(messageContent);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Handle file upload
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = useCallback(async (file) => {
     if (!conversation?.id || uploadingFile) return;
 
     setUploadingFile(true);
@@ -172,139 +69,212 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', conversation.id);
-      formData.append('content', ''); // Optional caption
+      formData.append('content', '');
 
       const token = await getAuthToken();
       const response = await fetch(buildApiUrl('/api/chat/messages'), {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const result = await response.json();
-      console.log('✅ File uploaded successfully:', result);
+      
+      console.log('✅ File uploaded successfully:', await response.json());
     } catch (error) {
       console.error('❌ File upload failed:', error);
       alert('Failed to upload file. Please try again.');
     } finally {
       setUploadingFile(false);
     }
-  };
+  }, [conversation?.id, uploadingFile, getAuthToken]);
 
-  // Handle WebSocket events
-  useEffect(() => {
-    if (!socket || !conversation?.id) return;
+  const sendMessage = useCallback(async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || sending) return;
 
-    // Join conversation room
-    joinConversation(conversation.id);
+    const messageContent = newMessage.trim();
+    const replyToMessageId = replyingTo?.id || null;
+    
+    setNewMessage('');
+    setReplyingTo(null);
+    setSending(true);
 
-    // Listen for new messages
-    const handleNewMessage = (messageData) => {
-      const receiveTime = Date.now();
-      console.log('🔌 Received new message via WebSocket:', messageData);
-      
-      // Check if message already exists to prevent duplicates
-      setMessages(prev => {
-        // Check for exact ID match first
-        const exactMatch = prev.find(msg => msg.id === messageData.id);
-        if (exactMatch) {
-          console.log('🔌 Message with exact ID already exists, skipping duplicate');
-          return prev;
+    try {
+      stopTyping(conversation.id);
+      setIsTyping(false);
+
+      if (isConnected && socket) {
+        sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
+        
+        const optimisticMessage = {
+          id: `temp_${Date.now()}`,
+          content: messageContent,
+          sender_id: currentUser.id,
+          message_type: 'text',
+          reply_to_message_id: replyToMessageId,
+          created_at: new Date().toISOString(),
+          conversationId: conversation.id,
+          sender: { id: currentUser.id, email: currentUser.email },
+          replyTo: replyingTo ? { ...replyingTo } : null
+        };
+        
+        setMessages(prev => [...prev, optimisticMessage]);
+        
+        if (onMessageSent) {
+          onMessageSent(conversation.id, optimisticMessage);
         }
-        
-        // Check for temporary message that should be replaced
-        const tempMessageIndex = prev.findIndex(msg => 
-          msg.id?.startsWith('temp_') && 
-          msg.content === messageData.content && 
-          msg.sender_id === messageData.sender_id
-        );
-        
-        if (tempMessageIndex !== -1) {
-          console.log('🔌 Replacing temporary message with real message');
-          const newMessages = [...prev];
-          newMessages[tempMessageIndex] = messageData;
-          return newMessages;
-        }
-        
-        // Add new message if no duplicate found
-        return [...prev, messageData];
-      });
-      
-      // Notify parent component
-      if (onNewMessage) {
-        onNewMessage(conversation.id, messageData);
-      }
-      
-      // Mark messages as read if this is the current conversation
-      markMessagesAsRead(conversation.id);
-      
-      // Log processing time
-      const processingTime = Date.now() - receiveTime;
-      console.log(`⚡ Message processed in ${processingTime}ms`);
-    };
-
-    // Listen for typing indicators
-    const handleUserTyping = (data) => {
-      if (data.userId !== currentUser?.id) {
-        setTypingUsers(prev => {
-          if (data.isTyping) {
-            return [...prev.filter(u => u.userId !== data.userId), data];
-          } else {
-            return prev.filter(u => u.userId !== data.userId);
-          }
+      } else {
+        // Fallback to HTTP
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/chat/messages'), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            conversationId: conversation.id,
+            content: messageContent,
+            replyToMessageId: replyToMessageId
+          })
         });
+
+        if (!response.ok) throw new Error('Failed to send message via HTTP');
+        
+        if (onMessageSent) {
+          onMessageSent(conversation.id, (await response.json()).data);
+        }
+      }
+      
+      setTimeout(scrollToBottom, 100);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
+      setNewMessage(messageContent);
+    } finally {
+      setSending(false);
+    }
+  }, [
+    newMessage, sending, replyingTo, conversation.id, 
+    currentUser, isConnected, socket, sendSocketMessage, 
+    stopTyping, onMessageSent, getAuthToken, scrollToBottom
+  ]);
+
+  useEffect(() => {
+    if (conversation.id) {
+      fetchMessages();
+      markMessagesAsRead(conversation.id);
+      joinConversation(conversation.id);
+    }
+
+    return () => {
+      if (conversation.id) {
+        leaveConversation(conversation.id);
       }
     };
+  }, [conversation.id, fetchMessages, markMessagesAsRead, joinConversation, leaveConversation]);
 
-    // Listen for user join/leave events
-    const handleUserJoined = (data) => {
-      console.log('🔌 User joined conversation:', data);
-    };
+  useEffect(() => {
+    if (socket) {
+      const handleNewMessage = (messageData) => {
+        const receiveTime = Date.now();
+        console.log('🔌 Received new message via WebSocket:', messageData);
+        
+        // Check if message already exists to prevent duplicates
+        setMessages(prev => {
+          // Check for exact ID match first
+          const exactMatch = prev.find(msg => msg.id === messageData.id);
+          if (exactMatch) {
+            console.log('🔌 Message with exact ID already exists, skipping duplicate');
+            return prev;
+          }
+          
+          // Check for temporary message that should be replaced
+          const tempMessageIndex = prev.findIndex(msg => 
+            msg.id?.startsWith('temp_') && 
+            msg.content === messageData.content && 
+            msg.sender_id === messageData.sender_id
+          );
+          
+          if (tempMessageIndex !== -1) {
+            console.log('🔌 Replacing temporary message with real message');
+            const newMessages = [...prev];
+            newMessages[tempMessageIndex] = messageData;
+            return newMessages;
+          }
+          
+          // Add new message if no duplicate found
+          return [...prev, messageData];
+        });
+        
+        // Notify parent component
+        if (onNewMessage) {
+          onNewMessage(conversation.id, messageData);
+        }
+        
+        // Mark messages as read if this is the current conversation
+        markMessagesAsRead(conversation.id);
+        
+        // Log processing time
+        const processingTime = Date.now() - receiveTime;
+        console.log(`⚡ Message processed in ${processingTime}ms`);
+      };
 
-    const handleUserLeft = (data) => {
-      console.log('🔌 User left conversation:', data);
-    };
+      const handleUserTyping = (data) => {
+        if (data.userId !== currentUser?.id) {
+          setTypingUsers(prev => {
+            if (data.isTyping) {
+              return [...prev.filter(u => u.userId !== data.userId), data];
+            } else {
+              return prev.filter(u => u.userId !== data.userId);
+            }
+          });
+        }
+      };
 
-    // Listen for messages read events
-    const handleMessagesRead = (data) => {
-      console.log('🔌 Messages marked as read by:', data);
-    };
+      // Listen for user join/leave events
+      const handleUserJoined = (data) => {
+        console.log('🔌 User joined conversation:', data);
+      };
 
-    // Register event listeners
-    socket.on('new_message', handleNewMessage);
-    socket.on('user_typing', handleUserTyping);
-    socket.on('user_joined', handleUserJoined);
-    socket.on('user_left', handleUserLeft);
-    socket.on('messages_read', handleMessagesRead);
+      const handleUserLeft = (data) => {
+        console.log('🔌 User left conversation:', data);
+      };
 
-    // Cleanup function
-    return () => {
-      socket.off('new_message', handleNewMessage);
-      socket.off('user_typing', handleUserTyping);
-      socket.off('user_joined', handleUserJoined);
-      socket.off('user_left', handleUserLeft);
-      socket.off('messages_read', handleMessagesRead);
-      
-      // Leave conversation room
-      leaveConversation(conversation.id);
-    };
-  }, [socket, conversation?.id, currentUser?.id, joinConversation, leaveConversation, onNewMessage, markMessagesAsRead]);
+      // Listen for messages read events
+      const handleMessagesRead = (data) => {
+        console.log('🔌 Messages marked as read by:', data);
+      };
+
+      // Register event listeners
+      socket.on('new_message', handleNewMessage);
+      socket.on('user_typing', handleUserTyping);
+      socket.on('user_joined', handleUserJoined);
+      socket.on('user_left', handleUserLeft);
+      socket.on('messages_read', handleMessagesRead);
+
+      return () => {
+        socket.off('new_message', handleNewMessage);
+        socket.off('user_typing', handleUserTyping);
+        socket.off('user_joined', handleUserJoined);
+        socket.off('user_left', handleUserLeft);
+        socket.off('messages_read', handleMessagesRead);
+      };
+    }
+  }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
 
   // Fetch messages when conversation changes
   useEffect(() => {
     fetchMessages();
-  }, [conversation?.id]);
+  }, [conversation?.id, fetchMessages]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   // Handle typing indicators
   const handleInputChange = (e) => {
@@ -551,7 +521,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
           </div>
         )}
         
-        <div ref={messagesEndRef} />
+        <div ref={messageEndRef} />
       </div>
 
       {/* File Upload */}
