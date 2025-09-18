@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
+import { Paperclip, Send } from 'lucide-react';
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) => {
   const { getAuthToken } = useAuth();
@@ -394,24 +395,24 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
       {/* Chat Header - Hidden on mobile (shown in page header) */}
-      <div className="hidden md:block p-4 border-b border-gray-200 bg-white">
+      <div className="hidden md:block p-4 border-b border-border bg-card">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
             {getUserDisplayName(conversation.other_participant_id).charAt(0).toUpperCase()}
           </div>
           <div>
-            <div className="font-medium text-gray-900">
+            <div className="font-medium text-foreground">
               {getUserDisplayName(conversation.other_participant_id)}
             </div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-muted-foreground">
               {isConnected ? (
                 <span className="flex items-center space-x-1">
                   <span>🟢 Online</span>
                   <span className={`text-xs ${
-                    connectionQuality === 'good' ? 'text-green-600' : 
-                    connectionQuality === 'slow' ? 'text-yellow-600' : 'text-red-600'
+                    connectionQuality === 'good' ? 'text-green-500' : 
+                    connectionQuality === 'slow' ? 'text-yellow-500' : 'text-red-500'
                   }`}>
                     ({connectionQuality})
                   </span>
@@ -425,11 +426,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background">
         {loading ? (
-          <div className="text-center text-gray-500">Loading messages...</div>
+          <div className="text-center text-muted-foreground">Loading messages...</div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-500">
+          <div className="text-center text-muted-foreground">
             <div className="text-2xl mb-2">💬</div>
             <div className="text-sm">No messages yet</div>
             <div className="text-xs mt-1">Start the conversation!</div>
@@ -526,7 +527,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
       {/* File Upload */}
       {showFileUpload && (
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-border bg-card">
           <FileUpload
             onFileSelect={(file) => console.log('File selected:', file)}
             onUpload={handleFileUpload}
@@ -538,11 +539,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
       {/* Reply Indicator */}
       {replyingTo && (
-        <div className="p-2 md:p-4 border-t border-gray-200 bg-blue-50">
+        <div className="p-2 md:p-4 border-t border-border bg-muted/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-blue-600">↩️ Replying to:</span>
-              <div className="text-sm text-gray-700 max-w-xs truncate">
+              <span className="text-sm text-primary">↩️ Replying to:</span>
+              <div className="text-sm text-foreground max-w-xs truncate">
                 {replyingTo.message_type === 'file' 
                   ? `📎 ${replyingTo.file_name || 'File'}`
                   : replyingTo.content
@@ -552,7 +553,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             <button
               type="button"
               onClick={cancelReply}
-              className="text-blue-600 hover:text-blue-800 text-sm"
+              className="text-primary hover:text-primary/80 text-sm"
             >
               ✕ Cancel
             </button>
@@ -561,35 +562,38 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       )}
 
       {/* Message Input */}
-      <div className="p-2 md:p-4 border-t border-gray-200 bg-white">
-        <form onSubmit={sendMessage} className="flex space-x-1 md:space-x-2">
+      <div className="p-2 md:p-4 border-t border-border bg-card">
+        <div className="bg-muted rounded-full flex items-center p-2">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => setShowFileUpload(!showFileUpload)}
             disabled={sending || uploadingFile}
             title="Attach file"
-            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0"
+            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground"
           >
-            📎
+            <Paperclip className="h-5 w-5" />
           </Button>
-          <Input
-            type="text"
-            value={newMessage}
-            onChange={handleInputChange}
-            placeholder="Type a message..."
-            className="flex-1 text-sm md:text-base"
-            disabled={sending || uploadingFile}
-          />
-          <Button
-            type="submit"
-            disabled={!newMessage.trim() || sending || uploadingFile}
-            className="px-3 md:px-4 text-sm md:text-base flex-shrink-0"
-          >
-            {sending ? 'Sending...' : 'Send'}
-          </Button>
-        </form>
+          <form onSubmit={sendMessage} className="flex-1 flex items-center">
+            <Input
+              type="text"
+              value={newMessage}
+              onChange={handleInputChange}
+              placeholder="Type a message here..."
+              className="flex-1 text-sm md:text-base bg-transparent border-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground"
+              disabled={sending || uploadingFile}
+            />
+            <Button
+              type="submit"
+              disabled={!newMessage.trim() || sending || uploadingFile}
+              size="icon"
+              className="px-3 md:px-4 text-sm md:text-base flex-shrink-0 bg-primary rounded-full w-10 h-10 hover:bg-primary/90"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

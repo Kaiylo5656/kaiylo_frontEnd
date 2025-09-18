@@ -5,6 +5,7 @@ import ChatWindow from '../components/ChatWindow';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video, MessageSquare, FileText } from 'lucide-react';
 
 const ChatPage = () => {
   const { getAuthToken, user } = useAuth();
@@ -13,11 +14,12 @@ const ChatPage = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showChatList, setShowChatList] = useState(true); // Mobile: show chat list by default
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch user's conversations
   const fetchConversations = async () => {
     try {
+      setLoading(true);
       const token = await getAuthToken();
       const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         headers: {
@@ -35,41 +37,33 @@ const ChatPage = () => {
       
       // Sort conversations by last_message_at (most recent first)
       const sortedConversations = conversations.sort((a, b) => {
-        // Handle null values - put conversations with no messages at the end
         if (!a.last_message_at && !b.last_message_at) {
           return new Date(b.created_at) - new Date(a.created_at);
         }
         if (!a.last_message_at) return 1;
         if (!b.last_message_at) return -1;
         
-        return new Date(b.last_message_at) - new Date(a.last_message_at);
+        return new Date(b.last_message_at) - new Date(a.created_at);
       });
       
-      console.log('🔍 Sorted conversations:', sortedConversations.map(c => ({
-        id: c.id,
-        last_message_at: c.last_message_at,
-        last_message: c.last_message,
-        other_participant_name: c.other_participant_name,
-        created_at: c.created_at
-      })));
-      
       setConversations(sortedConversations);
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-      setError('Failed to load conversations');
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Create or get conversation with a user
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // Create new conversation
   const createConversation = async (participantId) => {
     try {
-      console.log('🔍 ===== FRONTEND: CREATE CONVERSATION START =====');
-      console.log('🔍 Creating conversation with participant:', participantId);
       const token = await getAuthToken();
-      console.log('🔍 Frontend token exists:', !!token);
-      
       const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         method: 'POST',
         headers: {
@@ -79,123 +73,88 @@ const ChatPage = () => {
         body: JSON.stringify({ participantId })
       });
 
-      console.log('🔍 Frontend response status:', response.status);
-      console.log('🔍 Frontend response ok:', response.ok);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('🔍 Frontend response error:', errorText);
         throw new Error('Failed to create conversation');
       }
 
       const data = await response.json();
       const newConversation = data.data;
       
-      console.log('🔍 ===== FRONTEND: RECEIVED CONVERSATION DATA =====');
-      console.log('🔍 Frontend received new conversation:', {
-        id: newConversation.id,
-        other_participant_id: newConversation.other_participant_id,
-        fullData: newConversation
-      });
-      
-      // Add to conversations list if not already present
       setConversations(prev => {
-        const exists = prev.find(conv => conv.id === newConversation.id);
-        if (exists) {
-          return prev;
+        // Check if the conversation already exists in the list
+        if (prev.some(conv => conv.id === newConversation.id)) {
+          return prev; // If it exists, don't add it again
         }
+        // Otherwise, add the new conversation to the list
         return [newConversation, ...prev];
       });
-      
+
       setSelectedConversation(newConversation);
-      return newConversation;
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      setError('Failed to create conversation');
-      return null;
+    } catch (err) {
+      console.error('Error creating conversation:', err);
     }
   };
 
   // Handle conversation selection
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
-    // On mobile, hide chat list when conversation is selected
-    if (window.innerWidth < 768) {
-      setShowChatList(false);
-    }
   };
 
-  // Handle new message (for real-time updates)
+  // Handle new message
   const handleNewMessage = (conversationId, message) => {
-    setConversations(prev => {
-      const updated = prev.map(conv => 
+    setConversations(prev => 
+      prev.map(conv => 
         conv.id === conversationId 
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      );
-      
-      // Re-sort conversations after updating
-      return updated.sort((a, b) => {
-        // Handle null values - put conversations with no messages at the end
-        if (!a.last_message_at && !b.last_message_at) {
-          return new Date(b.created_at) - new Date(a.created_at);
-        }
-        if (!a.last_message_at) return 1;
-        if (!b.last_message_at) return -1;
-        
-        return new Date(b.last_message_at) - new Date(a.last_message_at);
-      });
-    });
+      )
+    );
   };
 
-  // Update conversation when messages are sent
+  // Handle message sent
   const handleMessageSent = (conversationId, message) => {
-    setConversations(prev => {
-      const updated = prev.map(conv => 
+    setConversations(prev => 
+      prev.map(conv => 
         conv.id === conversationId 
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      );
-      
-      // Re-sort conversations after updating
-      return updated.sort((a, b) => {
-        // Handle null values - put conversations with no messages at the end
-        if (!a.last_message_at && !b.last_message_at) {
-          return new Date(b.created_at) - new Date(a.created_at);
-        }
-        if (!a.last_message_at) return 1;
-        if (!b.last_message_at) return -1;
-        
-        return new Date(b.last_message_at) - new Date(a.last_message_at);
-      });
-    });
+      )
+    );
   };
 
   // Handle conversation deletion
-  const handleDeleteConversation = (conversationId) => {
-    console.log('🔍 ChatPage: Handling conversation deletion for ID:', conversationId);
-    
-    // Remove the conversation from the list
-    setConversations(prev => {
-      const updated = prev.filter(conv => conv.id !== conversationId);
-      console.log('🔍 ChatPage: Updated conversations after deletion:', updated.length);
-      return updated;
-    });
-    
-    // If the deleted conversation was selected, clear the selection
-    if (selectedConversation?.id === conversationId) {
-      console.log('🔍 ChatPage: Clearing selected conversation');
-      setSelectedConversation(null);
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversationId}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete conversation');
+      }
+
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
     }
   };
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
+  // Filter conversations based on search term
+  const filteredConversations = conversations.filter(conv =>
+    conv.other_participant_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-background">
         <LoadingSpinner />
       </div>
     );
@@ -203,13 +162,13 @@ const ChatPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="text-red-600 text-lg font-semibold mb-2">Error</div>
-          <div className="text-gray-600 mb-4">{error}</div>
+          <div className="text-destructive text-lg font-semibold mb-2">Error</div>
+          <div className="text-muted-foreground mb-4">{error}</div>
           <button 
             onClick={fetchConversations}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
           >
             Retry
           </button>
@@ -219,151 +178,40 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile Header */}
-      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between">
-          {selectedConversation && !showChatList ? (
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowChatList(true)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {selectedConversation.other_participant_name}
-                </h1>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                    {isConnected ? 'Connected' : 'Disconnected'}
-                  </span>
-                </div>
-              </div>
-            </div>
+    <div className="h-full flex flex-col bg-background">
+      <div className="flex-1 flex overflow-hidden">
+        {/* Contact List */}
+        <div className="w-80 bg-card border-r border-border flex flex-col">
+          <ChatList
+            conversations={conversations}
+            selectedConversation={selectedConversation}
+            onSelectConversation={handleSelectConversation}
+            onCreateConversation={createConversation}
+            currentUser={user}
+            onDeleteConversation={handleDeleteConversation}
+          />
+        </div>
+
+        {/* Chat Window */}
+        <div className="flex-1 flex flex-col bg-background">
+          {selectedConversation ? (
+            <ChatWindow
+              conversation={selectedConversation}
+              currentUser={user}
+              onNewMessage={handleNewMessage}
+              onMessageSent={handleMessageSent}
+            />
           ) : (
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">Messages</h1>
-              <p className="text-sm text-gray-600">
-                Chat with your {user?.role === 'coach' ? 'students' : 'coach'}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Desktop Header */}
-      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
-              <p className="mt-2 text-gray-600">
-                Chat with your {user?.role === 'coach' ? 'students' : 'coach'}
-              </p>
-            </div>
-            
-            {/* Connection Status Indicator */}
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className={`text-sm font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-          </div>
-          
-          {/* Connection Error Message */}
-          {connectionError && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center">
-                <div className="text-red-600 text-sm">
-                  <strong>Connection Error:</strong> {connectionError}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                  <MessageSquare className="w-8 h-8 text-muted-foreground" />
                 </div>
+                <h3 className="text-lg font-medium text-foreground mb-2">Select a conversation</h3>
+                <p className="text-muted-foreground">Choose a conversation from the list to start messaging</p>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Connection Error Message - Mobile */}
-      {connectionError && (
-        <div className="md:hidden mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-red-600 text-sm">
-            <strong>Connection Error:</strong> {connectionError}
-          </div>
-        </div>
-      )}
-
-      {/* Chat Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {/* Desktop Layout */}
-          <div className="hidden md:flex h-[600px]">
-            {/* Chat List Sidebar */}
-            <div className="w-1/3 border-r border-gray-200">
-              <ChatList 
-                conversations={conversations}
-                selectedConversation={selectedConversation}
-                onSelectConversation={handleSelectConversation}
-                onCreateConversation={createConversation}
-                currentUser={user}
-                onDeleteConversation={handleDeleteConversation}
-              />
-            </div>
-
-            {/* Chat Window */}
-            <div className="flex-1">
-              {selectedConversation ? (
-                <ChatWindow 
-                  conversation={selectedConversation}
-                  currentUser={user}
-                  onNewMessage={handleNewMessage}
-                  onMessageSent={handleMessageSent}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <div className="text-2xl mb-2">💬</div>
-                    <div className="text-lg font-medium mb-1">Select a conversation</div>
-                    <div className="text-sm">Choose a conversation from the list to start chatting</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Mobile Layout */}
-          <div className="md:hidden h-[calc(100vh-200px)]">
-            {showChatList ? (
-              <ChatList 
-                conversations={conversations}
-                selectedConversation={selectedConversation}
-                onSelectConversation={handleSelectConversation}
-                onCreateConversation={createConversation}
-                currentUser={user}
-                onDeleteConversation={handleDeleteConversation}
-              />
-            ) : selectedConversation ? (
-              <ChatWindow 
-                conversation={selectedConversation}
-                currentUser={user}
-                onNewMessage={handleNewMessage}
-                onMessageSent={handleMessageSent}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
-                <div className="text-center">
-                  <div className="text-2xl mb-2">💬</div>
-                  <div className="text-lg font-medium mb-1">Select a conversation</div>
-                  <div className="text-sm">Choose a conversation from the list to start chatting</div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -371,4 +219,3 @@ const ChatPage = () => {
 };
 
 export default ChatPage;
-

@@ -8,11 +8,13 @@ import CoachDashboard from './pages/CoachDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ExerciseManagement from './pages/ExerciseManagement';
 import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
-import Navigation from './components/Navigation';
+import MainLayout from './components/MainLayout'; // Import the new layout
 import LoadingSpinner from './components/LoadingSpinner';
 import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
 import CoachProgressDashboard from './pages/CoachProgressDashboard';
 import ChatPage from './pages/ChatPage';
+import VideoLibrary from './pages/VideoLibrary';
+import FinancialTracking from './pages/FinancialTracking';
 import ConnectionStatus from './components/ConnectionStatus';
 
 import './App.css';
@@ -44,10 +46,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   return (
-    <>
-      <Navigation />
+    <MainLayout>
       {children}
-    </>
+    </MainLayout>
   );
 };
 
@@ -113,6 +114,22 @@ function App() {
                   <CoachProgressDashboard />
                 </ProtectedRoute>
               } 
+            />
+            <Route 
+              path="/coach/videotheque" 
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <VideoLibrary />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/coach/financial"
+              element={
+                <ProtectedRoute allowedRoles={['coach']}>
+                  <FinancialTracking />
+                </ProtectedRoute>
+              }
             />
             
             {/* Student Routes */}

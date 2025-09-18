@@ -1,10 +1,38 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Logo from './Logo';
+import { 
+  Users, 
+  Dumbbell, 
+  Video, 
+  MessageSquare, 
+  FileText, 
+  DollarSign,
+  LogOut
+} from 'lucide-react';
+
+const NavLink = ({ to, icon: Icon, children }) => {
+  const location = useLocation();
+  const isActive = location.pathname === to;
+
+  return (
+    <Link
+      to={to}
+      className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+        isActive
+          ? 'bg-muted text-primary-foreground'
+          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+      }`}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="font-medium">{children}</span>
+    </Link>
+  );
+};
 
 const Navigation = () => {
   const { user, logout } = useAuth();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -12,117 +40,56 @@ const Navigation = () => {
     navigate('/login');
   };
 
-  // Navigation items based on user role
   const getNavItems = () => {
-    const baseItems = [
-      { name: 'Dashboard', path: '/dashboard' }
-    ];
-
-    if (user?.role === 'admin') {
-      return [
-        ...baseItems,
-        { name: 'Admin Dashboard', path: '/admin/dashboard' },
-        { name: 'Exercise Management', path: '/admin/exercises' },
-        { name: 'Session Management', path: '/admin/sessions' }
-      ];
-    }
-
     if (user?.role === 'coach') {
       return [
-        ...baseItems,
-        { name: 'Coach Dashboard', path: '/coach/dashboard' },
-        { name: 'Exercise Management', path: '/coach/exercises' },
-        { name: 'Session Management', path: '/coach/sessions' },
-        { name: 'Progress Analytics', path: '/coach/progress' },
-        { name: 'Messages', path: '/chat' }
+        { name: 'Clients', path: '/coach/dashboard', icon: Users },
+        { name: 'Exercices', path: '/coach/exercises', icon: Dumbbell },
+        { name: 'Vidéothèque', path: '/coach/videotheque', icon: Video },
+        { name: 'Messages', path: '/chat', icon: MessageSquare },
+        { name: 'Suivi Financier', path: '/coach/financial', icon: FileText },
       ];
     }
-
-    if (user?.role === 'student') {
-      return [
-        ...baseItems,
-        { name: 'Student Dashboard', path: '/student/dashboard' },
-        { name: 'Messages', path: '/chat' }
-      ];
-    }
-
-    return baseItems;
+    // Add other roles here later if needed
+    return [];
   };
 
   const navItems = getNavItems();
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          {/* Logo and Brand */}
-          <div className="flex items-center">
-            <Link to="/dashboard" className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-xl font-bold text-blue-600">Kaiylo</h1>
-              </div>
-            </Link>
-          </div>
-
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  location.pathname === item.path
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                }`}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
-
-          {/* User Menu */}
-          <div className="flex items-center space-x-4">
-            {/* User Info */}
-            <div className="hidden md:flex items-center space-x-2">
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">{user?.email}</span>
-                <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full capitalize">
-                  {user?.role}
-                </span>
-              </div>
+    <aside className="w-64 flex-shrink-0 bg-card border-r border-border flex flex-col">
+      <div className="p-6">
+        <Logo />
+      </div>
+      <nav className="flex-1 px-4 space-y-2">
+        {navItems.map((item) => (
+          <NavLink key={item.path} to={item.path} icon={item.icon}>
+            {item.name}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="p-4 border-t border-border">
+        <div className="space-y-4">
+           <NavLink to="/billing" icon={DollarSign}>
+            Facturation
+          </NavLink>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+              <span className="font-bold text-primary-foreground">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </span>
             </div>
-
-            {/* Logout Button */}
-            <button
-              onClick={handleLogout}
-              className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-red-600 transition-colors"
-            >
-              Logout
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-foreground">{user?.name || user?.email}</p>
+              <p className="text-xs text-muted-foreground">{user?.role}</p>
+            </div>
+            <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground" title="Logout">
+              <LogOut className="h-5 w-5" />
             </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Navigation */}
-      <div className="md:hidden">
-        <div className="px-2 pt-2 pb-3 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`block px-3 py-2 rounded-md text-base font-medium ${
-                location.pathname === item.path
-                  ? 'text-blue-600 bg-blue-50'
-                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-              }`}
-            >
-              {item.name}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </nav>
+    </aside>
   );
 };
 
