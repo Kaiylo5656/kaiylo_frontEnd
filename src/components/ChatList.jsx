@@ -3,7 +3,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Search } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 const ChatList = ({ 
   conversations, 
@@ -323,35 +329,43 @@ const ChatList = ({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <div className="font-medium text-foreground truncate text-sm md:text-base">
+                        <h4 className="font-medium text-foreground truncate text-sm md:text-base">
                           {getUserDisplayName(conversation)}
-                        </div>
-                        <div className="text-xs text-muted-foreground flex-shrink-0 ml-2">
-                          {formatTimestamp(conversation.last_message_at)}
-                        </div>
+                        </h4>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-8 w-8 flex-shrink-0 -mr-2"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => handleDeleteClick(conversation.id, e)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                       
-                      <div className="mt-1">
-                        <div className="text-xs md:text-sm text-muted-foreground truncate">
+                      <div className="mt-1 flex justify-between items-baseline">
+                        <p className="text-xs md:text-sm text-muted-foreground truncate">
                           {formatLastMessage(conversation.last_message)}
-                        </div>
+                        </p>
+                        <time className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                          {formatTimestamp(conversation.last_message_at)}
+                        </time>
                       </div>
                     </div>
                   </div>
                 </CardContent>
-                
-                {/* Delete Button - Well Positioned */}
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  onClick={(e) => handleDeleteClick(conversation.id, e)}
-                  className="absolute top-2 right-2 w-8 h-8 z-10"
-                  title="Delete conversation"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </Button>
               </Card>
             ))}
           </div>

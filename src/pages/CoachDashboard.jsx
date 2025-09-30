@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
-import { Search, SlidersHorizontal, Send, Plus, Bell, Settings, MessageSquare, CheckSquare, RefreshCw } from 'lucide-react';
+import { Search, SlidersHorizontal, Send, Plus, Bell, Settings, MessageSquare, CheckSquare, RefreshCw, Calendar, Users } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import StudentDetailView from '../components/StudentDetailView';
+import CoachWeeklySchedule from '../components/CoachWeeklySchedule';
 
 const CoachDashboard = () => {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ const CoachDashboard = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPendingInvitationsModalOpen, setIsPendingInvitationsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [activeTab, setActiveTab] = useState('students'); // 'students' or 'schedule'
 
   useEffect(() => {
     fetchCoachData();
@@ -146,26 +148,40 @@ const CoachDashboard = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full">
-      {/* Top Header */}
-      <header className="flex-shrink-0 bg-card border-b border-border px-6 h-16 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Clients</h1>
-        <div className="flex items-center space-x-4">
-          <button className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg hover:opacity-90 transition-opacity">
-            Upgrade
-          </button>
-          <button className="text-muted-foreground hover:text-foreground">
-            <Bell size={20} />
-          </button>
-          <button className="text-muted-foreground hover:text-foreground">
-            <Settings size={20} />
-          </button>
-        </div>
-      </header>
-      
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 mb-6">
+        <button
+          onClick={() => setActiveTab('students')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+            activeTab === 'students'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          <span>Étudiants</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+            activeTab === 'schedule'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          <Calendar className="h-4 w-4" />
+          <span>Planning</span>
+        </button>
+      </div>
+
       {/* Main Content */}
-      <div className="flex-1 p-6 overflow-auto">
-        {/* Client List Header */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="flex-1 overflow-auto">
+        {activeTab === 'schedule' ? (
+          <CoachWeeklySchedule />
+        ) : (
+          <>
+            {/* Client List Header */}
+            <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
@@ -337,6 +353,8 @@ const CoachDashboard = () => {
             </tbody>
           </table>
         </div>
+          </>
+        )}
       </div>
 
       {/* Invite Student Modal */}

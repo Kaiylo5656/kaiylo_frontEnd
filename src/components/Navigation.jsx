@@ -57,7 +57,7 @@ const Navigation = () => {
   const navItems = getNavItems();
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-card border-r border-border flex flex-col">
+    <aside className="hidden md:flex w-64 flex-shrink-0 bg-card border-r border-border flex-col">
       <div className="p-6">
         <Logo />
       </div>

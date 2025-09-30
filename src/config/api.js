@@ -121,8 +121,15 @@ export const getApiBaseUrlWithApi = () => {
 // Helper function to build API URLs
 export const buildApiUrl = (path) => {
   const baseUrl = getApiBaseUrl();
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return baseUrl ? `${baseUrl}${cleanPath}` : cleanPath;
+  // Ensure path starts with a slash
+  let finalPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // Prepend /api only if it's not already there
+  if (!finalPath.startsWith('/api')) {
+    finalPath = `/api${finalPath}`;
+  }
+  
+  return baseUrl ? `${baseUrl}${finalPath}` : finalPath;
 };
 
 // Helper function to get socket URL

@@ -15,7 +15,6 @@ import CoachProgressDashboard from './pages/CoachProgressDashboard';
 import ChatPage from './pages/ChatPage';
 import VideoLibrary from './pages/VideoLibrary';
 import FinancialTracking from './pages/FinancialTracking';
-import ConnectionStatus from './components/ConnectionStatus';
 
 import './App.css';
 
@@ -141,6 +140,22 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/student/history" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <div>Student History Page (Placeholder)</div>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/videos" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <div>Student Video Library (Placeholder)</div>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Admin Routes */}
             <Route 
@@ -183,7 +198,6 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
-        <ConnectionStatus />
       </Router>
     </AuthProvider>
   );
