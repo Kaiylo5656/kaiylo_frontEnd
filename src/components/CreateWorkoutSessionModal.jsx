@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { getApiBaseUrlWithApi } from '../config/api';
 
 const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId }) => {
-  // ... existing state code ...
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState([]);
@@ -47,14 +46,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       id: Date.now(),
       name: selectedExercise.title,
       type: selectedExercise.tags?.includes('Push') ? 'Push' : 'Pull',
-      sets: '',
-      reps: '',
-      weight: '',
-      rest: '03:00',
-      recordVideo: false,
-      notes: selectedExercise.description || '',
       exerciseId: selectedExercise.id,
-      description: selectedExercise.description || ''
+      description: selectedExercise.description || '',
+      sets: [
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false },
+        { serie: 2, weight: '', reps: '', rest: '03:00', video: false },
+        { serie: 3, weight: '', reps: '', rest: '00:00', video: false }
+      ],
+      notes: '',
+      isExpanded: true,
+      tempo: ''
     };
     
     setExercises([...exercises, newExercise]);
@@ -64,6 +65,41 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   const handleRemoveExercise = (id) => {
     setExercises(exercises.filter(ex => ex.id !== id));
+  };
+
+  const handleAddSet = (exerciseIndex) => {
+    const updatedExercises = [...exercises];
+    const newSetNumber = updatedExercises[exerciseIndex].sets.length + 1;
+    updatedExercises[exerciseIndex].sets.push({
+      serie: newSetNumber,
+      weight: '',
+      reps: '',
+      rest: '03:00',
+      video: false
+    });
+    setExercises(updatedExercises);
+  };
+
+  const handleRemoveSet = (exerciseIndex, setIndex) => {
+    const updatedExercises = [...exercises];
+    updatedExercises[exerciseIndex].sets.splice(setIndex, 1);
+    // Renumber remaining sets
+    updatedExercises[exerciseIndex].sets.forEach((set, idx) => {
+      set.serie = idx + 1;
+    });
+    setExercises(updatedExercises);
+  };
+
+  const handleSetChange = (exerciseIndex, setIndex, field, value) => {
+    const updatedExercises = [...exercises];
+    updatedExercises[exerciseIndex].sets[setIndex][field] = value;
+    setExercises(updatedExercises);
+  };
+
+  const toggleExerciseExpanded = (exerciseIndex) => {
+    const updatedExercises = [...exercises];
+    updatedExercises[exerciseIndex].isExpanded = !updatedExercises[exerciseIndex].isExpanded;
+    setExercises(updatedExercises);
   };
 
   const handleSubmit = async (e) => {
@@ -82,12 +118,15 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         exerciseId: ex.exerciseId,
         name: ex.name,
         type: ex.type,
-        sets: parseInt(ex.sets) || 0,
-        reps: parseInt(ex.reps) || 0,
-        weight: ex.weight ? parseFloat(ex.weight) : null,
-        rest: ex.rest,
-        recordVideo: ex.recordVideo,
-        notes: ex.notes
+        sets: ex.sets.map(set => ({
+          serie: set.serie,
+          weight: parseFloat(set.weight) || 0,
+          reps: parseInt(set.reps) || 0,
+          rest: set.rest,
+          video: set.video
+        })),
+        notes: ex.notes,
+        tempo: ex.tempo
       })),
       scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
       student_id: studentId
@@ -120,238 +159,248 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="bg-[#121212] border-none p-0 gap-0 max-w-[600px]">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="text-xl font-semibold text-white">
+      <DialogContent className="bg-[#121212] border-none p-0 gap-0 max-w-[700px] max-h-[90vh]">
+        <DialogHeader className="p-4 pb-3">
+          <DialogTitle className="text-lg font-medium text-white">
             Nom de la séance
           </DialogTitle>
-          <DialogDescription className="text-sm text-gray-400">
+          <DialogDescription className="text-xs text-gray-400">
             {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="px-6">
+        <form onSubmit={handleSubmit} className="flex flex-col">
+          <div className="px-4">
             <Input
               placeholder="Nom de la séance"
               value={sessionName}
               onChange={(e) => setSessionName(e.target.value)}
-              className="bg-[#1a1a1a] border-none text-white placeholder-gray-500"
+              className="bg-transparent border-none text-white placeholder-gray-500 text-lg font-medium focus-visible:ring-0"
             />
           </div>
 
-          <div className="px-6">
+          <div className="px-4 mt-2">
+            <label className="text-xs text-gray-400 mb-1 block">DESCRIPTION</label>
             <Input
-              placeholder="Description"
+              placeholder="Ajoute une description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="bg-[#1a1a1a] border-none text-white placeholder-gray-500"
+              className="bg-transparent border-none text-white placeholder-gray-500 text-sm focus-visible:ring-0"
             />
           </div>
 
-          <div className="flex flex-col gap-2 px-6">
-            {exercises.map((exercise, index) => (
-              <div key={exercise.id} className="bg-[#1a1a1a] rounded-lg p-4 relative">
-                <div className="absolute right-2 top-2 flex gap-2">
+          <div className="flex flex-col gap-4 px-4 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(90vh - 300px)' }}>
+            {exercises.map((exercise, exerciseIndex) => (
+              <div key={exercise.id} className="bg-[#1a1a1a] rounded-lg overflow-hidden">
+                {/* Exercise Header */}
+                <div className="flex items-center justify-between p-3 bg-[#1a1a1a]">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                    <span className="text-white font-medium">{exercise.name}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      exercise.type === 'Pull' ? 'bg-orange-500 text-white' : 'bg-green-500 text-white'
+                    }`}>
+                      {exercise.type}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleRemoveExercise(exercise.id)}
                     className="text-gray-400 hover:text-white"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                  <button type="button" className="text-gray-400 hover:text-white">
-                    <MoreHorizontal className="h-4 w-4" />
+                    <MoreHorizontal className="h-5 w-5" />
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-3">
+                {/* Exercise Table */}
+                {exercise.isExpanded && (
+                  <div className="bg-[#0a0a0a] p-3">
+                    {/* Table Container with Scroll */}
+                    <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+                          <tr className="text-gray-400 text-xs">
+                            <th className="text-left pb-2">Série</th>
+                            <th className="text-center pb-2">Charge (kg)</th>
+                            <th className="text-center pb-2">Reps</th>
+                            <th className="text-center pb-2">Repos</th>
+                            <th className="text-center pb-2">Vidéo</th>
+                            <th className="pb-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {exercise.sets.map((set, setIndex) => (
+                            <tr key={setIndex} className="border-t border-[#262626]">
+                              <td className="py-2 text-white">{set.serie}</td>
+                              <td className="py-2">
+                                <Input
+                                  type="number"
+                                  step="0.5"
+                                  value={set.weight}
+                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'weight', e.target.value)}
+                                  placeholder="55"
+                                  className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
+                                />
+                              </td>
+                              <td className="py-2">
+                                <Input
+                                  type="number"
+                                  value={set.reps}
+                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'reps', e.target.value)}
+                                  placeholder="3"
+                                  className="bg-[#262626] border-none text-white text-center h-8 w-12 mx-auto"
+                                />
+                              </td>
+                              <td className="py-2">
+                                <Input
+                                  type="text"
+                                  value={set.rest}
+                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
+                                  placeholder="03:00"
+                                  className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
+                                />
+                              </td>
+                              <td className="py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={set.video}
+                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'video', e.target.checked)}
+                                  className="w-4 h-4 rounded bg-[#262626] border-gray-600 text-orange-500 focus:ring-orange-500"
+                                />
+                              </td>
+                              <td className="py-2 text-right">
+                                {exercise.sets.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                                    className="text-gray-400 hover:text-red-500"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Add Set and Options Row */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262626]">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`tempo-${exercise.id}`}
+                          checked={exercise.tempo !== ''}
+                          onChange={(e) => {
+                            const updatedExercises = [...exercises];
+                            updatedExercises[exerciseIndex].tempo = e.target.checked ? '' : '';
+                            setExercises(updatedExercises);
+                          }}
+                          className="w-4 h-4 rounded bg-[#262626] border-gray-600"
+                        />
+                        <label htmlFor={`tempo-${exercise.id}`} className="text-sm text-gray-400">
+                          Tempo
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSet(exerciseIndex)}
+                        className="text-sm text-[#e87c3e] hover:text-[#e87c3e]/80 flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Ajouter une série
+                      </button>
+                    </div>
+
+                    {/* Notes Input */}
                     <Input
-                      value={exercise.name}
-                      readOnly
-                      className="flex-1 bg-[#262626] border-none text-white"
-                    />
-                    <select
-                      value={exercise.type}
+                      value={exercise.notes}
                       onChange={(e) => {
                         const updatedExercises = [...exercises];
-                        updatedExercises[index].type = e.target.value;
+                        updatedExercises[exerciseIndex].notes = e.target.value;
                         setExercises(updatedExercises);
                       }}
-                      className="bg-[#262626] text-white border-none rounded-md px-3 py-2 outline-none"
-                    >
-                      <option value="Pull">Pull</option>
-                      <option value="Push">Push</option>
-                    </select>
-                  </div>
-
-                  {exercise.description && (
-                    <div className="text-sm text-gray-400 bg-[#262626] p-3 rounded-md">
-                      {exercise.description}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-4 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        type="number"
-                        value={exercise.sets}
-                        onChange={(e) => {
-                          const updatedExercises = [...exercises];
-                          updatedExercises[index].sets = e.target.value;
-                          setExercises(updatedExercises);
-                        }}
-                        placeholder="Série"
-                        className="bg-[#262626] border-none text-white placeholder-gray-500"
-                      />
-                      <span className="text-xs text-gray-500 px-2">Série</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        type="number"
-                        value={exercise.reps}
-                        onChange={(e) => {
-                          const updatedExercises = [...exercises];
-                          updatedExercises[index].reps = e.target.value;
-                          setExercises(updatedExercises);
-                        }}
-                        placeholder="Reps"
-                        className="bg-[#262626] border-none text-white placeholder-gray-500"
-                      />
-                      <span className="text-xs text-gray-500 px-2">Reps</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        type="number"
-                        value={exercise.weight}
-                        onChange={(e) => {
-                          const updatedExercises = [...exercises];
-                          updatedExercises[index].weight = e.target.value;
-                          setExercises(updatedExercises);
-                        }}
-                        placeholder="Charge"
-                        className="bg-[#262626] border-none text-white placeholder-gray-500"
-                      />
-                      <span className="text-xs text-gray-500 px-2">Charge (kg)</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        type="text"
-                        value={exercise.rest}
-                        onChange={(e) => {
-                          const updatedExercises = [...exercises];
-                          updatedExercises[index].rest = e.target.value;
-                          setExercises(updatedExercises);
-                        }}
-                        placeholder="03:00"
-                        className="bg-[#262626] border-none text-white placeholder-gray-500"
-                      />
-                      <span className="text-xs text-gray-500 px-2">Tempo</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={exercise.recordVideo}
-                      onChange={(e) => {
-                        const updatedExercises = [...exercises];
-                        updatedExercises[index].recordVideo = e.target.checked;
-                        setExercises(updatedExercises);
-                      }}
-                      className="rounded border-gray-600 bg-[#262626]"
+                      placeholder="Ajouter une note pour cette exercice"
+                      className="bg-[#262626] border-none text-white placeholder-gray-500 mt-3"
                     />
-                    <span className="text-sm text-gray-400">Vidéo</span>
                   </div>
-
-                  <Input
-                    value={exercise.notes}
-                    onChange={(e) => {
-                      const updatedExercises = [...exercises];
-                      updatedExercises[index].notes = e.target.value;
-                      setExercises(updatedExercises);
-                    }}
-                    placeholder="Ajouter une note pour cette exercice"
-                    className="bg-[#262626] border-none text-white placeholder-gray-500"
-                  />
-                </div>
+                )}
               </div>
             ))}
           </div>
 
-          <div className="px-6">
+          {/* Exercise Selector or Add Button */}
+          <div className="px-6 mt-2">
             {showExerciseSelector ? (
-              <div className="bg-[#1a1a1a] rounded-lg p-4">
-                <div className="flex flex-col gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      type="text"
-                      placeholder="Rechercher un exercice..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-[#262626] border-none text-white placeholder-gray-500"
-                    />
-                  </div>
+              <div className="bg-[#1a1a1a] rounded-lg border border-[#262626]">
+                <div className="relative border-b border-[#262626]">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    type="text"
+                    placeholder="Choisir un exercice"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-transparent border-none text-white placeholder-gray-500 h-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExerciseSelector(false);
+                      setSearchTerm('');
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    Annuler
+                  </button>
+                </div>
 
-                  <div className="max-h-60 overflow-y-auto space-y-2">
-                    {filteredExercises.map(exercise => (
-                      <div
-                        key={exercise.id}
-                        onClick={() => handleAddExercise(exercise)}
-                        className="p-3 hover:bg-[#262626] rounded-lg cursor-pointer transition-colors"
-                      >
-                        <div className="font-medium text-white">{exercise.title}</div>
-                        {exercise.description && (
-                          <div className="text-sm text-gray-400 mt-1">
-                            {exercise.description}
-                          </div>
-                        )}
-                        {exercise.tags && exercise.tags.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {exercise.tags.map(tag => (
-                              <span
-                                key={tag}
-                                className="px-2 py-0.5 bg-[#333] text-gray-300 rounded-full text-xs"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                  {filteredExercises.map(exercise => (
+                    <div
+                      key={exercise.id}
+                      onClick={() => handleAddExercise(exercise)}
+                      className="p-3 hover:bg-[#262626] cursor-pointer transition-colors border-b border-[#1a1a1a] last:border-b-0"
+                    >
+                      <div className="font-medium text-white">{exercise.title}</div>
+                      {exercise.description && (
+                        <div className="text-sm text-gray-400 mt-1">
+                          {exercise.description}
+                        </div>
+                      )}
+                      {exercise.tags && exercise.tags.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {exercise.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 bg-[#333] text-gray-300 rounded-full text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {filteredExercises.length === 0 && (
+                    <div className="p-4 text-center text-gray-400">
+                      Aucun exercice trouvé
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setShowExerciseSelector(true)}
-                className="w-full bg-[#1a1a1a] hover:bg-[#262626] text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                className="w-full bg-[#6b4e2e] hover:bg-[#7a5a37] text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors font-medium"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
                 Ajouter exercice
               </button>
             )}
           </div>
 
-          <div className="flex justify-between p-6 mt-4 border-t border-[#262626]">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-[#e87c3e] hover:bg-[#e87c3e]/90 text-white rounded-lg transition-colors"
-            >
-              Sauvegarder & Quitter
-            </button>
-          </div>
         </form>
       </DialogContent>
     </Dialog>
