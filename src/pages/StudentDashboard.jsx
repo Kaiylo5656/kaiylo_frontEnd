@@ -3,10 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format, addDays, startOfWeek, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Circle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings, Home, Clock, MessageCircle, Video } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { buildApiUrl } from '../config/api';
+import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
 
 const StudentDashboard = () => {
   const { user, getAuthToken } = useAuth();
@@ -15,6 +16,8 @@ const StudentDashboard = () => {
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentView, setCurrentView] = useState('planning'); // 'planning' or 'execution'
+  const [executingSession, setExecutingSession] = useState(null);
 
   const week = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
@@ -60,6 +63,42 @@ const StudentDashboard = () => {
     setSelectedDate(newDate);
   };
 
+  const handleStartSession = (assignment) => {
+    setExecutingSession(assignment);
+    setCurrentView('execution');
+  };
+
+  const handleBackToPlanning = () => {
+    setCurrentView('planning');
+    setExecutingSession(null);
+  };
+
+  const handleCompleteSession = async (session) => {
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        // Refresh assignments to show updated status
+        await fetchAssignments();
+        setCurrentView('planning');
+        setExecutingSession(null);
+        alert('Séance terminée avec succès !');
+      } else {
+        throw new Error('Failed to complete session');
+      }
+    } catch (error) {
+      console.error('Error completing session:', error);
+      alert('Erreur lors de la validation de la séance');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background text-foreground">
@@ -68,16 +107,27 @@ const StudentDashboard = () => {
     );
   }
 
+  // Show execution view if a session is being executed
+  if (currentView === 'execution' && executingSession) {
+    return (
+      <WorkoutSessionExecution
+        session={executingSession}
+        onBack={handleBackToPlanning}
+        onCompleteSession={handleCompleteSession}
+      />
+    );
+  }
+
   return (
-    <div className="bg-background text-foreground min-h-screen p-4 md:p-6">
-      <main>
-        <h1 className="text-xl sm:text-2xl font-bold mb-4">Planning de la semaine</h1>
+    <div className="bg-[#121212] text-white min-h-screen">
+      <main className="p-4 pb-20">
+        <h1 className="text-2xl font-bold mb-6 text-white">Planning de la semaine</h1>
 
         <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" size="icon" onClick={() => changeWeek('prev')}>
+          <Button variant="ghost" size="icon" onClick={() => changeWeek('prev')} className="text-white hover:bg-[#1a1a1a]">
             <ChevronLeft className="h-6 w-6" />
           </Button>
-          <div className="flex justify-around flex-1 overflow-x-auto">
+          <div className="flex justify-around flex-1 overflow-x-auto gap-2">
             {week.map(day => {
               const dayStr = format(day, 'yyyy-MM-dd');
               const assignmentForDay = assignments.find(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
@@ -86,11 +136,11 @@ const StudentDashboard = () => {
               return (
                 <div 
                   key={dayStr}
-                  className={`text-center p-2 rounded-lg cursor-pointer min-w-[40px] sm:min-w-[50px] ${isSelected ? 'bg-primary text-primary-foreground' : ''}`}
+                  className={`text-center p-2 rounded-lg cursor-pointer min-w-[60px] ${isSelected ? 'bg-[#e87c3e] text-white' : 'text-white'}`}
                   onClick={() => setSelectedDate(day)}
                 >
                   <p className="text-xs uppercase opacity-70">{format(day, 'eee', { locale: fr })}</p>
-                  <p className="font-bold text-base sm:text-lg">{format(day, 'd')}</p>
+                  <p className="font-bold text-base">{format(day, 'd')}</p>
                   <div className="h-4 flex justify-center items-center mt-1">
                     {assignmentForDay && (
                       assignmentForDay.status === 'completed' 
@@ -102,40 +152,65 @@ const StudentDashboard = () => {
               );
             })}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => changeWeek('next')}>
+          <Button variant="ghost" size="icon" onClick={() => changeWeek('next')} className="text-white hover:bg-[#1a1a1a]">
             <ChevronRight className="h-6 w-6" />
           </Button>
         </div>
 
         {selectedAssignment ? (
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-primary">{selectedAssignment.workout_sessions?.title || 'Workout'}</CardTitle>
-              <p className="text-sm text-muted-foreground">Durée estimée : 1h30</p>
+          <Card className="bg-[#1a1a1a] border-[#262626] rounded-lg">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-[#e87c3e] text-xl font-bold">{selectedAssignment.workout_sessions?.title || 'Workout'}</CardTitle>
+              <p className="text-sm text-gray-400">Durée estimée : 1h30</p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 mb-6">
+              <div className="space-y-3 mb-6">
                 {selectedAssignment.workout_sessions?.exercises?.map((ex, index) => (
-                  <div key={index} className="flex justify-between">
-                    <p className="truncate">{ex.name}</p>
-                    <p className="text-muted-foreground whitespace-nowrap">{ex.sets}x{ex.reps} reps @{ex.weight || 'N/A'} kg</p>
+                  <div key={index} className="flex justify-between items-center">
+                    <p className="truncate text-white font-medium">{ex.name}</p>
+                    <p className="text-gray-400 whitespace-nowrap">{ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} reps @{ex.sets?.[0]?.weight || 'N/A'} kg</p>
                   </div>
                 ))}
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-gray-400 mb-4">
                 {selectedAssignment.workout_sessions?.exercises?.length || 0} exercices
               </p>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button 
+                className="w-full bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg font-medium"
+                onClick={() => handleStartSession(selectedAssignment)}
+              >
                 Commencer la séance
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className="text-center py-16">
-            <p className="text-muted-foreground">Pas de séance prévue pour aujourd'hui.</p>
+            <p className="text-gray-400">Pas de séance prévue pour aujourd'hui.</p>
           </div>
         )}
       </main>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#262626] rounded-t-lg">
+        <div className="flex items-center justify-around py-2">
+          <div className="flex flex-col items-center py-2">
+            <Home className="h-6 w-6 text-[#e87c3e]" />
+            <span className="text-xs text-[#e87c3e] font-medium mt-1">Accueil</span>
+          </div>
+          <div className="flex flex-col items-center py-2">
+            <Clock className="h-6 w-6 text-gray-400" />
+            <span className="text-xs text-gray-400 mt-1">Historique</span>
+          </div>
+          <div className="flex flex-col items-center py-2">
+            <MessageCircle className="h-6 w-6 text-gray-400" />
+            <span className="text-xs text-gray-400 mt-1">Messages</span>
+          </div>
+          <div className="flex flex-col items-center py-2">
+            <Video className="h-6 w-6 text-gray-400" />
+            <span className="text-xs text-gray-400 mt-1">Vidéothèque</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

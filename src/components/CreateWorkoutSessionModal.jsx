@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { getApiBaseUrlWithApi } from '../config/api';
 
-const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId }) => {
+const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession }) => {
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState([]);
@@ -21,6 +21,55 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       fetchExercises();
     }
   }, [isOpen]);
+
+  // Pre-fill form when editing existing session
+  useEffect(() => {
+    if (isOpen && existingSession) {
+      setSessionName(existingSession.title || '');
+      setDescription(existingSession.description || '');
+      
+      // Convert session exercises to form format
+      const formExercises = existingSession.exercises?.map(ex => {
+        // Ensure sets is an array before mapping
+        let sets = [];
+        if (Array.isArray(ex.sets)) {
+          sets = ex.sets.map(set => ({
+            serie: set.serie,
+            weight: set.weight?.toString() || '',
+            reps: set.reps?.toString() || '',
+            rest: set.rest || '03:00',
+            video: set.video || false
+          }));
+        } else {
+          // Default sets if none exist or not an array
+          sets = [
+            { serie: 1, weight: '', reps: '', rest: '03:00', video: false },
+            { serie: 2, weight: '', reps: '', rest: '03:00', video: false },
+            { serie: 3, weight: '', reps: '', rest: '00:00', video: false }
+          ];
+        }
+
+        return {
+          id: Date.now() + Math.random(), // Generate unique ID
+          name: ex.name,
+          tags: ex.tags || [],
+          exerciseId: ex.exerciseId,
+          description: ex.description || '',
+          sets: sets,
+          notes: ex.notes || '',
+          isExpanded: true,
+          tempo: ex.tempo || ''
+        };
+      }) || [];
+      
+      setExercises(formExercises);
+    } else if (isOpen && !existingSession) {
+      // Reset form for new session
+      setSessionName('');
+      setDescription('');
+      setExercises([]);
+    }
+  }, [isOpen, existingSession]);
 
   const fetchExercises = async () => {
     try {
@@ -42,10 +91,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   };
 
   const handleAddExercise = (selectedExercise) => {
+    // Store all tags from the exercise
+    const exerciseTags = selectedExercise.tags || [];
+
     const newExercise = {
       id: Date.now(),
       name: selectedExercise.title,
-      type: selectedExercise.tags?.includes('Push') ? 'Push' : 'Pull',
+      tags: exerciseTags,
       exerciseId: selectedExercise.id,
       description: selectedExercise.description || '',
       sets: [
@@ -102,7 +154,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises(updatedExercises);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, status = 'published') => {
     e.preventDefault();
     
     // Validate exercises
@@ -117,7 +169,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       exercises: exercises.map(ex => ({
         exerciseId: ex.exerciseId,
         name: ex.name,
-        type: ex.type,
+        tags: ex.tags,
         sets: ex.sets.map(set => ({
           serie: set.serie,
           weight: parseFloat(set.weight) || 0,
@@ -129,7 +181,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tempo: ex.tempo
       })),
       scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
-      student_id: studentId
+      student_id: studentId,
+      status: status, // 'published' or 'draft'
+      // Include existing session info if editing
+      ...(existingSession && {
+        existingSessionId: existingSession.assignmentId,
+        isEdit: true
+      })
     };
 
     console.log('Sending session data:', sessionData);
@@ -138,8 +196,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       onSessionCreated(sessionData);
       handleClose();
     } catch (error) {
-      console.error('Error creating workout session:', error);
+      console.error('Error creating/updating workout session:', error);
     }
+  };
+
+  const handleSaveDraft = (e) => {
+    handleSubmit(e, 'draft');
+  };
+
+  const handlePublish = (e) => {
+    handleSubmit(e, 'published');
   };
 
   const handleClose = () => {
@@ -159,18 +225,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="bg-[#121212] border-none p-0 gap-0 max-w-[700px] max-h-[90vh]">
-        <DialogHeader className="p-4 pb-3">
+      <DialogContent className="dialog-content">
+        <DialogHeader className="workout-modal-header">
           <DialogTitle className="text-lg font-medium text-white">
-            Nom de la séance
+            {existingSession ? 'Modifier la séance' : 'Nom de la séance'}
           </DialogTitle>
           <DialogDescription className="text-xs text-gray-400">
             {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col">
-          <div className="px-4">
+        <div className="workout-modal-content">
+          <div className="px-4 py-2">
             <Input
               placeholder="Nom de la séance"
               value={sessionName}
@@ -179,7 +245,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             />
           </div>
 
-          <div className="px-4 mt-2">
+          <div className="px-4 pb-4">
             <label className="text-xs text-gray-400 mb-1 block">DESCRIPTION</label>
             <Input
               placeholder="Ajoute une description"
@@ -189,7 +255,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             />
           </div>
 
-          <div className="flex flex-col gap-4 px-4 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(90vh - 300px)' }}>
+          <div className="workout-modal-body">
             {exercises.map((exercise, exerciseIndex) => (
               <div key={exercise.id} className="bg-[#1a1a1a] rounded-lg overflow-hidden">
                 {/* Exercise Header */}
@@ -197,11 +263,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-2 h-2 rounded-full bg-gray-500"></div>
                     <span className="text-white font-medium">{exercise.name}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      exercise.type === 'Pull' ? 'bg-orange-500 text-white' : 'bg-green-500 text-white'
-                    }`}>
-                      {exercise.type}
-                    </span>
+                    <div className="flex gap-1 flex-wrap">
+                      {exercise.tags && exercise.tags.map((tag, tagIndex) => (
+                        <span key={tagIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${
+                          tag.toLowerCase() === 'pull' ? 'bg-orange-500' :
+                          tag.toLowerCase() === 'push' ? 'bg-green-500' :
+                          tag.toLowerCase() === 'legs' ? 'bg-purple-500' :
+                          'bg-gray-500'
+                        }`}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -216,7 +289,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 {exercise.isExpanded && (
                   <div className="bg-[#0a0a0a] p-3">
                     {/* Table Container with Scroll */}
-                    <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="exercise-sets-container">
                       <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-[#0a0a0a] z-10">
                           <tr className="text-gray-400 text-xs">
@@ -285,24 +358,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       </table>
                     </div>
 
-                    {/* Add Set and Options Row */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262626]">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          id={`tempo-${exercise.id}`}
-                          checked={exercise.tempo !== ''}
-                          onChange={(e) => {
-                            const updatedExercises = [...exercises];
-                            updatedExercises[exerciseIndex].tempo = e.target.checked ? '' : '';
-                            setExercises(updatedExercises);
-                          }}
-                          className="w-4 h-4 rounded bg-[#262626] border-gray-600"
-                        />
-                        <label htmlFor={`tempo-${exercise.id}`} className="text-sm text-gray-400">
-                          Tempo
-                        </label>
-                      </div>
+                    {/* Add Set Row */}
+                    <div className="flex justify-end mt-3 pt-3 border-t border-[#262626]">
                       <button
                         type="button"
                         onClick={() => handleAddSet(exerciseIndex)}
@@ -330,9 +387,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             ))}
           </div>
 
-          {/* Exercise Selector or Add Button */}
-          <div className="px-6 mt-2">
-            {showExerciseSelector ? (
+
+          {/* Exercise Selector */}
+          {showExerciseSelector && (
+            <div className="px-4 pb-4">
               <div className="bg-[#1a1a1a] rounded-lg border border-[#262626]">
                 <div className="relative border-b border-[#262626]">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -389,7 +447,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   )}
                 </div>
               </div>
-            ) : (
+            </div>
+          )}
+
+          {/* Add Exercise Button */}
+          {!showExerciseSelector && (
+            <div className="px-4 pb-4">
               <button
                 type="button"
                 onClick={() => setShowExerciseSelector(true)}
@@ -398,10 +461,36 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <Plus className="h-5 w-5" />
                 Ajouter exercice
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-        </form>
+          {/* Footer with Action Buttons */}
+          <div className="workout-modal-footer">
+            <div className="flex gap-3 px-4">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
+              >
+                Enregistrer comme brouillon
+              </button>
+              <button
+                type="button"
+                onClick={handlePublish}
+                className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg transition-colors font-medium"
+              >
+                Publier
+              </button>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

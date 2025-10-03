@@ -8,6 +8,166 @@
 
 /* Custom styles can be added here if needed */
 
+/* Modal scrolling styles */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+
+.dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 700px;
+  max-height: calc(100vh - 80px);
+  height: auto;
+  background: #121212;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+}
+
+.workout-modal-header {
+  padding: 16px;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+  background: #121212;
+}
+
+.workout-modal-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.workout-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px;
+  min-height: 0;
+}
+
+.workout-modal-footer {
+  padding: 16px;
+  border-top: 1px solid #1a1a1a;
+  background: #121212;
+  flex-shrink: 0;
+}
+
+/* Main scrollbar styles */
+.workout-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.workout-modal-body::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.workout-modal-body::-webkit-scrollbar-thumb {
+  background: #e87c3e;
+  border-radius: 4px;
+}
+
+.workout-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #d66d35;
+}
+
+.workout-session {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.exercise-block {
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.exercise-sets-container {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-right: -8px;
+  padding-right: 8px;
+}
+
+/* Exercise sets scrollbar styles */
+.exercise-sets-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.exercise-sets-container::-webkit-scrollbar-track {
+  background: #262626;
+  border-radius: 3px;
+}
+
+.exercise-sets-container::-webkit-scrollbar-thumb {
+  background: #e87c3e;
+  border-radius: 3px;
+}
+
+.exercise-sets-container::-webkit-scrollbar-thumb:hover {
+  background: #d66d35;
+}
+
+/* Scrollbar styles */
+.workout-modal-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workout-modal-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 3px;
+}
+
+.workout-modal-content::-webkit-scrollbar-thumb {
+  background: #e87c3e;
+  border-radius: 3px;
+}
+
+.workout-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #d66d35;
+}
+
+/* Exercise item styles */
+.exercise-item {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+.exercise-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Remove number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* File Upload Styles */
 .file-upload-container {
   margin: 1rem 0;
@@ -428,4 +588,23 @@
 
 .reply-card:active {
   transform: translateY(0);
+}
+
+/* Session container scrollbar styles */
+.session-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.session-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.session-container::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 2px;
+}
+
+.session-container::-webkit-scrollbar-thumb:hover {
+  background: #505050;
 }
