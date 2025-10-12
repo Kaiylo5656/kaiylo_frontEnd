@@ -129,6 +129,43 @@ const useSocket = () => {
     }
   }, [isConnected]);
 
+  // Function to listen for video upload notifications (for coaches)
+  const onVideoUpload = useCallback((callback) => {
+    let connectHandler = null;
+    
+    const setupListener = () => {
+      if (socketRef.current && isConnected) {
+        socketRef.current.on('new_video_upload', callback);
+        return true;
+      }
+      return false;
+    };
+
+    // Try to set up listener immediately
+    if (!setupListener()) {
+      // If socket is not ready, set up a one-time listener for when it connects
+      connectHandler = () => {
+        setupListener();
+        if (socketRef.current && connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      };
+      
+      if (socketRef.current) {
+        socketRef.current.on('connect', connectHandler);
+      }
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('new_video_upload', callback);
+        if (connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      }
+    };
+  }, [isConnected]);
+
   return {
     socket: socketRef.current,
     isConnected,
@@ -138,7 +175,8 @@ const useSocket = () => {
     sendMessage,
     startTyping,
     stopTyping,
-    markMessagesAsRead
+    markMessagesAsRead,
+    onVideoUpload
   };
 };
 

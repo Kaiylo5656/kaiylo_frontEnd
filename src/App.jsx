@@ -14,6 +14,7 @@ import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
 import CoachProgressDashboard from './pages/CoachProgressDashboard';
 import ChatPage from './pages/ChatPage';
 import VideoLibrary from './pages/VideoLibrary';
+import StudentVideoLibrary from './pages/StudentVideoLibrary';
 import FinancialTracking from './pages/FinancialTracking';
 
 import './App.css';
@@ -152,7 +153,7 @@ function App() {
               path="/student/videos" 
               element={
                 <ProtectedRoute allowedRoles={['student']}>
-                  <div>Student Video Library (Placeholder)</div>
+                  <StudentVideoLibrary />
                 </ProtectedRoute>
               } 
             />

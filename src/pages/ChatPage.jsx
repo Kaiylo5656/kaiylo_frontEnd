@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useParams, useSearchParams } from 'react-router-dom';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
 import useSocket from '../hooks/useSocket';
@@ -10,11 +11,15 @@ import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video
 const ChatPage = () => {
   const { getAuthToken, user } = useAuth();
   const { isConnected, connectionError } = useSocket();
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Get studentId from URL parameters
+  const studentId = searchParams.get('studentId');
 
   // Fetch user's conversations
   const fetchConversations = async () => {
@@ -59,6 +64,23 @@ const ChatPage = () => {
   useEffect(() => {
     fetchConversations();
   }, []);
+
+  // Auto-open conversation with specific student if studentId is provided
+  useEffect(() => {
+    if (studentId && conversations.length > 0) {
+      // Look for existing conversation with this student
+      const existingConversation = conversations.find(conv => 
+        conv.other_participant_id === studentId
+      );
+      
+      if (existingConversation) {
+        setSelectedConversation(existingConversation);
+      } else {
+        // Create new conversation with this student
+        createConversation(studentId);
+      }
+    }
+  }, [studentId, conversations]);
 
   // Create new conversation
   const createConversation = async (participantId) => {

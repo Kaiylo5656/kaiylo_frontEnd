@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react';
+import { X, Plus, Trash2, MoreHorizontal, Search, Menu, User, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -14,6 +14,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   // ... existing useEffect and functions ...
   useEffect(() => {
@@ -154,6 +155,70 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises(updatedExercises);
   };
 
+  // Exercise reordering functions
+  const moveExerciseUp = (index) => {
+    if (index > 0) {
+      const updatedExercises = [...exercises];
+      [updatedExercises[index], updatedExercises[index - 1]] = [updatedExercises[index - 1], updatedExercises[index]];
+      setExercises(updatedExercises);
+    }
+  };
+
+  const moveExerciseDown = (index) => {
+    if (index < exercises.length - 1) {
+      const updatedExercises = [...exercises];
+      [updatedExercises[index], updatedExercises[index + 1]] = [updatedExercises[index + 1], updatedExercises[index]];
+      setExercises(updatedExercises);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.setData('text/plain', index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Add visual feedback
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    // Reset visual feedback
+    e.target.style.opacity = '1';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.target.style.backgroundColor = '#404040';
+  };
+
+  const handleDragLeave = (e) => {
+    e.target.style.backgroundColor = '#262626';
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    e.target.style.backgroundColor = '#262626';
+    
+    const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+    
+    if (dragIndex !== dropIndex && dragIndex !== undefined && !isNaN(dragIndex)) {
+      const updatedExercises = [...exercises];
+      const draggedExercise = updatedExercises[dragIndex];
+      
+      // Remove the dragged exercise
+      updatedExercises.splice(dragIndex, 1);
+      
+      // Insert it at the new position
+      updatedExercises.splice(dropIndex, 0, draggedExercise);
+      
+      setExercises(updatedExercises);
+    }
+  };
+
   const handleSubmit = async (e, status = 'published') => {
     e.preventDefault();
     
@@ -185,12 +250,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       status: status, // 'published' or 'draft'
       // Include existing session info if editing
       ...(existingSession && {
-        existingSessionId: existingSession.assignmentId,
+        existingSessionId: existingSession.workoutSessionId || existingSession.id, // Use workoutSessionId for draft sessions
+        assignmentId: existingSession.assignmentId, // Include assignmentId for assigned sessions
         isEdit: true
       })
     };
 
     console.log('Sending session data:', sessionData);
+    console.log('Existing session details:', {
+      id: existingSession?.id,
+      assignmentId: existingSession?.assignmentId,
+      workoutSessionId: existingSession?.workoutSessionId,
+      status: existingSession?.status
+    });
 
     try {
       onSessionCreated(sessionData);
@@ -214,6 +286,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises([]);
     setSearchTerm('');
     setShowExerciseSelector(false);
+    setShowSidebar(false);
     onClose();
   };
 
@@ -225,270 +298,376 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="dialog-content">
+      <DialogContent className="dialog-content max-w-7xl">
         <DialogHeader className="workout-modal-header">
-          <DialogTitle className="text-lg font-medium text-white">
-            {existingSession ? 'Modifier la séance' : 'Nom de la séance'}
-          </DialogTitle>
-          <DialogDescription className="text-xs text-gray-400">
-            {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-lg font-medium text-white">
+                {existingSession ? 'Modifier la séance' : 'Nom de la séance'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-400">
+                {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
+              </DialogDescription>
+            </div>
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="p-2 bg-[#262626] rounded-lg hover:bg-[#404040] transition-colors"
+              title="Agencement des exercices"
+            >
+              <Menu className="h-5 w-5 text-white" />
+            </button>
+          </div>
         </DialogHeader>
 
         <div className="workout-modal-content">
-          <div className="px-4 py-2">
-            <Input
-              placeholder="Nom de la séance"
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              className="bg-transparent border-none text-white placeholder-gray-500 text-lg font-medium focus-visible:ring-0"
-            />
-          </div>
+          {/* Main Content */}
+          <div className="workout-modal-main">
+            <div className="px-4 py-2">
+              <Input
+                placeholder="Nom de la séance"
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                className="bg-transparent border-none text-white placeholder-gray-500 text-lg font-medium focus-visible:ring-0"
+              />
+            </div>
 
-          <div className="px-4 pb-4">
-            <label className="text-xs text-gray-400 mb-1 block">DESCRIPTION</label>
-            <Input
-              placeholder="Ajoute une description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="bg-transparent border-none text-white placeholder-gray-500 text-sm focus-visible:ring-0"
-            />
-          </div>
+            <div className="px-4 pb-4">
+              <label className="text-xs text-gray-400 mb-1 block">DESCRIPTION</label>
+              <Input
+                placeholder="Ajoute une description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-transparent border-none text-white placeholder-gray-500 text-sm focus-visible:ring-0"
+              />
+            </div>
 
-          <div className="workout-modal-body">
-            {exercises.map((exercise, exerciseIndex) => (
-              <div key={exercise.id} className="bg-[#1a1a1a] rounded-lg overflow-hidden">
-                {/* Exercise Header */}
-                <div className="flex items-center justify-between p-3 bg-[#1a1a1a]">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-                    <span className="text-white font-medium">{exercise.name}</span>
-                    <div className="flex gap-1 flex-wrap">
-                      {exercise.tags && exercise.tags.map((tag, tagIndex) => (
-                        <span key={tagIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${
-                          tag.toLowerCase() === 'pull' ? 'bg-orange-500' :
-                          tag.toLowerCase() === 'push' ? 'bg-green-500' :
-                          tag.toLowerCase() === 'legs' ? 'bg-purple-500' :
-                          'bg-gray-500'
-                        }`}>
-                          {tag}
-                        </span>
-                      ))}
+            <div className="workout-modal-body">
+              {exercises.map((exercise, exerciseIndex) => (
+                <div 
+                  key={exercise.id} 
+                  className="bg-[#1a1a1a] rounded-lg overflow-hidden"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, exerciseIndex)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, exerciseIndex)}
+                >
+                  {/* Exercise Header */}
+                  <div className="flex items-center justify-between p-3 bg-[#1a1a1a]">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                      <span className="text-white font-medium">{exercise.name}</span>
+                      <div className="flex gap-1 flex-wrap">
+                        {exercise.tags && exercise.tags.map((tag, tagIndex) => (
+                          <span key={tagIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${
+                            tag.toLowerCase() === 'pull' ? 'bg-orange-500' :
+                            tag.toLowerCase() === 'push' ? 'bg-green-500' :
+                            tag.toLowerCase() === 'legs' ? 'bg-purple-500' :
+                            'bg-gray-500'
+                          }`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveExercise(exercise.id)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <MoreHorizontal className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Exercise Table */}
-                {exercise.isExpanded && (
-                  <div className="bg-[#0a0a0a] p-3">
-                    {/* Table Container with Scroll */}
-                    <div className="exercise-sets-container">
-                      <table className="w-full text-sm">
-                        <thead className="sticky top-0 bg-[#0a0a0a] z-10">
-                          <tr className="text-gray-400 text-xs">
-                            <th className="text-left pb-2">Série</th>
-                            <th className="text-center pb-2">Charge (kg)</th>
-                            <th className="text-center pb-2">Reps</th>
-                            <th className="text-center pb-2">Repos</th>
-                            <th className="text-center pb-2">Vidéo</th>
-                            <th className="pb-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {exercise.sets.map((set, setIndex) => (
-                            <tr key={setIndex} className="border-t border-[#262626]">
-                              <td className="py-2 text-white">{set.serie}</td>
-                              <td className="py-2">
-                                <Input
-                                  type="number"
-                                  step="0.5"
-                                  value={set.weight}
-                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'weight', e.target.value)}
-                                  placeholder="55"
-                                  className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
-                                />
-                              </td>
-                              <td className="py-2">
-                                <Input
-                                  type="number"
-                                  value={set.reps}
-                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'reps', e.target.value)}
-                                  placeholder="3"
-                                  className="bg-[#262626] border-none text-white text-center h-8 w-12 mx-auto"
-                                />
-                              </td>
-                              <td className="py-2">
-                                <Input
-                                  type="text"
-                                  value={set.rest}
-                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
-                                  placeholder="03:00"
-                                  className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
-                                />
-                              </td>
-                              <td className="py-2 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={set.video}
-                                  onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'video', e.target.checked)}
-                                  className="w-4 h-4 rounded bg-[#262626] border-gray-600 text-orange-500 focus:ring-orange-500"
-                                />
-                              </td>
-                              <td className="py-2 text-right">
-                                {exercise.sets.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                                    className="text-gray-400 hover:text-red-500"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Add Set Row */}
-                    <div className="flex justify-end mt-3 pt-3 border-t border-[#262626]">
+                    <div className="flex items-center gap-2">
+                      {showSidebar && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => moveExerciseUp(exerciseIndex)}
+                            disabled={exerciseIndex === 0}
+                            className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Monter l'exercice"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveExerciseDown(exerciseIndex)}
+                            disabled={exerciseIndex === exercises.length - 1}
+                            className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Descendre l'exercice"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <div className="w-px h-4 bg-gray-600"></div>
+                        </>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleAddSet(exerciseIndex)}
-                        className="text-sm text-[#e87c3e] hover:text-[#e87c3e]/80 flex items-center gap-1"
+                        onClick={() => handleRemoveExercise(exercise.id)}
+                        className="text-gray-400 hover:text-white"
                       >
-                        <Plus className="h-4 w-4" />
-                        Ajouter une série
+                        <MoreHorizontal className="h-5 w-5" />
                       </button>
                     </div>
-
-                    {/* Notes Input */}
-                    <Input
-                      value={exercise.notes}
-                      onChange={(e) => {
-                        const updatedExercises = [...exercises];
-                        updatedExercises[exerciseIndex].notes = e.target.value;
-                        setExercises(updatedExercises);
-                      }}
-                      placeholder="Ajouter une note pour cette exercice"
-                      className="bg-[#262626] border-none text-white placeholder-gray-500 mt-3"
-                    />
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
 
+                  {/* Exercise Table */}
+                  {exercise.isExpanded && (
+                    <div className="bg-[#0a0a0a] p-3">
+                      {/* Table Container with Scroll */}
+                      <div className="exercise-sets-container">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+                            <tr className="text-gray-400 text-xs">
+                              <th className="text-left pb-2">Série</th>
+                              <th className="text-center pb-2">Charge (kg)</th>
+                              <th className="text-center pb-2">Reps</th>
+                              <th className="text-center pb-2">Repos</th>
+                              <th className="text-center pb-2">Vidéo</th>
+                              <th className="pb-2"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {exercise.sets.map((set, setIndex) => (
+                              <tr key={setIndex} className="border-t border-[#262626]">
+                                <td className="py-2 text-white">{set.serie}</td>
+                                <td className="py-2">
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    value={set.weight}
+                                    onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'weight', e.target.value)}
+                                    placeholder="55"
+                                    className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
+                                  />
+                                </td>
+                                <td className="py-2">
+                                  <Input
+                                    type="number"
+                                    value={set.reps}
+                                    onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'reps', e.target.value)}
+                                    placeholder="3"
+                                    className="bg-[#262626] border-none text-white text-center h-8 w-12 mx-auto"
+                                  />
+                                </td>
+                                <td className="py-2">
+                                  <Input
+                                    type="text"
+                                    value={set.rest}
+                                    onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
+                                    placeholder="03:00"
+                                    className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
+                                  />
+                                </td>
+                                <td className="py-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={set.video}
+                                    onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'video', e.target.checked)}
+                                    className="w-4 h-4 rounded bg-[#262626] border-gray-600 text-orange-500 focus:ring-orange-500"
+                                  />
+                                </td>
+                                <td className="py-2 text-right">
+                                  {exercise.sets.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                                      className="text-gray-400 hover:text-red-500"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
 
-          {/* Exercise Selector */}
-          {showExerciseSelector && (
-            <div className="px-4 pb-4">
-              <div className="bg-[#1a1a1a] rounded-lg border border-[#262626]">
-                <div className="relative border-b border-[#262626]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    type="text"
-                    placeholder="Choisir un exercice"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-transparent border-none text-white placeholder-gray-500 h-12"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowExerciseSelector(false);
-                      setSearchTerm('');
-                    }}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                  >
-                    Annuler
-                  </button>
-                </div>
+                      {/* Add Set Row */}
+                      <div className="flex justify-end mt-3 pt-3 border-t border-[#262626]">
+                        <button
+                          type="button"
+                          onClick={() => handleAddSet(exerciseIndex)}
+                          className="text-sm text-[#e87c3e] hover:text-[#e87c3e]/80 flex items-center gap-1"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Ajouter une série
+                        </button>
+                      </div>
 
-                <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                  {filteredExercises.map(exercise => (
-                    <div
-                      key={exercise.id}
-                      onClick={() => handleAddExercise(exercise)}
-                      className="p-3 hover:bg-[#262626] cursor-pointer transition-colors border-b border-[#1a1a1a] last:border-b-0"
-                    >
-                      <div className="font-medium text-white">{exercise.title}</div>
-                      {exercise.description && (
-                        <div className="text-sm text-gray-400 mt-1">
-                          {exercise.description}
-                        </div>
-                      )}
-                      {exercise.tags && exercise.tags.length > 0 && (
-                        <div className="flex gap-1 mt-1">
-                          {exercise.tags.map(tag => (
-                            <span
-                              key={tag}
-                              className="px-2 py-0.5 bg-[#333] text-gray-300 rounded-full text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {filteredExercises.length === 0 && (
-                    <div className="p-4 text-center text-gray-400">
-                      Aucun exercice trouvé
+                      {/* Notes Input */}
+                      <Input
+                        value={exercise.notes}
+                        onChange={(e) => {
+                          const updatedExercises = [...exercises];
+                          updatedExercises[exerciseIndex].notes = e.target.value;
+                          setExercises(updatedExercises);
+                        }}
+                        placeholder="Ajouter une note pour cette exercice"
+                        className="bg-[#262626] border-none text-white placeholder-gray-500 mt-3"
+                      />
                     </div>
                   )}
                 </div>
+              ))}
+            </div>
+
+            {/* Exercise Selector */}
+            {showExerciseSelector && (
+              <div className="px-4 pb-4">
+                <div className="bg-[#1a1a1a] rounded-lg border border-[#262626]">
+                  <div className="relative border-b border-[#262626]">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      type="text"
+                      placeholder="Choisir un exercice"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-transparent border-none text-white placeholder-gray-500 h-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExerciseSelector(false);
+                        setSearchTerm('');
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                    {filteredExercises.map(exercise => (
+                      <div
+                        key={exercise.id}
+                        onClick={() => handleAddExercise(exercise)}
+                        className="p-3 hover:bg-[#262626] cursor-pointer transition-colors border-b border-[#1a1a1a] last:border-b-0"
+                      >
+                        <div className="font-medium text-white">{exercise.title}</div>
+                        {exercise.description && (
+                          <div className="text-sm text-gray-400 mt-1">
+                            {exercise.description}
+                          </div>
+                        )}
+                        {exercise.tags && exercise.tags.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {exercise.tags.map(tag => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 bg-[#333] text-gray-300 rounded-full text-xs"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {filteredExercises.length === 0 && (
+                      <div className="p-4 text-center text-gray-400">
+                        Aucun exercice trouvé
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Add Exercise Button */}
-          {!showExerciseSelector && (
-            <div className="px-4 pb-4">
-              <button
-                type="button"
-                onClick={() => setShowExerciseSelector(true)}
-                className="w-full bg-[#6b4e2e] hover:bg-[#7a5a37] text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors font-medium"
-              >
-                <Plus className="h-5 w-5" />
-                Ajouter exercice
-              </button>
-            </div>
-          )}
+            {/* Add Exercise Button */}
+            {!showExerciseSelector && (
+              <div className="px-4 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowExerciseSelector(true)}
+                  className="w-full bg-[#6b4e2e] hover:bg-[#7a5a37] text-white py-3 rounded-lg flex items-center justify-center gap-2 transition-colors font-medium"
+                >
+                  <Plus className="h-5 w-5" />
+                  Ajouter exercice
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* Footer with Action Buttons */}
-          <div className="workout-modal-footer">
-            <div className="flex gap-3 px-4">
+          {/* Sidebar - Exercise Arrangement */}
+          <div className={`workout-sidebar-integrated ${!showSidebar ? 'hidden' : ''}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <GripVertical className="h-5 w-5 text-[#e87c3e]" />
+                <h3 className="text-white font-medium">Agencement des exercices</h3>
+              </div>
               <button
-                type="button"
-                onClick={handleClose}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
+                onClick={() => setShowSidebar(false)}
+                className="text-gray-400 hover:text-white transition-colors"
               >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
-              >
-                Enregistrer comme brouillon
-              </button>
-              <button
-                type="button"
-                onClick={handlePublish}
-                className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg transition-colors font-medium"
-              >
-                Publier
+                <X className="h-5 w-5" />
               </button>
             </div>
+            
+            <div className="space-y-2">
+              {exercises.map((exercise, index) => (
+                <div
+                  key={exercise.id}
+                  className="flex items-center justify-between p-3 bg-[#262626] rounded-lg cursor-move hover:bg-[#333333] transition-colors"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index)}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <GripVertical className="h-4 w-4 text-[#e87c3e] cursor-move" />
+                    <span className="text-white text-sm truncate">{exercise.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => moveExerciseUp(index)}
+                      disabled={index === 0}
+                      className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Monter"
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => moveExerciseDown(index)}
+                      disabled={index === exercises.length - 1}
+                      className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Descendre"
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              {exercises.length === 0 && (
+                <div className="text-center text-gray-400 py-8">
+                  Aucun exercice ajouté
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer with Action Buttons */}
+        <div className="workout-modal-footer">
+          <div className="flex gap-3 px-4">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
+            >
+              Enregistrer comme brouillon
+            </button>
+            <button
+              type="button"
+              onClick={handlePublish}
+              className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg transition-colors font-medium"
+            >
+              Publier
+            </button>
           </div>
         </div>
       </DialogContent>

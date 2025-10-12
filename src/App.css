@@ -39,6 +39,11 @@
   z-index: 100;
 }
 
+.dialog-content.max-w-7xl {
+  max-width: 1200px;
+  width: 95%;
+}
+
 .workout-modal-header {
   padding: 16px;
   border-bottom: 1px solid #1a1a1a;
@@ -47,6 +52,15 @@
 }
 
 .workout-modal-content {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+}
+
+.workout-modal-main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -161,11 +175,13 @@
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* File Upload Styles */
@@ -607,4 +623,61 @@ input[type="number"] {
 
 .session-container::-webkit-scrollbar-thumb:hover {
   background: #505050;
+}
+
+/* Video container scrollbar styles */
+.video-container-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.video-container-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.video-container-scrollbar::-webkit-scrollbar-thumb {
+  background: #e87c3e;
+  border-radius: 4px;
+}
+
+.video-container-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d66d35;
+}
+
+/* Custom scrollbar for modal content */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e87c3e;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d66d35;
+}
+
+/* Sidebar integrated styles */
+.workout-sidebar-integrated {
+  width: 320px;
+  height: 100%;
+  background: #1a1a1a;
+  border-left: 1px solid #262626;
+  padding: 16px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  transition: width 0.3s ease-in-out;
+}
+
+.workout-sidebar-integrated.hidden {
+  width: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
 }

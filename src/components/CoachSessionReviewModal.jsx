@@ -1,0 +1,409 @@
+import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { X, PlayCircle, CheckCircle, Clock, Video, MessageSquare, Save, Folder, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { getApiBaseUrlWithApi } from '../config/api';
+import axios from 'axios';
+
+const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, studentId }) => {
+  const [sessionVideos, setSessionVideos] = useState([]);
+  const [selectedExercise, setSelectedExercise] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [savingFeedback, setSavingFeedback] = useState(false);
+  const [sessionDifficulty, setSessionDifficulty] = useState('');
+  const [sessionComment, setSessionComment] = useState('');
+
+  // Fetch videos for this session and load student feedback
+  useEffect(() => {
+    if (isOpen && session && studentId) {
+      fetchSessionVideos();
+      // Load student's session feedback
+      setSessionDifficulty(session.difficulty || '');
+      setSessionComment(session.notes || session.comment || '');
+    }
+  }, [isOpen, session, studentId]);
+
+  const fetchSessionVideos = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { 
+            studentId: studentId,
+            assignmentId: session.assignmentId || session.id
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        setSessionVideos(response.data.data);
+        console.log('📹 Session videos loaded:', response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching session videos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'in_progress':
+        return <PlayCircle className="h-4 w-4 text-orange-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'Terminé';
+      case 'in_progress':
+        return 'En cours';
+      default:
+        return 'Pas commencé';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-500 text-white';
+      case 'in_progress':
+        return 'bg-orange-500 text-white';
+      default:
+        return 'bg-gray-600 text-gray-200';
+    }
+  };
+
+  const getVideosForExercise = (exerciseName) => {
+    return sessionVideos.filter(video => video.exercise_name === exerciseName);
+  };
+
+  const handleVideoSelect = (video) => {
+    setSelectedVideo(video);
+    setFeedback(video.coach_feedback || '');
+  };
+
+  const handleSaveFeedback = async () => {
+    if (!selectedVideo) return;
+
+    try {
+      setSavingFeedback(true);
+      const token = localStorage.getItem('authToken');
+      
+      const response = await axios.post(
+        `${getApiBaseUrlWithApi()}/workout-sessions/video-feedback`,
+        {
+          videoId: selectedVideo.id,
+          feedback: feedback,
+          rating: 5 // Default rating, can be enhanced later
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        // Update local state
+        setSessionVideos(prev => prev.map(video => 
+          video.id === selectedVideo.id 
+            ? { ...video, coach_feedback: feedback, status: 'completed' }
+            : video
+        ));
+        
+        setSelectedVideo(prev => ({ ...prev, coach_feedback: feedback, status: 'completed' }));
+        console.log('✅ Feedback saved successfully');
+        
+        // Close the modal after successful feedback
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+    } finally {
+      setSavingFeedback(false);
+    }
+  };
+
+  const handleExerciseSelect = (exercise) => {
+    setSelectedExercise(exercise);
+    const exerciseVideos = getVideosForExercise(exercise.name);
+    if (exerciseVideos.length > 0) {
+      setSelectedVideo(exerciseVideos[0]);
+      setFeedback(exerciseVideos[0].coach_feedback || '');
+    } else {
+      setSelectedVideo(null);
+      setFeedback('');
+    }
+  };
+
+  if (!session) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="dialog-content max-w-7xl max-h-[95vh] overflow-hidden">
+        <DialogHeader className="workout-modal-header">
+          <DialogTitle className="text-xl font-medium text-white">
+            {session.title || 'Séance d\'entraînement'}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-gray-400">
+            {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
+            {session.startTime && session.endTime && (
+              <span className="ml-2">
+                - {format(new Date(session.startTime), 'HH:mm')} à {format(new Date(session.endTime), 'HH:mm')} 
+                ({Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000)} min)
+              </span>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="workout-modal-content">
+          {/* Left Panel - Session Overview */}
+          <div className="flex-1 bg-[#1a1a1a] rounded-lg p-6">
+            {/* Session Status */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                {getStatusIcon(session.status)}
+                <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(session.status)}`}>
+                  {getStatusText(session.status)}
+                </span>
+              </div>
+              <div className="text-sm text-gray-400">
+                Séance créée le {format(new Date(session.created_at || Date.now()), 'dd/MM/yyyy à HH:mm')}
+              </div>
+            </div>
+
+            {/* Session Stats */}
+            <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">{session.exercises?.length || 0}</div>
+                <div className="text-sm text-gray-400">Exercices</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">
+                  {session.exercises?.reduce((total, exercise) => total + (exercise.sets?.length || 0), 0) || 0}
+                </div>
+                <div className="text-sm text-gray-400">Séries totales</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">~45 min</div>
+                <div className="text-sm text-gray-400">Durée estimée</div>
+              </div>
+            </div>
+
+            {/* Session Difficulty and Comment */}
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Difficulté (évaluée par l'étudiant)</label>
+                <div className="flex gap-2">
+                  {['Facile', 'Moyen', 'Difficile'].map((level) => (
+                    <div
+                      key={level}
+                      className={`px-4 py-2 rounded-full text-sm font-medium ${
+                        sessionDifficulty === level
+                          ? 'bg-[#e87c3e] text-white'
+                          : 'bg-[#262626] text-gray-400'
+                      }`}
+                    >
+                      {level}
+                    </div>
+                  ))}
+                </div>
+                {!sessionDifficulty && (
+                  <p className="text-xs text-gray-500 mt-1">Aucune évaluation de difficulté</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Commentaire global (de l'étudiant)</label>
+                <div className="w-full bg-[#262626] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm min-h-[80px]">
+                  {sessionComment ? (
+                    <p className="text-gray-300">{sessionComment}</p>
+                  ) : (
+                    <p className="text-gray-500 italic">Aucun commentaire de l'étudiant</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Exercise List */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+                <Folder className="h-5 w-5" />
+                Séance complète
+              </h3>
+              {session.exercises?.map((exercise, exerciseIndex) => {
+                const exerciseVideos = getVideosForExercise(exercise.name);
+                const hasVideos = exerciseVideos.length > 0;
+                
+                return (
+                  <div
+                    key={exerciseIndex}
+                    onClick={() => handleExerciseSelect(exercise)}
+                    className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                      selectedExercise?.name === exercise.name
+                        ? 'bg-[#e87c3e] text-white'
+                        : 'bg-[#262626] text-gray-300 hover:bg-[#333333]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">{exercise.name}</span>
+                        <span className="text-sm opacity-75">
+                          {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} reps @{exercise.sets?.[0]?.weight || '?'}kg
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {hasVideos && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Video className="h-4 w-4" />
+                            <span>{exerciseVideos.length}</span>
+                          </div>
+                        )}
+                        <ChevronRight className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Panel - Video Review */}
+          <div className="w-96 bg-[#1a1a1a] rounded-lg p-6">
+            {selectedExercise ? (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-white mb-2">{selectedExercise.name}</h3>
+                  <div className="text-sm text-gray-400">
+                    {selectedExercise.sets?.length || 0} séries • {selectedExercise.sets?.[0]?.reps || '?'} reps @{selectedExercise.sets?.[0]?.weight || '?'}kg
+                  </div>
+                </div>
+
+                {/* Exercise Sets Status */}
+                <div className="space-y-2">
+                  {selectedExercise.sets?.map((set, setIndex) => {
+                    const setVideos = getVideosForExercise(selectedExercise.name).filter(v => v.set_number === setIndex + 1);
+                    const hasVideo = setVideos.length > 0;
+                    const setStatus = set.status || 'pending'; // This would come from session data
+                    
+                    return (
+                      <div key={setIndex} className="flex items-center justify-between p-3 bg-[#262626] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-white">Set {setIndex + 1}</span>
+                          <span className="text-sm text-gray-400">{set.reps} reps @{set.weight}kg</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {setStatus === 'completed' && (
+                            <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">Validé</span>
+                          )}
+                          {setStatus === 'failed' && (
+                            <span className="px-2 py-1 bg-red-600 text-white text-xs rounded-full">Echec</span>
+                          )}
+                          {hasVideo && (
+                            <Video className="h-4 w-4 text-blue-400" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Video Player and Feedback */}
+                {selectedVideo ? (
+                  <div className="space-y-4">
+                    <div className="bg-black rounded-lg overflow-hidden">
+                      <video
+                        src={selectedVideo.video_url}
+                        controls
+                        className="w-full h-48 object-cover"
+                        poster={selectedVideo.thumbnail_url}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Commentaire de l'étudiant :</label>
+                      <div className="bg-[#262626] p-3 rounded-lg mb-3">
+                        <p className="text-sm text-gray-300">
+                          {selectedVideo.student_comment || 'Aucun commentaire de l\'étudiant'}
+                        </p>
+                      </div>
+                      
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Feedback du coach :</label>
+                      <div className="bg-[#262626] p-3 rounded-lg mb-3">
+                        <p className="text-sm text-gray-300">
+                          {selectedVideo.coach_feedback || 'Aucun feedback du coach pour le moment'}
+                        </p>
+                      </div>
+                      
+                      <textarea
+                        value={feedback}
+                        onChange={(e) => setFeedback(e.target.value)}
+                        placeholder="Écrire un feedback pour l'étudiant..."
+                        className="w-full bg-[#262626] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#e87c3e]"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveFeedback}
+                        disabled={savingFeedback}
+                        className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {savingFeedback ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Sauvegarde...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4" />
+                            Envoyer le feedback
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-400 py-8">
+                    <Video className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Aucune vidéo pour cet exercice</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 py-8">
+                <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>Sélectionnez un exercice pour voir les détails</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="workout-modal-footer">
+          <div className="flex justify-between items-center">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default CoachSessionReviewModal;

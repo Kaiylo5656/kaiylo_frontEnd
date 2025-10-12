@@ -12,13 +12,21 @@ import {
   LogOut
 } from 'lucide-react';
 
-const NavLink = ({ to, icon: Icon, children }) => {
+const NavLink = ({ to, icon: Icon, children, onClick }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
+
+  const handleClick = (e) => {
+    if (onClick) {
+      e.preventDefault();
+      onClick();
+    }
+  };
 
   return (
     <Link
       to={to}
+      onClick={handleClick}
       className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
         isActive
           ? 'bg-muted text-primary-foreground'
@@ -40,10 +48,16 @@ const Navigation = () => {
     navigate('/login');
   };
 
+  const handleClientsClick = () => {
+    console.log('🔍 Clients button clicked!');
+    // Navigate to coach dashboard with a reset parameter
+    navigate('/coach/dashboard?reset=true');
+  };
+
   const getNavItems = () => {
     if (user?.role === 'coach') {
       return [
-        { name: 'Clients', path: '/coach/dashboard', icon: Users },
+        { name: 'Clients', path: '/coach/dashboard', icon: Users, onClick: handleClientsClick },
         { name: 'Exercices', path: '/coach/exercises', icon: Dumbbell },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: Video },
         { name: 'Messages', path: '/chat', icon: MessageSquare },
@@ -63,7 +77,12 @@ const Navigation = () => {
       </div>
       <nav className="flex-1 px-4 space-y-2">
         {navItems.map((item) => (
-          <NavLink key={item.path} to={item.path} icon={item.icon}>
+          <NavLink 
+            key={item.path} 
+            to={item.path} 
+            icon={item.icon}
+            onClick={item.onClick}
+          >
             {item.name}
           </NavLink>
         ))}

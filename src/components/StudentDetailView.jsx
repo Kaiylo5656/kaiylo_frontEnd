@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
 import WorkoutSessionDetailsModal from './WorkoutSessionDetailsModal';
+import CoachSessionReviewModal from './CoachSessionReviewModal';
+import VideoDetailModal from './VideoDetailModal';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const StudentDetailView = ({ student, onBack }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
@@ -24,6 +27,24 @@ const StudentDetailView = ({ student, onBack }) => {
   const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'draft', 'all'
   const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
+  const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
+  
+  // Video analysis state
+  const [studentVideos, setStudentVideos] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
+  const [videosLoading, setVideosLoading] = useState(false);
+  
+  // Video filters
+  const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
+  const [exerciseFilter, setExerciseFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  
+  // Block information state
+  const [blockNumber, setBlockNumber] = useState(3);
+  const [totalBlocks, setTotalBlocks] = useState(3);
+  const [blockName, setBlockName] = useState('Prépa Force');
+  const [isEditingBlock, setIsEditingBlock] = useState(false);
 
   // Debug copiedWeek state changes
   useEffect(() => {
@@ -35,6 +56,7 @@ const StudentDetailView = ({ student, onBack }) => {
     const handleClickOutside = (event) => {
       if (dropdownOpen && !event.target.closest('.dropdown-container')) {
         setDropdownOpen(null);
+        setDropdownPosition(null);
       }
     };
 
@@ -67,19 +89,30 @@ const StudentDetailView = ({ student, onBack }) => {
     // Si la séance n'a pas été commencée ou est un brouillon, ouvrir la modale d'édition
     if (session.status !== 'completed' && session.status !== 'in_progress') {
       setIsCreateModalOpen(true);
+    } else if (session.status === 'completed') {
+      // Pour les séances terminées, ouvrir la modale de révision avec vidéos
+      setIsReviewModalOpen(true);
     } else {
-      // Sinon, ouvrir la modale de détails en lecture seule
+      // Pour les séances en cours, ouvrir la modale de détails en lecture seule
       setIsDetailsModalOpen(true);
     }
   };
 
   const handlePublishDraftSession = async (session, day) => {
+    console.log('🔍 handlePublishDraftSession called with session:', session);
+    
     if (!confirm('Êtes-vous sûr de vouloir publier cette séance brouillon ? Elle sera visible par l\'étudiant.')) {
       return;
     }
 
     try {
       const token = localStorage.getItem('authToken');
+      
+      console.log('📤 Publishing draft session:', {
+        sessionId: session.id,
+        title: session.title,
+        hasExercises: !!session.exercises
+      });
       
       // First, update the session status to 'published' in the database
       const updateResponse = await axios.patch(
@@ -93,6 +126,8 @@ const StudentDetailView = ({ student, onBack }) => {
       if (!updateResponse.data.session) {
         throw new Error('Failed to update session status');
       }
+      
+      console.log('✅ Session status updated to published');
 
       // Then create the assignment
       const assignmentData = {
@@ -115,6 +150,7 @@ const StudentDetailView = ({ student, onBack }) => {
       );
 
       if (response.data.success) {
+        console.log('✅ Assignment created successfully');
         // Rafraîchir les séances pour voir les changements
         await fetchWorkoutSessions();
         alert('Séance publiée avec succès ! Elle est maintenant visible par l\'étudiant.');
@@ -122,8 +158,21 @@ const StudentDetailView = ({ student, onBack }) => {
         throw new Error('Failed to create assignment');
       }
     } catch (error) {
-      console.error('Error publishing session:', error);
-      alert('Erreur lors de la publication de la séance. Veuillez réessayer.');
+      console.error('❌ Error publishing session:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        sessionId: session.id
+      });
+      
+      // Si la session n'existe pas (404), proposer de la recréer
+      if (error.response?.status === 404) {
+        alert('Cette séance n\'existe plus dans la base de données. Veuillez la recréer.');
+        await fetchWorkoutSessions(); // Rafraîchir pour nettoyer l'affichage
+      } else {
+        alert(`Erreur lors de la publication de la séance: ${error.response?.data?.message || error.message}`);
+      }
     }
   };
 
@@ -183,23 +232,147 @@ const StudentDetailView = ({ student, onBack }) => {
     try {
       const token = localStorage.getItem('authToken');
       
-      if (sessionData.isEdit && sessionData.existingSessionId) {
-        // Editing existing session - delete old assignment and create new one
-        try {
-          // First delete the existing assignment
-          await axios.delete(
-            `${getApiBaseUrlWithApi()}/assignments/${sessionData.existingSessionId}`,
-            {
-              headers: { Authorization: `Bearer ${token}` }
-            }
-          );
-        } catch (deleteError) {
-          console.warn('Could not delete existing assignment:', deleteError);
-          // Continue anyway, the new assignment will be created
-        }
-      }
+      console.log('🔍 handleSessionCreated called with:', {
+        isEdit: sessionData.isEdit,
+        existingSessionId: sessionData.existingSessionId,
+        status: sessionData.status,
+        title: sessionData.title
+      });
       
-      // Create new assignment (same endpoint for both create and edit)
+      if (sessionData.isEdit && sessionData.existingSessionId) {
+        // Editing existing session
+        if (sessionData.status === 'draft' && !sessionData.assignmentId) {
+          // Just update an existing draft session content (no assignmentId means it's already a draft)
+          console.log('📝 Updating existing draft session:', sessionData.existingSessionId);
+          
+          try {
+            const updateResponse = await axios.patch(
+              `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+              {
+                title: sessionData.title,
+                description: sessionData.description,
+                exercises: sessionData.exercises,
+                scheduled_date: sessionData.scheduled_date
+              },
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+
+            if (!updateResponse.data.session) {
+              throw new Error('Failed to update draft session');
+            }
+            
+            console.log('✅ Draft session updated successfully');
+          } catch (updateError) {
+            // If the session doesn't exist (404), create a new draft session instead
+            if (updateError.response?.status === 404) {
+              console.log('⚠️ Draft session not found, creating new draft session instead');
+              
+              // Remove existingSessionId to create a new session
+              const newSessionData = { ...sessionData };
+              delete newSessionData.existingSessionId;
+              delete newSessionData.isEdit;
+              
+              const response = await axios.post(
+                `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+                newSessionData,
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (!response.data.success) {
+                throw new Error('Failed to create new draft session');
+              }
+              
+              console.log('✅ New draft session created successfully');
+            } else {
+              throw updateError;
+            }
+          }
+        } else {
+          // Publishing a session - check if we're switching from assigned to draft
+          console.log('📤 Publishing session:', sessionData.existingSessionId, 'Status:', sessionData.status);
+          
+          if (sessionData.status === 'draft') {
+            // Switching from assigned to draft - delete assignment and create new draft session
+            console.log('📝 Switching assigned session to draft mode');
+            
+            try {
+              // First, delete the assignment to make it invisible to student
+              if (sessionData.assignmentId) {
+                await axios.delete(
+                  `${getApiBaseUrlWithApi()}/assignments/${sessionData.assignmentId}`,
+                  {
+                    headers: { Authorization: `Bearer ${token}` }
+                  }
+                );
+                console.log('✅ Assignment deleted successfully');
+              }
+
+              // Create a new draft session with the updated content
+              const newSessionData = { ...sessionData };
+              delete newSessionData.existingSessionId;
+              delete newSessionData.assignmentId;
+              delete newSessionData.isEdit;
+              
+              const response = await axios.post(
+                `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+                newSessionData,
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (!response.data.success) {
+                throw new Error('Failed to create new draft session');
+              }
+              
+              console.log('✅ Session switched to draft mode successfully');
+            } catch (error) {
+              console.error('Error switching to draft:', error);
+              throw error;
+            }
+          } else {
+            // Publishing a draft session - use the same logic as handlePublishDraftSession
+            console.log('📤 Publishing draft session:', sessionData.existingSessionId);
+            
+            try {
+              // First, try to update the session status to 'published'
+              const updateResponse = await axios.patch(
+                `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+                { status: 'published' },
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (!updateResponse.data.session) {
+                throw new Error('Failed to update session status');
+              }
+              
+              console.log('✅ Session status updated to published');
+
+              // Then create the assignment
+              const response = await axios.post(
+                `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+                sessionData,
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (!response.data.success) {
+                throw new Error('Failed to create assignment');
+              }
+              
+              console.log('✅ Assignment created successfully');
+            } catch (updateError) {
+              // If the session doesn't exist (404), create a new one instead
+              if (updateError.response?.status === 404) {
+                console.log('⚠️ Session not found, creating new one instead');
+                
       const response = await axios.post(
         `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
         sessionData,
@@ -210,14 +383,46 @@ const StudentDetailView = ({ student, onBack }) => {
 
       if (!response.data.success) {
         throw new Error('Failed to create and assign workout session');
+                }
+                
+                console.log('✅ New session created successfully');
+              } else {
+                throw updateError;
+              }
+            }
+          }
+        }
+      } else {
+        // Creating new session
+        console.log('➕ Creating new session');
+        
+        const response = await axios.post(
+          `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+          sessionData,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
+        if (!response.data.success) {
+          throw new Error('Failed to create and assign workout session');
+        }
+        
+        console.log('✅ New session created successfully');
       }
 
       setIsCreateModalOpen(false);
       // Refresh workout sessions
       await fetchWorkoutSessions();
     } catch (error) {
-      console.error('Error creating/updating workout session and assignment:', error);
-      alert('Failed to save workout session. Please try again.');
+      console.error('❌ Error creating/updating workout session and assignment:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      alert(`Erreur lors de la sauvegarde de la séance: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -299,7 +504,7 @@ const StudentDetailView = ({ student, onBack }) => {
           exercises: session.exercises,
           scheduled_date: format(newDate, 'yyyy-MM-dd'),
           student_id: student.id,
-          status: 'published'
+          status: session.status // Preserve original status (draft or published)
         };
 
         await axios.post(
@@ -434,9 +639,65 @@ const StudentDetailView = ({ student, onBack }) => {
   };
 
   // Toggle dropdown menu for session
-  const toggleDropdown = (sessionId, dateKey) => {
+  const toggleDropdown = (sessionId, dateKey, event) => {
     const dropdownKey = `${sessionId}-${dateKey}`;
     setDropdownOpen(dropdownOpen === dropdownKey ? null : dropdownKey);
+    
+    // Store button position for dropdown positioning
+    if (event && event.target) {
+      const rect = event.target.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 5,
+        left: rect.right + window.scrollX - 190, // Position dropdown just to the left of the button (since it's 180px wide)
+        right: rect.right + window.scrollX
+      });
+    }
+  };
+
+  // Fetch videos for the specific student
+  const fetchStudentVideos = async () => {
+    setVideosLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { studentId: student.id } // Filter by student ID
+        }
+      );
+      
+      if (response.data.success) {
+        setStudentVideos(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching student videos:', error);
+    } finally {
+      setVideosLoading(false);
+    }
+  };
+
+  // Handle video click
+  const handleVideoClick = (video) => {
+    setSelectedVideo(video);
+    setIsVideoDetailModalOpen(true);
+  };
+
+  // Handle feedback update
+  const handleFeedbackUpdate = (videoId, feedback, rating, deleted = false, status = 'completed') => {
+    if (deleted) {
+      // Remove video from list if deleted
+      setStudentVideos(prev => prev.filter(v => v.id !== videoId));
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+      } else {
+      // Update video feedback in the list
+      setStudentVideos(prev => prev.map(v => 
+        v.id === videoId 
+          ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
+          : v
+      ));
+    }
   };
 
   const fetchWorkoutSessions = async () => {
@@ -513,15 +774,43 @@ const StudentDetailView = ({ student, onBack }) => {
           }
         );
 
-        console.log('Fetched draft sessions:', draftResponse.data);
+        console.log('📋 Fetched draft sessions:', draftResponse.data);
 
         if (draftResponse.data.sessions) {
-          console.log('Total sessions from API:', draftResponse.data.sessions.length);
-          const draftSessions = draftResponse.data.sessions.filter(session => session.status === 'draft');
-          console.log('Draft sessions found:', draftSessions.length);
+          console.log('📊 Total sessions from API:', draftResponse.data.sessions.length);
+          
+          // Filter draft sessions - only show drafts that belong to the current coach
+          const draftSessions = draftResponse.data.sessions.filter(session => {
+            const isDraft = session.status === 'draft';
+            const hasValidId = session.id && session.id.length > 0;
+            const hasExercises = session.exercises && Array.isArray(session.exercises) && session.exercises.length > 0;
+            
+            if (!isDraft || !hasValidId || !hasExercises) {
+              console.log('⚠️ Skipping invalid draft session:', {
+                id: session.id,
+                isDraft,
+                hasValidId,
+                hasExercises,
+                exerciseCount: session.exercises?.length || 0
+              });
+              return false;
+            }
+            
+            return true;
+          });
+          
+          console.log('📝 Valid draft sessions found:', draftSessions.length);
           
           draftSessions.forEach(session => {
-            console.log('Processing draft session:', { id: session.id, title: session.title, scheduled_date: session.scheduled_date, created_at: session.created_at });
+            console.log('🔍 Processing draft session:', { 
+              id: session.id, 
+              title: session.title, 
+              scheduled_date: session.scheduled_date, 
+              created_at: session.created_at,
+              student_id: session.student_id,
+              coach_id: session.user_id,
+              exerciseCount: session.exercises?.length || 0
+            });
             
             // For draft sessions, use scheduled_date if available, otherwise fall back to created_at
             let displayDate;
@@ -532,7 +821,7 @@ const StudentDetailView = ({ student, onBack }) => {
             }
             
             const dateKey = format(displayDate, 'yyyy-MM-dd');
-            console.log('Draft session date key:', dateKey);
+            console.log('📅 Draft session date key:', dateKey);
             
             const draftSessionData = {
               id: session.id,
@@ -543,7 +832,8 @@ const StudentDetailView = ({ student, onBack }) => {
               startTime: null,
               endTime: null,
               notes: null,
-              workoutSessionId: session.id
+              workoutSessionId: session.id,
+              description: session.general_objective || ''
             };
 
             // Initialize array for this date if it doesn't exist
@@ -552,12 +842,12 @@ const StudentDetailView = ({ student, onBack }) => {
             }
             
             // Add draft session to the array for this date
-            console.log('Adding draft session to map for date:', dateKey);
+            console.log('➕ Adding draft session to map for date:', dateKey);
             sessionsMap[dateKey].push(draftSessionData);
           });
         }
       } catch (draftError) {
-        console.warn('Could not fetch draft sessions:', draftError);
+        console.warn('⚠️ Could not fetch draft sessions:', draftError);
       }
       
       console.log('Processed sessions map:', sessionsMap);
@@ -596,6 +886,18 @@ const StudentDetailView = ({ student, onBack }) => {
     fetchWorkoutSessions();
   }, [overviewWeekDate, trainingMonthDate, activeTab]);
 
+  // Update activeTab when initialTab prop changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // Fetch videos when analyse tab is active
+  useEffect(() => {
+    if (activeTab === 'analyse') {
+      fetchStudentVideos();
+    }
+  }, [activeTab, student.id]);
+
   // Calculate progress statistics
   const calculateProgressStats = () => {
     // Get current week range
@@ -630,14 +932,18 @@ const StudentDetailView = ({ student, onBack }) => {
     });
     
     // Count sessions for current week (flatten arrays)
-    const weekSessions = weekDateKeys
+    const allWeekSessions = weekDateKeys
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
     
     // Count sessions for current month (flatten arrays)
-    const monthSessions = monthDateKeys
+    const allMonthSessions = monthDateKeys
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
+    
+    // Filter to only assigned workouts (exclude drafts)
+    const weekSessions = allWeekSessions.filter(session => session.status !== 'draft');
+    const monthSessions = allMonthSessions.filter(session => session.status !== 'draft');
     
     // Count completed sessions
     const weekCompleted = weekSessions.filter(session => session.status === 'completed').length;
@@ -671,6 +977,133 @@ const StudentDetailView = ({ student, onBack }) => {
   };
 
   const progressStats = calculateProgressStats();
+
+  // Get status badge for videos
+  const getVideoStatusBadge = (status) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
+            A feedback
+          </span>
+        );
+      case 'reviewed':
+      case 'completed':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
+            Complété
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-600 text-gray-200">
+            {status}
+          </span>
+        );
+    }
+  };
+
+  // Filter videos based on current filters
+  const getFilteredVideos = () => {
+    return studentVideos.filter(video => {
+      // Status filter
+      if (statusFilter === 'A feedback' && video.status !== 'pending') return false;
+      if (statusFilter === 'Complété' && video.status !== 'completed' && video.status !== 'reviewed') return false;
+      // If statusFilter is empty string (no filter), show all videos
+      
+      // Exercise filter
+      if (exerciseFilter && !video.exercise_name.toLowerCase().includes(exerciseFilter.toLowerCase())) return false;
+      
+      // Date filter
+      if (dateFilter) {
+        const videoDate = format(new Date(video.created_at), 'yyyy-MM-dd');
+        if (videoDate !== dateFilter) return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Get unique exercises for filter dropdown
+  const getUniqueExercises = () => {
+    const exercises = [...new Set(studentVideos.map(video => video.exercise_name))];
+    return exercises;
+  };
+
+  // Render student videos with thumbnail cards
+  const renderStudentVideosCards = () => {
+    const filteredVideos = getFilteredVideos();
+    
+    return (
+      <div className="space-y-4">
+        {filteredVideos.map((video) => (
+          <div 
+            key={video.id} 
+            className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
+            onClick={() => handleVideoClick(video)}
+          >
+            <div className="flex items-center gap-4">
+              {/* Video Thumbnail */}
+              <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                <video 
+                  src={video.video_url}
+                  className="w-full h-full object-cover"
+                  preload="metadata"
+                  onLoadedMetadata={(e) => {
+                    // Update the video duration when metadata loads
+                    const duration = e.target.duration;
+                    if (duration && !isNaN(duration)) {
+                      const minutes = Math.floor(duration / 60);
+                      const seconds = Math.floor(duration % 60);
+                      const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                      e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
+                    }
+                  }}
+                />
+                <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
+                  Loading...
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                  <PlayCircle size={24} className="text-white" />
+                </div>
+              </div>
+              
+              {/* Video Info */}
+              <div className="flex-1 min-w-0">
+                {/* Exercise Tag */}
+                <div className="mb-2">
+                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
+                    {video.exercise_name}
+                  </span>
+                </div>
+                
+                {/* Series and Date */}
+                <div className="text-gray-400 text-sm">
+                  Série {video.set_number || 1}/3
+                </div>
+                <div className="text-gray-400 text-sm">
+                  {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                </div>
+              </div>
+              
+              {/* Status Tag */}
+              <div className="flex-shrink-0">
+                {video.status === 'pending' ? (
+                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                    A feedback
+                  </span>
+                ) : (
+                  <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                    Complété
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // Helper function to filter sessions based on training filter
   const getFilteredSessions = (sessions) => {
@@ -740,7 +1173,69 @@ const StudentDetailView = ({ student, onBack }) => {
             <div className="grid grid-cols-[250px,1fr,250px] gap-3 mb-3">
               {/* Current Block Card */}
               <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <h2 className="text-sm font-medium mb-3">Bloc 3/3 - Prépa Force</h2>
+                {!isEditingBlock ? (
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-medium">
+                      Bloc {blockNumber}/{totalBlocks} - {blockName}
+                    </h2>
+                    <button
+                      onClick={() => setIsEditingBlock(true)}
+                      className="text-gray-400 hover:text-white transition-colors"
+                      title="Edit block information"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mb-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={blockNumber}
+                        onChange={(e) => setBlockNumber(parseInt(e.target.value) || 1)}
+                        className="bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm w-12"
+                        min="1"
+                      />
+                      <span className="text-gray-400 text-sm">/</span>
+                      <input
+                        type="number"
+                        value={totalBlocks}
+                        onChange={(e) => setTotalBlocks(parseInt(e.target.value) || 1)}
+                        className="bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm w-12"
+                        min="1"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={blockName}
+                      onChange={(e) => setBlockName(e.target.value)}
+                      className="w-full bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                      placeholder="Block name"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setIsEditingBlock(false)}
+                        className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+                      >
+                        <Save className="h-3 w-3" />
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingBlock(false);
+                          // Reset to original values if needed
+                          setBlockNumber(3);
+                          setTotalBlocks(3);
+                          setBlockName('Prépa Force');
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col items-center">
                     <div className="relative w-14 h-14">
@@ -934,7 +1429,7 @@ const StudentDetailView = ({ student, onBack }) => {
                                        )}
                                        {session.status === 'assigned' && (
                                          <Clock className="h-3 w-3 text-[#3b82f6]" />
-                                       )}
+                                   )}
                                  </div>
                                </div>
                                <div className="space-y-0.5">
@@ -1025,9 +1520,21 @@ const StudentDetailView = ({ student, onBack }) => {
           <div className="flex items-center justify-between mb-6">
             <button 
               className="px-4 py-2 bg-[#1a1a1a] rounded-lg text-sm hover:bg-[#262626]"
-              onClick={() => setTrainingMonthDate(new Date())}
+              onClick={() => {
+                // Find the month with the most recent sessions
+                const sessionDates = Object.keys(workoutSessions);
+                if (sessionDates.length > 0) {
+                  // Sort dates and get the most recent one
+                  const sortedDates = sessionDates.sort((a, b) => new Date(b) - new Date(a));
+                  const mostRecentDate = new Date(sortedDates[0]);
+                  setTrainingMonthDate(mostRecentDate);
+                } else {
+                  // If no sessions, go to current date
+                  setTrainingMonthDate(new Date());
+                }
+              }}
             >
-              Aujourd'hui
+              Dernières sessions
             </button>
             <div className="flex items-center gap-4">
               <button onClick={() => changeTrainingMonth('prev')} className="p-2 rounded-lg hover:bg-[#1a1a1a]">
@@ -1209,13 +1716,13 @@ const StudentDetailView = ({ student, onBack }) => {
                 const isCurrentMonth = isSameMonth(day, trainingMonthDate);
                 
                 return (
-                              <div
-                                key={dateKey}
-                                className={`rounded-lg cursor-pointer hover:bg-[#262626] transition-colors flex flex-col overflow-hidden ${
-                                  isCurrentMonth ? 'bg-[#1a1a1a]' : 'bg-[#0a0a0a]'
+                  <div
+                    key={dateKey}
+                                className={`rounded-lg cursor-pointer hover:bg-[#262626] transition-colors flex flex-col ${
+                      isCurrentMonth ? 'bg-[#1a1a1a]' : 'bg-[#0a0a0a]'
                                 } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
-                                onClick={() => handleDayClick(day)}
-                              >
+                    onClick={() => handleDayClick(day)}
+                  >
                     <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-gray-600'}`}>
                       {format(day, 'd')}
                     </div>
@@ -1241,8 +1748,8 @@ const StudentDetailView = ({ student, onBack }) => {
                                             }}
                                           >
                                     <div className={`flex items-center justify-between ${weekViewFilter === 2 ? 'mb-2' : 'mb-1'}`}>
-                                      <div className="flex items-center gap-1 flex-1">
-                                        <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'}`}>{session.title || 'Séance'}</div>
+                                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                                        <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
                                         <div className="flex items-center gap-0.5 flex-shrink-0">
                                           {session.status === 'in_progress' && (
                                             <PlayCircle className={`text-[#e87c3e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
@@ -1259,11 +1766,11 @@ const StudentDetailView = ({ student, onBack }) => {
                         </div>
                       </div>
                                       {session.status !== 'completed' && session.status !== 'in_progress' && (
-                                        <div className="relative ml-2 dropdown-container">
+                                        <div className="relative ml-2 dropdown-container flex-shrink-0">
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              toggleDropdown(session.id || session.assignmentId, dateKey);
+                                              toggleDropdown(session.id || session.assignmentId, dateKey, e);
                                             }}
                                             className="text-gray-400 hover:text-white transition-colors"
                                             title="Options de la séance"
@@ -1273,12 +1780,20 @@ const StudentDetailView = ({ student, onBack }) => {
                                           
                                           {/* Dropdown Menu */}
                                           {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
-                                            <div className="absolute right-0 top-full mt-1 bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-50 min-w-[180px]">
+                                            <div 
+                                              className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
+                                              style={{
+                                                top: dropdownPosition?.top || 0,
+                                                left: dropdownPosition?.left || 0,
+                                                transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
+                                              }}
+                                            >
                                               {session.status === 'draft' ? (
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setDropdownOpen(null);
+                                                    setDropdownPosition(null);
                                                     handlePublishDraftSession(session, day);
                                                   }}
                                                   className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
@@ -1291,6 +1806,7 @@ const StudentDetailView = ({ student, onBack }) => {
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setDropdownOpen(null);
+                                                    setDropdownPosition(null);
                                                     handleSwitchToDraft(session, day);
                                                   }}
                                                   className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
@@ -1303,6 +1819,7 @@ const StudentDetailView = ({ student, onBack }) => {
                                                 onClick={(e) => {
                                                   e.stopPropagation();
                                                   setDropdownOpen(null);
+                                                  setDropdownPosition(null);
                                                   handleCopySession(session, day);
                                                 }}
                                                 className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
@@ -1314,6 +1831,7 @@ const StudentDetailView = ({ student, onBack }) => {
                                                 onClick={(e) => {
                                                   e.stopPropagation();
                                                   setDropdownOpen(null);
+                                                  setDropdownPosition(null);
                                                   handleDeleteSession(session.assignmentId || session.id, day);
                                                 }}
                                                 className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
@@ -1355,7 +1873,74 @@ const StudentDetailView = ({ student, onBack }) => {
         {/* Analyse vidéo Tab */}
         {activeTab === 'analyse' && (
           <div className="p-4">
-            <p className="text-gray-400">Analyse vidéo - Coming soon</p>
+            {/* Filters */}
+            <div className="flex items-center gap-4 mb-6">
+              {/* Status Filter */}
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="appearance-none bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Tous les statuts</option>
+                  <option value="A feedback">A feedback</option>
+                  <option value="Complété">Complété</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              {/* Exercise Filter */}
+              <div className="relative">
+                <select
+                  value={exerciseFilter}
+                  onChange={(e) => setExerciseFilter(e.target.value)}
+                  className="appearance-none bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Exercice</option>
+                  {getUniqueExercises().map(exercise => (
+                    <option key={exercise} value={exercise}>{exercise}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              {/* Date Filter */}
+              <div className="relative">
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Add Filter Button */}
+              <button className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm">
+                + Filter
+              </button>
+
+              {/* Video Count */}
+              <div className="ml-auto text-sm text-gray-400">
+                {getFilteredVideos().length} vidéo{getFilteredVideos().length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (getFilteredVideos().length > 1 ? 's' : '')}
+              </div>
+            </div>
+
+            {videosLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                <span className="ml-2 text-gray-400">Chargement des vidéos...</span>
+              </div>
+            )}
+
+            {!videosLoading && getFilteredVideos().length > 0 && renderStudentVideosCards()}
+
+            {!videosLoading && getFilteredVideos().length === 0 && (
+              <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
+                <PlayCircle size={48} className="mb-4" />
+                <p className="font-medium">Aucune vidéo trouvée</p>
+                <p className="text-sm">Les vidéos d'analyse pour {studentData?.raw_user_meta_data?.full_name || student.email} apparaîtront ici.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1383,6 +1968,23 @@ const StudentDetailView = ({ student, onBack }) => {
         onClose={() => setIsDetailsModalOpen(false)}
         session={selectedSession}
         selectedDate={selectedDate}
+      />
+
+      <VideoDetailModal 
+        isOpen={isVideoDetailModalOpen}
+        onClose={() => setIsVideoDetailModalOpen(false)}
+        video={selectedVideo}
+        onFeedbackUpdate={handleFeedbackUpdate}
+        videoType="student"
+        isCoachView={true}
+      />
+
+      <CoachSessionReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        session={selectedSession}
+        selectedDate={selectedDate}
+        studentId={student.id}
       />
       </div>
     </div>

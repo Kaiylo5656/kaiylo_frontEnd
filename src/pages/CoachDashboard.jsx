@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
-import { Search, SlidersHorizontal, Send, Plus, Bell, Settings, MessageSquare, CheckSquare, RefreshCw, Calendar, Users } from 'lucide-react';
+import { Search, SlidersHorizontal, Send, Plus, Bell, Settings, MessageSquare, MessageCircle, CheckSquare, RefreshCw, Users } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import StudentDetailView from '../components/StudentDetailView';
-import CoachWeeklySchedule from '../components/CoachWeeklySchedule';
+import useSocket from '../hooks/useSocket';
 
 const CoachDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { onVideoUpload } = useSocket();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,11 +22,94 @@ const CoachDashboard = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPendingInvitationsModalOpen, setIsPendingInvitationsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [activeTab, setActiveTab] = useState('students'); // 'students' or 'schedule'
+  const [selectedStudentInitialTab, setSelectedStudentInitialTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('students');
+  const [studentVideoCounts, setStudentVideoCounts] = useState({}); // Track pending videos per student
+  const [studentMessageCounts, setStudentMessageCounts] = useState({}); // Track unread messages per student
 
   useEffect(() => {
     fetchCoachData();
   }, []);
+
+  // Refresh message counts when the component becomes visible again (e.g., returning from chat)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && students.length > 0) {
+        fetchMessageCounts();
+        fetchVideoCounts(); // Also refresh video counts when tab becomes visible
+      }
+    };
+
+    const handleFocus = () => {
+      if (students.length > 0) {
+        fetchMessageCounts();
+        fetchVideoCounts(); // Also refresh video counts when returning to dashboard
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handleFocus); // Handle back button navigation
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handleFocus);
+    };
+  }, [students]);
+
+  // Fetch video counts and message counts for all students when students list changes
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchVideoCounts();
+      fetchMessageCounts();
+    }
+  }, [students]);
+
+  // Set up periodic refresh for message counts (every 30 seconds)
+  useEffect(() => {
+    if (students.length === 0) return;
+
+    const messageInterval = setInterval(() => {
+      fetchMessageCounts();
+    }, 30000); // Refresh messages every 30 seconds
+
+    return () => clearInterval(messageInterval);
+  }, [students]);
+
+  // Set up more frequent refresh for video counts (every 5 seconds) for faster feedback notifications
+  useEffect(() => {
+    if (students.length === 0) return;
+
+    const videoInterval = setInterval(() => {
+      fetchVideoCounts();
+    }, 5000); // Refresh video counts every 5 seconds for faster feedback notifications
+
+    return () => clearInterval(videoInterval);
+  }, [students]);
+
+  // Listen for real-time video upload notifications
+  useEffect(() => {
+    const cleanup = onVideoUpload((data) => {
+      // Immediately refresh video counts when a new video is uploaded
+      fetchVideoCounts();
+    });
+
+    return cleanup;
+  }, [onVideoUpload]);
+
+  // Check for reset parameter and reset state when present
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    console.log('🔍 CoachDashboard URL params:', location.search);
+    if (urlParams.get('reset') === 'true') {
+      console.log('🔍 Resetting student selection!');
+      setSelectedStudent(null);
+      setSelectedStudentInitialTab('overview');
+      // Clean up the URL by removing the reset parameter
+      navigate('/coach/dashboard', { replace: true });
+    }
+  }, [location.search, navigate]);
 
   // Filter students based on search term
   useEffect(() => {
@@ -84,6 +171,98 @@ const CoachDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Fetch video counts for all students
+  const fetchVideoCounts = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const videoCounts = {};
+
+      // Fetch videos for each student
+      for (const student of students) {
+        try {
+          const response = await axios.get(
+            `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              params: { studentId: student.id }
+            }
+          );
+          
+          if (response.data.success) {
+            const pendingVideos = response.data.data.filter(video => video.status === 'pending');
+            videoCounts[student.id] = pendingVideos.length;
+          } else {
+            videoCounts[student.id] = 0;
+          }
+        } catch (error) {
+          console.error(`Error fetching videos for student ${student.id}:`, error);
+          videoCounts[student.id] = 0;
+        }
+      }
+
+      setStudentVideoCounts(videoCounts);
+    } catch (error) {
+      console.error('Error fetching video counts:', error);
+    }
+  };
+
+  // Fetch unread message counts for all students
+  const fetchMessageCounts = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const messageCounts = {};
+
+      // Get all conversations for the coach
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/chat/conversations`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      if (response.data.success) {
+        const conversations = response.data.data;
+        
+        // Initialize all students with 0 unread messages
+        students.forEach(student => {
+          messageCounts[student.id] = 0;
+        });
+
+        // Count unread messages for each conversation
+        conversations.forEach(conversation => {
+          if (conversation.other_participant_id && conversation.last_message_at) {
+            const studentId = conversation.other_participant_id;
+            const lastReadAt = conversation.last_read_at;
+            
+            // If there's a last message and it's after the last read time, count as unread
+            if (!lastReadAt || new Date(conversation.last_message_at) > new Date(lastReadAt)) {
+              // Only count if the last message is from the student (not from the coach)
+              // We assume the coach is the current user, so we count messages not from the coach
+              if (conversation.last_message && conversation.last_message.sender_id !== user.id) {
+                messageCounts[studentId] = (messageCounts[studentId] || 0) + 1;
+              }
+            }
+          }
+        });
+      } else {
+        // Initialize all students with 0 unread messages
+        students.forEach(student => {
+          messageCounts[student.id] = 0;
+        });
+      }
+
+      setStudentMessageCounts(messageCounts);
+    } catch (error) {
+      console.error('Error fetching message counts:', error);
+      // Initialize all students with 0 unread messages on error
+      const messageCounts = {};
+      students.forEach(student => {
+        messageCounts[student.id] = 0;
+      });
+      setStudentMessageCounts(messageCounts);
+    }
+  };
   
   const handleSelectStudent = (studentId) => {
     const newSelected = new Set(selectedStudents);
@@ -129,11 +308,29 @@ const CoachDashboard = () => {
 
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
+    setSelectedStudentInitialTab('overview');
   };
+
+  // Handle clicking on feedback icon to go to video analysis
+  const handleFeedbackClick = (student, e) => {
+    e.stopPropagation(); // Prevent triggering the row click
+    setSelectedStudent(student);
+    setSelectedStudentInitialTab('analyse');
+  };
+
+  // Handle clicking on message icon to go to chat
+  const handleMessageClick = (student, e) => {
+    e.stopPropagation(); // Prevent triggering the row click
+    // Navigate to chat page with specific student ID
+    navigate(`/chat?studentId=${student.id}`);
+  };
+
 
   const handleBackToList = () => {
     setSelectedStudent(null);
+    setSelectedStudentInitialTab('overview');
   };
+
 
 
   // Show student detail view if a student is selected
@@ -142,6 +339,7 @@ const CoachDashboard = () => {
       <StudentDetailView 
         student={selectedStudent} 
         onBack={handleBackToList}
+        initialTab={selectedStudentInitialTab}
       />
     );
   }
@@ -161,25 +359,11 @@ const CoachDashboard = () => {
           <Users className="h-4 w-4" />
           <span>Étudiants</span>
         </button>
-        <button
-          onClick={() => setActiveTab('schedule')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-            activeTab === 'schedule'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-muted-foreground hover:bg-muted/80'
-          }`}
-        >
-          <Calendar className="h-4 w-4" />
-          <span>Planning</span>
-        </button>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {activeTab === 'schedule' ? (
-          <CoachWeeklySchedule />
-        ) : (
-          <>
+        <>
             {/* Client List Header */}
             <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
@@ -244,6 +428,7 @@ const CoachDashboard = () => {
                 </th>
                 <th className="p-4 text-left font-medium text-muted-foreground">Name</th>
                 <th className="p-4 text-left font-medium text-muted-foreground">Last Activity</th>
+                <th className="p-4 text-left font-medium text-muted-foreground">Messages</th>
                 <th className="p-4 text-left font-medium text-muted-foreground">Feedback en attente</th>
                 <th className="p-4 text-left font-medium text-muted-foreground">Status</th>
               </tr>
@@ -251,11 +436,11 @@ const CoachDashboard = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="text-center p-8">Loading clients...</td>
+                  <td colSpan="6" className="text-center p-8">Loading clients...</td>
                 </tr>
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center p-8">
+                  <td colSpan="6" className="text-center p-8">
                     <div className="flex flex-col items-center space-y-4">
                       <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
                         <MessageSquare size={24} className="text-muted-foreground" />
@@ -337,10 +522,23 @@ const CoachDashboard = () => {
                     </td>
                     <td className="p-4 text-muted-foreground">{student.lastActivity}</td>
                     <td className="p-4">
-                      {student.feedbackCount > 0 && (
-                        <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full">
-                          {student.feedbackCount}
-                        </span>
+                      {studentMessageCounts[student.id] > 0 && (
+                        <div className="relative inline-block cursor-pointer" onClick={(e) => handleMessageClick(student, e)}>
+                          <MessageCircle className="w-5 h-5 text-white" />
+                          <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {studentMessageCounts[student.id]}
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {studentVideoCounts[student.id] > 0 && (
+                        <div className="relative inline-block cursor-pointer" onClick={(e) => handleFeedbackClick(student, e)}>
+                          <MessageSquare className="w-5 h-5 text-white" />
+                          <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {studentVideoCounts[student.id]}
+                          </span>
+                        </div>
                       )}
                     </td>
                     <td className="p-4 flex items-center space-x-2">
@@ -353,8 +551,7 @@ const CoachDashboard = () => {
             </tbody>
           </table>
         </div>
-          </>
-        )}
+        </>
       </div>
 
       {/* Invite Student Modal */}
