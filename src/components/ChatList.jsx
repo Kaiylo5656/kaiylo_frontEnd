@@ -171,23 +171,17 @@ const ChatList = ({
 
   // Get user name for display
   const getUserDisplayName = (conversation) => {
-    console.log('🔍 ChatList getUserDisplayName called with:', { conversation });
-    
     // If conversation has other_participant_name, use it
     if (conversation?.other_participant_name) {
-      console.log('🔍 Using other_participant_name:', conversation.other_participant_name);
       return conversation.other_participant_name;
     }
     
     // Fallback to user ID if no name available
     const userId = conversation?.other_participant_id;
     if (!userId || typeof userId !== 'string') {
-      console.log('🔍 Returning Unknown User for:', userId);
       return 'Unknown User';
     }
-    const displayName = `User ${userId.substring(0, 8)}`;
-    console.log('🔍 Returning fallback display name:', displayName);
-    return displayName;
+    return `User ${userId.substring(0, 8)}`;
   };
 
   useEffect(() => {

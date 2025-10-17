@@ -23,7 +23,26 @@ export const AuthProvider = ({ children }) => {
 
   // Get API base URL dynamically
   const API_BASE_URL = getApiBaseUrlWithApi();
-  console.log('🔧 AuthContext using API_BASE_URL:', API_BASE_URL);
+
+  // Set up Axios interceptor for handling 401 errors
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          console.warn('🚨 Interceptor: Caught 401 Unauthorized. Logging out.');
+          logout(); // This will clear state and redirect
+          // We don't need to navigate here, logout should handle it via a page reload
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // Clean up the interceptor when the component unmounts
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
 
   // Check if user is already logged in on app start
   useEffect(() => {
@@ -189,6 +208,10 @@ export const AuthProvider = ({ children }) => {
     // Clear user state
     setUser(null);
     setError(null);
+    
+    // Force a reload to clear all state and redirect to login page
+    // This is a robust way to ensure a clean logout
+    window.location.href = '/login';
   };
 
   // Update user profile
@@ -233,25 +256,19 @@ export const AuthProvider = ({ children }) => {
 
   // Get auth token function
   const getAuthToken = () => {
-    console.log('🔍 Debug - getAuthToken called');
-    
     // Try localStorage first
     let token = localStorage.getItem('authToken');
-    console.log('🔍 Debug - localStorage token:', token ? 'Found' : 'Not found');
     
     // If not in localStorage, try sessionStorage
     if (!token) {
       token = sessionStorage.getItem('authToken');
-      console.log('🔍 Debug - sessionStorage token:', token ? 'Found' : 'Not found');
     }
     
     // If still not found, try to get from axios defaults
     if (!token && axios.defaults.headers.common['Authorization']) {
       token = axios.defaults.headers.common['Authorization'].replace('Bearer ', '');
-      console.log('🔍 Debug - axios defaults token:', token ? 'Found' : 'Not found');
     }
     
-    console.log('🔍 Debug - Final token returned:', token ? `Length: ${token.length}` : 'No token');
     return token;
   };
 

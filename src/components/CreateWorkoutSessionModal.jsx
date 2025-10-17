@@ -15,6 +15,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [searchTerm, setSearchTerm] = useState('');
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   // ... existing useEffect and functions ...
   useEffect(() => {
@@ -176,13 +178,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const handleDragStart = (e, index) => {
     e.dataTransfer.setData('text/plain', index);
     e.dataTransfer.effectAllowed = 'move';
-    // Add visual feedback
-    e.target.style.opacity = '0.5';
+    setDraggedIndex(index);
   };
 
   const handleDragEnd = (e) => {
-    // Reset visual feedback
-    e.target.style.opacity = '1';
+    // Reset all drag states
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleDragOver = (e) => {
@@ -190,18 +192,21 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDragEnter = (e) => {
+  const handleDragEnter = (e, index) => {
     e.preventDefault();
-    e.target.style.backgroundColor = '#404040';
+    setDragOverIndex(index);
   };
 
   const handleDragLeave = (e) => {
-    e.target.style.backgroundColor = '#262626';
+    // Only reset if we're leaving the drop zone entirely
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverIndex(null);
+    }
   };
 
   const handleDrop = (e, dropIndex) => {
     e.preventDefault();
-    e.target.style.backgroundColor = '#262626';
+    setDragOverIndex(null);
     
     const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
     
@@ -287,6 +292,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setSearchTerm('');
     setShowExerciseSelector(false);
     setShowSidebar(false);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
     onClose();
   };
 
@@ -345,10 +352,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               {exercises.map((exercise, exerciseIndex) => (
                 <div 
                   key={exercise.id} 
-                  className="bg-[#1a1a1a] rounded-lg overflow-hidden"
+                  className={`rounded-lg overflow-hidden transition-all duration-200 ${
+                    draggedIndex === exerciseIndex 
+                      ? 'bg-[#2a2a2a] opacity-50' 
+                      : dragOverIndex === exerciseIndex 
+                        ? 'bg-[#2a2a2a]' 
+                        : 'bg-[#1a1a1a]'
+                  }`}
                   draggable
                   onDragStart={(e) => handleDragStart(e, exerciseIndex)}
+                  onDragEnd={handleDragEnd}
                   onDragOver={handleDragOver}
+                  onDragEnter={(e) => handleDragEnter(e, exerciseIndex)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, exerciseIndex)}
                 >
                   {/* Exercise Header */}
@@ -601,12 +617,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               {exercises.map((exercise, index) => (
                 <div
                   key={exercise.id}
-                  className="flex items-center justify-between p-3 bg-[#262626] rounded-lg cursor-move hover:bg-[#333333] transition-colors"
+                  className={`flex items-center justify-between p-3 rounded-lg cursor-move transition-all duration-200 ${
+                    draggedIndex === index 
+                      ? 'bg-[#404040] opacity-50' 
+                      : dragOverIndex === index 
+                        ? 'bg-[#404040]' 
+                        : 'bg-[#262626] hover:bg-[#333333]'
+                  }`}
                   draggable
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragEnd={handleDragEnd}
                   onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
+                  onDragEnter={(e) => handleDragEnter(e, index)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, index)}
                 >

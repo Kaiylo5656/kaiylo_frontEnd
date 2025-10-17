@@ -70,10 +70,7 @@ export const getWorkingApiUrl = async () => {
   // Remove duplicates
   const uniqueUrls = [...new Set(possibleUrls)];
   
-  console.log('🔍 Testing API connectivity for URLs:', uniqueUrls);
-  
   for (const url of uniqueUrls) {
-    console.log(`🔍 Testing: ${url}`);
     const isWorking = await testApiConnectivity(url);
     if (isWorking) {
       console.log(`✅ Working API URL found: ${url}`);
@@ -146,7 +143,6 @@ class ConnectionManager {
 
   // Initialize connection manager
   async initialize() {
-    console.log('🔧 Initializing Connection Manager...');
     await this.detectAndSetUrls();
     this.startConnectionMonitoring();
   }
@@ -154,15 +150,16 @@ class ConnectionManager {
   // Detect and set working URLs
   async detectAndSetUrls() {
     try {
-      this.currentApiUrl = await getWorkingApiUrl();
-      this.currentSocketUrl = this.currentApiUrl; // Socket uses same URL as API
-      console.log('✅ Connection Manager initialized with:', {
-        api: this.currentApiUrl,
-        socket: this.currentSocketUrl
-      });
-      this.notifyListeners();
+      const newApiUrl = await getWorkingApiUrl();
+      // Only update and notify if the URL has changed
+      if (newApiUrl !== this.currentApiUrl) {
+        this.currentApiUrl = newApiUrl;
+        this.currentSocketUrl = this.currentApiUrl; // Socket uses same URL as API
+        console.log('✅ New working API URL detected:', this.currentApiUrl);
+        this.notifyListeners();
+      }
     } catch (error) {
-      console.error('❌ Failed to initialize Connection Manager:', error);
+      console.error('❌ Failed to detect working API URL:', error);
     }
   }
 

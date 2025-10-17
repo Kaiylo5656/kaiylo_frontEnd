@@ -21,35 +21,41 @@ import './App.css';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { user, loading } = useAuth();
+  try {
+    const { user, loading } = useAuth();
 
-  if (loading) {
+    if (loading) {
+      return <LoadingSpinner />;
+    }
+
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+      // Redirect to appropriate dashboard based on user role
+      switch (user.role) {
+        case 'admin':
+          return <Navigate to="/admin/dashboard" replace />;
+        case 'coach':
+          return <Navigate to="/coach/dashboard" replace />;
+        case 'student':
+          return <Navigate to="/student/dashboard" replace />;
+        default:
+          return <Navigate to="/dashboard" replace />;
+      }
+    }
+
+    return (
+      <MainLayout>
+        {children}
+      </MainLayout>
+    );
+  } catch (error) {
+    // If useAuth fails, it means AuthProvider is not available
+    console.error('AuthProvider not available:', error);
     return <LoadingSpinner />;
   }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on user role
-    switch (user.role) {
-      case 'admin':
-        return <Navigate to="/admin/dashboard" replace />;
-      case 'coach':
-        return <Navigate to="/coach/dashboard" replace />;
-      case 'student':
-        return <Navigate to="/student/dashboard" replace />;
-      default:
-        return <Navigate to="/dashboard" replace />;
-    }
-  }
-
-  return (
-    <MainLayout>
-      {children}
-    </MainLayout>
-  );
 };
 
 // Main App Component

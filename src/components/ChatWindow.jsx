@@ -8,14 +8,15 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, Send } from 'lucide-react';
+import { Paperclip, Send, ChevronLeft } from 'lucide-react';
 
-const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) => {
+const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack }) => {
   const { getAuthToken } = useAuth();
   const { socket, isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, startTyping, stopTyping, markMessagesAsRead } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -24,21 +25,41 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
   const [replyingTo, setReplyingTo] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [connectionQuality, setConnectionQuality] = useState('good');
+  const [nextCursor, setNextCursor] = useState(null); // New state for pagination cursor
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const messageEndRef = useRef(null);
+  const messageStartRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
+  const messagesContainerRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (cursor = null) => {
     if (!conversation?.id) return;
 
     try {
-      setLoading(true);
+      if (cursor) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
       const token = await getAuthToken();
-      const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/messages`), {
+      
+      // Build query parameters for pagination
+      const params = new URLSearchParams({
+        limit: '50' // Load 50 messages at a time
+      });
+      
+      if (cursor) {
+        params.append('cursor', cursor);
+      }
+
+      const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/messages?${params}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -50,15 +71,47 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       }
 
       const data = await response.json();
-      setMessages(data.data || []);
+      const { messages: newMessages, nextCursor: newNextCursor } = data.data || { messages: [], nextCursor: null };
+      
+      if (cursor) {
+        // When loading more, append older messages to the end of the array
+        setMessages(prev => [...prev, ...newMessages]);
+      } else {
+        // Initial load
+        setMessages(newMessages);
+      }
+      
+      setNextCursor(newNextCursor);
+      setHasMoreMessages(!!newNextCursor);
+      
       // Clear old message refs when fetching new messages
       messageRefs.current = {};
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [conversation?.id, getAuthToken]);
+
+  // Load more messages when scrolling to the top
+  const loadMoreMessages = useCallback(() => {
+    if (!loadingMore && hasMoreMessages && nextCursor) {
+      fetchMessages(nextCursor);
+    }
+  }, [loadingMore, hasMoreMessages, nextCursor, fetchMessages]);
+
+  // Handle scroll events for infinite loading
+  const handleScroll = useCallback((e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    // In a flex-col-reverse layout, the "top" is at the maximum scroll position.
+    // We load more when the user scrolls near the visual top of the message list.
+    const isAtTop = scrollHeight + scrollTop - clientHeight < 100;
+
+    if (isAtTop && hasMoreMessages && !loadingMore) {
+      loadMoreMessages();
+    }
+  }, [hasMoreMessages, loadingMore, loadMoreMessages]);
 
   const handleFileUpload = useCallback(async (file) => {
     if (!conversation?.id || uploadingFile) return;
@@ -96,6 +149,16 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
 
+    // Debug logging (reduced)
+    console.log('🔍 sendMessage called for conversation:', conversation?.id);
+
+    // Check if conversation has valid ID
+    if (!conversation || !conversation.id) {
+      console.error('❌ No valid conversation or conversation ID found:', conversation);
+      alert('No conversation selected. Please select a conversation first.');
+      return;
+    }
+
     const messageContent = newMessage.trim();
     const replyToMessageId = replyingTo?.id || null;
     
@@ -108,6 +171,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       setIsTyping(false);
 
       if (isConnected && socket) {
+        console.log('📡 Using WebSocket to send message');
         sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
         
         const optimisticMessage = {
@@ -129,54 +193,77 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
         }
       } else {
         // Fallback to HTTP
+        console.log('🌐 Using HTTP fallback to send message');
         const token = await getAuthToken();
+        
+        const requestBody = {
+          conversationId: conversation.id,
+          content: messageContent,
+          replyToMessageId: replyToMessageId
+        };
+        
+        console.log('📤 Sending HTTP request with body:', requestBody);
+        
         const response = await fetch(buildApiUrl('/api/chat/messages'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            conversationId: conversation.id,
-            content: messageContent,
-            replyToMessageId: replyToMessageId
-          })
+          body: JSON.stringify(requestBody)
         });
 
-        if (!response.ok) throw new Error('Failed to send message via HTTP');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ HTTP response error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
+        }
+        
+        const responseData = await response.json();
+        console.log('✅ HTTP message sent successfully:', responseData);
         
         if (onMessageSent) {
-          onMessageSent(conversation.id, (await response.json()).data);
+          onMessageSent(conversation.id, responseData.data);
         }
       }
       
       setTimeout(scrollToBottom, 100);
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message. Please try again.');
+      console.error('❌ Error sending message:', error);
+      alert(`Failed to send message: ${error.message}. Please try again.`);
       setNewMessage(messageContent);
     } finally {
       setSending(false);
     }
   }, [
-    newMessage, sending, replyingTo, conversation.id, 
+    newMessage, sending, replyingTo, conversation?.id, 
     currentUser, isConnected, socket, sendSocketMessage, 
     stopTyping, onMessageSent, getAuthToken, scrollToBottom
   ]);
 
   useEffect(() => {
-    if (conversation.id) {
-      fetchMessages();
+    if (conversation?.id) {
+      // Reset state when conversation changes
+      setMessages([]);
+      setNextCursor(null);
+      setHasMoreMessages(true);
+      setIsInitialLoad(true); // Reset initial load flag for the new conversation
+      
+      fetchMessages(); // Initial load (no cursor)
       markMessagesAsRead(conversation.id);
       joinConversation(conversation.id);
     }
 
     return () => {
-      if (conversation.id) {
+      if (conversation?.id) {
         leaveConversation(conversation.id);
       }
     };
-  }, [conversation.id, fetchMessages, markMessagesAsRead, joinConversation, leaveConversation]);
+  }, [conversation?.id, fetchMessages, markMessagesAsRead, joinConversation, leaveConversation]);
 
   useEffect(() => {
     if (socket) {
@@ -207,8 +294,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
             return newMessages;
           }
           
-          // Add new message if no duplicate found
-          return [...prev, messageData];
+          // Add new message to the beginning of the array so it appears at the bottom
+          return [messageData, ...prev];
         });
         
         // Notify parent component
@@ -267,15 +354,31 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
     }
   }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
 
-  // Fetch messages when conversation changes
+  // Scroll to bottom only when new messages arrive (not when loading more or on initial load)
   useEffect(() => {
-    fetchMessages();
-  }, [conversation?.id, fetchMessages]);
+    if (!isInitialLoad && !loadingMore && !loading) {
+      // Only scroll to bottom if we're near the bottom (within 100px)
+      const container = messagesContainerRef.current;
+      if (container) {
+        // In flex-col-reverse, scrollTop near 0 means we are at the bottom.
+        if (container.scrollTop < 100) {
+          scrollToBottom();
+        }
+      }
+    }
+  }, [messages.length, scrollToBottom, isInitialLoad, loadingMore, loading]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom after initial load completes
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    if (!loading && !isInitialLoad) {
+      // After the very first fetch, scroll to the bottom (which is scrollTop = 0).
+      setTimeout(() => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = 0;
+        }
+      }, 50);
+    }
+  }, [loading, isInitialLoad]);
 
   // Handle typing indicators
   const handleInputChange = (e) => {
@@ -396,9 +499,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {/* Chat Header - Hidden on mobile (shown in page header) */}
-      <div className="hidden md:block p-4 border-b border-border bg-card">
+      {/* Chat Header */}
+      <div className="p-4 border-b border-border bg-card">
         <div className="flex items-center space-x-3">
+          {/* Back button for mobile */}
+          <button
+            onClick={onBack}
+            className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          
           <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
             {getUserDisplayName(conversation.other_participant_id).charAt(0).toUpperCase()}
           </div>
@@ -426,7 +537,35 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background">
+      <div 
+        ref={messagesContainerRef}
+        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background flex flex-col-reverse"
+        onScroll={handleScroll}
+      >
+        {/* The ref is now at the top for loading more, but visually it's the end of the list */}
+        <div ref={messageEndRef} />
+
+        {/* Typing Indicators */}
+        {typingUsers.length > 0 && (
+          <div className="flex justify-start">
+            <Card className="max-w-xs">
+              <CardContent className="p-3">
+                <div className="text-sm text-muted-foreground">
+                  {typingUsers.length === 1 
+                    ? `${typingUsers[0].userEmail} is typing...`
+                    : `${typingUsers.length} people are typing...`
+                  }
+                </div>
+                <div className="flex space-x-1 mt-1">
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        
         {loading ? (
           <div className="text-center text-muted-foreground">Loading messages...</div>
         ) : messages.length === 0 ? (
@@ -501,28 +640,23 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent }) 
           ))
         )}
         
-        {/* Typing Indicators */}
-        {typingUsers.length > 0 && (
-          <div className="flex justify-start">
-            <Card className="max-w-xs">
-              <CardContent className="p-3">
-                <div className="text-sm text-muted-foreground">
-                  {typingUsers.length === 1 
-                    ? `${typingUsers[0].userEmail} is typing...`
-                    : `${typingUsers.length} people are typing...`
-                  }
-                </div>
-                <div className="flex space-x-1 mt-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Load more messages button/indicator is now at the bottom of the container, which is visually the top */}
+        {loadingMore && (
+          <div className="text-center text-muted-foreground py-2">
+            <div className="text-sm">Loading more messages...</div>
           </div>
         )}
         
-        <div ref={messageEndRef} />
+        {!loadingMore && hasMoreMessages && messages.length > 0 && (
+          <div className="text-center py-2">
+            <button
+              onClick={loadMoreMessages}
+              className="text-sm text-primary hover:text-primary/80 underline"
+            >
+              Load older messages
+            </button>
+          </div>
+        )}
       </div>
 
       {/* File Upload */}

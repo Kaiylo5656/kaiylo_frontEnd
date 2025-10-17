@@ -200,10 +200,13 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background text-foreground">
       <div className="flex-1 flex overflow-hidden">
         {/* Contact List */}
-        <div className="w-80 bg-card border-r border-border flex flex-col">
+        <div className={`
+          w-full md:w-80 lg:w-96 bg-card border-r border-border flex-col
+          ${selectedConversation ? 'hidden md:flex' : 'flex'}
+        `}>
           <ChatList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -215,13 +218,17 @@ const ChatPage = () => {
         </div>
 
         {/* Chat Window */}
-        <div className="flex-1 flex flex-col bg-background">
+        <div className={`
+          flex-1 flex-col bg-background
+          ${selectedConversation ? 'flex' : 'hidden md:flex'}
+        `}>
           {selectedConversation ? (
             <ChatWindow
               conversation={selectedConversation}
               currentUser={user}
               onNewMessage={handleNewMessage}
               onMessageSent={handleMessageSent}
+              onBack={() => setSelectedConversation(null)} // Pass back handler
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">

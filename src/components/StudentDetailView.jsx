@@ -8,6 +8,7 @@ import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import useSocket from '../hooks/useSocket'; // Import the socket hook
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -46,6 +47,74 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [blockName, setBlockName] = useState('Prépa Force');
   const [isEditingBlock, setIsEditingBlock] = useState(false);
 
+  const { socket } = useSocket();
+
+  // Listen for real-time session updates
+  useEffect(() => {
+    if (socket) {
+      const handleSessionUpdate = (data) => {
+        console.log('SOCKET EVENT: session_updated received', data);
+        const { assignmentId, updatedSession } = data;
+
+        setWorkoutSessions(prevSessions => {
+          const newSessions = { ...prevSessions };
+          let sessionFound = false;
+
+          // Find the assignment and update its nested workout_session
+          for (const dateKey in newSessions) {
+            const sessionsOnDay = newSessions[dateKey];
+            const sessionIndex = sessionsOnDay.findIndex(s => s.assignmentId === assignmentId);
+
+            if (sessionIndex !== -1) {
+              console.log(`Found session to update on ${dateKey}`);
+              // Create a new array for the day
+              newSessions[dateKey] = [...sessionsOnDay];
+              // Create a new session object to update
+              const oldSession = newSessions[dateKey][sessionIndex];
+              newSessions[dateKey][sessionIndex] = {
+                ...oldSession,
+                workout_sessions: {
+                  ...oldSession.workout_sessions,
+                  exercises: updatedSession.exercises,
+                },
+              };
+              sessionFound = true;
+              break; 
+            }
+          }
+
+          if (sessionFound) {
+            console.log('Session state updated via WebSocket.');
+            // Also update the selectedSession if it's the one that was changed
+            setSelectedSession(prevSelected => {
+              if (prevSelected && prevSelected.assignmentId === assignmentId) {
+                console.log('Updating selectedSession as well.');
+                return {
+                  ...prevSelected,
+                  workout_sessions: {
+                    ...prevSelected.workout_sessions,
+                    exercises: updatedSession.exercises,
+                  },
+                };
+              }
+              return prevSelected;
+            });
+          } else {
+            console.log('Session to update not found in current state.');
+          }
+
+          return newSessions;
+        });
+      };
+
+      socket.on('session_updated', handleSessionUpdate);
+
+      return () => {
+        socket.off('session_updated', handleSessionUpdate);
+      };
+    }
+  }, [socket, setSelectedSession]);
+
   // Debug copiedWeek state changes
   useEffect(() => {
     console.log('🔄 copiedWeek state changed:', copiedWeek);
@@ -83,6 +152,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   };
 
   const handleSessionClick = (session, day) => {
+    console.log('🔍 Session clicked:', {
+      id: session.id,
+      status: session.status,
+      difficulty: session.difficulty,
+      notes: session.notes
+    });
+    
     setSelectedSession(session);
     setSelectedDate(day);
     
@@ -91,6 +167,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       setIsCreateModalOpen(true);
     } else if (session.status === 'completed') {
       // Pour les séances terminées, ouvrir la modale de révision avec vidéos
+      console.log('📝 Opening review modal with session:', session);
       setIsReviewModalOpen(true);
     } else {
       // Pour les séances en cours, ouvrir la modale de détails en lecture seule
@@ -456,7 +533,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       return;
     }
 
-    // Store the copied week data
+    // Check if we're copying the same week again
+    if (copiedWeek && format(copiedWeek.weekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd')) {
+      console.log('🔄 Copying same week again - overwriting previous copy');
+      alert('Cette semaine a déjà été copiée. La copie précédente sera remplacée.');
+    }
+
+    // Store the copied week data (overwriting any previous copy)
     const copiedData = {
       weekStart,
       sessions: weekSessions,
@@ -498,14 +581,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday=0 to Monday=0
         const newDate = addDays(targetWeekStart, dayOfWeek);
         
-        const sessionData = {
-          title: session.title,
-          description: session.description || '',
-          exercises: session.exercises,
-          scheduled_date: format(newDate, 'yyyy-MM-dd'),
-          student_id: student.id,
-          status: session.status // Preserve original status (draft or published)
-        };
+          // Always create new sessions as 'assigned', regardless of original status
+          const sessionData = {
+            title: session.title,
+            description: session.description || '',
+            exercises: session.exercises,
+            scheduled_date: format(newDate, 'yyyy-MM-dd'),
+            student_id: student.id,
+            status: session.status === 'draft' ? 'draft' : 'published' // Keep draft status, but make completed ones published
+          };
 
         await axios.post(
           `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
@@ -752,6 +836,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               startTime: assignment.start_time,
               endTime: assignment.end_time,
               notes: assignment.notes,
+              difficulty: assignment.difficulty,
               workoutSessionId: assignment.workout_session_id
             };
 
@@ -1369,12 +1454,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               </div>
             </div>
 
+            {/* Week Navigation */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => changeOverviewWeek('prev')}
+                className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] rounded-lg hover:bg-[#262626] transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Semaine précédente</span>
+              </button>
+              <button
+                onClick={() => setOverviewWeekDate(new Date())}
+                className="flex items-center gap-2 px-4 py-2 bg-[#e87c3e] text-white rounded-lg hover:bg-[#d66d35] transition-colors"
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Aujourd'hui</span>
+              </button>
+              <button
+                onClick={() => changeOverviewWeek('next')}
+                className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] rounded-lg hover:bg-[#262626] transition-colors"
+              >
+                <span>Semaine suivante</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
             {/* Weekly Schedule */}
             <div className="grid grid-cols-7 gap-3">
               {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => (
                 <div 
                  key={day} 
-                 className="bg-[#1a1a1a] rounded-xl p-2 cursor-pointer hover:bg-[#262626] transition-colors relative group h-[200px] overflow-hidden"
+                 className={`rounded-xl p-2 cursor-pointer transition-colors relative group h-[200px] overflow-hidden ${
+                   format(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                   ? 'bg-[#262626] border-2 border-[#e87c3e]'
+                   : 'bg-[#1a1a1a] hover:bg-[#262626]'
+                 }`}
                  onClick={() => handleDayClick(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i))}
                >
                  <div className="text-xs text-gray-400 mb-2 flex justify-between items-center">
@@ -1518,33 +1632,24 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       {activeTab === 'training' && (
         <div className="p-4">
           <div className="flex items-center justify-between mb-6">
-            <button 
-              className="px-4 py-2 bg-[#1a1a1a] rounded-lg text-sm hover:bg-[#262626]"
-              onClick={() => {
-                // Find the month with the most recent sessions
-                const sessionDates = Object.keys(workoutSessions);
-                if (sessionDates.length > 0) {
-                  // Sort dates and get the most recent one
-                  const sortedDates = sessionDates.sort((a, b) => new Date(b) - new Date(a));
-                  const mostRecentDate = new Date(sortedDates[0]);
-                  setTrainingMonthDate(mostRecentDate);
-                } else {
-                  // If no sessions, go to current date
-                  setTrainingMonthDate(new Date());
-                }
-              }}
-            >
-              Dernières sessions
-            </button>
             <div className="flex items-center gap-4">
               <button onClick={() => changeTrainingMonth('prev')} className="p-2 rounded-lg hover:bg-[#1a1a1a]">
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <span className="text-sm">
-                  {format(startOfMonth(trainingMonthDate), 'd MMM', { locale: fr })} - {format(endOfMonth(trainingMonthDate), 'd MMM', { locale: fr })}
-                </span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">
+                    {format(startOfMonth(trainingMonthDate), 'd MMM', { locale: fr })} - {format(endOfMonth(trainingMonthDate), 'd MMM', { locale: fr })}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setTrainingMonthDate(new Date())}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#e87c3e] text-white rounded-lg hover:bg-[#d66d35] transition-colors"
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>Aujourd'hui</span>
+                </button>
               </div>
               <button onClick={() => changeTrainingMonth('next')} className="p-2 rounded-lg hover:bg-[#1a1a1a]">
                 <ChevronRight className="h-5 w-5" />
@@ -1718,9 +1823,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 return (
                   <div
                     key={dateKey}
-                                className={`rounded-lg cursor-pointer hover:bg-[#262626] transition-colors flex flex-col ${
-                      isCurrentMonth ? 'bg-[#1a1a1a]' : 'bg-[#0a0a0a]'
-                                } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
+                    className={`rounded-lg cursor-pointer transition-colors flex flex-col ${
+                      format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                      ? 'bg-[#262626] border-2 border-[#e87c3e]'
+                      : isCurrentMonth ? 'bg-[#1a1a1a] hover:bg-[#262626]' : 'bg-[#0a0a0a] hover:bg-[#262626]'
+                    } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
                     onClick={() => handleDayClick(day)}
                   >
                     <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-gray-600'}`}>

@@ -87,9 +87,29 @@ const StudentDashboard = () => {
     try {
       const token = await getAuthToken();
       
-      // Extract completion data from session
+      // Extract completion data and set statuses from session
       const completionData = session.completionData || {};
-      
+      const completedSets = session.completedSets || {};
+
+      // Create a deep copy of exercises to modify
+      const updatedExercises = JSON.parse(JSON.stringify(session.workout_sessions.exercises));
+
+      // Inject validation_status into each set
+      updatedExercises.forEach((exercise, exerciseIndex) => {
+        if (exercise.sets && Array.isArray(exercise.sets)) {
+          exercise.sets.forEach((set, setIndex) => {
+            const key = `${exerciseIndex}-${setIndex}`;
+            const setData = completedSets[key];
+            
+            if (setData && typeof setData === 'object' && 'status' in setData) {
+              set.validation_status = setData.status;
+            } else if (setData && typeof setData === 'string') {
+              set.validation_status = setData;
+            }
+          });
+        }
+      });
+
       const response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
         method: 'PUT',
         headers: {
@@ -98,7 +118,8 @@ const StudentDashboard = () => {
         },
         body: JSON.stringify({
           difficulty: completionData.difficulty,
-          comment: completionData.comment
+          comment: completionData.comment,
+          exercises: updatedExercises // Send updated exercises with validation statuses
         })
       });
 

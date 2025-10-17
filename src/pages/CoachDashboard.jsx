@@ -8,6 +8,7 @@ import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import StudentDetailView from '../components/StudentDetailView';
 import useSocket from '../hooks/useSocket';
+import WebSocketDebugger from '../components/WebSocketDebugger';
 
 const CoachDashboard = () => {
   const { user } = useAuth();
@@ -26,77 +27,45 @@ const CoachDashboard = () => {
   const [activeTab, setActiveTab] = useState('students');
   const [studentVideoCounts, setStudentVideoCounts] = useState({}); // Track pending videos per student
   const [studentMessageCounts, setStudentMessageCounts] = useState({}); // Track unread messages per student
+  const [error, setError] = useState('');
+  const { socket } = useSocket();
 
   useEffect(() => {
     fetchCoachData();
   }, []);
 
-  // Refresh message counts when the component becomes visible again (e.g., returning from chat)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && students.length > 0) {
-        fetchMessageCounts();
-        fetchVideoCounts(); // Also refresh video counts when tab becomes visible
-      }
-    };
-
-    const handleFocus = () => {
-      if (students.length > 0) {
-        fetchMessageCounts();
-        fetchVideoCounts(); // Also refresh video counts when returning to dashboard
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('pageshow', handleFocus); // Handle back button navigation
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('pageshow', handleFocus);
-    };
-  }, [students]);
-
-  // Fetch video counts and message counts for all students when students list changes
+  // Effect for polling and WebSocket updates
   useEffect(() => {
     if (students.length > 0) {
-      fetchVideoCounts();
-      fetchMessageCounts();
+      // Fetch immediately on component mount or when students are loaded
+      fetchDashboardCounts();
+
+      // Set up polling every 30 seconds as a fallback
+      const intervalId = setInterval(fetchDashboardCounts, 30000);
+
+      // Set up WebSocket listeners for real-time updates
+      if (socket) {
+        const handleRealtimeUpdate = (data) => {
+          console.log('WebSocket update received:', data);
+          fetchDashboardCounts();
+        };
+        
+        socket.on('session_completed_with_videos', handleRealtimeUpdate);
+        socket.on('new_message', handleRealtimeUpdate);
+        console.log('WebSocket listeners for dashboard counts attached.');
+      }
+
+      // Cleanup function
+      return () => {
+        clearInterval(intervalId);
+        if (socket) {
+          socket.off('session_completed_with_videos', fetchDashboardCounts);
+          socket.off('new_message', fetchDashboardCounts);
+          console.log('WebSocket listeners for dashboard counts removed.');
+        }
+      };
     }
-  }, [students]);
-
-  // Set up periodic refresh for message counts (every 30 seconds)
-  useEffect(() => {
-    if (students.length === 0) return;
-
-    const messageInterval = setInterval(() => {
-      fetchMessageCounts();
-    }, 30000); // Refresh messages every 30 seconds
-
-    return () => clearInterval(messageInterval);
-  }, [students]);
-
-  // Set up more frequent refresh for video counts (every 5 seconds) for faster feedback notifications
-  useEffect(() => {
-    if (students.length === 0) return;
-
-    const videoInterval = setInterval(() => {
-      fetchVideoCounts();
-    }, 5000); // Refresh video counts every 5 seconds for faster feedback notifications
-
-    return () => clearInterval(videoInterval);
-  }, [students]);
-
-  // Listen for real-time video upload notifications
-  useEffect(() => {
-    const cleanup = onVideoUpload((data) => {
-      // Immediately refresh video counts when a new video is uploaded
-      fetchVideoCounts();
-    });
-
-    return cleanup;
-  }, [onVideoUpload]);
+  }, [students, socket]);
 
   // Check for reset parameter and reset state when present
   useEffect(() => {
@@ -171,99 +140,28 @@ const CoachDashboard = () => {
       setLoading(false);
     }
   };
-
-  // Fetch video counts for all students
-  const fetchVideoCounts = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const videoCounts = {};
-
-      // Fetch videos for each student
-      for (const student of students) {
-        try {
-          const response = await axios.get(
-            `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-              params: { studentId: student.id }
-            }
-          );
-          
-          if (response.data.success) {
-            const pendingVideos = response.data.data.filter(video => video.status === 'pending');
-            videoCounts[student.id] = pendingVideos.length;
-          } else {
-            videoCounts[student.id] = 0;
-          }
-        } catch (error) {
-          console.error(`Error fetching videos for student ${student.id}:`, error);
-          videoCounts[student.id] = 0;
-        }
-      }
-
-      setStudentVideoCounts(videoCounts);
-    } catch (error) {
-      console.error('Error fetching video counts:', error);
-    }
-  };
-
-  // Fetch unread message counts for all students
-  const fetchMessageCounts = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const messageCounts = {};
-
-      // Get all conversations for the coach
-      const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/chat/conversations`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      if (response.data.success) {
-        const conversations = response.data.data;
-        
-        // Initialize all students with 0 unread messages
-        students.forEach(student => {
-          messageCounts[student.id] = 0;
-        });
-
-        // Count unread messages for each conversation
-        conversations.forEach(conversation => {
-          if (conversation.other_participant_id && conversation.last_message_at) {
-            const studentId = conversation.other_participant_id;
-            const lastReadAt = conversation.last_read_at;
-            
-            // If there's a last message and it's after the last read time, count as unread
-            if (!lastReadAt || new Date(conversation.last_message_at) > new Date(lastReadAt)) {
-              // Only count if the last message is from the student (not from the coach)
-              // We assume the coach is the current user, so we count messages not from the coach
-              if (conversation.last_message && conversation.last_message.sender_id !== user.id) {
-                messageCounts[studentId] = (messageCounts[studentId] || 0) + 1;
-              }
-            }
-          }
-        });
-      } else {
-        // Initialize all students with 0 unread messages
-        students.forEach(student => {
-          messageCounts[student.id] = 0;
-        });
-      }
-
-      setStudentMessageCounts(messageCounts);
-    } catch (error) {
-      console.error('Error fetching message counts:', error);
-      // Initialize all students with 0 unread messages on error
-      const messageCounts = {};
-      students.forEach(student => {
-        messageCounts[student.id] = 0;
-      });
-      setStudentMessageCounts(messageCounts);
-    }
-  };
   
+  const fetchDashboardCounts = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      console.log('Fetching dashboard counts...');
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/coach/dashboard-counts`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        console.log('Fetched counts:', response.data.data);
+        setStudentVideoCounts(response.data.data.videoCounts || {});
+        setStudentMessageCounts(response.data.data.messageCounts || {});
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard counts:', error);
+    }
+  };
+
   const handleSelectStudent = (studentId) => {
     const newSelected = new Set(selectedStudents);
     if (newSelected.has(studentId)) {
@@ -566,6 +464,9 @@ const CoachDashboard = () => {
         isOpen={isPendingInvitationsModalOpen}
         onClose={handleClosePendingInvitationsModal}
       />
+      
+      {/* WebSocket Debugger - only show in development */}
+      {process.env.NODE_ENV === 'development' && <WebSocketDebugger />}
     </div>
   );
 };

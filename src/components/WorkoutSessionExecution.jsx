@@ -20,19 +20,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
   
-  // Debug logging to understand data structure issues
-  // console.log('🔍 WorkoutSessionExecution Debug:', {
-  //   session,
-  //   exercises,
-  //   firstExercise: exercises[0],
-  //   firstExerciseSets: exercises[0]?.sets,
-  //   setsType: typeof exercises[0]?.sets,
-  //   setsIsArray: Array.isArray(exercises[0]?.sets)
-  // });
 
   // Get current set index for an exercise
   const getCurrentSetIndex = (exerciseIndex) => {
     return currentSetIndex[exerciseIndex] || 0;
+  };
+
+  // Count video-enabled sets for an exercise
+  const countVideoEnabledSets = (exerciseIndex) => {
+    const exercise = exercises[exerciseIndex];
+    if (!exercise || !Array.isArray(exercise.sets)) return 0;
+    return exercise.sets.filter(set => set.video === true).length;
   };
 
   // Check if video upload is enabled for the selected set
@@ -121,12 +119,40 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       };
     });
 
-    // Only advance to next set if we're updating the current set (not a previous one)
-    if (setIndex === null) {
-      setCurrentSetIndex(prev => ({
-        ...prev,
-        [exerciseIndex]: targetSet + 1
-      }));
+    // Advance to next set if we're updating the current set (either via action buttons or clicking on current set)
+    const currentSet = getCurrentSetIndex(exerciseIndex);
+    if (setIndex === null || setIndex === currentSet) {
+      const nextSet = targetSet + 1;
+      
+      // Only advance if there's a next set available
+      if (nextSet < exercise.sets.length) {
+        // Update current set index to next set
+        setCurrentSetIndex(prev => ({
+          ...prev,
+          [exerciseIndex]: nextSet
+        }));
+        
+        // Also select the next set for video details
+        setSelectedSetForVideo(prev => ({
+          ...prev,
+          [exerciseIndex]: nextSet // Select next set instead of clearing
+        }));
+      } else {
+        // If this was the last set, move to next exercise if available
+        if (exerciseIndex < exercises.length - 1) {
+          setCurrentExerciseIndex(exerciseIndex + 1);
+          setCurrentSetIndex(prev => ({
+            ...prev,
+            [exerciseIndex + 1]: 0
+          }));
+          
+          // Also select the first set of next exercise
+          setSelectedSetForVideo(prev => ({
+            ...prev,
+            [exerciseIndex + 1]: 0 // Select first set instead of clearing
+          }));
+        }
+      }
     }
   };
 
@@ -270,7 +296,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     setSessionStatus('completed');
     onCompleteSession({
       ...session,
-      completionData
+      completionData,
+      completedSets // Pass the set statuses
     });
     setIsCompletionModalOpen(false);
   };
@@ -285,12 +312,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const handleVideoUploadSuccess = (videoData) => {
     console.log('Video stored locally:', videoData);
     
-    // Store video locally instead of uploading immediately
-    setLocalVideos(prev => [...prev, videoData]);
-    
-    // Update UI to show that a video was recorded for this set
+    // Get current exercise and set indices
     const exerciseIndex = currentExerciseIndex;
     const setIndex = selectedSetForVideo[exerciseIndex];
+    
+    // Check if a video already exists for this set
+    setLocalVideos(prev => {
+      // Remove any existing video for this exercise and set
+      const filteredVideos = prev.filter(v => 
+        !(v.exerciseInfo.exerciseName === videoData.exerciseInfo.exerciseName && 
+          v.setInfo.setNumber === videoData.setInfo.setNumber)
+      );
+      
+      // Add the new video
+      return [...filteredVideos, videoData];
+    });
+    
+    // Update UI to show that a video was recorded for this set
     
     console.log('🎥 Adding video to set:', {
       exerciseIndex,
@@ -379,31 +417,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           exercises.map((exercise, exerciseIndex) => (
           <div key={exerciseIndex} className="bg-[#1a1a1a] rounded-lg p-4">
             {/* Exercise Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div>
+              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
                 <h3 className="text-white font-medium text-lg">{exercise.name}</h3>
-                       {(() => {
-                         // Use selected set for video if available, otherwise use current active set
-                         const selectedSet = selectedSetForVideo[exerciseIndex];
-                         const currentSet = getCurrentSetIndex(exerciseIndex);
-                         const displaySetIndex = selectedSet !== undefined ? selectedSet : currentSet;
-                         const setData = Array.isArray(exercise.sets) ? (exercise.sets[displaySetIndex] || exercise.sets[0]) : null;
-                         const isComplete = isExerciseFullyComplete(exerciseIndex);
-                         
-                         return (
-                           <>
-                             <p className="text-gray-400 text-sm">
-                               {setData?.reps || '?'} rep @{setData?.weight || 'N/A'} kg
-                             </p>
-                             {!isComplete && (
-                               <p className="text-[#e87c3e] text-xs mt-1">
-                                 Série {displaySetIndex + 1} sur {Array.isArray(exercise.sets) ? exercise.sets.length : 0}
-                                 {selectedSet !== undefined && selectedSet !== currentSet && ' (sélectionnée)'}
-                               </p>
-                             )}
-                           </>
-                         );
-                       })()}
               </div>
               <Button 
                 variant="outline" 
@@ -422,7 +438,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                 }
               >
                 <Video className="h-4 w-4 mr-2" />
-                Ajouter une vidéo
+                Ajouter une vidéo ({countVideoEnabledSets(exerciseIndex)} sets)
               </Button>
             </div>
 
@@ -444,21 +460,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                                  ? getSetStatusColor(status) + ' border-2 border-blue-400' // Selected for video - preserve status color with blue border
                                  : getSetStatusColor(status)
                            }`}
-                           onClick={() => {
-                             // Select this set for video upload and to show its details
-                             setSelectedSetForVideo(prev => ({
-                               ...prev,
-                               [exerciseIndex]: setIndex
-                             }));
-
-                             // Update the current set index to show the correct weight/reps in the header
-                             setCurrentSetIndex(prev => ({
-                               ...prev,
-                               [exerciseIndex]: setIndex
-                             }));
-
-                             // No status modification on click - only viewing details and video selection
-                           }}
+                          onClick={() => {
+                            // If this is the current set, validate it
+                            if (setIndex === getCurrentSetIndex(exerciseIndex) && !isExerciseFullyComplete(exerciseIndex)) {
+                              handleSetValidation(exerciseIndex, 'completed', setIndex);
+                            } else {
+                              // Otherwise just select it for video/details
+                              setSelectedSetForVideo(prev => ({
+                                ...prev,
+                                [exerciseIndex]: setIndex
+                              }));
+                            }
+                          }}
                            title={
                              `Set ${setIndex + 1} - Click to view details${selectedSetForVideo[exerciseIndex] === setIndex ? ' - Selected for video' : ''}${hasVideo ? ' - Video recorded' : ''}`
                            }
@@ -487,9 +500,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                      {isExerciseFullyComplete(exerciseIndex) ? (
                        <div className="flex-1 text-center py-2">
                          <span className="text-green-400 font-medium">✓ Exercice terminé</span>
-                         <div className="text-xs text-gray-400 mt-1">
-                           Utilisez les boutons pour modifier le statut
-                         </div>
                        </div>
                      ) : (
                        <>
