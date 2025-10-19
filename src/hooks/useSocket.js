@@ -81,16 +81,16 @@ const useSocket = () => {
         auth: { token },
         // More conservative connection settings for better stability
         reconnection: true,
-        reconnectionAttempts: 3, // Reduced from 5
-        reconnectionDelay: 5000, // Increased from 3000
-        reconnectionDelayMax: 20000, // Increased from 15000
-        timeout: 15000, // Reduced from 20000
-        pingTimeout: 30000, // Reduced from 60000
-        pingInterval: 20000, // Reduced from 25000
-        // Transport configuration - allow both polling and websocket
-        transports: ['polling', 'websocket'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        pingTimeout: 60000,
+        pingInterval: 25000,
+        // Transport configuration - start with polling, then upgrade to websocket
+        transports: ['polling'],
         upgrade: true, // Enable upgrade to WebSocket
-        rememberUpgrade: true,
+        rememberUpgrade: false, // Don't remember upgrade to avoid issues
         // Force initial connection attempt
         forceNew: true,
         // Add some debugging
@@ -110,6 +110,12 @@ const useSocket = () => {
       newSocket.on('connect', () => {
         console.log('✅ Socket connected:', newSocket.id);
         console.log('✅ Transport:', newSocket.io.engine.transport.name);
+        console.log('✅ Connection details:', {
+          id: newSocket.id,
+          connected: newSocket.connected,
+          transport: newSocket.io.engine.transport.name,
+          readyState: newSocket.io.engine.readyState
+        });
         setIsConnected(true);
         setConnectionError(null);
         
@@ -143,31 +149,11 @@ const useSocket = () => {
         // Only handle authentication errors specifically
         if (error.message.includes('Authentication error') || error.message.includes('Invalid token')) {
           console.error('❌ Authentication failed - token might be invalid or expired');
-          console.log('🔄 Attempting to refresh token and reconnect...');
-          
-          // Try to refresh the token and reconnect
-          setTimeout(async () => {
-            try {
-              console.log('🔄 Refreshing token...');
-              const newToken = await getAuthToken();
-              if (newToken && newToken !== token) {
-                console.log('✅ Token refreshed, attempting reconnection...');
-                // Disconnect current socket and try again
-                if (socketRef.current) {
-                  socketRef.current.disconnect();
-                  socketRef.current = null;
-                }
-                // Re-initialize with new token
-                initializeSocket();
-              } else {
-                console.log('⚠️ Token refresh failed or same token returned');
-                setConnectionError(`Authentication failed: ${error.message}`);
-              }
-            } catch (refreshError) {
-              console.error('❌ Token refresh failed:', refreshError);
-              setConnectionError(`Authentication failed: ${error.message}`);
-            }
-          }, 3000); // Increased delay
+          setConnectionError(`Authentication failed: ${error.message}`);
+        } else if (error.message.includes('WebSocket is closed before the connection is established')) {
+          console.log('⚠️ WebSocket connection closed early - this is often a transport issue');
+          console.log('🔄 Will attempt reconnection with different transport...');
+          // Don't set connection error for this specific case, let reconnection handle it
         } else {
           // For other errors, just log them but don't set connection error
           // Let the reconnection logic handle it
@@ -189,11 +175,59 @@ const useSocket = () => {
 
       newSocket.on('reconnect_failed', () => {
         console.error('❌ WebSocket reconnection failed after all attempts');
-        setConnectionError('Failed to reconnect to server');
-        setIsConnected(false);
+        console.log('🔄 Attempting fallback connection with different transport...');
+        
+        // Try a fallback connection with different settings
+        setTimeout(() => {
+          if (socketRef.current && !socketRef.current.connected) {
+            console.log('🔄 Creating fallback socket connection...');
+            const fallbackSocket = io(socketUrl, {
+              auth: { token },
+              transports: ['websocket'], // Try websocket only
+              timeout: 10000,
+              reconnection: false, // Disable auto-reconnection for fallback
+              forceNew: true
+            });
+            
+            fallbackSocket.on('connect', () => {
+              console.log('✅ Fallback connection successful');
+              // Replace the current socket with the working one
+              if (socketRef.current) {
+                socketRef.current.disconnect();
+              }
+              socketRef.current = fallbackSocket;
+              setIsConnected(true);
+              setConnectionError(null);
+            });
+            
+            fallbackSocket.on('connect_error', (fallbackError) => {
+              console.error('❌ Fallback connection also failed:', fallbackError.message);
+              setConnectionError('Failed to establish any connection to server');
+              setIsConnected(false);
+            });
+          }
+        }, 2000);
       });
 
       socketRef.current = newSocket;
+      
+      // Add connection state monitoring
+      const connectionMonitor = setInterval(() => {
+        if (newSocket) {
+          console.log('🔌 Connection state:', {
+            connected: newSocket.connected,
+            connecting: newSocket.connecting,
+            disconnected: newSocket.disconnected,
+            transport: newSocket.io?.engine?.transport?.name || 'unknown',
+            readyState: newSocket.io?.engine?.readyState || 'unknown'
+          });
+        }
+      }, 2000);
+      
+      // Clear the monitor after 10 seconds
+      setTimeout(() => {
+        clearInterval(connectionMonitor);
+      }, 10000);
       
       // Give it a moment to establish connection
       setTimeout(() => {
