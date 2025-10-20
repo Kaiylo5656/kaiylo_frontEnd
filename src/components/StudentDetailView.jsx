@@ -141,8 +141,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   };
 
   const changeTrainingMonth = (direction) => {
-    const newDate = direction === 'next' ? addMonths(trainingMonthDate, 1) : subMonths(trainingMonthDate, 1);
-    setTrainingMonthDate(newDate);
+    if (weekViewFilter === 2) {
+      // For 2-week view, navigate by 2 weeks from the current trainingMonthDate
+      const newDate = direction === 'next' ? addDays(trainingMonthDate, 14) : subDays(trainingMonthDate, 14);
+      setTrainingMonthDate(newDate);
+    } else {
+      // For 4-week view, navigate by month
+      const newDate = direction === 'next' ? addMonths(trainingMonthDate, 1) : subMonths(trainingMonthDate, 1);
+      setTrainingMonthDate(newDate);
+    }
   };
 
   const handleDayClick = (day) => {
@@ -1640,11 +1647,24 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-gray-400" />
                   <span className="text-sm">
-                    {format(startOfMonth(trainingMonthDate), 'd MMM', { locale: fr })} - {format(endOfMonth(trainingMonthDate), 'd MMM', { locale: fr })}
+                    {weekViewFilter === 2 ? (
+                      // For 2-week view, show the actual 2-week range
+                      (() => {
+                        const weekStart = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
+                        const weekEnd = addDays(weekStart, 13);
+                        return `${format(weekStart, 'd MMM', { locale: fr })} - ${format(weekEnd, 'd MMM', { locale: fr })}`;
+                      })()
+                    ) : (
+                      // For 4-week view, show the month range
+                      `${format(startOfMonth(trainingMonthDate), 'd MMM', { locale: fr })} - ${format(endOfMonth(trainingMonthDate), 'd MMM', { locale: fr })}`
+                    )}
                   </span>
                 </div>
                 <button
-                  onClick={() => setTrainingMonthDate(new Date())}
+                  onClick={() => {
+                    setTrainingMonthDate(new Date());
+                    // For 2-week view, this will automatically center around today
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-[#e87c3e] text-white rounded-lg hover:bg-[#d66d35] transition-colors"
                 >
                   <Calendar className="h-4 w-4" />
@@ -1730,9 +1750,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
           {/* Calendar Grid */}
           <div className={weekViewFilter === 2 ? 'space-y-4' : 'space-y-2'}>
             {(() => {
-              const monthStart = startOfMonth(trainingMonthDate);
-              const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-              const endDate = addDays(startDate, (weekViewFilter * 7) - 1); // Show selected number of weeks
+              // For 2-week view, center around current date or trainingMonthDate
+              let startDate, endDate;
+              
+              if (weekViewFilter === 2) {
+                // Center 2 weeks around the trainingMonthDate
+                const weekStart = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
+                startDate = weekStart;
+                endDate = addDays(startDate, 13); // 2 weeks = 14 days
+              } else {
+                // For 4-week view, use the month-based logic
+                const monthStart = startOfMonth(trainingMonthDate);
+                startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
+                endDate = addDays(startDate, (weekViewFilter * 7) - 1);
+              }
               
               // Group days by weeks
               const weeks = [];
@@ -1768,7 +1799,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       >
                         {/* Container pour la zone de survol et les boutons */}
                         <div
-                          className={`absolute -left-16 top-0 bottom-0 w-20 z-20 transition-all duration-200 ${
+                          className={`week-action-container absolute -left-12 top-0 bottom-0 w-16 z-20 transition-all duration-200 ${
                             isHovered ? 'bg-gray-800/20 border-l-2 border-[#e87c3e]' : 'hover:bg-gray-800/10'
                           }`}
                           onMouseEnter={() => setHoveredWeek(weekKey)}
@@ -1780,7 +1811,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           
                           {/* Week action buttons - apparaissent au centre */}
                           {isHovered && (
-                            <div className="absolute -left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-2 z-50">
+                            <div className="week-action-buttons flex flex-col gap-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

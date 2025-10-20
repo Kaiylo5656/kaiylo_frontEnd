@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Icon Generator</title>
+</head>
+<body>
+    <h1>PWA Icon Generator</h1>
+    <p>Right-click on each icon below and "Save image as..." to download them:</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
+        <div>
+            <h3>192x192 Icon</h3>
+            <canvas id="icon192" width="192" height="192" style="border: 1px solid #ccc;"></canvas>
+        </div>
+        
+        <div>
+            <h3>512x512 Icon</h3>
+            <canvas id="icon512" width="512" height="512" style="border: 1px solid #ccc;"></canvas>
+        </div>
+        
+        <div>
+            <h3>Favicon (32x32)</h3>
+            <canvas id="favicon" width="32" height="32" style="border: 1px solid #ccc;"></canvas>
+        </div>
+        
+        <div>
+            <h3>Apple Touch Icon (180x180)</h3>
+            <canvas id="appleIcon" width="180" height="180" style="border: 1px solid #ccc;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function createIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background
+            ctx.fillStyle = '#121212';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Main circle
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const radius = size / 3;
+            
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#e87c3e';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(2, size / 96);
+            ctx.stroke();
+            
+            // Letter K
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${size / 8}px Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('K', centerX, centerY + size / 40);
+        }
+        
+        // Generate all icons
+        createIcon(document.getElementById('icon192'), 192);
+        createIcon(document.getElementById('icon512'), 512);
+        createIcon(document.getElementById('favicon'), 32);
+        createIcon(document.getElementById('appleIcon'), 180);
+        
+        console.log('Icons generated! Right-click to save them.');
+    </script>
+</body>
+</html>

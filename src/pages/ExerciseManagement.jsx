@@ -2,23 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AddExerciseModal from '../components/AddExerciseModal';
 import { Search, Filter, Edit, Trash2, Check } from 'lucide-react';
 
 const ExerciseManagement = () => {
   const { user } = useAuth();
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    instructions: '',
-    tags: []
-  });
 
   // Available tag colors for display
   const tagColors = [
@@ -127,77 +122,29 @@ const ExerciseManagement = () => {
     }
   };
 
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
 
   // Handle array inputs (muscle groups, equipment, tags)
 
-  // Handle tag input
-  const handleTagInput = (e) => {
-    if (e.key === 'Enter' && e.target.value.trim()) {
-      e.preventDefault();
-      const newTag = e.target.value.trim();
-      if (!formData.tags.includes(newTag)) {
-        setFormData(prev => ({
-          ...prev,
-          tags: [...prev.tags, newTag]
-        }));
-        console.log('🏷️ Added tag:', newTag, 'Current tags:', [...formData.tags, newTag]);
-      }
-      e.target.value = '';
-    }
-  };
 
-  // Remove tag
-  const removeTag = (tagToRemove) => {
-    console.log('🏷️ removeTag called with:', tagToRemove);
-    console.log('🏷️ Current formData.tags before removal:', formData.tags);
-    setFormData(prev => {
-      const newTags = prev.tags.filter(tag => tag !== tagToRemove);
-      console.log('🏷️ Removed tag:', tagToRemove, 'Current tags:', newTags);
-      return {
-        ...prev,
-        tags: newTags
-      };
-    });
-  };
 
-  // Submit form
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  // Handle exercise creation from modal
+  const handleSubmit = async (formData) => {
     try {
-      const url = editingExercise 
-        ? `${getApiBaseUrlWithApi()}/exercises/${editingExercise.id}`
-        : `${getApiBaseUrlWithApi()}/exercises`;
+      const url = `${getApiBaseUrlWithApi()}/exercises`;
       
-      const method = editingExercise ? 'PATCH' : 'POST';
-      
-      // Send both description and instructions fields
       const exerciseData = {
         title: formData.title,
-        description: formData.description, // Send description field
-        instructions: formData.instructions, // Send instructions field
+        description: formData.description,
+        instructions: formData.instructions,
         tags: formData.tags
       };
       
       console.log('📦 Frontend sending exerciseData:', exerciseData);
-      console.log('📦 Tags being sent:', formData.tags);
-      console.log('📦 Current formData:', formData);
-      console.log('URL:', url);
-      console.log('Method:', method);
       
       const token = localStorage.getItem('authToken');
-      console.log('🔑 Auth Token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
       
       const response = await fetch(url, {
-        method,
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -206,16 +153,54 @@ const ExerciseManagement = () => {
       });
 
       if (response.ok) {
-        setShowForm(false);
-        setEditingExercise(null);
-        resetForm();
         fetchExercises();
       } else {
         const errorData = await response.text();
         console.error('Failed to save exercise:', response.status, errorData);
+        throw new Error('Failed to save exercise');
       }
     } catch (error) {
       console.error('Error saving exercise:', error);
+      throw error;
+    }
+  };
+
+  // Handle exercise update from modal
+  const handleUpdate = async (exerciseId, formData) => {
+    try {
+      const url = `${getApiBaseUrlWithApi()}/exercises/${exerciseId}`;
+      
+      const exerciseData = {
+        title: formData.title,
+        description: formData.description,
+        instructions: formData.instructions,
+        tags: formData.tags
+      };
+      
+      console.log('📦 Frontend updating exerciseData:', exerciseData);
+      
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(exerciseData)
+      });
+
+      if (response.ok) {
+        setEditingExercise(null);
+        fetchExercises();
+      } else {
+        const errorData = await response.text();
+        console.error('Failed to update exercise:', response.status, errorData);
+        throw new Error('Failed to update exercise');
+      }
+    } catch (error) {
+      console.error('Error updating exercise:', error);
+      throw error;
     }
   };
 
@@ -224,14 +209,7 @@ const ExerciseManagement = () => {
     console.log('✏️ Editing exercise:', exercise);
     console.log('✏️ Exercise tags:', exercise.tags);
     setEditingExercise(exercise);
-    setFormData({
-      title: exercise.title,
-      description: exercise.description || '', // Use description field if it exists
-      instructions: exercise.instructions || '', // Use instructions field
-      tags: exercise.tags || []
-    });
-    console.log('✏️ Form data set with tags:', exercise.tags || []);
-    setShowForm(true);
+    setShowModal(true);
   };
 
   // Delete exercise
@@ -315,7 +293,7 @@ const ExerciseManagement = () => {
 
   // Cancel form
   const handleCancel = () => {
-    setShowForm(false);
+    setShowModal(false);
     setEditingExercise(null);
     resetForm();
   };
@@ -359,118 +337,13 @@ const ExerciseManagement = () => {
 
           {/* New Button */}
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => setShowModal(true)}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2 px-4 rounded-lg transition-colors"
           >
             + New
           </button>
         </div>
 
-        {/* Exercise Form */}
-        {showForm && (
-          <div className="bg-card rounded-lg border border-border p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-foreground">
-              {editingExercise ? 'Edit Exercise' : 'Add New Exercise'}
-            </h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Exercise Name */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Exercise Name *
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g., Push-ups"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Brief description of the exercise..."
-                />
-              </div>
-
-              {/* Instructions */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Instructions
-                </label>
-                <textarea
-                  name="instructions"
-                  value={formData.instructions}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Step-by-step instructions for performing the exercise..."
-                />
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Tags
-                </label>
-                <input
-                  type="text"
-                  onKeyPress={handleTagInput}
-                  placeholder="Press Enter to add tags..."
-                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {formData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.tags.map(tag => (
-                      <span
-                        key={tag}
-                        className="bg-primary/20 text-primary px-2 py-1 rounded-full text-sm flex items-center"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => removeTag(tag)}
-                          className="ml-1 text-primary hover:text-primary/80"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-muted-foreground bg-secondary rounded-md hover:bg-secondary/80 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                >
-                  {editingExercise ? 'Update Exercise' : 'Create Exercise'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Exercise List */}
         <div className="bg-card rounded-lg border border-border">
@@ -590,6 +463,15 @@ const ExerciseManagement = () => {
             )}
           </div>
         </div>
+
+        {/* Add Exercise Modal */}
+        <AddExerciseModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onExerciseCreated={handleSubmit}
+          editingExercise={editingExercise}
+          onExerciseUpdated={handleUpdate}
+        />
       </div>
     </div>
   );
