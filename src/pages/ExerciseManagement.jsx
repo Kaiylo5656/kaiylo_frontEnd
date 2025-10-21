@@ -14,6 +14,8 @@ const ExerciseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedTagFilters, setSelectedTagFilters] = useState([]);
+  const [tagInput, setTagInput] = useState('');
 
   // Available tag colors for display
   const tagColors = [
@@ -72,14 +74,45 @@ const ExerciseManagement = () => {
     return 'Other';
   };
 
-  // Filter exercises based on search term
-  const filteredExercises = exercises.filter(exercise =>
-    exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exercise.muscleGroups?.some(group => 
-      group.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+
+
+  // Clear all tag filters
+  const clearTagFilters = () => {
+    setSelectedTagFilters([]);
+  };
+
+  // Handle adding tag by typing and pressing Enter
+  const handleTagInputKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const tag = tagInput.trim();
+      if (tag && !selectedTagFilters.includes(tag)) {
+        setSelectedTagFilters(prev => [...prev, tag]);
+        setTagInput('');
+      }
+    }
+  };
+
+  // Handle removing a specific tag
+  const handleRemoveTag = (tagToRemove) => {
+    setSelectedTagFilters(prev => prev.filter(tag => tag !== tagToRemove));
+  };
+
+  // Filter exercises based on search term and tag filter
+  const filteredExercises = exercises.filter(exercise => {
+    // Search term filter
+    const matchesSearch = exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exercise.muscleGroups?.some(group => 
+        group.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    // Tag filter - exercise must have ALL selected tags
+    const matchesTag = selectedTagFilters.length === 0 || 
+      (exercise.tags && selectedTagFilters.every(tag => exercise.tags.includes(tag)));
+    
+    return matchesSearch && matchesTag;
+  });
 
   // Fetch exercises from backend
   useEffect(() => {
@@ -328,22 +361,102 @@ const ExerciseManagement = () => {
             {/* Filters Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2 px-4 py-2 bg-input border border-border rounded-lg text-foreground hover:bg-accent transition-colors"
+              className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors ${
+                selectedTagFilters.length > 0
+                  ? 'bg-primary/10 border-primary text-primary' 
+                  : 'bg-input border-border text-foreground hover:bg-accent'
+              }`}
             >
               <Filter className="h-4 w-4" />
               <span>Filters</span>
+              {selectedTagFilters.length > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+                  {selectedTagFilters.length}
+                </span>
+              )}
             </button>
           </div>
 
           {/* New Button */}
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              setEditingExercise(null); // Clear any editing state
+              setShowModal(true);
+            }}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2 px-4 rounded-lg transition-colors"
           >
             + New
           </button>
         </div>
 
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="bg-card rounded-lg border border-border p-4 mb-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-foreground">Filter by Tags</h3>
+                <button
+                  onClick={() => {
+                    clearTagFilters();
+                    setShowFilters(false);
+                  }}
+                  className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              
+              {/* Tag Input Field */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Add Tag Filter
+                </label>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyPress={handleTagInputKeyPress}
+                  placeholder="Type a tag and press Enter to add it"
+                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Type a tag name and press Enter to add it to the filter
+                </p>
+              </div>
+              
+              {/* Selected Tags Display */}
+              {selectedTagFilters.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-sm font-medium text-foreground">Active Filters:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTagFilters.map(tag => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-full"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1 hover:text-primary-foreground/80 transition-colors"
+                          title="Remove this tag filter"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Filter Info */}
+              {selectedTagFilters.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Showing exercises that have <strong>all</strong> selected tags: {selectedTagFilters.join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Exercise List */}
         <div className="bg-card rounded-lg border border-border">

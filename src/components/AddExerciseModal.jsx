@@ -12,13 +12,15 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   // Reset form when modal opens/closes or when editing exercise changes
   useEffect(() => {
     if (isOpen) {
-      if (editingExercise) {
+      if (editingExercise && editingExercise.id) {
+        // Editing an existing exercise
         setFormData({
           title: editingExercise.title || '',
           instructions: editingExercise.instructions || '',
           tags: editingExercise.tags || []
         });
       } else {
+        // Creating a new exercise - always reset to empty values
         setFormData({
           title: '',
           instructions: '',
@@ -62,11 +64,19 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setLoading(true);
 
     try {
-      if (editingExercise) {
+      if (editingExercise && editingExercise.id) {
         await onExerciseUpdated(editingExercise.id, formData);
       } else {
         await onExerciseCreated(formData);
       }
+      
+      // Reset form after successful submission
+      setFormData({
+        title: '',
+        instructions: '',
+        tags: []
+      });
+      
       onClose();
     } catch (error) {
       console.error('Error saving exercise:', error);
@@ -76,6 +86,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   };
 
   const handleCancel = () => {
+    // Reset form to empty values
     setFormData({
       title: '',
       instructions: '',

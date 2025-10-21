@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { buildApiUrl } from '../config/api';
+import { truncateMiddle } from '../utils/text';
 import { useAuth } from '../contexts/AuthContext';
 
 const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
@@ -87,14 +88,18 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent 
+        className="w-full max-w-xl sm:max-w-2xl overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+      >
         <DialogHeader>
           <DialogTitle>Upload a New Resource</DialogTitle>
           <DialogDescription>
             Fill in the details below to upload a new video resource for your students.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-full">
           <div>
             <label htmlFor="title" className="block text-sm font-medium mb-1">Title</label>
             <Input
@@ -130,16 +135,30 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="videoFile" className="block text-sm font-medium mb-1">Video File</label>
+          <div className="max-w-full">
+            <label htmlFor="videoFile" className="block text-sm font-medium mb-1 shrink-0">Video File</label>
             <Input
               id="videoFile"
               type="file"
               accept="video/*"
               onChange={handleFileChange}
               required
+              className="max-w-full"
             />
-            {videoFile && <p className="text-xs text-muted-foreground mt-1">{videoFile.name}</p>}
+            {videoFile && (
+              <div className="mt-2 max-w-full overflow-hidden">
+                <p
+                  className="text-xs text-white/60 truncate"
+                  title={`${videoFile.name}${videoFile.size ? ` • Size: ${Math.round(videoFile.size / 1024 / 1024 * 100) / 100} MB` : ""}`}
+                  data-testid="upload-file-meta"
+                >
+                  {truncateMiddle(videoFile.name, 56)}
+                  {typeof videoFile.size === "number" && (
+                    <> • Size: {Math.round((videoFile.size / (1024 * 1024)) * 100) / 100} MB</>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

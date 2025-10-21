@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, Clock, CheckCircle } from 'lucide-react';
+import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, Clock, CheckCircle, X } from 'lucide-react';
 import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
@@ -212,6 +212,44 @@ const VideoLibrary = () => {
       fetchCoachResources();
     } catch (err) {
       setError(err.message || 'Failed to move resource.');
+    }
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+
+    // Check if folder has resources
+    const folderResources = coachResources.filter(resource => resource.folderId === folderId);
+    
+    if (folderResources.length > 0) {
+      if (!window.confirm(`Le dossier "${folder.name}" contient ${folderResources.length} ressource(s). Voulez-vous vraiment le supprimer ? Les ressources seront déplacées vers "Non classé".`)) {
+        return;
+      }
+    } else {
+      if (!window.confirm(`Êtes-vous sûr de vouloir supprimer le dossier "${folder.name}" ?`)) {
+        return;
+      }
+    }
+
+    try {
+      const token = getAuthToken();
+      await axios.delete(buildApiUrl(`/resources/folders/${folderId}`), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Remove folder from state
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      
+      // If this was the selected folder, clear the selection
+      if (selectedFolder === folderId) {
+        setSelectedFolder(null);
+      }
+      
+      // Refresh resources to update folder assignments
+      fetchCoachResources();
+    } catch (err) {
+      setError(err.message || 'Failed to delete folder.');
     }
   };
 
@@ -680,18 +718,29 @@ const VideoLibrary = () => {
             <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {folders.map(folder => (
-                  <Button 
-                    key={folder.id} 
-                    variant="outline"
-                    onClick={() => handleFolderSelect(folder.id)}
-                    className={`bg-[#1a1a1a] border-[#262626] text-white hover:bg-[#262626] ${
-                      selectedFolder === folder.id 
-                        ? 'border-[#e87c3e] bg-[#e87c3e]/10 text-[#e87c3e]' 
-                        : ''
-                    }`}
-                  >
-                    {folder.name}
-                  </Button>
+                  <div key={folder.id} className="relative group">
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleFolderSelect(folder.id)}
+                      className={`bg-[#1a1a1a] border-[#262626] text-white hover:bg-[#262626] pr-8 ${
+                        selectedFolder === folder.id 
+                          ? 'border-[#e87c3e] bg-[#e87c3e]/10 text-[#e87c3e]' 
+                          : ''
+                      }`}
+                    >
+                      {folder.name}
+                    </Button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(folder.id);
+                      }}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Supprimer le dossier"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 ))}
                 <Button 
                   variant="ghost" 
