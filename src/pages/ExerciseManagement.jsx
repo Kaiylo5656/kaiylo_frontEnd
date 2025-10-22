@@ -169,7 +169,8 @@ const ExerciseManagement = () => {
         title: formData.title,
         description: formData.description,
         instructions: formData.instructions,
-        tags: formData.tags
+        tags: formData.tags,
+        demoVideoURL: formData.demoVideoURL
       };
       
       console.log('📦 Frontend sending exerciseData:', exerciseData);
@@ -207,7 +208,8 @@ const ExerciseManagement = () => {
         title: formData.title,
         description: formData.description,
         instructions: formData.instructions,
-        tags: formData.tags
+        tags: formData.tags,
+        demoVideoURL: formData.demoVideoURL
       };
       
       console.log('📦 Frontend updating exerciseData:', exerciseData);

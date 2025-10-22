@@ -6,6 +6,7 @@ import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import ReactPlayer from 'react-player';
+import VideoPlayer from './VideoPlayer';
 
 const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -341,20 +342,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         </div>
 
         {/* Video Container */}
-        <div className="h-64 sm:h-80 md:h-96 relative bg-black flex-shrink-0">
+        <div className="flex-shrink-0 p-4">
           {video.video_url ? (
-            <video
+            <VideoPlayer
               ref={videoRef}
               src={video.video_url}
-              controls
-              className="w-full h-full object-contain"
-              tabIndex={-1}
-              onKeyDown={(e) => {
-                if (e.code === 'Space') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
               onLoadedMetadata={() => {
                 const videoElement = videoRef.current;
                 if (videoElement) {
@@ -382,9 +374,16 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                 setVideoError('Erreur lors du chargement de la vidéo');
                 setIsVideoLoading(false);
               }}
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.code === 'Space') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="flex items-center justify-center h-64 text-gray-400 bg-black/90 rounded-md border border-white/10">
               <p>Aucune vidéo disponible</p>
             </div>
           )}

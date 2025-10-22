@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
+import VideoPlayer from './VideoPlayer';
 
 const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -143,17 +144,31 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
 
     try {
       const token = getAuthToken();
+      const deleteUrl = buildApiUrl(`/resources/${video.id}`);
+      console.log('🗑️ Deleting resource:', {
+        videoId: video.id,
+        deleteUrl: deleteUrl,
+        videoTitle: video.title
+      });
+      
       await axios.delete(
-        buildApiUrl(`/resources/${video.id}`),
+        deleteUrl,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
+      console.log('✅ Resource deleted successfully');
       onClose();
       if (onFeedbackUpdate) {
-        onFeedbackUpdate(video.id, null, null, true);
+        onFeedbackUpdate(video.id, null, null, true, 'completed', 'coach');
       }
     } catch (error) {
-      console.error('Error deleting resource:', error);
+      console.error('❌ Error deleting resource:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       alert('Erreur lors de la suppression de la ressource');
     }
   };
@@ -201,20 +216,11 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
         </div>
 
         {/* Video Container */}
-        <div className="h-96 relative bg-black flex-shrink-0">
+        <div className="flex-shrink-0 p-4">
           {video.video_url ? (
-            <video
+            <VideoPlayer
               ref={videoRef}
               src={video.video_url}
-              controls
-              className="w-full h-full object-contain"
-              tabIndex={-1}
-              onKeyDown={(e) => {
-                if (e.code === 'Space') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
               onLoadedMetadata={() => {
                 const videoElement = videoRef.current;
                 if (videoElement) {
@@ -242,9 +248,16 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
                 setVideoError('Erreur lors du chargement de la vidéo');
                 setIsVideoLoading(false);
               }}
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.code === 'Space') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="flex items-center justify-center h-64 text-gray-400 bg-black/90 rounded-md border border-white/10">
               <p>Aucune vidéo disponible</p>
             </div>
           )}

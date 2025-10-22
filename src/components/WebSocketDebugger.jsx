@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, X } from 'lucide-react';
 import useSocket from '../hooks/useSocket';
 
 const WebSocketDebugger = () => {
   const { socket, isConnected, connectionError, checkConnection, reconnect } = useSocket();
   const [debugInfo, setDebugInfo] = useState({});
   const [testResults, setTestResults] = useState([]);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     const updateDebugInfo = () => {
@@ -68,9 +70,41 @@ const WebSocketDebugger = () => {
     setTestResults([]);
   };
 
+  if (!isVisible) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          onClick={() => setIsVisible(true)}
+          className="bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-lg shadow-lg transition-colors"
+          title="Show WebSocket Debugger"
+        >
+          <Eye className="h-5 w-5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-lg shadow-lg max-w-md z-50">
-      <h3 className="text-lg font-bold mb-3">🔌 WebSocket Debugger</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-bold">🔌 WebSocket Debugger</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsVisible(false)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title="Hide WebSocket Debugger"
+          >
+            <EyeOff className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setIsVisible(false)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title="Close WebSocket Debugger"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
       
       <div className="mb-4">
         <div className="text-sm space-y-1">

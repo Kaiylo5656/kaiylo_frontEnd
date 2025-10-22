@@ -506,7 +506,15 @@ const VideoLibrary = () => {
           </div>
           <div className="p-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-semibold truncate text-white">{video.title || video.fileName}</h3>
+              <h3 
+                className="font-semibold truncate text-white hover:text-[#e87c3e] transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCoachResourceClick(video);
+                }}
+              >
+                {video.title || video.fileName}
+              </h3>
             </div>
             <p className="text-sm text-gray-400">
               {folders.find(f => f.id === video.folderId)?.name || 'Uncategorized'}

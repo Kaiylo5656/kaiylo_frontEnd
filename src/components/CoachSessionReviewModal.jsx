@@ -16,6 +16,17 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const [sessionDifficulty, setSessionDifficulty] = useState('');
   const [sessionComment, setSessionComment] = useState('');
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => { 
+      document.body.style.overflow = prev; 
+    };
+  }, [isOpen]);
+
   // Fetch videos for this session and load student feedback
   useEffect(() => {
     if (isOpen && session && studentId) {
@@ -164,8 +175,21 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="dialog-content max-w-7xl max-h-[95vh] overflow-hidden">
-        <DialogHeader className="workout-modal-header">
+      <DialogContent 
+        role="dialog"
+        aria-modal="true"
+        className="
+          w-full max-w-5xl
+          bg-[#1A1A1A] text-[#F5F5F7]
+          rounded-2xl shadow-2xl
+          border border-white/10
+          max-h-[85vh] sm:max-h-[88vh]
+          flex flex-col
+          overflow-hidden
+        "
+      >
+        {/* Header (non-scrollable) */}
+        <header className="shrink-0 px-6 pt-5 pb-4 border-b border-white/10">
           <DialogTitle className="text-xl font-medium text-white">
             {session.title || 'Séance d\'entraînement'}
           </DialogTitle>
@@ -178,11 +202,21 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               </span>
             )}
           </DialogDescription>
-        </DialogHeader>
+        </header>
 
-        <div className="workout-modal-content">
-          {/* Left Panel - Session Overview */}
-          <div className="flex-1 bg-[#1a1a1a] rounded-lg p-6">
+        {/* Body (scrollable) */}
+        <div
+          className="
+            flex-1 min-h-0
+            overflow-y-auto
+            overscroll-contain
+            px-6 py-5
+            scrollbar-gutter:stable
+          "
+        >
+          <div className="flex gap-6 h-full">
+            {/* Left Panel - Session Overview */}
+            <div className="flex-1 bg-[#1a1a1a] rounded-lg p-6 min-w-0">
             {/* Session Status */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -251,10 +285,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
             {/* Exercise List */}
             <div className="space-y-3">
-              <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-                <Folder className="h-5 w-5" />
-                Séance complète
-              </h3>
+              <div className="sticky top-0 z-10 -mx-6 px-6 py-2 bg-[#1a1a1a]/80 backdrop-blur border-b border-white/5">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <Folder className="h-5 w-5" />
+                  Séance complète
+                </h3>
+              </div>
+              <div className="min-w-0">
                 {session.exercises?.map((exercise, exerciseIndex) => {
                 console.log(`Exercise ${exerciseIndex + 1} (${exercise.name}) data:`, {
                   exercise,
@@ -295,11 +332,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                   </div>
                 );
               })}
+              </div>
             </div>
           </div>
 
           {/* Right Panel - Video Review */}
-          <div className="w-96 bg-[#1a1a1a] rounded-lg p-6">
+          <div className="w-96 bg-[#1a1a1a] rounded-lg p-6 flex-shrink-0">
             {selectedExercise ? (
               <div className="space-y-6">
                 <div>
@@ -460,10 +498,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               </div>
             )}
           </div>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="workout-modal-footer">
+        {/* Footer (non-scrollable) */}
+        <footer className="shrink-0 px-6 py-4 border-t border-white/10">
           <div className="flex justify-between items-center">
             <button
               onClick={onClose}
@@ -472,7 +511,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               Fermer
             </button>
           </div>
-        </div>
+        </footer>
       </DialogContent>
     </Dialog>
   );

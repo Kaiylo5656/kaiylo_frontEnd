@@ -424,7 +424,13 @@ const StudentVideoLibrary = () => {
                       
                       {/* Resource Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-medium truncate">
+                        <h3 
+                          className="text-white font-medium truncate hover:text-[#e87c3e] transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCoachResourceClick(resource);
+                          }}
+                        >
                           {resource.title || resource.fileName}
                         </h3>
                         {resource.description && (

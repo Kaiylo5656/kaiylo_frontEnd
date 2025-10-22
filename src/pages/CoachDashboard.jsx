@@ -260,7 +260,7 @@ const CoachDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto dashboard-scrollbar">
         <>
             {/* Client List Header */}
             <div className="flex items-center justify-between mb-6">
@@ -306,7 +306,7 @@ const CoachDashboard = () => {
         </div>
 
         {/* Client List Table */}
-        <div className="bg-card rounded-lg border border-border">
+        <div className="bg-card rounded-lg border border-border table-scrollbar">
           <table className="w-full">
             <thead className="border-b border-border">
               <tr>

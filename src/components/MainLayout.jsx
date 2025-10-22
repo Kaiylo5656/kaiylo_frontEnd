@@ -14,7 +14,7 @@ const MainLayout = ({ children }) => {
         <Navigation />
         <main className="flex-1 flex flex-col overflow-hidden">
           <Header />
-          <div className={`flex-1 ${isChatPage ? 'p-0 overflow-hidden' : 'p-6 lg:p-8 pb-20 md:pb-6 overflow-y-auto'}`}>
+          <div className={`flex-1 ${isChatPage ? 'p-0 overflow-hidden' : 'p-6 lg:p-8 pb-20 md:pb-6 overflow-y-auto dashboard-scrollbar'}`}>
             {children}
           </div>
         </main>
