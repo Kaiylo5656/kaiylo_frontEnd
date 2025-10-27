@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AddExerciseModal from '../components/AddExerciseModal';
+import ExerciseDetailModal from '../components/ExerciseDetailModal';
+import SortControl from '../components/SortControl';
+import useSortParams from '../hooks/useSortParams';
+import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
 import { Search, Filter, Edit, Trash2, Check } from 'lucide-react';
 
 const ExerciseManagement = () => {
@@ -16,6 +20,23 @@ const ExerciseManagement = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTagFilters, setSelectedTagFilters] = useState([]);
   const [tagInput, setTagInput] = useState('');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedExerciseId, setSelectedExerciseId] = useState(null);
+  
+  // Sort state from URL
+  const { sort, dir, updateSort } = useSortParams();
+  
+  // Accessibility announcement for sort changes
+  const [sortAnnouncement, setSortAnnouncement] = useState('');
+  
+  // Wrapper for updateSort that includes accessibility announcement
+  const handleSortChange = (newSort, newDir) => {
+    updateSort(newSort, newDir);
+    setSortAnnouncement(getSortDescription(newSort, newDir));
+    
+    // Clear announcement after a delay
+    setTimeout(() => setSortAnnouncement(''), 1000);
+  };
 
   // Available tag colors for display
   const tagColors = [
@@ -99,20 +120,47 @@ const ExerciseManagement = () => {
   };
 
   // Filter exercises based on search term and tag filter
-  const filteredExercises = exercises.filter(exercise => {
-    // Search term filter
-    const matchesSearch = exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exercise.muscleGroups?.some(group => 
-        group.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Filter and sort exercises with memoization
+  const filteredAndSortedExercises = useMemo(() => {
+    // First filter exercises
+    const filtered = exercises.filter(exercise => {
+      // Search term filter
+      const matchesSearch = exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        exercise.muscleGroups?.some(group => 
+          group.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      
+      // Tag filter - exercise must have ALL selected tags
+      const matchesTag = selectedTagFilters.length === 0 || 
+        (exercise.tags && selectedTagFilters.every(tag => exercise.tags.includes(tag)));
+      
+      return matchesSearch && matchesTag;
+    });
+
+    // Then sort the filtered results
+    console.log('🔍 About to sort:', { sort, dir, filteredCount: filtered.length });
+    if (sort === 'createdAt' && filtered.length > 0) {
+      console.log('📅 Sample exercises before sorting:', filtered.slice(0, 3).map(ex => ({
+        title: ex.title,
+        created_at: ex.created_at,
+        id: ex.id
+      })));
+    }
+    const sorted = sortExercises(filtered, sort, dir);
+    if (sort === 'createdAt' && sorted.length > 0) {
+      console.log('📊 Sample exercises after sorting:', sorted.slice(0, 3).map(ex => ({
+        title: ex.title,
+        created_at: ex.created_at,
+        id: ex.id
+      })));
+    }
     
-    // Tag filter - exercise must have ALL selected tags
-    const matchesTag = selectedTagFilters.length === 0 || 
-      (exercise.tags && selectedTagFilters.every(tag => exercise.tags.includes(tag)));
-    
-    return matchesSearch && matchesTag;
-  });
+    return sorted;
+  }, [exercises, searchTerm, selectedTagFilters, sort, dir]);
+
+  // Keep the old variable name for compatibility
+  const filteredExercises = filteredAndSortedExercises;
 
   // Fetch exercises from backend
   useEffect(() => {
@@ -133,15 +181,15 @@ const ExerciseManagement = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('🔄 Fetched exercises:', data.exercises);
-        // Log the specific exercise we're interested in
-        const targetExercise = data.exercises?.find(ex => ex.id === 'c79b9491-08b9-4e00-9d8b-68af6b76a9a4');
-        if (targetExercise) {
-          console.log('🎯 Target exercise after fetch:', {
-            id: targetExercise.id,
-            title: targetExercise.title,
-            tags: targetExercise.tags
-          });
-        }
+        
+        // Debug: Check the first few exercises for created_at values
+        console.log('🔍 First 5 exercises with created_at:', data.exercises?.slice(0, 5).map(ex => ({
+          id: ex.id,
+          title: ex.title,
+          created_at: ex.created_at,
+          updated_at: ex.updated_at
+        })));
+        
         // Backend returns { exercises: [...] }, so we need to extract the exercises array
         setExercises(data.exercises || []);
       } else {
@@ -237,6 +285,20 @@ const ExerciseManagement = () => {
       console.error('Error updating exercise:', error);
       throw error;
     }
+  };
+
+  // Handle row click to open detail modal
+  const handleRowClick = (exercise) => {
+    console.log('🔍 Opening detail modal for exercise:', exercise);
+    console.log('🔍 Exercise ID:', exercise.id);
+    setSelectedExerciseId(exercise.id);
+    setShowDetailModal(true);
+  };
+
+  // Handle detail modal close
+  const handleDetailModalClose = () => {
+    setShowDetailModal(false);
+    setSelectedExerciseId(null);
   };
 
   // Edit exercise
@@ -377,6 +439,13 @@ const ExerciseManagement = () => {
                 </span>
               )}
             </button>
+
+            {/* Sort Control */}
+            <SortControl 
+              sort={sort} 
+              dir={dir} 
+              onChange={handleSortChange}
+            />
           </div>
 
           {/* New Button */}
@@ -513,12 +582,32 @@ const ExerciseManagement = () => {
               </div>
             ) : (
               filteredExercises.map(exercise => (
-                <div key={exercise.id} className="px-6 py-4 hover:bg-accent/50 transition-colors">
+                <div 
+                  key={exercise.id} 
+                  className="px-6 py-4 hover:bg-accent/50 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    // Don't open modal if clicking on checkbox or action buttons
+                    if (e.target.closest('button')) return;
+                    handleRowClick(exercise);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleRowClick(exercise);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${exercise.title}`}
+                >
                   <div className="flex items-center">
                     <div className="flex items-center space-x-4 flex-1">
                       {/* Checkbox */}
                       <button
-                        onClick={() => handleSelectExercise(exercise.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectExercise(exercise.id);
+                        }}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                           selectedExercises.includes(exercise.id)
                             ? 'bg-primary border-primary text-primary-foreground'
@@ -559,14 +648,22 @@ const ExerciseManagement = () => {
                     <div className="flex-1 flex justify-end">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => handleEdit(exercise)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(exercise);
+                          }}
                           className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit exercise"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(exercise.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(exercise.id);
+                          }}
                           className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete exercise"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -587,6 +684,22 @@ const ExerciseManagement = () => {
           editingExercise={editingExercise}
           onExerciseUpdated={handleUpdate}
         />
+
+        {/* Exercise Detail Modal */}
+        <ExerciseDetailModal
+          isOpen={showDetailModal}
+          onClose={handleDetailModalClose}
+          exerciseId={selectedExerciseId}
+        />
+
+        {/* Accessibility announcement for sort changes */}
+        <div 
+          aria-live="polite" 
+          aria-atomic="true" 
+          className="sr-only"
+        >
+          {sortAnnouncement}
+        </div>
       </div>
     </div>
   );

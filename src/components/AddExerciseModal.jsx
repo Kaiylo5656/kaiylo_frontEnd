@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Video, Trash2 } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
+import { useModalManager } from './ui/modal/ModalManager';
+import BaseModal from './ui/modal/BaseModal';
+import ExerciseTagTypeahead from './ui/ExerciseTagTypeahead';
 import axios from 'axios';
 
 const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise, onExerciseUpdated }) => {
@@ -14,6 +17,10 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoError, setVideoError] = useState('');
+
+  // Modal management
+  const { isTopMost } = useModalManager();
+  const modalId = 'add-exercise';
 
   // Reset form when modal opens/closes or when editing exercise changes
   useEffect(() => {
@@ -57,24 +64,10 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     }));
   };
 
-  const handleTagInput = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const tag = e.target.value.trim();
-      if (tag && !formData.tags.includes(tag)) {
-        setFormData(prev => ({
-          ...prev,
-          tags: [...prev.tags, tag]
-        }));
-        e.target.value = '';
-      }
-    }
-  };
-
-  const removeTag = (tagToRemove) => {
+  const handleTagsChange = (newTags) => {
     setFormData(prev => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      tags: newTags
     }));
   };
 
@@ -256,20 +249,16 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">
-            {editingExercise ? 'Edit Exercise' : 'Add New Exercise'}
-          </h2>
-          <button
-            onClick={handleCancel}
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <BaseModal
+      isOpen={isOpen}
+      onClose={handleCancel}
+      modalId={modalId}
+      zIndex={80}
+      closeOnEsc={isTopMost}
+      closeOnBackdrop={isTopMost}
+      size="lg"
+      title={editingExercise ? 'Edit Exercise' : 'Add New Exercise'}
+    >
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -309,31 +298,12 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             <label className="block text-sm font-medium text-foreground mb-2">
               Tags
             </label>
-            <input
-              type="text"
-              onKeyPress={handleTagInput}
+            <ExerciseTagTypeahead
+              selectedTags={formData.tags}
+              onTagsChange={handleTagsChange}
               placeholder="Press Enter to add tags..."
-              className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              canCreate={true}
             />
-            {formData.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="bg-primary/20 text-primary px-2 py-1 rounded-full text-sm flex items-center"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="ml-1 text-primary hover:text-primary/80"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Video Upload */}
@@ -423,8 +393,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </BaseModal>
   );
 };
 

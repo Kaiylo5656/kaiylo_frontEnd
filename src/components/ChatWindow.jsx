@@ -498,9 +498,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background md:h-full h-[calc(100vh-4rem)]">
       {/* Chat Header */}
-      <div className="p-4 border-b border-border bg-card">
+      <div className="p-4 border-b border-border bg-card flex-shrink-0">
         <div className="flex items-center space-x-3">
           {/* Back button for mobile */}
           <button

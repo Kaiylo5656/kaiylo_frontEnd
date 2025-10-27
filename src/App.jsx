@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import PWAProvider from './components/PWAProvider';
+import { ModalManagerProvider } from './components/ui/modal/ModalManager';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import StudentInvitationPage from './pages/StudentInvitationPage';
@@ -64,7 +65,8 @@ function App() {
   return (
     <AuthProvider>
       <PWAProvider>
-        <Router>
+        <ModalManagerProvider>
+          <Router>
           <div className="App">
             <Routes>
             {/* Public Routes */}
@@ -208,6 +210,7 @@ function App() {
           </Routes>
         </div>
       </Router>
+        </ModalManagerProvider>
       </PWAProvider>
     </AuthProvider>
   );
