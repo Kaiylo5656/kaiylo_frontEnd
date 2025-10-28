@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, Clock, CheckCircle, X } from 'lucide-react';
+import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, Clock, CheckCircle, X, Play } from 'lucide-react';
 import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
 import StudentVideoLibrary from '../components/StudentVideoLibrary';
+import StatusFilterChips from '../components/StatusFilterChips';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useVideoFilters } from '../hooks/useVideoFilters';
 
 const VideoLibrary = () => {
   const [activeTab, setActiveTab] = useState('eleves'); // 'eleves' or 'coach'
@@ -35,6 +37,9 @@ const VideoLibrary = () => {
   const [selectedFolder, setSelectedFolder] = useState(null); // For coach resources filtering
 
   const { getAuthToken, hasRole } = useAuth();
+  
+  // Status and sort filters with URL persistence
+  const { status: statusFilter, setStatus, isInitialized } = useVideoFilters();
 
   // Handle video click (for both student videos and coach resources)
   const handleVideoClick = (video) => {
@@ -270,17 +275,41 @@ const VideoLibrary = () => {
   const uniqueStudents = [...new Set(studentVideos.map(video => video.student?.email || 'Unknown'))];
   const uniqueExercises = [...new Set(studentVideos.map(video => video.exercise_name))];
 
-  // Filter videos based on selected filters
-  const filteredVideos = studentVideos.filter(video => {
-    const matchesStudent = !selectedStudent || (video.student?.email || 'Unknown') === selectedStudent;
-    const matchesExercise = !selectedExercise || video.exercise_name === selectedExercise;
-    const matchesDate = !selectedDate || format(new Date(video.created_at), 'yyyy-MM-dd') === selectedDate;
+  // Filter and sort videos with useMemo for performance
+  const filteredVideos = useMemo(() => {
+    if (!isInitialized) return [];
     
-    return matchesStudent && matchesExercise && matchesDate;
-  });
+    // Apply all filters
+    let filtered = studentVideos.filter(video => {
+      // Status filter
+      let matchesStatus = true;
+      if (statusFilter === 'pending') {
+        matchesStatus = video.status === 'pending';
+      } else if (statusFilter === 'completed') {
+        matchesStatus = video.status === 'completed' || video.status === 'reviewed';
+      }
+      // statusFilter === 'all' matches everything
+      
+      // Other filters
+      const matchesStudent = !selectedStudent || (video.student?.email || 'Unknown') === selectedStudent;
+      const matchesExercise = !selectedExercise || video.exercise_name === selectedExercise;
+      const matchesDate = !selectedDate || format(new Date(video.created_at), 'yyyy-MM-dd') === selectedDate;
+      
+      return matchesStatus && matchesStudent && matchesExercise && matchesDate;
+    });
+    
+    // Sort by upload time (created_at) DESC - newest first
+    filtered.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA; // DESC: newest first
+    });
+    
+    return filtered;
+  }, [studentVideos, statusFilter, selectedStudent, selectedExercise, selectedDate, isInitialized]);
 
   // Count videos needing feedback
-  const videosNeedingFeedback = filteredVideos.filter(video => video.status === 'pending').length;
+  const videosNeedingFeedback = studentVideos.filter(video => video.status === 'pending').length;
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -533,89 +562,118 @@ const VideoLibrary = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white">
+    <div className="min-h-screen bg-black text-white">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-[#1a1a1a]">
-        <h1 className="text-2xl font-bold">Vidéothèque</h1>
+      <div className="flex items-center justify-between px-8 py-6 border-b border-white/10">
+        <h1 className="text-[32px] font-extralight">Vidéothèque</h1>
         <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-[#1a1a1a] rounded-lg">
-            <Clock className="h-5 w-5 text-gray-400" />
+          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+            <Clock className="h-5 w-5 text-white/75" />
           </button>
-          <button className="p-2 hover:bg-[#1a1a1a] rounded-lg">
-            <CheckCircle className="h-5 w-5 text-gray-400" />
+          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
+            <CheckCircle className="h-5 w-5 text-white/75" />
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="p-6">
+      <div className="px-8 py-6">
         {/* Tabs */}
-        <div className="flex border-b border-[#1a1a1a] mb-6">
+        <div className="flex gap-[60px] border-b border-white/10 mb-6">
           <button
             onClick={() => setActiveTab('eleves')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`pb-3 text-base font-light transition-colors relative ${
               activeTab === 'eleves' 
-                ? 'border-[#e87c3e] text-[#e87c3e]' 
-                : 'border-transparent text-gray-400 hover:text-white'
+                ? 'text-[#d4845a]' 
+                : 'text-white/75'
             }`}
           >
             Vidéos élèves
+            {activeTab === 'eleves' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#d4845a]" />
+            )}
           </button>
           <button
             onClick={() => setActiveTab('coach')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`pb-3 text-base font-light transition-colors relative ${
               activeTab === 'coach' 
-                ? 'border-[#e87c3e] text-[#e87c3e]' 
-                : 'border-transparent text-gray-400 hover:text-white'
+                ? 'text-[#d4845a]' 
+                : 'text-white/75'
             }`}
           >
             Ressources coach
+            {activeTab === 'coach' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#d4845a]" />
+            )}
           </button>
         </div>
 
         {activeTab === 'eleves' && (
           <>
-            {/* Filters */}
-            <div className="flex items-center gap-4 mb-6">
-              <select
-                value={selectedStudent}
-                onChange={(e) => setSelectedStudent(e.target.value)}
-                className="px-4 py-2 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white text-sm focus:outline-none focus:border-[#e87c3e]"
-              >
-                <option value="">Elève</option>
-                {uniqueStudents.map(student => (
-                  <option key={student} value={student}>{student}</option>
-                ))}
-              </select>
-              
-              <select
-                value={selectedExercise}
-                onChange={(e) => setSelectedExercise(e.target.value)}
-                className="px-4 py-2 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white text-sm focus:outline-none focus:border-[#e87c3e]"
-              >
-                <option value="">Exercice</option>
-                {uniqueExercises.map(exercise => (
-                  <option key={exercise} value={exercise}>{exercise}</option>
-                ))}
-              </select>
-              
-              <select
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-4 py-2 bg-[#1a1a1a] border border-[#262626] rounded-lg text-white text-sm focus:outline-none focus:border-[#e87c3e]"
-              >
-                <option value="">Date</option>
-                {/* Add date options here if needed */}
-              </select>
-              
-              <button className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-[#262626] rounded-lg text-gray-400 hover:text-white text-sm">
-                <Filter className="h-4 w-4" />
-                + Filter
-              </button>
-              
-              {/* Video counter */}
-              <div className="ml-auto text-sm text-gray-400">
-                {videosNeedingFeedback} vidéo{videosNeedingFeedback > 1 ? 's' : ''} à feedback
+            {/* Filters Row */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                {/* Status Filter Chips */}
+                <StatusFilterChips value={statusFilter} onChange={setStatus} />
+                
+                <div className="w-px h-6 bg-white/10"></div>
+                
+                {/* Elève Filter */}
+                <select
+                  value={selectedStudent}
+                  onChange={(e) => setSelectedStudent(e.target.value)}
+                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    paddingRight: '28px'
+                  }}
+                >
+                  <option value="">Elève</option>
+                  {uniqueStudents.map(student => (
+                    <option key={student} value={student}>{student}</option>
+                  ))}
+                </select>
+
+                {/* Exercice Filter */}
+                <select
+                  value={selectedExercise}
+                  onChange={(e) => setSelectedExercise(e.target.value)}
+                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    paddingRight: '28px'
+                  }}
+                >
+                  <option value="">Exercice</option>
+                  {uniqueExercises.map(exercise => (
+                    <option key={exercise} value={exercise}>{exercise}</option>
+                  ))}
+                </select>
+
+                {/* Date Filter */}
+                <select
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    paddingRight: '28px'
+                  }}
+                >
+                  <option value="">Date</option>
+                  {/* Add date options here if needed */}
+                </select>
+              </div>
+
+              {/* Count */}
+              <div className="text-base text-white/50">
+                {filteredVideos.length} vidéo{filteredVideos.length !== 1 ? 's' : ''}
               </div>
             </div>
 
@@ -633,87 +691,110 @@ const VideoLibrary = () => {
             
             {!loading && !error && (
               filteredVideos.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
-                  {filteredVideos.map((video) => (
-                    <div 
-                      key={video.id} 
-                      className="bg-[#1a1a1a] rounded-lg overflow-hidden group cursor-pointer hover:bg-[#262626] transition-colors"
-                      onClick={() => handleVideoClick(video)}
-                    >
-                      {/* Video Thumbnail */}
-                      <div className="relative aspect-video bg-[#262626] overflow-hidden">
-                        <video 
-                          src={video.video_url} 
-                          className="w-full h-full object-cover"
-                          preload="metadata"
-                          onLoadedMetadata={(e) => {
-                            const duration = e.target.duration;
-                            if (duration && !isNaN(duration)) {
-                              const minutes = Math.floor(duration / 60);
-                              const seconds = Math.floor(duration % 60);
-                              const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                              e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
-                            }
-                          }}
-                        />
-                        {/* Duration Overlay */}
-                        <div className="duration-display absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                          Loading...
-                        </div>
-                        {/* Play Icon Overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <PlayCircle size={48} className="text-white" />
-                        </div>
-                      </div>
-                      
-                      {/* Card Content */}
-                      <div className="p-4">
-                        {/* Student Name */}
-                        <div className="text-sm font-medium text-white mb-2 truncate">
-                          {video.student?.raw_user_meta_data?.full_name || 
-                           video.student?.raw_user_meta_data?.name || 
-                           video.student?.email || 
-                           'Unknown Student'}
-                        </div>
-                        
-                        {/* Exercise Tag */}
-                        <div className="mb-3">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-700 text-gray-200">
-                            {video.exercise_name}
-                          </span>
-                        </div>
-                        
-                        {/* Set Info */}
-                        <div className="text-xs text-gray-400 mb-2">
-                          Série {video.set_number}/3
-                        </div>
-                        
-                        {/* Date */}
-                        <div className="text-xs text-gray-400 mb-3">
-                          {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
-                        </div>
-                        
-                        {/* Status Badge */}
-                        <div className="flex justify-end">
-                          {video.status === 'pending' ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-500 text-white">
-                              A feedback
+                <div className="border border-white/10 rounded-lg overflow-hidden">
+                  {/* Table */}
+                  <table className="w-full">
+                    {/* Table Header */}
+                    <thead className="bg-gradient-to-r from-[#131416] to-[#595d65]">
+                      <tr>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Vidéo</th>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Elèves</th>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Exercice</th>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Série</th>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Date</th>
+                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Statut</th>
+                      </tr>
+                    </thead>
+
+                    {/* Table Body */}
+                    <tbody>
+                      {filteredVideos.map((video, index) => (
+                        <tr 
+                          key={video.id}
+                          onClick={() => handleVideoClick(video)}
+                          className="border-t border-white/10 hover:bg-white/5 cursor-pointer transition-colors"
+                        >
+                          {/* Video Thumbnail */}
+                          <td className="px-4 py-4">
+                            <div className="relative w-28 h-20 bg-[#1a1a1a] rounded overflow-hidden group">
+                              <video 
+                                src={video.video_url} 
+                                className="w-full h-full object-cover"
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Play className="h-6 w-6 text-white" />
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Student Name */}
+                          <td className="px-4 py-4">
+                            <span className="text-base text-white/75">
+                              {video.student?.raw_user_meta_data?.full_name || 
+                               video.student?.raw_user_meta_data?.name || 
+                               video.student?.email || 
+                               'Unknown Student'}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-600 text-white">
-                              Complété
+                          </td>
+
+                          {/* Exercise Tag */}
+                          <td className="px-4 py-4">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-[#d4845a]/15 text-[#d4845a] border border-[#d4845a]/30">
+                              {video.exercise_name}
                             </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                          </td>
+
+                          {/* Set Info */}
+                          <td className="px-4 py-4">
+                            <span className="text-base text-white/75">
+                              Série {video.set_number}/3
+                            </span>
+                          </td>
+
+                          {/* Date */}
+                          <td className="px-4 py-4">
+                            <span className="text-base text-white/75">
+                              {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
+                            </span>
+                          </td>
+
+                          {/* Status Badge */}
+                          <td className="px-4 py-4">
+                            {video.status === 'pending' ? (
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                A feedback
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400 border border-green-500/30">
+                                Complété
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
-                  <PlayCircle size={48} className="mb-4" />
-                  <p className="font-medium">Aucune vidéo trouvée</p>
-                  <p className="text-sm">Les vidéos de vos élèves apparaîtront ici.</p>
+                <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
+                  <PlayCircle size={48} className="mb-4 opacity-30" />
+                  {statusFilter === 'pending' ? (
+                    <>
+                      <p className="font-light text-base">Aucune vidéo à traiter</p>
+                      <p className="text-sm text-white/30">Toutes les vidéos ont reçu un feedback</p>
+                    </>
+                  ) : statusFilter === 'completed' ? (
+                    <>
+                      <p className="font-light text-base">Aucune vidéo complétée</p>
+                      <p className="text-sm text-white/30">Les vidéos avec feedback apparaîtront ici</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-light text-base">Aucune vidéo trouvée</p>
+                      <p className="text-sm text-white/30">Les vidéos de vos élèves apparaîtront ici</p>
+                    </>
+                  )}
                 </div>
               )
             )}

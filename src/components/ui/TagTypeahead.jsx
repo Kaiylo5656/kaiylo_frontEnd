@@ -112,11 +112,16 @@ const TagTypeahead = ({
       onTagsChange([...selectedTags, normalizedTag]);
     }
     
+    // Clear input and close/collapse everything
     setInputValue('');
     setIsOpen(false);
     setIsCollapsed(true);
     setActiveIndex(-1);
-    // Don't refocus to prevent immediate reopen
+    
+    // Blur the input to prevent immediate reopen
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
   };
 
   // Handle tag removal
@@ -163,6 +168,7 @@ const TagTypeahead = ({
         setIsOpen(false);
         setIsCollapsed(true);
         setActiveIndex(-1);
+        setInputValue('');
         inputRef.current?.blur();
         break;
       case 'Backspace':
@@ -181,6 +187,8 @@ const TagTypeahead = ({
         setIsOpen(false);
         setIsCollapsed(true);
         setActiveIndex(-1);
+        // Clear input value when clicking outside
+        setInputValue('');
       }
     };
 

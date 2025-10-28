@@ -419,39 +419,73 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               throw error;
             }
           } else {
-            // Publishing a draft session - use the same logic as handlePublishDraftSession
-            console.log('📤 Publishing draft session:', sessionData.existingSessionId);
+            // Editing an existing assigned session or publishing a draft
+            console.log('📤 Updating session:', sessionData.existingSessionId, 'Status:', sessionData.status);
             
             try {
-              // First, try to update the session status to 'published'
+              // Update the workout session with the new data
               const updateResponse = await axios.patch(
                 `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
-                { status: 'published' },
+                {
+                  title: sessionData.title,
+                  description: sessionData.description,
+                  exercises: sessionData.exercises,
+                  scheduled_date: sessionData.scheduled_date,
+                  status: sessionData.status || 'published'
+                },
                 {
                   headers: { Authorization: `Bearer ${token}` }
                 }
               );
 
               if (!updateResponse.data.session) {
-                throw new Error('Failed to update session status');
+                throw new Error('Failed to update session');
               }
               
-              console.log('✅ Session status updated to published');
+              console.log('✅ Session updated successfully');
 
-              // Then create the assignment
-              const response = await axios.post(
-                `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
-                sessionData,
-                {
-                  headers: { Authorization: `Bearer ${token}` }
+              // Only create a new assignment if:
+              // 1. There's NO existing assignment (it was a draft)
+              // 2. AND we're publishing it now
+              if (!sessionData.assignmentId && sessionData.status === 'published') {
+                console.log('📤 Creating assignment for newly published draft');
+                
+                const response = await axios.post(
+                  `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+                  sessionData,
+                  {
+                    headers: { Authorization: `Bearer ${token}` }
+                  }
+                );
+
+                if (!response.data.success) {
+                  throw new Error('Failed to create assignment');
                 }
-              );
-
-              if (!response.data.success) {
-                throw new Error('Failed to create assignment');
+                
+                console.log('✅ Assignment created successfully');
+              } else if (sessionData.assignmentId) {
+                // If there's already an assignment, update the scheduled_date if it changed
+                console.log('📤 Updating existing assignment scheduled date if needed');
+                
+                try {
+                  await axios.patch(
+                    `${getApiBaseUrlWithApi()}/assignments/${sessionData.assignmentId}`,
+                    {
+                      scheduled_date: sessionData.scheduled_date
+                    },
+                    {
+                      headers: { Authorization: `Bearer ${token}` }
+                    }
+                  );
+                  console.log('✅ Assignment scheduled date updated');
+                } catch (assignmentUpdateError) {
+                  console.warn('⚠️ Failed to update assignment scheduled date:', assignmentUpdateError);
+                  // Don't fail the whole operation if this fails
+                }
               }
+              // If there's already an assignment, we don't need to create a new one
+              // The existing assignment is already linked to the updated session
               
-              console.log('✅ Assignment created successfully');
             } catch (updateError) {
               // If the session doesn't exist (404), create a new one instead
               if (updateError.response?.status === 404) {

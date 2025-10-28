@@ -152,10 +152,16 @@ const ExerciseTagTypeahead = ({
       onTagsChange([...selectedTags, normalizedTag]);
     }
     
+    // Clear input and close/collapse everything
     setInputValue('');
     setIsOpen(false);
     setIsCollapsed(true);
     setActiveIndex(-1);
+    
+    // Blur the input to prevent immediate reopen
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
   };
 
   // Handle tag removal
@@ -207,6 +213,7 @@ const ExerciseTagTypeahead = ({
         setIsOpen(false);
         setIsCollapsed(true);
         setActiveIndex(-1);
+        setInputValue('');
         inputRef.current?.blur();
         break;
       case 'Backspace':
@@ -224,6 +231,8 @@ const ExerciseTagTypeahead = ({
         setIsOpen(false);
         setIsCollapsed(true);
         setActiveIndex(-1);
+        // Clear input value when clicking outside
+        setInputValue('');
       }
     };
 

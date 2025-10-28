@@ -8,7 +8,6 @@ import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import StudentDetailView from '../components/StudentDetailView';
 import useSocket from '../hooks/useSocket';
-import WebSocketDebugger from '../components/WebSocketDebugger';
 
 const CoachDashboard = () => {
   const { user } = useAuth();
@@ -464,9 +463,6 @@ const CoachDashboard = () => {
         isOpen={isPendingInvitationsModalOpen}
         onClose={handleClosePendingInvitationsModal}
       />
-      
-      {/* WebSocket Debugger - only show in development */}
-      {process.env.NODE_ENV === 'development' && <WebSocketDebugger />}
     </div>
   );
 };
