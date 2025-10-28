@@ -5,6 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AddExerciseModal from '../components/AddExerciseModal';
 import ExerciseDetailModal from '../components/ExerciseDetailModal';
 import SortControl from '../components/SortControl';
+import TagTypeahead from '../components/ui/TagTypeahead';
 import useSortParams from '../hooks/useSortParams';
 import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
 import { Search, Filter, Edit, Trash2, Check } from 'lucide-react';
@@ -19,7 +20,6 @@ const ExerciseManagement = () => {
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTagFilters, setSelectedTagFilters] = useState([]);
-  const [tagInput, setTagInput] = useState('');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
   
@@ -102,22 +102,17 @@ const ExerciseManagement = () => {
     setSelectedTagFilters([]);
   };
 
-  // Handle adding tag by typing and pressing Enter
-  const handleTagInputKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const tag = tagInput.trim();
-      if (tag && !selectedTagFilters.includes(tag)) {
-        setSelectedTagFilters(prev => [...prev, tag]);
-        setTagInput('');
-      }
-    }
+  // Handle tag selection from TagTypeahead
+  const handleTagSelection = (selectedTags) => {
+    setSelectedTagFilters(selectedTags);
   };
 
-  // Handle removing a specific tag
-  const handleRemoveTag = (tagToRemove) => {
-    setSelectedTagFilters(prev => prev.filter(tag => tag !== tagToRemove));
-  };
+  // Extract all tags from exercises for the typeahead (including duplicates for counting)
+  const availableTags = useMemo(() => {
+    const allTags = exercises.flatMap(exercise => exercise.tags || []);
+    console.log('🏷️ All tags (with duplicates for counting):', allTags);
+    return allTags.filter(tag => tag && tag.trim() !== '');
+  }, [exercises]);
 
   // Filter exercises based on search term and tag filter
   // Filter and sort exercises with memoization
@@ -477,47 +472,23 @@ const ExerciseManagement = () => {
                 </button>
               </div>
               
-              {/* Tag Input Field */}
+              {/* Tag Typeahead Field */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Add Tag Filter
                 </label>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={handleTagInputKeyPress}
+                <TagTypeahead
+                  tags={availableTags}
+                  selectedTags={selectedTagFilters}
+                  onTagsChange={handleTagSelection}
                   placeholder="Type a tag and press Enter to add it"
-                  className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
+                  alwaysExpanded={true}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Type a tag name and press Enter to add it to the filter
                 </p>
               </div>
-              
-              {/* Selected Tags Display */}
-              {selectedTagFilters.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Active Filters:</span>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTagFilters.map(tag => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-full"
-                      >
-                        {tag}
-                        <button
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-1 hover:text-primary-foreground/80 transition-colors"
-                          title="Remove this tag filter"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
               
               {/* Filter Info */}
               {selectedTagFilters.length > 0 && (

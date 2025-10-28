@@ -13,7 +13,8 @@ const BaseModal = ({
   closeOnEsc = true,
   closeOnBackdrop = true,
   className = '',
-  size = 'md'
+  size = 'md',
+  noPadding = false
 }) => {
   const { isTopMost } = useRegisterModal(modalId);
   const modalRef = useRef(null);
@@ -111,9 +112,13 @@ const BaseModal = ({
               </button>
             </div>
           )}
-          <div className="p-6">
-            {children}
-          </div>
+          {noPadding ? (
+            children
+          ) : (
+            <div className="p-6">
+              {children}
+            </div>
+          )}
         </div>
       </div>
     </ModalPortal>

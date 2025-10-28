@@ -15,13 +15,13 @@ const TagTypeahead = ({
   onTagsChange, 
   placeholder = "Filtrer par tags...",
   className = "",
-  disabled = false
+  disabled = false,
+  alwaysExpanded = false
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [filterMode, setFilterMode] = useState('any'); // 'any' or 'all'
-  const [isCollapsed, setIsCollapsed] = useState(true); // New state for collapsed/expanded
+  const [isCollapsed, setIsCollapsed] = useState(!alwaysExpanded); // Start expanded if alwaysExpanded is true
   
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -68,6 +68,13 @@ const TagTypeahead = ({
     }
     setActiveIndex(-1);
   };
+
+  // Auto-open dropdown when alwaysExpanded and has tags
+  useEffect(() => {
+    if (alwaysExpanded && tags.length > 0 && !disabled) {
+      setIsOpen(true);
+    }
+  }, [alwaysExpanded, tags.length, disabled]);
 
   // Handle input focus
   const handleInputFocus = () => {
@@ -262,18 +269,6 @@ const TagTypeahead = ({
               aria-expanded={isOpen}
               aria-haspopup="listbox"
             />
-          </div>
-
-          {/* Filter Mode Toggle */}
-          <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-            <button
-              type="button"
-              onClick={() => setFilterMode(prev => prev === 'any' ? 'all' : 'any')}
-              className="text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-white/75 transition-colors"
-              title={`Mode: ${filterMode === 'any' ? 'N\'importe quel tag' : 'Tous les tags'}`}
-            >
-              {filterMode === 'any' ? 'ANY' : 'ALL'}
-            </button>
           </div>
 
           {/* Dropdown */}

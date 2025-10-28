@@ -30,8 +30,8 @@ const ExerciseLibraryPanel = ({
   const listHeadingRef = useRef(null);
   const lastFocusedItemRef = useRef(null);
 
-  // Get unique tags from exercises
-  const allTags = [...new Set(exercises.flatMap(ex => ex.tags || []))];
+  // Get all tags from exercises (including duplicates for proper counting)
+  const allTags = exercises.flatMap(ex => ex.tags || []).filter(tag => tag && tag.trim() !== '');
 
   // Reset to list view when sheet opens
   useEffect(() => {

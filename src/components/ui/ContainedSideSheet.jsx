@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useModalManager } from './modal/ModalManager';
 
@@ -54,14 +55,16 @@ const ContainedSideSheet = ({
   }, [open, onClose, preventClose, isTopMost, modalId]);
 
   // Choose positioning based on containment and side-by-side mode
-  const pos = contained ? 'absolute' : 'fixed';
-  const zBackdrop = contained ? 30 : zIndex - 5;
-  const zPanel = contained ? 40 : zIndex;
+  const pos = 'fixed'; // Always use fixed positioning for proper z-index layering
+  const zBackdrop = zIndex - 5;
+  const zPanel = zIndex;
   
   // For side-by-side mode, position the panel to the right of the main content
   const sideBySideClasses = sideBySide ? 'right-0 top-0 h-full w-1/2' : '';
 
-  return (
+  if (!open) return null;
+
+  const content = (
     <>
       {/* Backdrop scoped to parent if contained */}
       <div
@@ -84,7 +87,7 @@ const ContainedSideSheet = ({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`${pos} ${sideBySideClasses} z-40 h-full ${sideBySide ? 'w-1/2' : 'w-full'} ${widthClass} ${
+        className={`${pos} ${sideBySideClasses} h-full ${sideBySide ? 'w-1/2' : 'w-full'} ${widthClass} ${
           open ? 'translate-x-0' : 'translate-x-full'
         } bg-[#121212] text-white border-l border-[#1a1a1a] transition-transform duration-300 ease-in-out`}
         style={{ 
@@ -112,6 +115,9 @@ const ContainedSideSheet = ({
       </div>
     </>
   );
+
+  // Use portal to ensure proper z-index stacking
+  return createPortal(content, document.body);
 };
 
 export default ContainedSideSheet;

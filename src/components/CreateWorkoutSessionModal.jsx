@@ -38,11 +38,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const { isTopMost } = useModalManager();
   const modalId = 'create-workout-session';
 
-  // ... existing useEffect and functions ...
+  // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       fetchExercises();
+    } else {
+      document.body.style.overflow = '';
     }
+    
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   // Pre-fill form when editing existing session
@@ -472,11 +479,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
       size="2xl"
-      className="max-w-7xl max-h-[92vh] overflow-hidden"
+      noPadding={true}
+      className="!p-0 relative mx-auto w-full max-w-[1100px] max-h-[92vh] overflow-hidden flex flex-col"
     >
-      <div className="flex flex-col h-full max-h-[92vh] overflow-hidden">
         {/* Fixed Header */}
-        <div className="shrink-0 border-b border-white/10 px-5 py-4">
+        <div className="shrink-0 border-b border-white/10 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-medium text-white">
@@ -507,7 +514,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
         {/* Scrollable Body */}
         <div 
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-5"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5"
           style={{ scrollbarGutter: 'stable' }}
         >
           <div className={`workout-modal-content ${openSheet ? 'w-1/2' : 'w-full'} transition-all duration-300 flex min-h-0`}>
@@ -532,7 +539,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 />
               </div>
 
-              <div className="workout-modal-body min-h-0">
+              <div className="space-y-4">
               {exercises.map((exercise, exerciseIndex) => (
                 <div 
                   key={exercise.id} 
@@ -780,6 +787,33 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 </button>
               </div>
             )}
+
+            {/* Action Buttons - Inside scrollable area */}
+            <div className="pt-6 pb-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl transition-colors font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="w-full bg-white/10 hover:bg-white/15 text-white py-3 rounded-xl transition-colors font-medium"
+                >
+                  Enregistrer comme brouillon
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  className="w-full bg-[#F2785C] hover:bg-[#e56d52] text-[#1D1D1F] py-3 rounded-xl transition-colors font-medium"
+                >
+                  Publier
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Sidebar - Exercise Arrangement */}
@@ -850,64 +884,36 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             </div>
           </div>
         </div>
-
-        {/* Fixed Footer with Action Buttons */}
-        <div className="shrink-0 bg-[#121212]/95 backdrop-blur border-t border-white/10 px-5 py-4 pb-[max(0px,env(safe-area-inset-bottom))]">
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg transition-colors font-medium"
-            >
-              Enregistrer comme brouillon
-            </button>
-            <button
-              type="button"
-              onClick={handlePublish}
-              className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg transition-colors font-medium"
-            >
-              Publier
-            </button>
-          </div>
-        </div>
-
-        {/* Exercise Library Side Sheet - Alongside main content */}
-        <ContainedSideSheet
-          open={openSheet}
-          onClose={handleCloseLibrary}
-          title="Bibliothèque d'exercices"
-          contained={true}
-          sideBySide={true}
-          zIndex={50}
-          preventClose={isAddExerciseModalOpen}
-        >
-          <ExerciseLibraryPanel
-            exercises={availableExercises}
-            onSelect={handleAddExerciseToSession}
-            onCreateClick={handleCreateClick}
-            loading={libraryLoading}
-            showPreview={false}
-            onExerciseUpdated={handleExerciseUpdated}
-            isOpen={openSheet}
-            onExerciseDetailOpen={handleExerciseDetailOpen}
-          />
-        </ContainedSideSheet>
-      </div>
-      
-      {/* Add Exercise Modal */}
-      <AddExerciseModal
-        isOpen={isAddExerciseModalOpen}
-        onClose={() => setIsAddExerciseModalOpen(false)}
-        onExerciseCreated={handleExerciseCreated}
-      />
     </BaseModal>
+
+    {/* Exercise Library Side Sheet - Alongside main content */}
+    <ContainedSideSheet
+      open={openSheet}
+      onClose={handleCloseLibrary}
+      title="Bibliothèque d'exercices"
+      contained={true}
+      sideBySide={true}
+      zIndex={70}
+      preventClose={isAddExerciseModalOpen}
+    >
+      <ExerciseLibraryPanel
+        exercises={availableExercises}
+        onSelect={handleAddExerciseToSession}
+        onCreateClick={handleCreateClick}
+        loading={libraryLoading}
+        showPreview={false}
+        onExerciseUpdated={handleExerciseUpdated}
+        isOpen={openSheet}
+        onExerciseDetailOpen={handleExerciseDetailOpen}
+      />
+    </ContainedSideSheet>
+    
+    {/* Add Exercise Modal */}
+    <AddExerciseModal
+      isOpen={isAddExerciseModalOpen}
+      onClose={() => setIsAddExerciseModalOpen(false)}
+      onExerciseCreated={handleExerciseCreated}
+    />
 
     {/* Exercise Detail Modal - Rendered as Portal */}
     <ExerciseDetailModal
