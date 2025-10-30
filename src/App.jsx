@@ -66,7 +66,7 @@ function App() {
     <AuthProvider>
       <PWAProvider>
         <ModalManagerProvider>
-          <Router>
+          <>
           <div className="App">
             <Routes>
             {/* Public Routes */}
@@ -209,7 +209,7 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
-      </Router>
+      </>
         </ModalManagerProvider>
       </PWAProvider>
     </AuthProvider>

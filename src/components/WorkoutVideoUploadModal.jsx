@@ -30,20 +30,9 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
         }
       };
       input.click();
-    } else if (source === 'camera') {
-      // For camera recording, we'd need to implement camera access
-      // For now, we'll use the same file input but with camera intent
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'video/*';
-      input.capture = 'environment'; // Try to use back camera on mobile
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          setVideoFile(file);
-        }
-      };
-      input.click();
+    } else if (source === 'no-video') {
+      // Student chooses not to upload a video
+      setVideoFile('no-video'); // Special marker for no video
     }
   };
 
@@ -51,7 +40,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
     e.preventDefault();
     
     if (!videoFile) {
-      setError('Veuillez sélectionner une vidéo.');
+      setError('Veuillez choisir une option.');
       return;
     }
 
@@ -119,19 +108,28 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
             </button>
             <button
               type="button"
-              onClick={() => handleFileSelect('camera')}
+              onClick={() => handleFileSelect('no-video')}
               className="flex-1 bg-[#262626] hover:bg-[#333] text-white py-4 px-4 rounded-lg flex flex-col items-center gap-2 transition-colors"
             >
-              <VideoIcon className="h-8 w-8" />
-              <span className="text-sm font-medium">Filmer</span>
+              <X className="h-8 w-8" />
+              <span className="text-sm font-medium">Pas de vidéo</span>
             </button>
           </div>
 
           {/* Selected Video Preview */}
           {videoFile && (
             <div className="bg-[#1a1a1a] rounded-lg p-3 flex items-center gap-3">
-              <VideoIcon className="h-5 w-5 text-[#e87c3e] flex-shrink-0" />
-              <span className="text-white text-sm flex-1 min-w-0 truncate">{videoFile.name}</span>
+              {videoFile === 'no-video' ? (
+                <>
+                  <X className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                  <span className="text-white text-sm flex-1 min-w-0">Pas de vidéo sélectionné</span>
+                </>
+              ) : (
+                <>
+                  <VideoIcon className="h-5 w-5 text-[#e87c3e] flex-shrink-0" />
+                  <span className="text-white text-sm flex-1 min-w-0 truncate">{videoFile.name}</span>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setVideoFile(null)}
@@ -207,7 +205,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
               className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg transition-colors font-medium"
               disabled={isUploading || !videoFile || !rpeRating}
             >
-              {isUploading ? 'Upload...' : 'Terminer'}
+              {isUploading ? 'Enregistrement...' : 'Terminer'}
             </Button>
           </div>
         </div>

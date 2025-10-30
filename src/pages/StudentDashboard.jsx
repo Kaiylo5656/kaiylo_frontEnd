@@ -11,7 +11,7 @@ import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
 import { useNavigate } from 'react-router-dom';
 
 const StudentDashboard = () => {
-  const { user, getAuthToken } = useAuth();
+  const { user, getAuthToken, refreshAuthToken } = useAuth();
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ const StudentDashboard = () => {
         }
       });
 
-      const response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
+      let response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -122,6 +122,31 @@ const StudentDashboard = () => {
           exercises: updatedExercises // Send updated exercises with validation statuses
         })
       });
+
+      // If we get a 401 error, try to refresh the token and retry once
+      if (response.status === 401) {
+        console.log('🔄 Token expired, attempting to refresh...');
+        try {
+          const refreshedToken = await refreshAuthToken();
+          console.log('✅ Token refreshed, retrying session completion...');
+          
+          response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${refreshedToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              difficulty: completionData.difficulty,
+              comment: completionData.comment,
+              exercises: updatedExercises
+            })
+          });
+        } catch (refreshError) {
+          console.error('❌ Failed to refresh token:', refreshError);
+          throw new Error('Authentication failed. Please log in again.');
+        }
+      }
 
       if (response.ok) {
         // Refresh assignments to show updated status

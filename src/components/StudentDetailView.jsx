@@ -198,7 +198,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         hasExercises: !!session.exercises
       });
       
-      // First, update the session status to 'published' in the database
+      // First, check if the session exists in the database
+      console.log('🔍 Checking if session exists in database...');
+      const checkResponse = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/${session.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      if (!checkResponse.data.session) {
+        throw new Error('Session not found in database. It may have been deleted.');
+      }
+      
+      console.log('✅ Session exists in database, proceeding with update...');
+      
+      // Then update the session status to 'published' in the database
       const updateResponse = await axios.patch(
         `${getApiBaseUrlWithApi()}/workout-sessions/${session.id}`,
         { status: 'published' },
@@ -251,9 +266,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       });
       
       // Si la session n'existe pas (404), proposer de la recréer
-      if (error.response?.status === 404) {
-        alert('Cette séance n\'existe plus dans la base de données. Veuillez la recréer.');
-        await fetchWorkoutSessions(); // Rafraîchir pour nettoyer l'affichage
+      if (error.response?.status === 404 || error.message.includes('Session not found in database')) {
+        await handleSessionNotFound(session.id, 'publish');
       } else {
         alert(`Erreur lors de la publication de la séance: ${error.response?.data?.message || error.message}`);
       }
@@ -330,11 +344,26 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
           console.log('📝 Updating existing draft session:', sessionData.existingSessionId);
           
           try {
+            // First, check if the session exists in the database
+            console.log('🔍 Checking if draft session exists before updating...');
+            const checkResponse = await axios.get(
+              `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+            
+            if (!checkResponse.data.session) {
+              throw new Error('Session not found in database. It may have been deleted.');
+            }
+            
+            console.log('✅ Draft session exists in database, proceeding with update...');
+            
             const updateResponse = await axios.patch(
               `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
               {
                 title: sessionData.title,
-                description: sessionData.description,
+                general_objective: sessionData.description, // map description -> general_objective
                 exercises: sessionData.exercises,
                 scheduled_date: sessionData.scheduled_date
               },
@@ -349,8 +378,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             
             console.log('✅ Draft session updated successfully');
           } catch (updateError) {
+            console.error('❌ Error updating draft session:', updateError);
+            console.error('Error details:', {
+              message: updateError.message,
+              response: updateError.response?.data,
+              status: updateError.response?.status,
+              sessionId: sessionData.existingSessionId
+            });
+            
             // If the session doesn't exist (404), create a new draft session instead
-            if (updateError.response?.status === 404) {
+            if (updateError.response?.status === 404 || updateError.message.includes('Session not found in database')) {
               console.log('⚠️ Draft session not found, creating new draft session instead');
               
               // Remove existingSessionId to create a new session
@@ -423,20 +460,111 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             console.log('📤 Updating session:', sessionData.existingSessionId, 'Status:', sessionData.status);
             
             try {
-              // Update the workout session with the new data
-              const updateResponse = await axios.patch(
+              // First, check if the session exists in the database
+              console.log('🔍 Checking if session exists before updating...');
+              console.log('🔍 Using token:', token ? `${token.substring(0, 20)}...` : 'No token');
+              
+              const checkResponse = await axios.get(
                 `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
-                {
-                  title: sessionData.title,
-                  description: sessionData.description,
-                  exercises: sessionData.exercises,
-                  scheduled_date: sessionData.scheduled_date,
-                  status: sessionData.status || 'published'
-                },
                 {
                   headers: { Authorization: `Bearer ${token}` }
                 }
               );
+              
+              if (!checkResponse.data.session) {
+                throw new Error('Session not found in database. It may have been deleted.');
+              }
+              
+              console.log('✅ Session exists in database, proceeding with update...');
+              console.log('🔍 Session details:', {
+                id: checkResponse.data.session.id,
+                title: checkResponse.data.session.title,
+                status: checkResponse.data.session.status,
+                user_id: checkResponse.data.session.user_id
+              });
+              
+              // Update the workout session with the new data
+              // Add a small delay to reduce race conditions
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              let updateResponse;
+              try {
+                console.log('🔍 Attempting PATCH request with data:', {
+                  sessionId: sessionData.existingSessionId,
+                  title: sessionData.title,
+                  status: sessionData.status || 'published',
+                  exercisesCount: sessionData.exercises?.length || 0
+                });
+                
+                updateResponse = await axios.patch(
+                  `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+                  {
+                    title: sessionData.title,
+                    general_objective: sessionData.description,
+                    exercises: sessionData.exercises,
+                    scheduled_date: sessionData.scheduled_date,
+                    status: sessionData.status || 'published'
+                  },
+                  {
+                    headers: { Authorization: `Bearer ${token}` }
+                  }
+                );
+                
+                console.log('✅ PATCH request successful:', updateResponse.data);
+              } catch (updateError) {
+                console.log('❌ PATCH request failed:', {
+                  status: updateError.response?.status,
+                  statusText: updateError.response?.statusText,
+                  data: updateError.response?.data,
+                  message: updateError.message
+                });
+                
+                // If the update fails with 404, check if session still exists and retry once
+                if (updateError.response?.status === 404) {
+                  console.log('⚠️ Update failed with 404, checking session again...');
+                  
+                  try {
+                    const recheckResponse = await axios.get(
+                      `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+                      {
+                        headers: { Authorization: `Bearer ${token}` }
+                      }
+                    );
+                    
+                    if (!recheckResponse.data.session) {
+                      throw new Error('Session not found in database during retry. It may have been deleted.');
+                    }
+                    
+                    console.log('✅ Session still exists, retrying update...');
+                    
+                    updateResponse = await axios.patch(
+                      `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
+                      {
+                        title: sessionData.title,
+                        general_objective: sessionData.description,
+                        exercises: sessionData.exercises,
+                        scheduled_date: sessionData.scheduled_date,
+                        status: sessionData.status || 'published'
+                      },
+                      {
+                        headers: { Authorization: `Bearer ${token}` }
+                      }
+                    );
+                    
+                    console.log('✅ Retry successful:', updateResponse.data);
+                  } catch (retryError) {
+                    console.log('❌ Retry failed:', {
+                      status: retryError.response?.status,
+                      statusText: retryError.response?.statusText,
+                      data: retryError.response?.data,
+                      message: retryError.message
+                    });
+                    throw retryError;
+                  }
+                } else {
+                  throw updateError;
+                }
+              }
 
               if (!updateResponse.data.session) {
                 throw new Error('Failed to update session');
@@ -464,46 +592,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 
                 console.log('✅ Assignment created successfully');
               } else if (sessionData.assignmentId) {
-                // If there's already an assignment, update the scheduled_date if it changed
-                console.log('📤 Updating existing assignment scheduled date if needed');
-                
-                try {
-                  await axios.patch(
-                    `${getApiBaseUrlWithApi()}/assignments/${sessionData.assignmentId}`,
-                    {
-                      scheduled_date: sessionData.scheduled_date
-                    },
-                    {
-                      headers: { Authorization: `Bearer ${token}` }
-                    }
-                  );
-                  console.log('✅ Assignment scheduled date updated');
-                } catch (assignmentUpdateError) {
-                  console.warn('⚠️ Failed to update assignment scheduled date:', assignmentUpdateError);
-                  // Don't fail the whole operation if this fails
-                }
+                // Backend has no PATCH /api/assignments/:id route; skip scheduled_date update to avoid 404
+                console.log('ℹ️ Skipping assignment scheduled_date update (no backend route available)');
               }
               // If there's already an assignment, we don't need to create a new one
               // The existing assignment is already linked to the updated session
               
             } catch (updateError) {
+              console.error('❌ Error updating session:', updateError);
+              console.error('Error details:', {
+                message: updateError.message,
+                response: updateError.response?.data,
+                status: updateError.response?.status,
+                sessionId: sessionData.existingSessionId
+              });
+              
               // If the session doesn't exist (404), create a new one instead
-              if (updateError.response?.status === 404) {
+              if (updateError.response?.status === 404 || updateError.message.includes('Session not found in database')) {
                 console.log('⚠️ Session not found, creating new one instead');
                 
-      const response = await axios.post(
-        `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
-        sessionData,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+                try {
+                  const response = await axios.post(
+                    `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
+                    sessionData,
+                    {
+                      headers: { Authorization: `Bearer ${token}` }
+                    }
+                  );
 
-      if (!response.data.success) {
-        throw new Error('Failed to create and assign workout session');
+                  if (!response.data.success) {
+                    throw new Error('Failed to create and assign workout session');
+                  }
+                  
+                  console.log('✅ New session created successfully');
+                } catch (createError) {
+                  console.error('❌ Failed to create new session:', createError);
+                  await handleSessionNotFound(sessionData.existingSessionId, 'update');
+                  throw createError;
                 }
-                
-                console.log('✅ New session created successfully');
               } else {
                 throw updateError;
               }
@@ -701,6 +827,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     try {
       const token = localStorage.getItem('authToken');
       
+      // First, check if the session exists in the database
+      console.log('🔍 Checking if session exists before switching to draft...');
+      const checkResponse = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      if (!checkResponse.data.session) {
+        throw new Error('Session not found in database. It may have been deleted.');
+      }
+      
+      console.log('✅ Session exists in database, proceeding with draft switch...');
+      
       // Update the session status to 'draft' in the database
       const updateResponse = await axios.patch(
         `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
@@ -727,7 +868,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       alert('Séance passée en mode brouillon avec succès !');
     } catch (error) {
       console.error('Error switching to draft:', error);
-      alert('Erreur lors du passage en mode brouillon. Veuillez réessayer.');
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        sessionId: session.workoutSessionId
+      });
+      
+      if (error.response?.status === 404 || error.message.includes('Session not found in database')) {
+        await handleSessionNotFound(session.workoutSessionId, 'draft');
+      } else {
+        alert(`Erreur lors du passage en mode brouillon: ${error.response?.data?.message || error.message}`);
+      }
     }
   };
 
@@ -891,90 +1043,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         }
       });
 
-      // Also fetch draft sessions for this coach
-      try {
-        const draftResponse = await axios.get(
-          `${getApiBaseUrlWithApi()}/workout-sessions`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-
-        console.log('📋 Fetched draft sessions:', draftResponse.data);
-
-        if (draftResponse.data.sessions) {
-          console.log('📊 Total sessions from API:', draftResponse.data.sessions.length);
-          
-          // Filter draft sessions - only show drafts that belong to the current coach
-          const draftSessions = draftResponse.data.sessions.filter(session => {
-            const isDraft = session.status === 'draft';
-            const hasValidId = session.id && session.id.length > 0;
-            const hasExercises = session.exercises && Array.isArray(session.exercises) && session.exercises.length > 0;
-            
-            if (!isDraft || !hasValidId || !hasExercises) {
-              console.log('⚠️ Skipping invalid draft session:', {
-                id: session.id,
-                isDraft,
-                hasValidId,
-                hasExercises,
-                exerciseCount: session.exercises?.length || 0
-              });
-              return false;
-            }
-            
-            return true;
-          });
-          
-          console.log('📝 Valid draft sessions found:', draftSessions.length);
-          
-          draftSessions.forEach(session => {
-            console.log('🔍 Processing draft session:', { 
-              id: session.id, 
-              title: session.title, 
-              scheduled_date: session.scheduled_date, 
-              created_at: session.created_at,
-              student_id: session.student_id,
-              coach_id: session.user_id,
-              exerciseCount: session.exercises?.length || 0
-            });
-            
-            // For draft sessions, use scheduled_date if available, otherwise fall back to created_at
-            let displayDate;
-            if (session.scheduled_date) {
-              displayDate = new Date(session.scheduled_date);
-            } else {
-              displayDate = new Date(session.created_at);
-            }
-            
-            const dateKey = format(displayDate, 'yyyy-MM-dd');
-            console.log('📅 Draft session date key:', dateKey);
-            
-            const draftSessionData = {
-              id: session.id,
-              assignmentId: null, // No assignment for drafts
-              title: session.title,
-              exercises: session.exercises || [],
-              status: 'draft',
-              startTime: null,
-              endTime: null,
-              notes: null,
-              workoutSessionId: session.id,
-              description: session.general_objective || ''
-            };
-
-            // Initialize array for this date if it doesn't exist
-            if (!sessionsMap[dateKey]) {
-              sessionsMap[dateKey] = [];
-            }
-            
-            // Add draft session to the array for this date
-            console.log('➕ Adding draft session to map for date:', dateKey);
-            sessionsMap[dateKey].push(draftSessionData);
-          });
-        }
-      } catch (draftError) {
-        console.warn('⚠️ Could not fetch draft sessions:', draftError);
-      }
+      // SECURITY FIX: Removed draft sessions fetch to prevent data leak
+      // The previous code was fetching ALL draft sessions created by the current user,
+      // regardless of which student they were for. This caused a serious data leak where
+      // coaches could see sessions for students they don't have access to.
+      // 
+      // Draft sessions should only be shown if they are assigned to the specific student
+      // through the assignments endpoint, which properly filters by coach-student relationship.
+      console.log('🔒 Draft sessions fetch removed to prevent data leak');
       
       console.log('Processed sessions map:', sessionsMap);
       setWorkoutSessions(sessionsMap);
@@ -1001,6 +1077,25 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to handle session cleanup when sessions are not found
+  const handleSessionNotFound = async (sessionId, operation = 'update') => {
+    console.log(`🧹 Cleaning up stale session reference: ${sessionId} (${operation})`);
+    
+    // Log additional debugging information
+    console.log('🔍 Debugging session not found:', {
+      sessionId,
+      operation,
+      currentWorkoutSessions: workoutSessions?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Refresh the workout sessions to get the latest data
+    await fetchWorkoutSessions();
+    
+    // Show a user-friendly message
+    alert(`Cette séance n'existe plus dans la base de données. Les données ont été actualisées.`);
   };
 
   useEffect(() => {

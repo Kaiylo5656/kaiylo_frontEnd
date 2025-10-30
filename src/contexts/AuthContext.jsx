@@ -1,6 +1,24 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Supabase environment variables are not defined!');
+  console.error('Please create a .env file in the frontend directory with:');
+  console.error('VITE_SUPABASE_URL=your-supabase-url');
+  console.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
+}
+
+const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 
 // Create the authentication context
 const AuthContext = createContext();
@@ -18,21 +36,75 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   // State for user authentication
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Get API base URL dynamically
   const API_BASE_URL = getApiBaseUrlWithApi();
 
+  // Logout function
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    sessionStorage.removeItem('authToken');
+    delete axios.defaults.headers.common['Authorization'];
+    setUser(null);
+    setError(null);
+    supabase.auth.signOut();
+    if (typeof navigate === 'function') navigate('/login');
+  };
+
+  // Refresh auth token function
+  const refreshAuthToken = async () => {
+    try {
+      console.log('🔄 Attempting to refresh auth token...');
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.error('❌ Supabase not configured, cannot refresh token');
+        throw new Error('Supabase not configured');
+      }
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('❌ Error getting session:', error);
+        throw error;
+      }
+      if (!session) {
+        console.log('❌ No active session found');
+        logout();
+        return null;
+      }
+      localStorage.setItem('authToken', session.access_token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+      console.log('✅ Token refreshed successfully');
+      return session.access_token;
+    } catch (error) {
+      console.error('❌ Failed to refresh token:', error);
+      logout();
+      return null;
+    }
+  };
+
   // Set up Axios interceptor for handling 401 errors
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
         if (error.response && error.response.status === 401) {
-          console.warn('🚨 Interceptor: Caught 401 Unauthorized. Logging out.');
-          logout(); // This will clear state and redirect
-          // We don't need to navigate here, logout should handle it via a page reload
+          console.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
+          
+          try {
+            // Try to refresh the token
+            await refreshAuthToken();
+            console.log('✅ Token refreshed, retrying original request...');
+            
+            // Retry the original request with the new token
+            const originalRequest = error.config;
+            originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('authToken')}`;
+            return axios(originalRequest);
+          } catch (refreshError) {
+            console.error('❌ Token refresh failed:', refreshError);
+            console.warn('🚨 Logging out user due to failed token refresh.');
+            logout(); // This will clear state and redirect
+          }
         }
         return Promise.reject(error);
       }
@@ -42,7 +114,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(interceptor);
     };
-  }, []);
+  }, [refreshAuthToken, logout]);
 
   // Check if user is already logged in on app start
   useEffect(() => {
@@ -197,23 +269,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout function
-  const logout = () => {
-    // Remove token from localStorage
-    localStorage.removeItem('authToken');
-    
-    // Remove token from axios headers
-    delete axios.defaults.headers.common['Authorization'];
-    
-    // Clear user state
-    setUser(null);
-    setError(null);
-    
-    // Force a reload to clear all state and redirect to login page
-    // This is a robust way to ensure a clean logout
-    window.location.href = '/login';
-  };
-
   // Update user profile
   const updateProfile = async (userData) => {
     try {
@@ -254,8 +309,8 @@ export const AuthProvider = ({ children }) => {
   // Check if user is student
   const isStudent = () => hasRole('student');
 
-  // Get auth token function
-  const getAuthToken = () => {
+  // Get auth token function with automatic refresh
+  const getAuthToken = async () => {
     // Try localStorage first
     let token = localStorage.getItem('authToken');
     
@@ -267,6 +322,16 @@ export const AuthProvider = ({ children }) => {
     // If still not found, try to get from axios defaults
     if (!token && axios.defaults.headers.common['Authorization']) {
       token = axios.defaults.headers.common['Authorization'].replace('Bearer ', '');
+    }
+    
+    // If no token found, try to refresh
+    if (!token) {
+      try {
+        token = await refreshAuthToken();
+      } catch (error) {
+        console.error('❌ Could not get or refresh token:', error);
+        return null;
+      }
     }
     
     return token;
@@ -287,7 +352,8 @@ export const AuthProvider = ({ children }) => {
     isCoach,
     isStudent,
     checkAuthStatus,
-    getAuthToken
+    getAuthToken,
+    refreshAuthToken
   };
 
   return (
