@@ -36,7 +36,7 @@ const VideoLibrary = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedFolder, setSelectedFolder] = useState(null); // For coach resources filtering
 
-  const { getAuthToken, hasRole } = useAuth();
+  const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   
   // Status and sort filters with URL persistence
   const { status: statusFilter, setStatus, isInitialized } = useVideoFilters();
@@ -104,7 +104,16 @@ const VideoLibrary = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        setError('Non authentifié. Veuillez vous reconnecter.');
+        setStudentVideos([]);
+        setLoading(false);
+        return;
+      }
       const headers = { Authorization: `Bearer ${token}` };
       
       const response = await axios.get(buildApiUrl('/workout-sessions/videos'), { headers });
@@ -125,7 +134,17 @@ const VideoLibrary = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        setError('Non authentifié. Veuillez vous reconnecter.');
+        setCoachResources([]);
+        setFolders([]);
+        setLoading(false);
+        return;
+      }
       const headers = { Authorization: `Bearer ${token}` };
       
       const [resourcesResponse, foldersResponse] = await Promise.all([
@@ -164,7 +183,11 @@ const VideoLibrary = () => {
     if (!newFolderName.trim()) return;
 
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) return;
       const response = await axios.post(buildApiUrl('/resources/folders'), 
         { name: newFolderName },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -197,7 +220,11 @@ const VideoLibrary = () => {
     }
 
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) return;
       await axios.delete(buildApiUrl(`/resources/${resourceId}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -209,7 +236,11 @@ const VideoLibrary = () => {
 
   const handleMoveResource = async (resourceId, folderId) => {
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) return;
       await axios.patch(buildApiUrl(`/resources/${resourceId}`), 
         { folderId: folderId },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -238,7 +269,11 @@ const VideoLibrary = () => {
     }
 
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) return;
       await axios.delete(buildApiUrl(`/resources/folders/${folderId}`), {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -260,7 +295,11 @@ const VideoLibrary = () => {
 
   const handleUpdateVideoFeedback = async (videoId, feedback, rating) => {
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) return;
       await axios.patch(buildApiUrl(`/workout-sessions/videos/${videoId}/feedback`), 
         { feedback, rating },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -281,6 +320,11 @@ const VideoLibrary = () => {
     
     // Apply all filters
     let filtered = studentVideos.filter(video => {
+      // Exclude videos without a video_url (Pas de vidéo entries)
+      if (!video.video_url || (typeof video.video_url === 'string' && video.video_url.trim() === '')) {
+        return false;
+      }
+      
       // Status filter
       let matchesStatus = true;
       if (statusFilter === 'pending') {
@@ -298,11 +342,12 @@ const VideoLibrary = () => {
       return matchesStatus && matchesStudent && matchesExercise && matchesDate;
     });
     
-    // Sort by upload time (created_at) DESC - newest first
+    // Sort by upload time (uploaded_at or created_at) DESC - newest first (latest to oldest)
     filtered.sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return dateB - dateA; // DESC: newest first
+      // Use uploaded_at if available (actual student upload time), otherwise fall back to created_at
+      const dateA = (a.uploaded_at ? new Date(a.uploaded_at) : (a.created_at ? new Date(a.created_at) : new Date(0))).getTime();
+      const dateB = (b.uploaded_at ? new Date(b.uploaded_at) : (b.created_at ? new Date(b.created_at) : new Date(0))).getTime();
+      return dateB - dateA; // DESC: newest first (latest to oldest)
     });
     
     return filtered;
@@ -378,7 +423,7 @@ const VideoLibrary = () => {
                   <div className="flex items-center">
                     <div className="relative w-20 h-14 bg-[#262626] rounded-lg overflow-hidden">
                       <video 
-                        src={video.video_url} 
+                        src={video.video_url || undefined} 
                         className="w-full h-full object-cover"
                         preload="metadata"
                         onLoadedMetadata={(e) => {
@@ -444,7 +489,7 @@ const VideoLibrary = () => {
             {/* Video Thumbnail */}
             <div className="relative aspect-video bg-[#262626] overflow-hidden">
               <video 
-                src={video.video_url} 
+                src={video.video_url || undefined} 
                 className="w-full h-full object-cover"
                 preload="metadata"
                 onLoadedMetadata={(e) => {
@@ -528,7 +573,7 @@ const VideoLibrary = () => {
             onClick={() => handleCoachResourceClick(video)}
             className="block aspect-video bg-muted relative"
           >
-            <video src={video.fileUrl} className="w-full h-full object-cover" preload="metadata"></video>
+            <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <PlayCircle size={48} className="text-white" />
             </div>
@@ -718,7 +763,7 @@ const VideoLibrary = () => {
                           <td className="px-4 py-4">
                             <div className="relative w-28 h-20 bg-[#1a1a1a] rounded overflow-hidden group">
                               <video 
-                                src={video.video_url} 
+                                src={video.video_url || undefined} 
                                 className="w-full h-full object-cover"
                                 preload="metadata"
                               />

@@ -88,23 +88,21 @@ export const AuthProvider = ({ children }) => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response && error.response.status === 401) {
+        const originalRequest = error.config || {};
+        if (error.response && error.response.status === 401 && !originalRequest._retry) {
           console.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
-          
-          try {
-            // Try to refresh the token
-            await refreshAuthToken();
+          originalRequest._retry = true;
+          const newToken = await refreshAuthToken();
+          if (newToken) {
             console.log('✅ Token refreshed, retrying original request...');
-            
-            // Retry the original request with the new token
-            const originalRequest = error.config;
-            originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('authToken')}`;
+            originalRequest.headers = {
+              ...(originalRequest.headers || {}),
+              Authorization: `Bearer ${newToken}`
+            };
             return axios(originalRequest);
-          } catch (refreshError) {
-            console.error('❌ Token refresh failed:', refreshError);
-            console.warn('🚨 Logging out user due to failed token refresh.');
-            logout(); // This will clear state and redirect
           }
+          console.warn('❌ Refresh failed or no session. Not retrying. Logging out.');
+          return Promise.reject(error);
         }
         return Promise.reject(error);
       }

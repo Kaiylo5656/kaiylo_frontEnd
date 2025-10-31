@@ -20,7 +20,7 @@ import {
   Folder
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import VideoDetailModal from '../components/VideoDetailModal';
+import StudentVideoDetailModal from '../components/StudentVideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
 
 const StudentVideoLibrary = () => {
@@ -560,13 +560,11 @@ const StudentVideoLibrary = () => {
         )}
       </div>
 
-      <VideoDetailModal 
+      <StudentVideoDetailModal 
         isOpen={isVideoDetailModalOpen}
         onClose={() => setIsVideoDetailModalOpen(false)}
         video={selectedVideo}
         onFeedbackUpdate={handleFeedbackUpdate}
-        videoType="student"
-        isCoachView={false}
       />
 
       <CoachResourceModal 

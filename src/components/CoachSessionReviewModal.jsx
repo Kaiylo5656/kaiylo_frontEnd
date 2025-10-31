@@ -5,8 +5,10 @@ import { X, PlayCircle, CheckCircle, Clock, Video, MessageSquare, Save, Folder, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, studentId }) => {
+  const { getAuthToken, refreshAuthToken } = useAuth();
   const [sessionVideos, setSessionVideos] = useState([]);
   const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -15,6 +17,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [sessionDifficulty, setSessionDifficulty] = useState('');
   const [sessionComment, setSessionComment] = useState('');
+  const [selectedSetIndex, setSelectedSetIndex] = useState(null);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -34,6 +37,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
       setSessionVideos([]);
       setSelectedExerciseIndex(null);
       setSelectedVideo(null);
+      setSelectedSetIndex(null);
       setFeedback('');
       setLoading(true);
       
@@ -47,7 +51,15 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const fetchSessionVideos = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        console.warn('No auth token available for coach videos fetch. Skipping.');
+        setSessionVideos([]);
+        return;
+      }
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
         {
@@ -159,6 +171,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
   const handleExerciseSelect = (exercise, index) => {
     setSelectedExerciseIndex(index);
+    setSelectedSetIndex(0);
     const exerciseVideos = getVideosForExercise(exercise.name);
     if (exerciseVideos.length > 0) {
       setSelectedVideo(exerciseVideos[0]);
@@ -351,35 +364,25 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 <div className="space-y-2">
                   {selectedExercise.sets?.map((set, setIndex) => {
                     const setVideos = getVideosForExercise(selectedExercise.name).filter(v => v.set_number === setIndex + 1);
-                    const hasVideo = setVideos.length > 0;
-                    
-                    // Get the validation status from the exercise data
+                    const hasVideo = setVideos.some(v => v.video_url); // only count real videos
                     const setStatus = set.validation_status;
-                    
-                    // Debug log to see set data
-                    console.log(`Set ${setIndex + 1} data:`, {
-                      set,
-                      validation_status: set.validation_status,
-                      hasVideo,
-                      setVideos
-                    });
-                    
+                    const isSelected = selectedSetIndex === setIndex;
+                    const firstRecord = setVideos[0];
+                    const rpeValue = (firstRecord && firstRecord.rpe_rating) || set.rpe || set.rpe_rating || set.RPE || null;
+                    const hasComment = (firstRecord && !!firstRecord.comment) || !!set.comment || !!set.student_comment;
                     return (
                       <div 
                         key={setIndex} 
                         className={`flex items-center justify-between p-2 rounded-lg transition-colors border-2 ${
-                          hasVideo 
-                            ? selectedVideo && selectedVideo.set_number === (setIndex + 1)
-                              ? 'bg-[#e87c3e] text-white border-[#e87c3e] cursor-pointer'
-                              : 'bg-[#262626] hover:bg-[#333333] cursor-pointer border-transparent'
-                            : 'bg-[#1a1a1a] border-transparent'
+                          isSelected
+                            ? 'bg-[#e87c3e] text-white border-[#e87c3e] cursor-pointer'
+                            : 'bg-[#262626] hover:bg-[#333333] cursor-pointer border-transparent'
                         }`}
                         onClick={() => {
-                          if (hasVideo) {
-                            const setVideo = setVideos[0];
-                            setSelectedVideo(setVideo);
-                            setFeedback(setVideo.coach_feedback || '');
-                          }
+                          setSelectedSetIndex(setIndex);
+                          const setVideo = firstRecord || null; // allow metadata-only records
+                          setSelectedVideo(setVideo);
+                          setFeedback(setVideo?.coach_feedback || '');
                         }}
                       >
                         <div className="flex items-center gap-2">
@@ -388,20 +391,17 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm text-gray-300">{set.reps} reps @{set.weight}kg</span>
-                            {hasVideo && (
+                            {(hasVideo || hasComment) && (
                               <div className="flex items-center gap-1 text-[#e87c3e]">
-                                <Video className="h-4 w-4" />
+                                {hasVideo && <Video className="h-4 w-4" />}
                               </div>
-                            )}
-                            {hasVideo && setVideos[0].student_comment && (
-                              <MessageSquare className="h-4 w-4 text-blue-400" />
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          {hasVideo && setVideos[0].rpe_rating && (
+                          {rpeValue && (
                             <div className="text-xs text-gray-300 bg-[#333] px-1.5 py-0.5 rounded">
-                              RPE: {setVideos[0].rpe_rating}
+                              RPE: {rpeValue}
                             </div>
                           )}
                           {setStatus === 'completed' && (
@@ -419,77 +419,86 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                   })}
                 </div>
 
-                {/* Video Player and Feedback Section */}
-                {selectedVideo ? (
+                {/* Video Player (optional) */}
+                {selectedVideo && selectedVideo.video_url ? (
                   <div className="space-y-4 mt-4">
                     {/* Video Player */}
                     <div className="bg-black rounded-lg overflow-hidden">
                       <video
-                        src={selectedVideo.video_url}
+                        src={selectedVideo.video_url || undefined}
                         controls
                         className="w-full h-64 object-contain"
                         poster={selectedVideo.thumbnail_url}
                         preload="metadata"
                       />
                     </div>
-
-                    {/* Student Comment */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">Commentaire de l'étudiant :</label>
-                      <div className="bg-[#262626] p-3 rounded-lg min-h-[40px]">
-                        <p className="text-sm text-gray-400 italic">
-                          {selectedVideo.student_comment || "Aucun commentaire de l'étudiant"}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Existing Coach Feedback */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">Feedback du coach :</label>
-                      <div className="bg-[#262626] p-3 rounded-lg min-h-[40px]">
-                        <p className="text-sm text-gray-300">
-                          {sessionVideos.find(v => v.id === selectedVideo.id)?.coach_feedback || "Aucun feedback du coach pour le moment"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* New Feedback Textarea */}
-                    <div>
-                      <textarea
-                        value={feedback}
-                        onChange={(e) => setFeedback(e.target.value)}
-                        placeholder="Écrire un feedback pour l'étudiant..."
-                        className="w-full bg-[#262626] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#e87c3e]"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSaveFeedback}
-                        disabled={savingFeedback}
-                        className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {savingFeedback ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            Sauvegarde...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="h-4 w-4" />
-                            Envoyer le feedback
-                          </>
-                        )}
-                      </button>
-                    </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-400 py-8">
-                    <Video className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <div className="text-center text-gray-400 py-6">
+                    <Video className="h-10 w-10 mx-auto mb-2 opacity-50" />
                     <p>Aucune vidéo pour cet exercice</p>
                   </div>
                 )}
+
+                {/* Student Comment */}
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Commentaire de l'étudiant :</label>
+                  <div className="bg-[#262626] p-3 rounded-lg min-h-[40px]">
+                    <p className="text-sm text-gray-400 italic">
+                      {(() => {
+                        const currentSet = (selectedSetIndex !== null && selectedExercise?.sets) ? selectedExercise.sets[selectedSetIndex] : null;
+                        const videosForSelectedSet = (selectedExercise && selectedSetIndex !== null)
+                          ? getVideosForExercise(selectedExercise.name).filter(v => v.set_number === (selectedSetIndex + 1))
+                          : [];
+                        const metaRecord = videosForSelectedSet[0];
+                        const comment = selectedVideo?.comment || metaRecord?.comment || currentSet?.comment || currentSet?.student_comment;
+                        return comment || 'Aucun commentaire de l\'étudiant';
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Existing Coach Feedback */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Feedback du coach :</label>
+                  <div className="bg-[#262626] p-3 rounded-lg min-h-[40px]">
+                    <p className="text-sm text-gray-300">
+                      {selectedVideo ? (sessionVideos.find(v => v.id === selectedVideo.id)?.coach_feedback || 'Aucun feedback du coach pour le moment') : 'Aucun feedback du coach pour le moment'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* New Feedback Textarea */}
+                <div>
+                  <textarea
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="Écrire un feedback pour l'étudiant..."
+                    className="w-full bg-[#262626] border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#e87c3e]"
+                    rows={3}
+                    disabled={!selectedVideo}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveFeedback}
+                    disabled={savingFeedback || !selectedVideo}
+                    className="flex-1 bg-[#e87c3e] hover:bg-[#d66d35] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {savingFeedback ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sauvegarde...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Envoyer le feedback
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="text-center text-gray-400 py-8">

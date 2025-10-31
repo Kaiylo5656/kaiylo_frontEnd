@@ -5,7 +5,7 @@ import { fr } from 'date-fns/locale';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import VideoDetailModal from './VideoDetailModal';
+import StudentVideoDetailModal from './StudentVideoDetailModal';
 import CoachResourceModal from './CoachResourceModal';
 
 const StudentVideoLibrary = () => {
@@ -29,7 +29,7 @@ const StudentVideoLibrary = () => {
   const [selectedCoachResource, setSelectedCoachResource] = useState(null);
   const [isCoachResourceModalOpen, setIsCoachResourceModalOpen] = useState(false);
 
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, refreshAuthToken } = useAuth();
 
   useEffect(() => {
     if (activeTab === 'mes-videos') {
@@ -43,7 +43,15 @@ const StudentVideoLibrary = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        console.warn('No auth token for student videos fetch; skipping.');
+        setMyVideos([]);
+        return;
+      }
       const response = await axios.get(
         buildApiUrl('/workout-sessions/student-videos'),
         { headers: { Authorization: `Bearer ${token}` } }
@@ -66,7 +74,16 @@ const StudentVideoLibrary = () => {
     setLoading(true);
     setError(null);
     try {
-      const token = getAuthToken();
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        console.warn('No auth token for coach resources fetch; skipping.');
+        setCoachResources([]);
+        setFolders([]);
+        return;
+      }
       const headers = { Authorization: `Bearer ${token}` };
       
       const [resourcesResponse, foldersResponse] = await Promise.all([
@@ -299,23 +316,46 @@ const StudentVideoLibrary = () => {
                   <div className="flex items-center gap-4">
                     {/* Video Thumbnail */}
                     <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                      <video 
-                        src={video.video_url}
-                        className="w-full h-full object-cover"
-                        preload="metadata"
-                        onLoadedMetadata={(e) => {
-                          const duration = e.target.duration;
-                          if (duration && !isNaN(duration)) {
-                            const minutes = Math.floor(duration / 60);
-                            const seconds = Math.floor(duration % 60);
-                            const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                            e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
-                          }
-                        }}
-                      />
-                      <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
-                        Loading...
-                      </div>
+                      {(() => {
+                        const getVideoSrc = () => {
+                          const url = video.video_url;
+                          if (url === null || url === undefined || url === '') return null;
+                          if (typeof url !== 'string') return null;
+                          const trimmed = url.trim();
+                          if (!trimmed || trimmed.length === 0) return null;
+                          return trimmed;
+                        };
+                        const videoSrc = getVideoSrc();
+                        
+                        return videoSrc ? (
+                          <>
+                            <video 
+                              src={videoSrc}
+                              className="w-full h-full object-cover"
+                              preload="metadata"
+                              onLoadedMetadata={(e) => {
+                                const duration = e.target.duration;
+                                if (duration && !isNaN(duration)) {
+                                  const minutes = Math.floor(duration / 60);
+                                  const seconds = Math.floor(duration % 60);
+                                  const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                  const durationDisplay = e.target.parentElement?.querySelector('.duration-display');
+                                  if (durationDisplay) {
+                                    durationDisplay.textContent = timeDisplay;
+                                  }
+                                }
+                              }}
+                            />
+                            <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
+                              Loading...
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                            <Video size={24} className="text-gray-500" />
+                          </div>
+                          );
+                      })()}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                         <PlayCircle size={24} className="text-white" />
                       </div>
@@ -412,11 +452,29 @@ const StudentVideoLibrary = () => {
                     <div className="flex items-center gap-4">
                       {/* Video Thumbnail */}
                       <div className="relative w-24 h-16 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                        <video 
-                          src={resource.fileUrl}
-                          className="w-full h-full object-cover"
-                          preload="metadata"
-                        />
+                        {(() => {
+                          const getResourceSrc = () => {
+                            const url = resource.fileUrl;
+                            if (url === null || url === undefined || url === '') return null;
+                            if (typeof url !== 'string') return null;
+                            const trimmed = url.trim();
+                            if (!trimmed || trimmed.length === 0) return null;
+                            return trimmed;
+                          };
+                          const resourceSrc = getResourceSrc();
+                          
+                          return resourceSrc ? (
+                            <video 
+                              src={resourceSrc}
+                              className="w-full h-full object-cover"
+                              preload="metadata"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                              <Video size={20} className="text-gray-500" />
+                            </div>
+                          );
+                        })()}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                           <PlayCircle size={20} className="text-white" />
                         </div>
@@ -466,7 +524,7 @@ const StudentVideoLibrary = () => {
       </div>
 
       {/* Modals */}
-      <VideoDetailModal 
+      <StudentVideoDetailModal 
         isOpen={isVideoDetailModalOpen}
         onClose={() => {
           setIsVideoDetailModalOpen(false);
@@ -474,8 +532,6 @@ const StudentVideoLibrary = () => {
         }}
         video={selectedVideo}
         onFeedbackUpdate={handleFeedbackUpdate}
-        videoType="student"
-        isCoachView={false}
       />
 
       <CoachResourceModal 

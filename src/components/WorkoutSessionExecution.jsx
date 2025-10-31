@@ -281,10 +281,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             total: localVideos.length,
             exerciseName: videoData.exerciseInfo.exerciseName
           });
-          // Skip uploads explicitly marked as no-video
-          if (videoData.file === 'no-video') {
-            continue;
-          }
           // Compute setNumber/setIndex with guaranteed fallback
           let setNumber = 1;
           let setIndex = 0;
@@ -303,14 +299,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           } else if (typeof videoData.setIndex === 'number') {
             setIndex = videoData.setIndex; setNumber = setIndex + 1;
           }
-          // Force setInfo to have both fields and overwrite for robust backend
-          const fullSetInfo = {
-            ...(videoData.setInfo || {}),
-            setIndex,
-            setNumber,
-          };
+          const fullSetInfo = { ...(videoData.setInfo || {}), setIndex, setNumber };
           const formData = new FormData();
-          formData.append('video', videoData.file);
+          if (videoData.file !== 'no-video') {
+            formData.append('video', videoData.file);
+          } else {
+            formData.append('noVideo', 'true');
+          }
           formData.append('exerciseInfo', JSON.stringify(videoData.exerciseInfo));
           formData.append('setInfo', JSON.stringify(fullSetInfo));
           formData.append('comment', videoData.comment || '');
