@@ -87,8 +87,8 @@ const useSocket = () => {
         timeout: 20000,
         pingTimeout: 60000,
         pingInterval: 25000,
-        // Transport configuration - start with polling, then upgrade to websocket
-        transports: ['polling'],
+        // Let Socket.IO choose the best transport (websocket first, then polling)
+        transports: ['websocket', 'polling'],
         upgrade: true, // Enable upgrade to WebSocket
         rememberUpgrade: false, // Don't remember upgrade to avoid issues
         // Force initial connection attempt
