@@ -202,11 +202,8 @@ const ChatPage = () => {
   return (
     <div className="h-full flex flex-col bg-background text-foreground">
       <div className="flex-1 flex overflow-hidden">
-        {/* Contact List */}
-        <div className={`
-          w-full md:w-80 lg:w-96 bg-card border-r border-border flex-col
-          ${selectedConversation ? 'hidden md:flex' : 'flex'}
-        `}>
+        {/* Contact List - Desktop: Always visible, fixed width */}
+        <div className="w-80 lg:w-96 bg-card border-r border-border flex flex-col flex-shrink-0">
           <ChatList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -217,11 +214,8 @@ const ChatPage = () => {
           />
         </div>
 
-        {/* Chat Window */}
-        <div className={`
-          flex-1 flex-col bg-background
-          ${selectedConversation ? 'flex' : 'hidden md:flex'}
-        `}>
+        {/* Chat Window - Desktop: Takes remaining space */}
+        <div className="flex-1 flex flex-col bg-background min-w-0">
           {selectedConversation ? (
             <ChatWindow
               conversation={selectedConversation}

@@ -29,14 +29,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const messageEndRef = useRef(null);
-  const messageStartRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
   const messagesContainerRef = useRef(null);
+  const processedMessageIdsRef = useRef(new Set()); // Persist processed message IDs across renders
 
-  const scrollToBottom = useCallback(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
 
   const fetchMessages = useCallback(async (cursor = null) => {
     if (!conversation?.id) return;
@@ -74,11 +71,29 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       const { messages: newMessages, nextCursor: newNextCursor } = data.data || { messages: [], nextCursor: null };
       
       if (cursor) {
-        // When loading more, append older messages to the end of the array
-        setMessages(prev => [...prev, ...newMessages]);
+        // When loading more, prepend older messages to the beginning of the array
+        // API returns messages in newest-to-oldest order (descending)
+        // We need to reverse them to oldest-to-newest before prepending
+        const reversedOlderMessages = [...newMessages].reverse();
+        setMessages(prev => [...reversedOlderMessages, ...prev]);
       } else {
         // Initial load
-        setMessages(newMessages);
+        // CRITICAL: API returns messages in newest-to-oldest order (descending)
+        // We need to reverse them to oldest-to-newest for proper display (oldest at top, newest at bottom)
+        const reversedMessages = [...newMessages].reverse();
+        setMessages(reversedMessages);
+        setIsInitialLoad(false); // Mark initial load as complete
+        
+        // CRITICAL: Scroll to bottom after initial load to show newest messages
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const container = messagesContainerRef.current;
+            if (container && newMessages.length > 0) {
+              container.scrollTop = container.scrollHeight;
+              console.log('✅ Scrolled to bottom after initial load');
+            }
+          });
+        });
       }
       
       setNextCursor(newNextCursor);
@@ -103,10 +118,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
   // Handle scroll events for infinite loading
   const handleScroll = useCallback((e) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.target;
-    // In a flex-col-reverse layout, the "top" is at the maximum scroll position.
-    // We load more when the user scrolls near the visual top of the message list.
-    const isAtTop = scrollHeight + scrollTop - clientHeight < 100;
+    const container = e.target;
+    let { scrollTop, scrollHeight, clientHeight } = container;
+    
+    // In a normal flex column layout:
+    // - scrollTop = 0 shows oldest messages (top)
+    // - scrollTop = max shows newest messages (bottom)
+    // We load more when the user scrolls near scrollTop = 0 (top, oldest messages)
+    const isAtTop = scrollTop < 100; // Near scrollTop = 0 means at top (oldest messages)
 
     if (isAtTop && hasMoreMessages && !loadingMore) {
       loadMoreMessages();
@@ -136,7 +155,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('✅ File uploaded successfully:', await response.json());
+      const responseData = await response.json();
+      console.log('✅ File uploaded successfully:', responseData);
+      
+      // Add the file message to the messages list if returned
+      if (responseData.data) {
+        setMessages(prev => [...prev, responseData.data]);
+      }
     } catch (error) {
       console.error('❌ File upload failed:', error);
       alert('Failed to upload file. Please try again.');
@@ -186,6 +211,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           replyTo: replyingTo ? { ...replyingTo } : null
         };
         
+        // Messages are in normal flex column - newest at bottom
+        // So we add optimistic message to END of array so it appears at bottom (newest position)
         setMessages(prev => [...prev, optimisticMessage]);
         
         if (onMessageSent) {
@@ -230,8 +257,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           onMessageSent(conversation.id, responseData.data);
         }
       }
-      
-      setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('❌ Error sending message:', error);
       alert(`Failed to send message: ${error.message}. Please try again.`);
@@ -242,60 +267,157 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }, [
     newMessage, sending, replyingTo, conversation?.id, 
     currentUser, isConnected, socket, sendSocketMessage, 
-    stopTyping, onMessageSent, getAuthToken, scrollToBottom
+    stopTyping, onMessageSent, getAuthToken
   ]);
 
   useEffect(() => {
-    if (conversation?.id) {
+    if (conversation?.id && socket && isConnected) {
       // Reset state when conversation changes
       setMessages([]);
       setNextCursor(null);
       setHasMoreMessages(true);
       setIsInitialLoad(true); // Reset initial load flag for the new conversation
       
+      // Clear processed message IDs when switching conversations
+      processedMessageIdsRef.current.clear();
+      
       fetchMessages(); // Initial load (no cursor)
       markMessagesAsRead(conversation.id);
       joinConversation(conversation.id);
+      
+      console.log('✅ Joined conversation room:', conversation.id);
     }
 
     return () => {
-      if (conversation?.id) {
+      if (conversation?.id && socket && isConnected) {
         leaveConversation(conversation.id);
+        console.log('✅ Left conversation room:', conversation.id);
       }
-    };
-  }, [conversation?.id, fetchMessages, markMessagesAsRead, joinConversation, leaveConversation]);
+    }; // Only re-run this effect if the conversation, socket, or connection status changes
+  }, [conversation?.id, socket, isConnected]);
 
   useEffect(() => {
     if (socket) {
       const handleNewMessage = (messageData) => {
         const receiveTime = Date.now();
-        console.log('🔌 Received new message via WebSocket:', messageData);
+        console.log('🔌 [WS IN] new_message received:', messageData);
+        console.log('🔌 Message details:', {
+          id: messageData.id,
+          content: messageData.content,
+          conversationId: messageData.conversationId || messageData.conversation_id,
+          senderId: messageData.sender_id,
+          currentConversationId: conversation?.id
+        });
         
-        // Check if message already exists to prevent duplicates
+        // CRITICAL FIX: Only process messages for the current conversation
+        // This ensures real-time messages only appear in the correct chat window
+        const receivedConversationId = messageData.conversationId || messageData.conversation_id;
+        if (!conversation?.id || receivedConversationId !== conversation.id) {
+          console.log('🔌 Ignoring message - not for current conversation:', {
+            receivedConversationId,
+            currentConversationId: conversation?.id,
+            messageId: messageData.id
+          });
+          return; // Exit early - message is for a different conversation
+        }
+        
+        // CRITICAL FIX: Prevent race conditions from multiple WebSocket events
+        // Use ref to persist across renders
+        if (processedMessageIdsRef.current.has(messageData.id)) {
+          console.log('🔌 Message already being processed, skipping duplicate event:', messageData.id);
+          return;
+        }
+        processedMessageIdsRef.current.add(messageData.id);
+        
+        // Clean up processed IDs after 5 seconds to prevent memory leaks
+        setTimeout(() => {
+          processedMessageIdsRef.current.delete(messageData.id);
+        }, 5000);
+        
+        console.log('✅ Message is for current conversation, processing...');
+        
+        // CRITICAL: Use functional update to get the latest state
+        // This ensures we always work with the most recent messages array
         setMessages(prev => {
+          // Create a new array reference to ensure React detects the change
+          const currentMessages = [...prev];
+          const prevLength = currentMessages.length;
+          console.log('🔌 Current messages array length:', prevLength);
+          console.log('🔌 Checking for existing message with ID:', messageData.id);
+          
           // Check for exact ID match first
-          const exactMatch = prev.find(msg => msg.id === messageData.id);
-          if (exactMatch) {
-            console.log('🔌 Message with exact ID already exists, skipping duplicate');
-            return prev;
+          const exactMatch = currentMessages.findIndex(msg => msg.id === messageData.id);
+          if (exactMatch !== -1) {
+            console.log('🔌 Message with exact ID already exists at index:', exactMatch, 'skipping duplicate');
+            // Remove from processed set since we didn't actually process it
+            processedMessageIdsRef.current.delete(messageData.id);
+            // Return the same array reference for duplicates to prevent unnecessary re-renders
+            return prev; // Return prev to prevent unnecessary re-render
           }
           
           // Check for temporary message that should be replaced
-          const tempMessageIndex = prev.findIndex(msg => 
+          // Temp messages are at the END of array (newest position)
+          const tempMessageIndex = currentMessages.findIndex(msg => 
             msg.id?.startsWith('temp_') && 
             msg.content === messageData.content && 
-            msg.sender_id === messageData.sender_id
+            msg.sender_id === messageData.sender_id &&
+            (msg.conversationId === conversation.id || msg.conversation_id === conversation.id)
           );
           
           if (tempMessageIndex !== -1) {
-            console.log('🔌 Replacing temporary message with real message');
-            const newMessages = [...prev];
-            newMessages[tempMessageIndex] = messageData;
+            console.log('🔌 Found temp message to replace at index:', tempMessageIndex);
+            
+            // Create a new array with the replacement
+            const newMessages = [...currentMessages];
+            newMessages[tempMessageIndex] = {
+              ...messageData,
+              conversationId: messageData.conversationId || messageData.conversation_id || conversation.id
+            };
+            
+            console.log('✅ Message replaced successfully, new message ID:', messageData.id);
+            
             return newMessages;
           }
           
-          // Add new message to the beginning of the array so it appears at the bottom
-          return [messageData, ...prev];
+          // Add new message to the END of the array (so it appears at bottom)
+          console.log('🔌 No temp message found, adding new message to end of array');
+          
+          // Create a properly structured message object
+          const newMessageObj = {
+            ...messageData,
+            conversationId: messageData.conversationId || messageData.conversation_id || conversation.id,
+            id: messageData.id,
+            content: messageData.content,
+            sender_id: messageData.sender_id,
+            message_type: messageData.message_type || 'text',
+            created_at: messageData.created_at || new Date().toISOString(),
+            sender: messageData.sender || { id: messageData.sender_id }
+          };
+          
+          const newMessages = [...currentMessages, newMessageObj];
+          console.log('✅ New message added, total messages:', newMessages.length);
+          
+          return newMessages;
+        });
+        
+        // CRITICAL: Scroll to newest message after state update
+        // Use multiple requestAnimationFrame calls to ensure DOM is updated after React re-render
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // First try to scroll to the message element directly
+            const messageElement = messageRefs.current[messageData.id];
+            if (messageElement) {
+              messageElement.scrollIntoView({ behavior: 'auto', block: 'end' });
+              console.log('✅ Scrolled to message element using scrollIntoView');
+            } else {
+              // Fallback: scroll container to bottom (scrollTop = max shows newest messages)
+              const container = messagesContainerRef.current;
+              if (container) {
+                container.scrollTop = container.scrollHeight;
+                console.log('✅ Scrolled container to bottom (scrollTop=max)');
+              }
+            }
+          });
         });
         
         // Notify parent component
@@ -337,7 +459,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         console.log('🔌 Messages marked as read by:', data);
       };
 
-      // Register event listeners
+      // Register event listeners - ensure we only register once
+      // Remove any existing listeners first to prevent duplicates
+      socket.off('new_message', handleNewMessage);
+      socket.off('user_typing', handleUserTyping);
+      socket.off('user_joined', handleUserJoined);
+      socket.off('user_left', handleUserLeft);
+      socket.off('messages_read', handleMessagesRead);
+      
+      // Now register the listeners
       socket.on('new_message', handleNewMessage);
       socket.on('user_typing', handleUserTyping);
       socket.on('user_joined', handleUserJoined);
@@ -354,31 +484,23 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
   }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
 
-  // Scroll to bottom only when new messages arrive (not when loading more or on initial load)
+  // Scroll to bottom when new messages arrive (not when loading more or on initial load)
+  // NOTE: This only handles length changes. Real-time messages handle their own scrolling in handleNewMessage
   useEffect(() => {
-    if (!isInitialLoad && !loadingMore && !loading) {
-      // Only scroll to bottom if we're near the bottom (within 100px)
-      const container = messagesContainerRef.current;
-      if (container) {
-        // In flex-col-reverse, scrollTop near 0 means we are at the bottom.
-        if (container.scrollTop < 100) {
-          scrollToBottom();
+    if (!isInitialLoad && !loadingMore && !loading && messages.length > 0) {
+      requestAnimationFrame(() => {
+        const container = messagesContainerRef.current;
+        if (container) {
+          // Only scroll if user is near bottom (within 100px) to avoid interrupting scroll up
+          const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+          if (isNearBottom) {
+            container.scrollTop = container.scrollHeight;
+          }
         }
-      }
+      });
     }
-  }, [messages.length, scrollToBottom, isInitialLoad, loadingMore, loading]);
+  }, [messages.length, isInitialLoad, loadingMore, loading]);
 
-  // Scroll to bottom after initial load completes
-  useEffect(() => {
-    if (!loading && !isInitialLoad) {
-      // After the very first fetch, scroll to the bottom (which is scrollTop = 0).
-      setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = 0;
-        }
-      }, 50);
-    }
-  }, [loading, isInitialLoad]);
 
   // Handle typing indicators
   const handleInputChange = (e) => {
@@ -498,7 +620,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }
 
   return (
-    <div className="h-full flex flex-col bg-background md:h-full h-[calc(100vh-4rem)]">
+    <div className="flex flex-col bg-background h-full md:h-full">
       {/* Chat Header */}
       <div className="p-4 border-b border-border bg-card flex-shrink-0">
         <div className="flex items-center space-x-3">
@@ -539,10 +661,33 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
-        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background flex flex-col-reverse"
+        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background"
         onScroll={handleScroll}
+        style={{ 
+          scrollBehavior: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
       >
-        {/* The ref is now at the top for loading more, but visually it's the end of the list */}
+        {/* Load more messages indicator/button at the TOP (where older messages load) */}
+        {loadingMore && (
+          <div className="text-center text-muted-foreground py-2">
+            <div className="text-sm">Loading more messages...</div>
+          </div>
+        )}
+        
+        {!loadingMore && hasMoreMessages && messages.length > 0 && (
+          <div className="text-center py-2">
+            <button
+              onClick={loadMoreMessages}
+              className="text-sm text-primary hover:text-primary/80 underline"
+            >
+              Load older messages
+            </button>
+          </div>
+        )}
+
+        {/* The ref is at the top for loading more messages when scrolling up */}
         <div ref={messageEndRef} />
 
         {/* Typing Indicators */}
@@ -575,12 +720,40 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             <div className="text-xs mt-1">Start the conversation!</div>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.map((message, index) => {
+            // Debug logging for message rendering
+            if (message.id?.startsWith('temp_')) {
+              console.log('🔍 Rendering temp message:', message.id, 'at index:', index);
+            }
+            
+            // Log all message IDs being rendered for debugging
+            if (index === messages.length - 1 || index === messages.length - 2) {
+              console.log('🔍 Rendering message at index:', index, 'ID:', message.id, 'Content:', message.content?.substring(0, 20), 'Sender:', message.sender_id, 'IsOwn:', message.sender_id === currentUser?.id);
+            }
+            
+            // CRITICAL DEBUG: Check if message is valid before rendering
+            if (!message || !message.id || !message.content) {
+              console.error('❌ Invalid message at index:', index, message);
+              return null;
+            }
+            
+            return (
             <div
               key={message.id}
+              data-message-id={message.id}
               ref={(el) => {
                 if (el) {
                   messageRefs.current[message.id] = el;
+                  // Debug: Log when message element is actually in DOM
+                  if (index === messages.length - 1) {
+                    console.log('🔍 Last message element mounted in DOM:', {
+                      messageId: message.id,
+                      content: message.content?.substring(0, 20),
+                      isVisible: el.offsetParent !== null,
+                      offsetHeight: el.offsetHeight,
+                      offsetTop: el.offsetTop
+                    });
+                  }
                 }
               }}
               className={`message-container flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} ${
@@ -637,25 +810,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 )}
               </div>
             </div>
-          ))
-        )}
-        
-        {/* Load more messages button/indicator is now at the bottom of the container, which is visually the top */}
-        {loadingMore && (
-          <div className="text-center text-muted-foreground py-2">
-            <div className="text-sm">Loading more messages...</div>
-          </div>
-        )}
-        
-        {!loadingMore && hasMoreMessages && messages.length > 0 && (
-          <div className="text-center py-2">
-            <button
-              onClick={loadMoreMessages}
-              className="text-sm text-primary hover:text-primary/80 underline"
-            >
-              Load older messages
-            </button>
-          </div>
+            );
+          })
         )}
       </div>
 

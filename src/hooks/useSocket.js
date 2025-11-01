@@ -119,6 +119,11 @@ const useSocket = () => {
         setIsConnected(true);
         setConnectionError(null);
         
+        // DEBUG: Log all incoming socket events
+        newSocket.onAny((event, ...args) => {
+          console.log('[WS IN]', event, args);
+        });
+        
         // After successful connection, try to upgrade to WebSocket
         newSocket.io.engine.on('upgrade', () => {
           console.log('✅ Transport upgraded to:', newSocket.io.engine.transport.name);

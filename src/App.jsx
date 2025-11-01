@@ -15,6 +15,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
 import CoachProgressDashboard from './pages/CoachProgressDashboard';
 import ChatPage from './pages/ChatPage';
+import StudentChatPage from './pages/StudentChatPage';
 import VideoLibrary from './pages/VideoLibrary';
 import StudentVideoLibrary from './pages/StudentVideoLibrary';
 import FinancialTracking from './pages/FinancialTracking';
@@ -22,7 +23,7 @@ import FinancialTracking from './pages/FinancialTracking';
 import './App.css';
 
 // Protected Route Component
-const ProtectedRoute = ({ children, allowedRoles = [] }) => {
+const ProtectedRoute = ({ children, allowedRoles = [], excludeLayout = false }) => {
   try {
     const { user, loading } = useAuth();
 
@@ -48,6 +49,11 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
       }
     }
 
+    // Skip MainLayout if excludeLayout is true (for full-screen mobile pages like StudentChatPage)
+    if (excludeLayout) {
+      return children;
+    }
+
     return (
       <MainLayout>
         {children}
@@ -58,6 +64,36 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     console.error('AuthProvider not available:', error);
     return <LoadingSpinner />;
   }
+};
+
+// Chat Route Component - conditionally renders StudentChatPage or ChatPage based on user role
+const ChatRouteWrapper = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check if user has permission
+  if (!['coach', 'student'].includes(user.role)) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Render StudentChatPage for students (full-screen mobile, no MainLayout)
+  if (user.role === 'student') {
+    return <StudentChatPage />;
+  }
+
+  // Default to ChatPage for coaches (with MainLayout)
+  return (
+    <MainLayout>
+      <ChatPage />
+    </MainLayout>
+  );
 };
 
 // Main App Component
@@ -194,12 +230,12 @@ function App() {
               } 
             />
             
-            {/* Chat Route */}
+            {/* Chat Route - Conditionally renders StudentChatPage for students, ChatPage for coaches */}
             <Route 
               path="/chat" 
               element={
-                <ProtectedRoute allowedRoles={['coach', 'student']}>
-                  <ChatPage />
+                <ProtectedRoute allowedRoles={['coach', 'student']} excludeLayout={true}>
+                  <ChatRouteWrapper />
                 </ProtectedRoute>
               } 
             />
