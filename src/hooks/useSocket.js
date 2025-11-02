@@ -8,6 +8,7 @@ const useSocket = () => {
   const { getAuthToken, user } = useAuth();
   const socketRef = useRef(null);
   const initializingRef = useRef(false);
+  const reinitializeTimeoutRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
 
@@ -87,10 +88,10 @@ const useSocket = () => {
         timeout: 20000,
         pingTimeout: 60000,
         pingInterval: 25000,
-        // Let Socket.IO choose the best transport (websocket first, then polling)
-        transports: ['websocket', 'polling'],
-        upgrade: true, // Enable upgrade to WebSocket
-        rememberUpgrade: false, // Don't remember upgrade to avoid issues
+        // Use polling only to avoid WebSocket CORS issues - polling works perfectly for real-time chat
+        transports: ['polling'], // Polling only - reliable and avoids CORS WebSocket errors
+        upgrade: false, // Disable automatic upgrade to prevent WebSocket connection errors
+        rememberUpgrade: false, // Don't remember upgrades
         // Force initial connection attempt
         forceNew: true,
         // Add some debugging
@@ -124,10 +125,10 @@ const useSocket = () => {
           console.log('[WS IN]', event, args);
         });
         
-        // After successful connection, try to upgrade to WebSocket
-        newSocket.io.engine.on('upgrade', () => {
-          console.log('✅ Transport upgraded to:', newSocket.io.engine.transport.name);
-        });
+        // Upgrade event listener (disabled but kept for debugging if re-enabled)
+        // newSocket.io.engine.on('upgrade', () => {
+        //   console.log('✅ Transport upgraded to:', newSocket.io.engine.transport.name);
+        // });
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -156,15 +157,15 @@ const useSocket = () => {
           console.error('❌ Authentication failed - token might be invalid or expired');
           setConnectionError(`Authentication failed: ${error.message}`);
         } else if (error.message.includes('WebSocket is closed before the connection is established')) {
-          console.log('⚠️ WebSocket connection closed early - this is often a transport issue');
-          console.log('🔄 Will attempt reconnection with different transport...');
-          // Don't set connection error for this specific case, let reconnection handle it
+          console.log('⚠️ WebSocket connection closed early - Socket.IO will fallback to polling');
+          // Socket.IO will automatically fallback to polling, don't trigger re-initialization
+          // Just log and let the reconnection logic handle it
         } else {
           // For other errors, just log them but don't set connection error
           // Let the reconnection logic handle it
           console.log('⚠️ Connection error (will attempt reconnection):', error.message);
         }
-        setIsConnected(false);
+        // Don't set isConnected to false here - let reconnection handle it
       });
 
       newSocket.on('reconnect', (attemptNumber) => {
@@ -188,9 +189,10 @@ const useSocket = () => {
             console.log('🔄 Creating fallback socket connection...');
             const fallbackSocket = io(socketUrl, {
               auth: { token },
-              transports: ['websocket'], // Try websocket only
+              transports: ['polling'], // Use polling as fallback (more reliable)
               timeout: 10000,
-              reconnection: false, // Disable auto-reconnection for fallback
+              reconnection: true, // Enable reconnection for fallback
+              reconnectionAttempts: 3,
               forceNew: true
             });
             
@@ -255,11 +257,41 @@ const useSocket = () => {
 
   // Effect for initializing and tearing down the socket based on user auth
   useEffect(() => {
-    if (user) {
-      console.log('🔌 User authenticated, initializing socket...');
-      initializeSocket();
-    } else {
-      // User logged out, clean up socket
+    // Clear any pending re-initialization timeouts
+    if (reinitializeTimeoutRef.current) {
+      clearTimeout(reinitializeTimeoutRef.current);
+      reinitializeTimeoutRef.current = null;
+    }
+
+    const handleConnectionChange = () => {
+      // Clear any existing timeout first
+      if (reinitializeTimeoutRef.current) {
+        clearTimeout(reinitializeTimeoutRef.current);
+      }
+
+      // Add a delay to prevent rapid re-initializations
+      reinitializeTimeoutRef.current = setTimeout(() => {
+        // Double-check we're not already initializing or connected
+        if (initializingRef.current) {
+          console.log('🔌 Initialization already in progress, skipping...');
+          return;
+        }
+
+        if (user) {
+          // Only re-initialize if socket is truly disconnected (not connecting either)
+          const socket = socketRef.current;
+          if (!socket || (!socket.connected && !socket.connecting)) {
+            console.log('🔌 Socket not connected, re-initializing...');
+            initializeSocket();
+          } else {
+            console.log('🔌 Socket is already connected or connecting, skipping re-initialization');
+          }
+        }
+      }, 500); // Increased delay to prevent loops
+    };
+
+    if (!user) {
+       // User logged out, clean up socket immediately
       if (socketRef.current) {
         console.log('🔌 User logged out, cleaning up socket...');
         socketRef.current.removeAllListeners();
@@ -268,45 +300,31 @@ const useSocket = () => {
         setIsConnected(false);
         setConnectionError(null);
       }
+    } else {
+      // User is present, initialize socket once (don't call handleConnectionChange immediately)
+      // Only initialize if socket doesn't exist or is disconnected
+      if (!socketRef.current || (!socketRef.current.connected && !socketRef.current.connecting && !initializingRef.current)) {
+        console.log('🔌 User authenticated, initializing socket...');
+        initializeSocket();
+      }
+      
+      // Listen for network changes (will handle reconnection if needed)
+      connectionManager.initialize(); // Initialize manager
+      connectionManager.addListener(handleConnectionChange);
     }
 
     // Cleanup on unmount
     return () => {
+      if (reinitializeTimeoutRef.current) {
+        clearTimeout(reinitializeTimeoutRef.current);
+        reinitializeTimeoutRef.current = null;
+      }
       if (socketRef.current) {
         console.log('🔌 Disconnecting WebSocket on component unmount...');
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-    };
-  }, [user, initializeSocket]);
-
-  // Effect for handling network connection changes
-  useEffect(() => {
-    const handleConnectionChange = () => {
-      // Add a small delay to prevent rapid re-initializations
-      setTimeout(() => {
-        console.log('🔄 Network connection changed, checking socket status...');
-        
-        if (!user) {
-          console.log('🔌 No user, skipping socket re-initialization.');
-          return;
-        }
-
-        // Only re-initialize if socket is not connected or has an error
-        if (!socketRef.current || (!socketRef.current.connected && !socketRef.current.connecting)) {
-          console.log('🔌 Socket not connected, re-initializing...');
-          initializeSocket();
-        } else {
-          console.log('🔌 Socket is already connected or connecting, skipping re-initialization');
-        }
-      }, 250); // Increased delay to allow for stabilization
-    };
-    
-    connectionManager.initialize(); // Initialize manager
-    connectionManager.addListener(handleConnectionChange);
-
-    return () => {
       connectionManager.removeListener(handleConnectionChange);
     };
   }, [user, initializeSocket]);
