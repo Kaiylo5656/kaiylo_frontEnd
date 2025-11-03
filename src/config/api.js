@@ -55,20 +55,30 @@ const testApiConnectivity = async (url) => {
 
 // Auto-detect working API URL with fallbacks
 export const getWorkingApiUrl = async () => {
+  // In production, prioritize VITE_API_URL if set
+  if (!import.meta.env.DEV && import.meta.env.VITE_API_URL) {
+    console.log('🔧 Using VITE_API_URL in production:', import.meta.env.VITE_API_URL);
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // In development or if VITE_API_URL not set, try auto-detection
   const possibleUrls = [
+    // First try VITE_API_URL if available
+    ...(import.meta.env.VITE_API_URL ? [import.meta.env.VITE_API_URL] : []),
     // Current hostname (most likely to work)
     `http://${window.location.hostname}:3001`,
-    // Common localhost alternatives
-    'http://localhost:3001',
-    'http://127.0.0.1:3001',
-    // Common network ranges (if hostname doesn't work)
-    'http://192.168.1.100:3001',
-    'http://192.168.0.100:3001',
-    'http://10.0.0.100:3001'
+    // Common localhost alternatives (only in dev)
+    ...(import.meta.env.DEV ? ['http://localhost:3001', 'http://127.0.0.1:3001'] : []),
+    // Common network ranges (only in dev)
+    ...(import.meta.env.DEV ? [
+      'http://192.168.1.100:3001',
+      'http://192.168.0.100:3001',
+      'http://10.0.0.100:3001'
+    ] : [])
   ];
   
-  // Remove duplicates
-  const uniqueUrls = [...new Set(possibleUrls)];
+  // Remove duplicates and empty values
+  const uniqueUrls = [...new Set(possibleUrls.filter(url => url))];
   
   for (const url of uniqueUrls) {
     const isWorking = await testApiConnectivity(url);
@@ -79,7 +89,11 @@ export const getWorkingApiUrl = async () => {
   }
   
   console.log('❌ No working API URL found, using fallback');
-  return uniqueUrls[0]; // Return the first one as fallback
+  // In production, return VITE_API_URL if set, otherwise return empty string
+  if (!import.meta.env.DEV && import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  return uniqueUrls[0] || ''; // Return the first one as fallback, or empty string
 };
 
 const getSocketUrl = () => {
@@ -101,8 +115,8 @@ const getSocketUrl = () => {
     return 'http://localhost:3001';
   }
   
-  // Production mode - use environment variable or default
-  return import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+  // Production mode - use environment variable, don't fallback to localhost
+  return import.meta.env.VITE_SOCKET_URL || '';
 };
 
 // Don't export static values - they need to be called dynamically
@@ -150,6 +164,19 @@ class ConnectionManager {
   // Detect and set working URLs
   async detectAndSetUrls() {
     try {
+      // In production with VITE_API_URL set, use it directly without auto-detection
+      if (!import.meta.env.DEV && import.meta.env.VITE_API_URL) {
+        const envApiUrl = import.meta.env.VITE_API_URL;
+        if (envApiUrl !== this.currentApiUrl) {
+          this.currentApiUrl = envApiUrl;
+          this.currentSocketUrl = import.meta.env.VITE_SOCKET_URL || envApiUrl;
+          console.log('✅ Using production API URL from environment:', this.currentApiUrl);
+          this.notifyListeners();
+        }
+        return;
+      }
+
+      // Only run auto-detection in development
       const newApiUrl = await getWorkingApiUrl();
       // Only update and notify if the URL has changed
       if (newApiUrl !== this.currentApiUrl) {
