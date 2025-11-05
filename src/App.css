@@ -695,6 +695,40 @@ input[type="number"] {
   background: #d66d35;
 }
 
+/* Modal scrollable body - always visible scrollbar */
+.modal-scrollable-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+}
+
+.modal-scrollable-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-scrollable-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+
+.modal-scrollable-body::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+.modal-scrollable-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (min-width: 768px) {
+  .modal-scrollable-body::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.25);
+  }
+  
+  .modal-scrollable-body::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+  }
+}
+
 /* Sidebar integrated styles */
 .workout-sidebar-integrated {
   width: 320px;
@@ -818,4 +852,32 @@ input[type="number"] {
 * {
   scrollbar-width: thin;
   scrollbar-color: #404040 #1a1a1a;
+}
+
+/* Register page scrollbar - always visible */
+html {
+  overflow-y: scroll;
+}
+
+.register-page-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+}
+
+.register-page-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.register-page-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.register-page-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.register-page-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }

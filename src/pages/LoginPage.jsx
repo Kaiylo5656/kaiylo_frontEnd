@@ -10,7 +10,19 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   const onSubmit = async (data) => {
-    await login(data.email, data.password, navigate);
+    try {
+      const result = await login(data.email, data.password, navigate);
+      if (!result.success) {
+        console.error('Login failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Login exception:', error);
+      // S'assurer que loading est remis à false même en cas d'exception
+      if (loading) {
+        // Le loading devrait être géré par le contexte, mais on peut forcer ici si nécessaire
+        console.warn('Forcing loading to false due to exception');
+      }
+    }
   };
 
   return (

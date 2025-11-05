@@ -14,7 +14,8 @@ const BaseModal = ({
   closeOnBackdrop = true,
   className = '',
   size = 'md',
-  noPadding = false
+  noPadding = false,
+  footer
 }) => {
   const { isTopMost } = useRegisterModal(modalId);
   const modalRef = useRef(null);
@@ -63,6 +64,16 @@ const BaseModal = ({
     }
   }, [isOpen, handleKeyDown]);
 
+  // Lock body scroll when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isOpen]);
+
   // Handle backdrop click
   const handleBackdropClick = useCallback((e) => {
     if (e.target === e.currentTarget && isTopMost && closeOnBackdrop) {
@@ -70,7 +81,9 @@ const BaseModal = ({
     }
   }, [isTopMost, closeOnBackdrop, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -83,23 +96,23 @@ const BaseModal = ({
   return (
     <ModalPortal zIndex={zIndex}>
       <div
-        className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 ${
-          isTopMost ? 'bg-opacity-60' : 'bg-opacity-40'
-        }`}
+        className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
         onClick={handleBackdropClick}
-        style={{ pointerEvents: isTopMost ? 'auto' : 'none' }}
+        style={{ zIndex: zIndex }}
       >
         <div
           ref={modalRef}
-          className={`bg-[#121212] rounded-lg border border-white/10 shadow-2xl w-full ${sizeClasses[size]} ${className}`}
+          className={`relative mx-auto w-full ${sizeClasses[size]} max-h-[92vh] overflow-hidden rounded-2xl border border-white/10 bg-[#121212]/95 shadow-2xl flex flex-col ${className}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? `${modalId}-title` : undefined}
-          onClick={(e) => e.stopPropagation()}
-          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
         >
+          {/* Header */}
           {title && (
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <div className="shrink-0 px-6 pt-5 pb-3 border-b border-white/10 flex items-center justify-between">
               <h2 id={`${modalId}-title`} className="text-xl font-semibold text-white">
                 {title}
               </h2>
@@ -112,11 +125,38 @@ const BaseModal = ({
               </button>
             </div>
           )}
-          {noPadding ? (
-            children
-          ) : (
-            <div className="p-6">
-              {children}
+
+          {/* Scrollable Body */}
+          <div
+            className={`flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body ${
+              noPadding ? '' : 'px-6 py-5 space-y-5'
+            } ${footer ? 'pb-4' : ''}`}
+            style={{ 
+              scrollbarGutter: 'stable',
+              WebkitOverflowScrolling: 'touch',
+              maxHeight: title && footer 
+                ? 'calc(92vh - 73px - 80px)' 
+                : title 
+                  ? 'calc(92vh - 73px)' 
+                  : footer 
+                    ? 'calc(92vh - 80px)' 
+                    : '92vh',
+              height: title && footer 
+                ? 'calc(92vh - 73px - 80px)' 
+                : title 
+                  ? 'calc(92vh - 73px)' 
+                  : footer 
+                    ? 'calc(92vh - 80px)' 
+                    : '92vh'
+            }}
+          >
+            {children}
+          </div>
+
+          {/* Footer */}
+          {footer && (
+            <div className="shrink-0 px-6 py-4 border-t border-white/10 bg-[#0f0f10]/95 backdrop-blur pb-[max(0px,env(safe-area-inset-bottom))]">
+              {footer}
             </div>
           )}
         </div>
