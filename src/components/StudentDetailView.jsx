@@ -1043,14 +1043,56 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         }
       });
 
-      // SECURITY FIX: Removed draft sessions fetch to prevent data leak
-      // The previous code was fetching ALL draft sessions created by the current user,
-      // regardless of which student they were for. This caused a serious data leak where
-      // coaches could see sessions for students they don't have access to.
-      // 
-      // Draft sessions should only be shown if they are assigned to the specific student
-      // through the assignments endpoint, which properly filters by coach-student relationship.
-      console.log('🔒 Draft sessions fetch removed to prevent data leak');
+      // Fetch draft sessions for this specific student (security: only for this student)
+      // Draft sessions don't have assignments, so we need to fetch them separately
+      try {
+        const draftResponse = await axios.get(
+          `${getApiBaseUrlWithApi()}/workout-sessions`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { 
+              student_id: student.id,
+              status: 'draft'
+            }
+          }
+        );
+
+        if (draftResponse.data?.sessions) {
+          draftResponse.data.sessions.forEach(session => {
+            if (session.status === 'draft' && session.student_id === student.id && session.scheduled_date) {
+              const dateKey = format(parseISO(session.scheduled_date), 'yyyy-MM-dd');
+              
+              // Initialize array for this date if it doesn't exist
+              if (!sessionsMap[dateKey]) {
+                sessionsMap[dateKey] = [];
+              }
+              
+              // Check if this draft session already exists (to avoid duplicates)
+              const exists = sessionsMap[dateKey].some(
+                s => s.workoutSessionId === session.id || s.id === session.id
+              );
+              
+              if (!exists) {
+                const sessionData = {
+                  id: session.id,
+                  workoutSessionId: session.id,
+                  title: session.title,
+                  description: session.general_objective || '',
+                  exercises: session.exercises || [],
+                  status: 'draft',
+                  scheduled_date: session.scheduled_date
+                };
+                
+                sessionsMap[dateKey].push(sessionData);
+              }
+            }
+          });
+          console.log('✅ Draft sessions fetched and added to map');
+        }
+      } catch (draftError) {
+        console.warn('⚠️ Could not fetch draft sessions (this is OK if none exist):', draftError.message);
+        // Don't fail the whole function if draft fetch fails
+      }
       
       console.log('Processed sessions map:', sessionsMap);
       setWorkoutSessions(sessionsMap);

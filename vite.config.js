@@ -4,8 +4,39 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
+export default defineConfig(({ mode }) => {
+  // Get Vercel environment variables at build time
+  // Vercel exposes these automatically during build
+  const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA || 
+                       process.env.VITE_VERCEL_GIT_COMMIT_SHA || 
+                       '';
+  const vercelEnv = process.env.VERCEL_ENV || 
+                    process.env.VITE_VERCEL_ENV || 
+                    mode;
+  const vercelUrl = process.env.VERCEL_URL || 
+                    process.env.VITE_VERCEL_URL || 
+                    '';
+  const buildTime = new Date().toISOString();
+
+  // Log for debugging (only in non-production)
+  if (mode !== 'production') {
+    console.log('🔧 Build info:', {
+      commit: vercelCommit || 'not found',
+      env: vercelEnv,
+      url: vercelUrl || 'not found',
+      buildTime
+    });
+  }
+
+  return {
+    define: {
+      // Inject build-time variables (these will be replaced at build time)
+      __BUILD_TIME__: JSON.stringify(buildTime),
+      __VERCEL_COMMIT__: JSON.stringify(vercelCommit),
+      __VERCEL_ENV__: JSON.stringify(vercelEnv),
+      __VERCEL_URL__: JSON.stringify(vercelUrl),
+    },
+    plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -103,5 +134,8 @@ export default defineConfig({
         secure: false,
       }
     }
-  }
+  },
+    // Expose Vercel environment variables to client
+    envPrefix: ['VITE_', 'VERCEL_']
+  };
 })
