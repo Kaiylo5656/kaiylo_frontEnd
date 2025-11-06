@@ -395,8 +395,8 @@ const ExerciseManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="p-6">
+    <div className="h-full bg-background text-foreground flex flex-col">
+      <div className="flex-shrink-0 p-6 pb-4">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Exercices</h1>
@@ -499,11 +499,13 @@ const ExerciseManagement = () => {
             </div>
           </div>
         )}
+      </div>
 
-        {/* Exercise List */}
-        <div className="bg-card rounded-lg border border-border">
+      {/* Exercise List Container - Scrollable */}
+      <div className="flex-1 min-h-0 px-6 pb-6">
+        <div className="bg-card rounded-lg border border-border flex flex-col overflow-hidden h-full">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-border">
+          <div className="px-6 py-4 border-b border-border shrink-0">
             <div className="flex items-center">
               <div className="flex items-center space-x-4 flex-1">
                 {/* Select All Checkbox */}
@@ -545,8 +547,8 @@ const ExerciseManagement = () => {
             </div>
           </div>
 
-          {/* Exercise List */}
-          <div className="divide-y divide-border">
+          {/* Exercise List - Scrollable */}
+          <div className="divide-y divide-border overflow-y-auto flex-1 min-h-0">
             {filteredExercises.length === 0 && !loading ? (
               <div className="px-6 py-8 text-center text-muted-foreground">
                 No exercises found. Create your first exercise to get started!
@@ -646,31 +648,31 @@ const ExerciseManagement = () => {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Add Exercise Modal */}
-        <AddExerciseModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          onExerciseCreated={handleSubmit}
-          editingExercise={editingExercise}
-          onExerciseUpdated={handleUpdate}
-        />
+      {/* Add Exercise Modal */}
+      <AddExerciseModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onExerciseCreated={handleSubmit}
+        editingExercise={editingExercise}
+        onExerciseUpdated={handleUpdate}
+      />
 
-        {/* Exercise Detail Modal */}
-        <ExerciseDetailModal
-          isOpen={showDetailModal}
-          onClose={handleDetailModalClose}
-          exerciseId={selectedExerciseId}
-        />
+      {/* Exercise Detail Modal */}
+      <ExerciseDetailModal
+        isOpen={showDetailModal}
+        onClose={handleDetailModalClose}
+        exerciseId={selectedExerciseId}
+      />
 
-        {/* Accessibility announcement for sort changes */}
-        <div 
-          aria-live="polite" 
-          aria-atomic="true" 
-          className="sr-only"
-        >
-          {sortAnnouncement}
-        </div>
+      {/* Accessibility announcement for sort changes */}
+      <div 
+        aria-live="polite" 
+        aria-atomic="true" 
+        className="sr-only"
+      >
+        {sortAnnouncement}
       </div>
     </div>
   );
