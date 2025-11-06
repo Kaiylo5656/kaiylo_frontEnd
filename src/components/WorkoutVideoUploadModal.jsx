@@ -85,8 +85,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="dialog-content bg-[#121212] border-[#262626] max-w-md">
-        <DialogHeader className="workout-modal-header">
+      <DialogContent className="dialog-content bg-[#121212] border-[#262626] max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="workout-modal-header shrink-0">
           <DialogTitle className="text-[#e87c3e] text-lg font-medium text-center">
             Ajouter une vidéo
           </DialogTitle>
@@ -95,7 +95,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-4 py-6 space-y-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-6">
           {/* Video Source Selection */}
           <div className="flex gap-4">
             <button
@@ -188,8 +189,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="workout-modal-footer">
+        {/* Action Buttons - Fixed at bottom */}
+        <div className="workout-modal-footer shrink-0 border-t border-[#262626] pt-4 mt-4">
           <div className="flex gap-3 px-4">
             <Button
               type="button"

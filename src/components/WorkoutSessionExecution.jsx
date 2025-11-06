@@ -631,7 +631,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   </div>
 
                   {/* Active Exercise Controls */}
-                  {isActive && !isCompleted && (
+                  {isActive && (
                     <div className="mt-5 space-y-2.5">
                       {/* Video button */}
                       {isVideoUploadEnabled(exerciseIndex) && (
