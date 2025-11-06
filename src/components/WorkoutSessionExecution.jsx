@@ -136,6 +136,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           ...prev,
           [exerciseIndex]: nextSet
         }));
+        
+        // Update selectedSetIndex to visually select the next set
+        setSelectedSetIndex(prev => ({
+          ...prev,
+          [exerciseIndex]: nextSet
+        }));
       } else {
         // If this was the last set, move to next exercise if available
         if (exerciseIndex < exercises.length - 1) {
@@ -147,6 +153,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           
           // Also select the first set of next exercise
           setSelectedSetForVideo(prev => ({
+            ...prev,
+            [exerciseIndex + 1]: 0
+          }));
+          
+          // Update selectedSetIndex to visually select the first set of next exercise
+          setSelectedSetIndex(prev => ({
             ...prev,
             [exerciseIndex + 1]: 0
           }));
