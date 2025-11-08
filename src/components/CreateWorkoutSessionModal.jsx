@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, Trash2, MoreHorizontal, Search, Menu, User, GripVertical, ChevronUp, ChevronDown, BookOpen } from 'lucide-react';
+import { X, Plus, Trash2, MoreHorizontal, Search, List, User, GripVertical, ChevronUp, ChevronDown, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -9,6 +9,7 @@ import ContainedSideSheet from './ui/ContainedSideSheet';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import AddExerciseModal from './AddExerciseModal';
 import ExerciseDetailModal from './ExerciseDetailModal';
+import ExerciseArrangementModal from './ExerciseArrangementModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -33,6 +34,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Exercise Detail Modal State
   const [showExerciseDetailModal, setShowExerciseDetailModal] = useState(false);
   const [selectedExerciseForDetail, setSelectedExerciseForDetail] = useState(null);
+
+  // Exercise Arrangement Modal State
+  const [arrangementPosition, setArrangementPosition] = useState({ 
+    top: 0, 
+    left: 800,
+    width: 340 
+  });
+  const modalRef = useRef(null);
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -98,6 +107,46 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       setExercises([]);
     }
   }, [isOpen, existingSession]);
+
+  // Calculate position for arrangement modal
+  const updateArrangementPosition = useCallback(() => {
+    if (!modalRef.current) return;
+    
+    const modalRect = modalRef.current.getBoundingClientRect();
+    const gap = 20;
+    const panelWidth = 340;
+
+    // Position relative to the modal container (using absolute positioning)
+    // Place to the right of the modal by default
+    let left = modalRect.width + gap;
+    let top = 0; // Align with top of modal
+
+    // Check if panel would overflow on the right
+    const panelRightEdge = modalRect.left + left + panelWidth;
+    if (panelRightEdge > window.innerWidth - 20) {
+      // Position to the left instead
+      left = -(panelWidth + gap);
+    }
+
+    setArrangementPosition({ top, left, width: panelWidth });
+  }, []);
+
+  // Update arrangement position when sidebar opens or window resizes
+  useEffect(() => {
+    if (!showSidebar) return;
+    updateArrangementPosition();
+
+    const handleResize = () => updateArrangementPosition();
+    const handleScroll = () => updateArrangementPosition();
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [showSidebar, updateArrangementPosition]);
 
   const fetchExercises = async () => {
     try {
@@ -466,6 +515,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   return (
     <>
     <BaseModal
+      ref={modalRef}
       isOpen={isOpen}
       onClose={handleClose}
       modalId={modalId}
@@ -474,7 +524,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       closeOnBackdrop={isTopMost}
       size="2xl"
       noPadding={true}
-      className="!p-0 relative mx-auto w-full max-w-[1100px] max-h-[92vh] overflow-hidden flex flex-col"
+      className="!p-0 relative mx-auto w-full max-w-[1100px] max-h-[92vh] overflow-visible flex flex-col"
     >
         {/* Fixed Header */}
         <div className="shrink-0 border-b border-white/10 px-6 py-4">
@@ -496,11 +546,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <BookOpen className="h-5 w-5 text-black/90" />
               </button>
               <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="p-2 bg-[#262626] rounded-lg hover:bg-[#404040] transition-all duration-200 hover:scale-105"
+                onClick={() => {
+                  setShowSidebar((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setTimeout(() => updateArrangementPosition(), 0);
+                    }
+                    return next;
+                  });
+                }}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 ${
+                  showSidebar 
+                    ? 'bg-[#e87c3e] text-black' 
+                    : 'bg-[#262626] text-white hover:bg-[#404040]'
+                }`}
                 title="Agencement des exercices"
               >
-                <Menu className="h-5 w-5 text-white" />
+                <List className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -808,76 +870,29 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Sidebar - Exercise Arrangement */}
-          <div className={`workout-sidebar-integrated ${!showSidebar ? 'hidden' : ''}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <GripVertical className="h-5 w-5 text-[#e87c3e]" />
-                <h3 className="text-white font-medium">Agencement des exercices</h3>
-              </div>
-              <button
-                onClick={() => setShowSidebar(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-2">
-              {exercises.map((exercise, index) => (
-                <div
-                  key={exercise.id}
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-move transition-all duration-200 ${
-                    draggedIndex === index 
-                      ? 'bg-[#404040] opacity-50' 
-                      : dragOverIndex === index 
-                        ? 'bg-[#404040]' 
-                        : 'bg-[#262626] hover:bg-[#333333]'
-                  }`}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={handleDragOver}
-                  onDragEnter={(e) => handleDragEnter(e, index)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index)}
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    <GripVertical className="h-4 w-4 text-[#e87c3e] cursor-move" />
-                    <span className="text-white text-sm truncate">{exercise.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => moveExerciseUp(index)}
-                      disabled={index === 0}
-                      className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Monter"
-                    >
-                      <ChevronUp className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => moveExerciseDown(index)}
-                      disabled={index === exercises.length - 1}
-                      className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Descendre"
-                    >
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              
-              {exercises.length === 0 && (
-                <div className="text-center text-gray-400 py-8">
-                  Aucun exercice ajouté
-                </div>
-              )}
-            </div>
             </div>
           </div>
         </div>
+
+        {/* Exercise Arrangement Modal - Adjacent panel */}
+        {showSidebar && (
+          <ExerciseArrangementModal
+            isOpen={showSidebar}
+            onClose={() => setShowSidebar(false)}
+            exercises={exercises}
+            position={arrangementPosition}
+            draggedIndex={draggedIndex}
+            dragOverIndex={dragOverIndex}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onMoveUp={moveExerciseUp}
+            onMoveDown={moveExerciseDown}
+          />
+        )}
     </BaseModal>
 
     {/* Exercise Library Side Sheet - Alongside main content */}

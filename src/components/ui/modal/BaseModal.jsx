@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, forwardRef } from 'react';
 import { X } from 'lucide-react';
 import { useRegisterModal } from './ModalManager';
 import ModalPortal from './ModalPortal';
 
-const BaseModal = ({
+const BaseModal = forwardRef(({
   isOpen,
   onClose,
   title,
@@ -16,9 +16,10 @@ const BaseModal = ({
   size = 'md',
   noPadding = false,
   footer
-}) => {
+}, ref) => {
   const { isTopMost } = useRegisterModal(modalId);
-  const modalRef = useRef(null);
+  const internalModalRef = useRef(null);
+  const modalRef = ref || internalModalRef;
   const previousActiveElement = useRef(null);
 
   // Store the element that opened the modal
@@ -163,6 +164,8 @@ const BaseModal = ({
       </div>
     </ModalPortal>
   );
-};
+});
+
+BaseModal.displayName = 'BaseModal';
 
 export default BaseModal;
