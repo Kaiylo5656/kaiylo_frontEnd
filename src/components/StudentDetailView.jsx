@@ -6,6 +6,7 @@ import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
 import WorkoutSessionDetailsModal from './WorkoutSessionDetailsModal';
 import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
+import OneRmModal, { DEFAULT_ONE_RM_DATA } from './OneRmModal';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
@@ -17,6 +18,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isOneRmModalOpen, setIsOneRmModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
@@ -1383,6 +1385,42 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     }
   };
 
+  const oneRmRecords = useMemo(() => {
+    const fallback = DEFAULT_ONE_RM_DATA;
+
+    if (studentData?.oneRepMaxes && Array.isArray(studentData.oneRepMaxes) && studentData.oneRepMaxes.length > 0) {
+      return studentData.oneRepMaxes.map((record, index) => ({
+        id: record.id || `one-rm-${index}`,
+        name: record.name || record.exercise || `Mouvement ${index + 1}`,
+        color: record.color || fallback[index % fallback.length]?.color || '#e87c3e',
+        current: Number(record.current) || Number(record.value) || 0,
+        best: Number(record.best) || Number(record.personalBest) || Number(record.current) || 0,
+        unit: record.unit || 'kg',
+        delta: Number(record.delta) || 0,
+        goal: record.goal || fallback[index % fallback.length]?.goal,
+        weeklyVolume: record.weeklyVolume || fallback[index % fallback.length]?.weeklyVolume,
+        totalReps: record.totalReps || fallback[index % fallback.length]?.totalReps,
+        lastSession: record.lastSession || fallback[index % fallback.length]?.lastSession,
+        history: record.history || fallback[index % fallback.length]?.history || [],
+      }));
+    }
+
+    return fallback;
+  }, [studentData]);
+
+  const totalOneRmCurrent = useMemo(
+    () => oneRmRecords.reduce((sum, record) => sum + (Number(record.current) || 0), 0),
+    [oneRmRecords]
+  );
+
+  const formatWeight = (value, unit = 'kg') => {
+    if (value === undefined || value === null || Number.isNaN(Number(value))) {
+      return '—';
+    }
+
+    return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${unit}`;
+  };
+
   if (loading) {
     return <div className="p-6">Loading...</div>;
   }
@@ -1569,46 +1607,39 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               <div className="bg-[#1a1a1a] rounded-lg p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium">1 RM actuel</h3>
-                  <button className="px-2 py-1 text-xs bg-[#262626] rounded">Open</button>
+                  <button
+                    type="button"
+                    onClick={() => setIsOneRmModalOpen(true)}
+                    className="px-2 py-1 text-xs bg-[#262626] rounded hover:bg-[#333333] transition-colors"
+                  >
+                    Voir
+                  </button>
                 </div>
-                <div className="grid grid-cols-4 gap-3">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#e87c3e]"></div>
-                      <span className="text-xs text-gray-400">Muscle-up</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {oneRmRecords.map((record) => (
+                    <div key={record.id}>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: record.color || '#e87c3e' }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-xs text-gray-400">{record.name}</span>
+                      </div>
+                      <p className="text-sm font-medium mt-1">{formatWeight(record.current, record.unit)}</p>
                     </div>
-                    <p className="text-sm font-medium mt-1">37,5 kg</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]"></div>
-                      <span className="text-xs text-gray-400">Pull-up</span>
-                    </div>
-                    <p className="text-sm font-medium mt-1">80 kg</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#22c55e]"></div>
-                      <span className="text-xs text-gray-400">Dips</span>
-                    </div>
-                    <p className="text-sm font-medium mt-1">100 kg</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#a855f7]"></div>
-                      <span className="text-xs text-gray-400">Squat</span>
-                    </div>
-                    <p className="text-sm font-medium mt-1">190 kg</p>
-                  </div>
+                  ))}
                 </div>
                 <div className="flex justify-between mt-3 pt-3 border-t border-[#262626]">
                   <div>
                     <span className="text-xs text-gray-400">Total</span>
-                    <p className="text-sm font-medium">407,5 kg</p>
+                    <p className="text-sm font-medium">{formatWeight(totalOneRmCurrent)}</p>
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-gray-400">RIS Score</span>
-                    <p className="text-sm font-medium">95,99</p>
+                    <p className="text-sm font-medium">
+                      {studentData?.oneRmRisScore?.toLocaleString?.('fr-FR', { maximumFractionDigits: 2 }) || '95,99'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -2277,6 +2308,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         onClose={() => setIsDetailsModalOpen(false)}
         session={selectedSession}
         selectedDate={selectedDate}
+      />
+
+      <OneRmModal
+        isOpen={isOneRmModalOpen}
+        onClose={() => setIsOneRmModalOpen(false)}
+        data={oneRmRecords}
+        studentName={studentData?.raw_user_meta_data?.full_name || student?.email || 'Athlète'}
       />
 
       <VideoDetailModal 

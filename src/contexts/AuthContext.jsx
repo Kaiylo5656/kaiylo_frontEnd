@@ -82,6 +82,20 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const isLoggingOutRef = useRef(false); // Flag pour éviter les boucles
   const authInitializedRef = useRef(false); // Flag pour ignorer le premier SIGNED_OUT au démarrage
+  const isRefreshingRef = useRef(false); // Flag pour empêcher plusieurs refresh parallèles
+  const refreshQueueRef = useRef([]); // File d'attente pour les requêtes en attente d'un nouveau token
+
+  // Gestion centralisée de la file d'attente de refresh (résout ou rejette toutes les promesses en attente)
+  const resolveRefreshQueue = useCallback((errorValue, tokenValue) => {
+    refreshQueueRef.current.forEach(({ resolve, reject }) => {
+      if (errorValue) {
+        reject(errorValue);
+      } else {
+        resolve(tokenValue);
+      }
+    });
+    refreshQueueRef.current = [];
+  }, []);
 
   // Get API base URL dynamically
   const API_BASE_URL = getApiBaseUrlWithApi();
@@ -97,6 +111,8 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setError(null);
+    // Rejeter les promesses en attente de refresh (utile si on se déconnecte pendant un refresh)
+    resolveRefreshQueue(new Error('User logged out'), null);
     
     // Ne pas appeler signOut() si on est déjà déconnecté (évite la boucle)
     if (!skipSignOut) {
@@ -111,38 +127,64 @@ export const AuthProvider = ({ children }) => {
     if (typeof navigate === 'function' && window.location.pathname !== '/login') {
       navigate('/login');
     }
-  }, [navigate]);
+  }, [navigate, resolveRefreshQueue]);
 
   // Refresh auth token function (optimized with refreshSession)
   const refreshAuthToken = useCallback(async () => {
+    // Si un refresh est déjà en cours, mettre la requête dans la file d'attente
+    if (isRefreshingRef.current) {
+      return new Promise((resolve, reject) => {
+        refreshQueueRef.current.push({ resolve, reject });
+      });
+    }
+
     try {
       console.log('🔄 Attempting to refresh auth token...');
       if (!supabaseUrl || !supabaseAnonKey) {
         console.error('❌ Supabase not configured, cannot refresh token');
         throw new Error('Supabase not configured');
       }
-      
-      // Utiliser refreshSession() qui est plus efficace que getSession()
-      const { data: { session }, error } = await supabase.auth.refreshSession();
-      
-      if (error || !session) {
-        console.log('❌ No active session or refresh failed');
-        logout();
-        return null;
+
+      isRefreshingRef.current = true;
+
+      // 1) Tenter de récupérer la session existante (Supabase rafraîchit automatiquement si besoin)
+      const { data: { session: currentSession }, error: getSessionError } = await supabase.auth.getSession();
+
+      if (getSessionError) {
+        console.warn('⚠️ getSession returned an error, will try refreshSession()', getSessionError.message);
       }
-      
+
+      let activeSession = currentSession;
+
+      // 2) Si aucune session active, tenter un refresh forcé
+      if (!activeSession || !activeSession.access_token) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          throw refreshError;
+        }
+        activeSession = refreshData?.session;
+      }
+
+      if (!activeSession || !activeSession.access_token) {
+        throw new Error('No active session available after refresh attempt');
+      }
+
       // Synchroniser avec localStorage et axios
-      localStorage.setItem('authToken', session.access_token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
-      
+      localStorage.setItem('authToken', activeSession.access_token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${activeSession.access_token}`;
+
       console.log('✅ Token refreshed successfully');
-      return session.access_token;
+      resolveRefreshQueue(null, activeSession.access_token);
+      return activeSession.access_token;
     } catch (error) {
       console.error('❌ Failed to refresh token:', error);
+      resolveRefreshQueue(error, null);
       logout();
       return null;
+    } finally {
+      isRefreshingRef.current = false;
     }
-  }, [logout]);
+  }, [logout, resolveRefreshQueue]);
 
   // Set up Axios interceptor for handling 401 errors
   useEffect(() => {

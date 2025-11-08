@@ -73,9 +73,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         } else {
           // Default sets if none exist or not an array
           sets = [
-            { serie: 1, weight: '', reps: '', rest: '03:00', video: false },
-            { serie: 2, weight: '', reps: '', rest: '03:00', video: false },
-            { serie: 3, weight: '', reps: '', rest: '00:00', video: false }
+            { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
           ];
         }
 
@@ -131,9 +129,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       exerciseId: selectedExercise.id,
       description: selectedExercise.description || '',
       sets: [
-        { serie: 1, weight: '', reps: '', rest: '03:00', video: false },
-        { serie: 2, weight: '', reps: '', rest: '03:00', video: false },
-        { serie: 3, weight: '', reps: '', rest: '00:00', video: false }
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
       ],
       notes: '',
       isExpanded: true,
@@ -351,9 +347,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       exerciseId: exercise.id,
       description: exercise.instructions || '',
       sets: [
-        { serie: 1, weight: '', reps: '', rest: '03:00', video: false },
-        { serie: 2, weight: '', reps: '', rest: '03:00', video: false },
-        { serie: 3, weight: '', reps: '', rest: '00:00', video: false }
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
       ],
       notes: '',
       isExpanded: true,
@@ -520,24 +514,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           <div className={`workout-modal-content ${openSheet ? 'w-1/2' : 'w-full'} transition-all duration-300 flex min-h-0`}>
             {/* Main Content */}
             <div className="workout-modal-main flex-1 min-h-0">
-              <div className="py-2">
+              <div className="py-2 space-y-2">
+                <label className="text-sm font-semibold text-white/90 tracking-wide uppercase">
+                  Nom de la séance
+                </label>
                 <Input
-                  placeholder="Nom de la séance"
+                  placeholder="Saisir le nom de la séance"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
-                  className="bg-transparent border-none text-white placeholder-gray-500 text-lg font-medium focus-visible:ring-0"
+                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#F2785C] focus-visible:border-transparent transition-all duration-150 shadow-sm"
                 />
               </div>
 
-              <div className="pb-4">
-                <label className="text-xs text-gray-400 mb-1 block">DESCRIPTION</label>
-                <Input
-                  placeholder="Ajoute une description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="bg-transparent border-none text-white placeholder-gray-500 text-sm focus-visible:ring-0"
-                />
-              </div>
+              {/* Description removed as per coach request */}
 
               <div className="space-y-4">
               {exercises.map((exercise, exerciseIndex) => (
@@ -603,9 +592,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       <button
                         type="button"
                         onClick={() => handleRemoveExercise(exercise.id)}
-                        className="text-gray-400 hover:text-white"
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                        title="Supprimer l'exercice"
                       >
-                        <MoreHorizontal className="h-5 w-5" />
+                        <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -633,19 +623,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                 <td className="py-2">
                                   <Input
                                     type="number"
-                                    step="0.5"
+                                    step="1"
                                     value={set.weight}
                                     onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'weight', e.target.value)}
-                                    placeholder="55"
+                                    placeholder=""
                                     className="bg-[#262626] border-none text-white text-center h-8 w-16 mx-auto"
                                   />
                                 </td>
                                 <td className="py-2">
                                   <Input
                                     type="number"
+                                    min="0"
                                     value={set.reps}
-                                    onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'reps', e.target.value)}
-                                    placeholder="3"
+                                    onChange={(e) => {
+                                      const value = Math.max(0, Number(e.target.value));
+                                      handleSetChange(exerciseIndex, setIndex, 'reps', value === 0 ? '' : value.toString());
+                                    }}
+                                    placeholder=""
                                     className="bg-[#262626] border-none text-white text-center h-8 w-12 mx-auto"
                                   />
                                 </td>
