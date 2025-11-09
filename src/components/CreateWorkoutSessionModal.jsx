@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import ContainedSideSheet from './ui/ContainedSideSheet';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import AddExerciseModal from './AddExerciseModal';
-import ExerciseDetailModal from './ExerciseDetailModal';
 import ExerciseArrangementModal from './ExerciseArrangementModal';
+import ExerciseLibraryModal from './ExerciseLibraryModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -30,17 +30,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [libraryMode, setLibraryMode] = useState('browse'); // 'browse' or 'create'
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [isAddExerciseModalOpen, setIsAddExerciseModalOpen] = useState(false);
-  
-  // Exercise Detail Modal State
-  const [showExerciseDetailModal, setShowExerciseDetailModal] = useState(false);
-  const [selectedExerciseForDetail, setSelectedExerciseForDetail] = useState(null);
 
   // Exercise Arrangement Modal State
   const [arrangementPosition, setArrangementPosition] = useState({ 
     top: 0, 
     left: 800,
-    width: 340 
+    width: 340,
+    height: 0
   });
+  
+  // Exercise Library Modal State
+  const [libraryPosition, setLibraryPosition] = useState({ 
+    top: 0, 
+    left: -380,
+    width: 360,
+    height: 0
+  });
+  
   const modalRef = useRef(null);
 
   // Modal management
@@ -128,7 +134,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       left = -(panelWidth + gap);
     }
 
-    setArrangementPosition({ top, left, width: panelWidth });
+    setArrangementPosition({ 
+      top, 
+      left, 
+      width: panelWidth,
+      height: modalRect.height
+    });
   }, []);
 
   // Update arrangement position when sidebar opens or window resizes
@@ -147,6 +158,57 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       window.removeEventListener('scroll', handleScroll, true);
     };
   }, [showSidebar, updateArrangementPosition]);
+
+  // Calculate position for library modal
+  const updateLibraryPosition = useCallback(() => {
+    if (!modalRef.current) return;
+    
+    const modalRect = modalRef.current.getBoundingClientRect();
+    const gap = 20;
+    const panelWidth = 360; // Réduit de 400 à 360 pour mieux s'adapter
+    const minMargin = 10; // Réduit pour être moins strict
+
+    // Position à gauche de la modale par défaut
+    let left = -(panelWidth + gap);
+    let top = 0;
+
+    // Vérifier si on a assez d'espace à gauche de la modale
+    const spaceOnLeft = modalRect.left;
+    const spaceOnRight = window.innerWidth - modalRect.right;
+    
+    // Priorité à gauche : seulement si vraiment pas d'espace, on passe à droite
+    // On accepte un léger débordement si nécessaire
+    if (spaceOnLeft < minMargin) {
+      // Vraiment pas d'espace à gauche, essayer à droite
+      if (spaceOnRight >= panelWidth + gap + minMargin) {
+        left = modalRect.width + gap;
+      }
+    }
+
+    setLibraryPosition({ 
+      top, 
+      left, 
+      width: panelWidth,
+      height: modalRect.height
+    });
+  }, []);
+
+  // Update library position when it opens or window resizes
+  useEffect(() => {
+    if (!openSheet) return;
+    updateLibraryPosition();
+
+    const handleResize = () => updateLibraryPosition();
+    const handleScroll = () => updateLibraryPosition();
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [openSheet, updateLibraryPosition]);
 
   const fetchExercises = async () => {
     try {
@@ -488,24 +550,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }
   };
 
-  // Exercise Detail Modal Handlers
-  const handleExerciseDetailOpen = (exercise) => {
-    console.log('Opening exercise detail for:', exercise.title);
-    setSelectedExerciseForDetail(exercise);
-    setShowExerciseDetailModal(true);
-  };
-
-  const handleExerciseDetailClose = () => {
-    setShowExerciseDetailModal(false);
-    setSelectedExerciseForDetail(null);
-  };
-
-  const handleAddToSessionFromDetail = (exercise) => {
-    // Call the same handler as the library's Ajouter button
-    handleAddExerciseToSession(exercise);
-    // Keep the modal open by default, but could add a toast here
-  };
-
   const filteredExercises = availableExercises.filter(exercise =>
     exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -524,7 +568,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       closeOnBackdrop={isTopMost}
       size="2xl"
       noPadding={true}
-      className="!p-0 relative mx-auto w-full max-w-[1100px] max-h-[92vh] overflow-visible flex flex-col"
+      className="!p-0 relative mx-auto w-full max-w-[700px] max-h-[92vh] overflow-visible flex flex-col"
     >
         {/* Fixed Header */}
         <div className="shrink-0 border-b border-white/10 px-6 py-4">
@@ -539,11 +583,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleOpenLibrary}
-                className="p-2 bg-[#F2785C] rounded-lg hover:brightness-110 transition-all duration-200 hover:scale-105"
+                onClick={() => {
+                  setOpenSheet((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setTimeout(() => updateLibraryPosition(), 0);
+                    }
+                    return next;
+                  });
+                }}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 ${
+                  openSheet 
+                    ? 'bg-[#e87c3e] text-black' 
+                    : 'bg-[#262626] text-white hover:bg-[#404040]'
+                }`}
                 title="Bibliothèque d'exercices"
               >
-                <BookOpen className="h-5 w-5 text-black/90" />
+                <BookOpen className="h-5 w-5" />
               </button>
               <button
                 onClick={() => {
@@ -573,7 +629,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5"
           style={{ scrollbarGutter: 'stable' }}
         >
-          <div className={`workout-modal-content ${openSheet ? 'w-1/2' : 'w-full'} transition-all duration-300 flex min-h-0`}>
+          <div className="workout-modal-content w-full flex min-h-0">
             {/* Main Content */}
             <div className="workout-modal-main flex-1 min-h-0">
               <div className="py-2 space-y-2">
@@ -584,7 +640,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   placeholder="Saisir le nom de la séance"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
-                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#F2785C] focus-visible:border-transparent transition-all duration-150 shadow-sm"
+                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#e87c3e] focus-visible:border-transparent transition-all duration-150 shadow-sm"
                 />
               </div>
 
@@ -594,20 +650,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               {exercises.map((exercise, exerciseIndex) => (
                 <div 
                   key={exercise.id} 
-                  className={`rounded-lg overflow-hidden transition-all duration-200 ${
-                    draggedIndex === exerciseIndex 
-                      ? 'bg-[#2a2a2a] opacity-50' 
-                      : dragOverIndex === exerciseIndex 
-                        ? 'bg-[#2a2a2a]' 
-                        : 'bg-[#1a1a1a]'
-                  }`}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, exerciseIndex)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={handleDragOver}
-                  onDragEnter={(e) => handleDragEnter(e, exerciseIndex)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, exerciseIndex)}
+                  className="rounded-lg overflow-hidden transition-all duration-200 bg-[#1a1a1a]"
                 >
                   {/* Exercise Header */}
                   <div className="flex items-center justify-between p-3 bg-[#1a1a1a]">
@@ -628,29 +671,25 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {showSidebar && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => moveExerciseUp(exerciseIndex)}
-                            disabled={exerciseIndex === 0}
-                            className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Monter l'exercice"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveExerciseDown(exerciseIndex)}
-                            disabled={exerciseIndex === exercises.length - 1}
-                            className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Descendre l'exercice"
-                          >
-                            <ChevronDown className="h-4 w-4" />
-                          </button>
-                          <div className="w-px h-4 bg-gray-600"></div>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => moveExerciseUp(exerciseIndex)}
+                        disabled={exerciseIndex === 0}
+                        className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Monter l'exercice"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveExerciseDown(exerciseIndex)}
+                        disabled={exerciseIndex === exercises.length - 1}
+                        className="text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Descendre l'exercice"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                      <div className="w-px h-4 bg-gray-600"></div>
                       <button
                         type="button"
                         onClick={() => handleRemoveExercise(exercise.id)}
@@ -864,7 +903,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <button
                   type="button"
                   onClick={handlePublish}
-                  className="w-full bg-[#F2785C] hover:bg-[#e56d52] text-[#1D1D1F] py-3 rounded-xl transition-colors font-medium"
+                  className="w-full bg-[#e87c3e] hover:bg-[#d66d35] text-[#1D1D1F] py-3 rounded-xl transition-colors font-medium"
                 >
                   Publier
                 </button>
@@ -893,43 +932,27 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             onMoveDown={moveExerciseDown}
           />
         )}
-    </BaseModal>
 
-    {/* Exercise Library Side Sheet - Alongside main content */}
-    <ContainedSideSheet
-      open={openSheet}
-      onClose={handleCloseLibrary}
-      title="Bibliothèque d'exercices"
-      contained={true}
-      sideBySide={true}
-      zIndex={70}
-      preventClose={isAddExerciseModalOpen}
-    >
-      <ExerciseLibraryPanel
-        exercises={availableExercises}
-        onSelect={handleAddExerciseToSession}
-        onCreateClick={handleCreateClick}
-        loading={libraryLoading}
-        showPreview={false}
-        onExerciseUpdated={handleExerciseUpdated}
-        isOpen={openSheet}
-        onExerciseDetailOpen={handleExerciseDetailOpen}
-      />
-    </ContainedSideSheet>
+        {/* Exercise Library Modal - Adjacent panel on the left */}
+        {openSheet && (
+          <ExerciseLibraryModal
+            isOpen={openSheet}
+            onClose={handleCloseLibrary}
+            position={libraryPosition}
+            exercises={availableExercises}
+            onSelect={handleAddExerciseToSession}
+            onCreateClick={handleCreateClick}
+            loading={libraryLoading}
+            onExerciseUpdated={handleExerciseUpdated}
+          />
+        )}
+    </BaseModal>
     
     {/* Add Exercise Modal */}
     <AddExerciseModal
       isOpen={isAddExerciseModalOpen}
       onClose={() => setIsAddExerciseModalOpen(false)}
       onExerciseCreated={handleExerciseCreated}
-    />
-
-    {/* Exercise Detail Modal - Rendered as Portal */}
-    <ExerciseDetailModal
-      isOpen={showExerciseDetailModal}
-      onClose={handleExerciseDetailClose}
-      exerciseId={selectedExerciseForDetail?.id}
-      onAddToSession={handleAddToSessionFromDetail}
     />
     </>
   );

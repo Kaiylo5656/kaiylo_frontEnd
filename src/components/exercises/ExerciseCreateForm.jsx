@@ -92,7 +92,7 @@ const ExerciseCreateForm = ({
             onChange={(e) => handleInputChange('title', e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ex: Développé couché"
-            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#F2785C]/70 focus:border-[#F2785C]/50 transition-all duration-200"
+            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#e87c3e]/70 focus:border-[#e87c3e]/50 transition-all duration-200"
             disabled={loading}
           />
           {errors.title && (
@@ -110,7 +110,7 @@ const ExerciseCreateForm = ({
             onChange={(e) => handleInputChange('instructions', e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Décrivez l'exécution de l'exercice..."
-            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#F2785C]/70 focus:border-[#F2785C]/50 min-h-[120px] resize-none transition-all duration-200"
+            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#e87c3e]/70 focus:border-[#e87c3e]/50 min-h-[120px] resize-none transition-all duration-200"
             disabled={loading}
           />
         </div>
@@ -126,7 +126,7 @@ const ExerciseCreateForm = ({
             onChange={(e) => handleInputChange('tags', e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ex: pectoraux, poussée, haltères (séparés par des virgules)"
-            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#F2785C]/70 focus:border-[#F2785C]/50 transition-all duration-200"
+            className="mt-1 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-3 outline-none focus:ring-2 focus:ring-[#e87c3e]/70 focus:border-[#e87c3e]/50 transition-all duration-200"
             disabled={loading}
           />
           <p className="text-white/50 text-xs mt-1">
@@ -148,7 +148,7 @@ const ExerciseCreateForm = ({
           </Button>
           <Button
             type="submit"
-            className="flex-1 rounded-xl bg-[#F2785C] px-4 py-3 font-medium text-black/90 hover:brightness-110 transition-all duration-200 hover:scale-[1.02]"
+            className="flex-1 rounded-xl bg-[#e87c3e] px-4 py-3 font-medium text-black/90 hover:brightness-110 transition-all duration-200 hover:scale-[1.02]"
             disabled={loading || !formData.title.trim()}
           >
             <Save className="h-4 w-4 mr-2" />

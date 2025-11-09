@@ -294,7 +294,7 @@ const TagTypeahead = ({
                   onClick={() => handleTagSelect(tag)}
                   className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${
                     index === activeIndex 
-                      ? 'bg-[#F2785C]/20 text-[#F2785C]' 
+                      ? 'bg-[#e87c3e]/20 text-[#e87c3e]' 
                       : 'text-white hover:bg-white/5'
                   }`}
                   role="option"
@@ -302,7 +302,7 @@ const TagTypeahead = ({
                 >
                   <div className="flex items-center gap-2">
                     {isNew ? (
-                      <Plus className="h-3 w-3 text-[#F2785C]" />
+                      <Plus className="h-3 w-3 text-[#e87c3e]" />
                     ) : (
                       <Tag className="h-3 w-3 text-white/50" />
                     )}

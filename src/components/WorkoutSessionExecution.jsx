@@ -497,7 +497,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                 onClick={() => handleExerciseSelection(exerciseIndex)}
                 className={`rounded-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
                   isActive && !isCompleted 
-                    ? 'bg-white/10 border-[1.5px] border-[#F2785C] shadow-[0_0_0_4px_rgba(242,120,92,0.08)]' 
+                    ? 'bg-white/10 border-[1.5px] border-[#e87c3e] shadow-[0_0_0_4px_rgba(232,124,62,0.08)]' 
                     : 'bg-white/5 border border-white/10'
                 } ${isActive && !isCompleted ? 'min-h-[130px]' : 'min-h-[80px]'} ${
                   !isActive ? 'opacity-55 hover:opacity-75' : ''

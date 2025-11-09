@@ -244,7 +244,7 @@ const ExerciseLibraryPanel = ({
                 }
               }}
               tabIndex={0}
-              className="w-full rounded-lg border border-[#404040] bg-[#262626] hover:bg-[#404040] hover:border-[#F2785C]/30 focus:outline-none focus:ring-2 focus:ring-[#F2785C]/60 focus:border-[#F2785C]/50 px-3 py-3 text-left cursor-pointer transition-all duration-200"
+              className="w-full rounded-lg border border-[#404040] bg-[#262626] hover:bg-[#404040] hover:border-[#e87c3e]/30 focus:outline-none focus:ring-2 focus:ring-[#e87c3e]/60 focus:border-[#e87c3e]/50 px-3 py-3 text-left cursor-pointer transition-all duration-200"
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
@@ -260,7 +260,7 @@ const ExerciseLibraryPanel = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => handleEditExercise(exercise, e)}
-                    className="p-1 text-white/50 hover:text-[#F2785C] transition-colors"
+                    className="p-1 text-white/50 hover:text-[#e87c3e] transition-colors"
                     title="Edit exercise"
                     aria-label="Edit exercise"
                   >

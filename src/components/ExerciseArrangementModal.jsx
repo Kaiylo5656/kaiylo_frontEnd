@@ -24,8 +24,9 @@ const ExerciseArrangementModal = ({
         top: position.top ?? 0,
         left: position.left ?? 800,
         width: position.width ?? 340,
+        height: position.height ?? 'auto',
       }
-    : { top: 0, left: 800, width: 340 };
+    : { top: 0, left: 800, width: 340, height: 'auto' };
 
   return (
     <div
@@ -34,8 +35,8 @@ const ExerciseArrangementModal = ({
       className="absolute z-[1001] text-white pointer-events-auto"
       style={style}
     >
-      <div className="rounded-[28px] border border-[#2c2c2c] bg-gradient-to-br from-[#181818]/95 via-[#121212]/95 to-[#0d0d0d]/95 shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur-md overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-[#242424] flex items-start justify-between gap-3">
+      <div className="rounded-[28px] border border-[#2c2c2c] bg-gradient-to-br from-[#181818]/95 via-[#121212]/95 to-[#0d0d0d]/95 shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur-md overflow-hidden h-full flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-[#242424] flex items-start justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <GripVertical className="h-5 w-5 text-[#e87c3e]" />
             <h3 className="text-base font-semibold tracking-wide">Agencement des exercices</h3>
@@ -49,7 +50,7 @@ const ExerciseArrangementModal = ({
           </button>
         </div>
         
-        <div className="px-6 py-6 max-h-[500px] overflow-y-auto">
+        <div className="flex-1 min-h-0 px-6 py-6 overflow-y-auto">
           <div className="space-y-2">
             {exercises.map((exercise, index) => (
               <div

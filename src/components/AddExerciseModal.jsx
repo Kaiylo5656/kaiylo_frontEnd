@@ -338,7 +338,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               <div className="rounded-xl border border-white/10 bg-white/5 p-3 max-w-full">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden mb-3">
                   {/* Video icon */}
-                  <Video className="h-4 w-4 shrink-0 text-[#F2785C]" />
+                  <Video className="h-4 w-4 shrink-0 text-[#e87c3e]" />
                   
                   {/* Filename with proper truncation */}
                   <div className="min-w-0 flex-1">

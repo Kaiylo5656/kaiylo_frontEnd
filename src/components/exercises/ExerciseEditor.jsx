@@ -230,7 +230,7 @@ const ExerciseEditor = ({
             value={formData.title}
             onChange={handleInputChange}
             required
-            className="bg-[#1a1a1a] border-white/20 text-white placeholder-white/50 focus:ring-[#F2785C] focus:border-[#F2785C]"
+            className="bg-[#1a1a1a] border-white/20 text-white placeholder-white/50 focus:ring-[#e87c3e] focus:border-[#e87c3e]"
             placeholder="e.g., Push-ups"
           />
         </div>
@@ -245,7 +245,7 @@ const ExerciseEditor = ({
             value={formData.instructions}
             onChange={handleInputChange}
             rows={4}
-            className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/20 rounded-md text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#F2785C] focus:border-[#F2785C]"
+            className="w-full px-3 py-2 bg-[#1a1a1a] border border-white/20 rounded-md text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#e87c3e] focus:border-[#e87c3e]"
             placeholder="Step-by-step instructions for performing the exercise..."
           />
         </div>
@@ -261,20 +261,20 @@ const ExerciseEditor = ({
             onChange={(e) => setTagInput(e.target.value)}
             onKeyPress={handleTagInput}
             placeholder="Press Enter to add tags..."
-            className="bg-[#1a1a1a] border-white/20 text-white placeholder-white/50 focus:ring-[#F2785C] focus:border-[#F2785C]"
+            className="bg-[#1a1a1a] border-white/20 text-white placeholder-white/50 focus:ring-[#e87c3e] focus:border-[#e87c3e]"
           />
           {formData.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {formData.tags.map(tag => (
                 <span
                   key={tag}
-                  className="bg-[#F2785C]/20 text-[#F2785C] px-2 py-1 rounded-full text-sm flex items-center gap-1"
+                  className="bg-[#e87c3e]/20 text-[#e87c3e] px-2 py-1 rounded-full text-sm flex items-center gap-1"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => removeTag(tag)}
-                    className="hover:text-[#F2785C]/80"
+                    className="hover:text-[#e87c3e]/80"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -290,7 +290,7 @@ const ExerciseEditor = ({
             Demo Video (Optional)
           </label>
           {!videoPreview ? (
-            <div className="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-[#F2785C]/50 transition-colors">
+            <div className="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-[#e87c3e]/50 transition-colors">
               <input
                 type="file"
                 accept="video/mp4,video/mov,video/quicktime"
@@ -314,7 +314,7 @@ const ExerciseEditor = ({
           ) : (
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="flex items-center gap-2 mb-3">
-                <Video className="h-4 w-4 text-[#F2785C]" />
+                <Video className="h-4 w-4 text-[#e87c3e]" />
                 <span className="text-sm text-white/80">
                   {videoFile ? videoFile.name : 'Current video'}
                 </span>
@@ -355,7 +355,7 @@ const ExerciseEditor = ({
           <Button
             onClick={handleSave}
             disabled={loading || uploadingVideo}
-            className="flex-1 bg-[#F2785C] hover:bg-[#F2785C]/90 text-white"
+            className="flex-1 bg-[#e87c3e] hover:bg-[#e87c3e]/90 text-white"
           >
             {uploadingVideo ? 'Uploading...' : loading ? 'Saving...' : 'Save Changes'}
           </Button>
