@@ -61,6 +61,35 @@ const getSupabaseClient = () => {
 
 const supabase = getSupabaseClient();
 
+// Helper to read persisted Supabase session
+const getStoredSupabaseSession = () => {
+  try {
+    const raw = localStorage.getItem('sb-auth-token');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('❌ Unable to parse stored Supabase session', error);
+    return null;
+  }
+};
+
+// Helper to persist access / refresh tokens consistently
+const persistSessionTokens = (session) => {
+  if (!session) return;
+
+  const accessToken = session.access_token;
+  const refreshToken = session.refresh_token;
+
+  if (accessToken) {
+    localStorage.setItem('authToken', accessToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  if (refreshToken) {
+    localStorage.setItem('supabaseRefreshToken', refreshToken);
+  }
+};
+
 // Create the authentication context
 const AuthContext = createContext();
 
@@ -108,6 +137,7 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.removeItem('authToken');
     sessionStorage.removeItem('authToken');
+    localStorage.removeItem('supabaseRefreshToken');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setError(null);
@@ -138,6 +168,8 @@ export const AuthProvider = ({ children }) => {
       });
     }
 
+    isRefreshingRef.current = true;
+
     try {
       console.log('🔄 Attempting to refresh auth token...');
       if (!supabaseUrl || !supabaseAnonKey) {
@@ -145,33 +177,58 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Supabase not configured');
       }
 
-      isRefreshingRef.current = true;
-
-      // 1) Tenter de récupérer la session existante (Supabase rafraîchit automatiquement si besoin)
-      const { data: { session: currentSession }, error: getSessionError } = await supabase.auth.getSession();
+      // 1) Tenter de récupérer la session active via Supabase
+      let {
+        data: { session: activeSession },
+        error: getSessionError
+      } = await supabase.auth.getSession();
 
       if (getSessionError) {
-        console.warn('⚠️ getSession returned an error, will try refreshSession()', getSessionError.message);
+        console.warn('⚠️ getSession error:', getSessionError.message);
       }
 
-      let activeSession = currentSession;
-
-      // 2) Si aucune session active, tenter un refresh forcé
+      // 2) Fallback : réhydrater depuis la session persistée (sb-auth-token)
       if (!activeSession || !activeSession.access_token) {
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          throw refreshError;
+        const storedSessionWrapper = getStoredSupabaseSession();
+        const storedSession = storedSessionWrapper?.currentSession;
+        const storedRefreshToken =
+          storedSession?.refresh_token || localStorage.getItem('supabaseRefreshToken');
+
+        if (storedRefreshToken) {
+          console.log('🔄 Rehydrating Supabase session from stored tokens');
+          const { data, error } = await supabase.auth.setSession({
+            access_token: storedSession?.access_token,
+            refresh_token: storedRefreshToken
+          });
+
+          if (error) {
+            console.error('❌ setSession failed:', error.message);
+          } else {
+            activeSession = data?.session;
+          }
         }
-        activeSession = refreshData?.session;
+      }
+
+      // 3) Ultime fallback : refresh forcé avec le refresh token persistant
+      if (!activeSession || !activeSession.access_token) {
+        const storedRefreshToken = localStorage.getItem('supabaseRefreshToken');
+        if (storedRefreshToken) {
+          const { data, error } = await supabase.auth.refreshSession({
+            refresh_token: storedRefreshToken
+          });
+          if (error) {
+            console.error('❌ refreshSession failed:', error.message);
+            throw error;
+          }
+          activeSession = data?.session;
+        }
       }
 
       if (!activeSession || !activeSession.access_token) {
         throw new Error('No active session available after refresh attempt');
       }
 
-      // Synchroniser avec localStorage et axios
-      localStorage.setItem('authToken', activeSession.access_token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${activeSession.access_token}`;
+      persistSessionTokens(activeSession);
 
       console.log('✅ Token refreshed successfully');
       resolveRefreshQueue(null, activeSession.access_token);
@@ -222,24 +279,6 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Nettoyer d'abord les données Supabase potentiellement corrompues
-      try {
-        const supabaseKeys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('sb-') && key.includes('auth-token')) {
-            supabaseKeys.push(key);
-          }
-        }
-        // Si on a des clés Supabase mais pas de token valide, les nettoyer
-        if (supabaseKeys.length > 0 && !localStorage.getItem('authToken')) {
-          supabaseKeys.forEach(key => localStorage.removeItem(key));
-          console.log('🧹 Cleaned up Supabase storage keys');
-        }
-      } catch (error) {
-        console.error('Error cleaning Supabase storage:', error);
-      }
-      
       // Vérifier d'abord localStorage (plus rapide et fiable)
       const token = localStorage.getItem('authToken');
       
@@ -279,8 +318,7 @@ export const AuthProvider = ({ children }) => {
         
         if (session && !sessionError) {
           // Session Supabase valide
-          localStorage.setItem('authToken', session.access_token);
-          axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+          persistSessionTokens(session);
           
           // Récupérer les infos utilisateur depuis le backend
           try {
@@ -344,32 +382,6 @@ export const AuthProvider = ({ children }) => {
   // Listen to auth state changes from Supabase (optimized - ignore SIGNED_OUT completely)
   useEffect(() => {
     let isProcessing = false; // Flag pour éviter les appels multiples simultanés
-    
-    // Nettoyer les données Supabase corrompues au démarrage
-    const cleanupSupabaseStorage = () => {
-      try {
-        // Nettoyer toutes les clés Supabase qui pourraient causer des problèmes
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('sb-') && key.includes('auth-token')) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => {
-          console.log('🧹 Cleaning up Supabase storage key:', key);
-          localStorage.removeItem(key);
-        });
-      } catch (error) {
-        console.error('Error cleaning Supabase storage:', error);
-      }
-    };
-    
-    // Nettoyer au démarrage si on n'a pas de session valide
-    if (!localStorage.getItem('authToken')) {
-      cleanupSupabaseStorage();
-    }
-    
     // Écouter SEULEMENT les événements SIGNED_IN et TOKEN_REFRESHED
     // On ignore complètement SIGNED_OUT et INITIAL_SESSION car on gère la déconnexion manuellement
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -391,8 +403,7 @@ export const AuthProvider = ({ children }) => {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (session) {
               // Synchroniser le token avec localStorage et axios
-              localStorage.setItem('authToken', session.access_token);
-              axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+              persistSessionTokens(session);
               
               // Mettre à jour l'état utilisateur
               try {
@@ -423,6 +434,15 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Rafraîchir proactivement la session pour éviter l'expiration inattendue
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshAuthToken().catch(() => {});
+    }, 15 * 60 * 1000); // toutes les 15 minutes
+
+    return () => clearInterval(interval);
+  }, [refreshAuthToken]);
+
   // Login function (optimized - synchronise avec Supabase)
   const login = async (email, password, navigate) => {
     // Timeout de sécurité pour forcer le loading à false après 30 secondes
@@ -452,8 +472,7 @@ export const AuthProvider = ({ children }) => {
       
       if (session && !sessionError) {
         // Utiliser la session Supabase (plus fiable)
-        localStorage.setItem('authToken', session.access_token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+        persistSessionTokens(session);
         console.log('🔐 Using Supabase session token');
       } else {
         // Fallback: utiliser le token du backend
@@ -526,8 +545,7 @@ export const AuthProvider = ({ children }) => {
         
         if (session && !sessionError) {
           // Utiliser la session Supabase (plus fiable)
-          localStorage.setItem('authToken', session.access_token);
-          axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+          persistSessionTokens(session);
         } else {
           // Fallback: utiliser le token du backend
           localStorage.setItem('authToken', token);

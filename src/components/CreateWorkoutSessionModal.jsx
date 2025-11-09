@@ -258,11 +258,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   const handleAddSet = (exerciseIndex) => {
     const updatedExercises = [...exercises];
-    const newSetNumber = updatedExercises[exerciseIndex].sets.length + 1;
+    const currentSets = updatedExercises[exerciseIndex].sets;
+    const newSetNumber = currentSets.length + 1;
+    
+    // Récupérer les valeurs de la dernière série
+    const lastSet = currentSets[currentSets.length - 1];
+    const previousWeight = lastSet?.weight || '';
+    const previousReps = lastSet?.reps || '';
+    
     updatedExercises[exerciseIndex].sets.push({
       serie: newSetNumber,
-      weight: '',
-      reps: '',
+      weight: previousWeight,
+      reps: previousReps,
       rest: '03:00',
       video: false
     });

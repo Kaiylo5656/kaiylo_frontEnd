@@ -1,13 +1,33 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo'; // Import the new Logo component
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm();
-  const { login, error: authError, loading } = useAuth();
+  const { login, error: authError, loading, user } = useAuth();
   const navigate = useNavigate();
+
+  const getTargetPath = (role) => {
+    switch (role) {
+      case 'coach':
+        return '/coach/dashboard';
+      case 'student':
+        return '/student/dashboard';
+      case 'admin':
+        return '/admin/dashboard';
+      default:
+        return '/dashboard';
+    }
+  };
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate(getTargetPath(user.role), { replace: true });
+    }
+  }, [loading, user, navigate]);
 
   const onSubmit = async (data) => {
     try {
@@ -24,6 +44,10 @@ const LoginPage = () => {
       }
     }
   };
+
+  if (loading && !user) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col antialiased">
