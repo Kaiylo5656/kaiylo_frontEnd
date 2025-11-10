@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, Plus, Trash2, MoreHorizontal, Search, List, User, GripVertical, ChevronUp, ChevronDown, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
@@ -18,6 +18,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState([]);
+  const [sessionDate, setSessionDate] = useState(selectedDate || new Date()); // Track the currently selected date for the session
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
@@ -72,6 +73,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     if (isOpen && existingSession) {
       setSessionName(existingSession.title || '');
       setDescription(existingSession.description || '');
+      if (existingSession.scheduled_date) {
+        setSessionDate(parseISO(existingSession.scheduled_date));
+      } else if (selectedDate) {
+        setSessionDate(selectedDate);
+      }
       
       // Convert session exercises to form format
       const formExercises = existingSession.exercises?.map(ex => {
@@ -110,9 +116,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       // Reset form for new session
       setSessionName('');
       setDescription('');
+      setSessionDate(selectedDate || new Date());
       setExercises([]);
     }
-  }, [isOpen, existingSession]);
+  }, [isOpen, existingSession, selectedDate]);
 
   // Calculate position for arrangement modal
   const updateArrangementPosition = useCallback(() => {
@@ -375,7 +382,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }
 
     const sessionData = {
-      title: sessionName.trim() || `Séance du ${format(selectedDate, 'dd/MM/yyyy')}`,
+      title: sessionName.trim() || `Séance du ${format(sessionDate, 'dd/MM/yyyy')}`,
       description: description.trim(),
       exercises: exercises.map(ex => ({
         exerciseId: ex.exerciseId,
@@ -391,7 +398,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         notes: ex.notes,
         tempo: ex.tempo
       })),
-      scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
+      scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,
       status: status, // 'published' or 'draft'
       // Include existing session info if editing
@@ -399,7 +406,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         existingSessionId: existingSession.workoutSessionId || existingSession.id, // Use workoutSessionId for draft sessions
         assignmentId: existingSession.assignmentId, // Include assignmentId for assigned sessions
         isEdit: true
-      })
+      }),
+      originalScheduledDate: existingSession?.scheduled_date
+        ? existingSession.scheduled_date
+        : format(selectedDate || sessionDate, 'yyyy-MM-dd')
     };
 
     console.log('Sending session data:', sessionData);
@@ -435,6 +445,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setSessionName('');
     setDescription('');
     setExercises([]);
+    setSessionDate(selectedDate || new Date());
     setSearchTerm('');
     setShowExerciseSelector(false);
     setShowSidebar(false);
@@ -648,6 +659,24 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
                   className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#e87c3e] focus-visible:border-transparent transition-all duration-150 shadow-sm"
+                />
+              </div>
+
+              <div className="py-2 space-y-2">
+                <label className="text-sm font-semibold text-white/90 tracking-wide uppercase">
+                  Date de la séance
+                </label>
+                <Input
+                  type="date"
+                  value={sessionDate ? format(sessionDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    if (nextValue) {
+                      setSessionDate(parseISO(nextValue));
+                    }
+                  }}
+                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#e87c3e] focus-visible:border-transparent transition-all duration-150 shadow-sm"
+                  style={{ colorScheme: 'dark' }} // ensure native calendar icon stays visible on dark background
                 />
               </div>
 

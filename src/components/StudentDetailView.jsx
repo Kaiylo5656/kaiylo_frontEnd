@@ -21,6 +21,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [isOneRmModalOpen, setIsOneRmModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [draggedSession, setDraggedSession] = useState(null); // Session currently being dragged
+  const [draggedFromDate, setDraggedFromDate] = useState(null); // Original date for the dragged session
+  const [dragOverDate, setDragOverDate] = useState(null); // Date currently highlighted as drop target
+  const [isRescheduling, setIsRescheduling] = useState(false); // Prevent concurrent rescheduling calls
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
   const [trainingMonthDate, setTrainingMonthDate] = useState(new Date()); // For training monthly calendar
   const [workoutSessions, setWorkoutSessions] = useState({}); // Will store arrays of sessions per date
@@ -181,6 +185,108 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     } else {
       // Pour les séances en cours, ouvrir la modale de détails en lecture seule
       setIsDetailsModalOpen(true);
+    }
+  };
+
+  const handleSessionDragStart = (event, session, day) => {
+    // Prevent click handlers from firing while initiating a drag
+    event.stopPropagation();
+    setDraggedSession(session);
+    setDraggedFromDate(day);
+    setDragOverDate(null);
+    // Provide a basic payload for browsers that expect dataTransfer content
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', session.id || session.assignmentId || session.workoutSessionId || 'workout-session');
+    }
+  };
+
+  const handleSessionDragEnd = () => {
+    setDraggedSession(null);
+    setDraggedFromDate(null);
+    setDragOverDate(null);
+  };
+
+  const handleDayDragOver = (event, day) => {
+    if (!draggedSession) return;
+    event.preventDefault();
+    setDragOverDate(format(day, 'yyyy-MM-dd'));
+  };
+
+  const handleDayDragLeave = (event, day) => {
+    if (!draggedSession) return;
+    // Only clear highlight when leaving the current card entirely
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setDragOverDate((current) => (current === format(day, 'yyyy-MM-dd') ? null : current));
+    }
+  };
+
+  const handleDayDrop = async (event, day) => {
+    if (!draggedSession || !draggedFromDate) return;
+    event.preventDefault();
+    const targetDate = day;
+    const fromDate = draggedFromDate;
+    handleSessionDragEnd();
+    await handleMoveSession(draggedSession, fromDate, targetDate);
+  };
+
+  const handleMoveSession = async (session, fromDate, toDate) => {
+    const fromKey = format(fromDate, 'yyyy-MM-dd');
+    const toKey = format(toDate, 'yyyy-MM-dd');
+
+    if (fromKey === toKey) {
+      return; // Nothing to do if the session is dropped on the same day
+    }
+
+    try {
+      if (isRescheduling) return;
+      setIsRescheduling(true);
+
+      const token = localStorage.getItem('authToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      const payloadDate = toKey;
+
+      if (session.assignmentId) {
+        // Published session: update assignment due date
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/assignments/${session.assignmentId}`,
+          { dueDate: payloadDate },
+          { headers }
+        );
+
+        // Keep workout session metadata (scheduled_date) in sync for student views
+        if (session.workoutSessionId) {
+          await axios.patch(
+            `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
+            { scheduled_date: payloadDate },
+            { headers }
+          );
+        }
+      } else if (session.status === 'draft' && session.workoutSessionId) {
+        // Draft session: update scheduled_date directly on workout session
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
+          { scheduled_date: payloadDate },
+          { headers }
+        );
+      } else if (session.workoutSessionId) {
+        // Fallback: try updating the workout session date if available
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
+          { scheduled_date: payloadDate },
+          { headers }
+        );
+      } else {
+        console.warn('Unable to reschedule session – missing identifiers:', session);
+        return;
+      }
+
+      await fetchWorkoutSessions();
+    } catch (error) {
+      console.error('Error moving session:', error);
+      alert('Impossible de déplacer la séance. Vérifie ta connexion et réessaie.');
+    } finally {
+      setIsRescheduling(false);
     }
   };
 
@@ -594,8 +700,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 
                 console.log('✅ Assignment created successfully');
               } else if (sessionData.assignmentId) {
-                // Backend has no PATCH /api/assignments/:id route; skip scheduled_date update to avoid 404
-                console.log('ℹ️ Skipping assignment scheduled_date update (no backend route available)');
+                const previousDate = sessionData.originalScheduledDate;
+                const nextDate = sessionData.scheduled_date;
+
+                if (nextDate && previousDate && nextDate !== previousDate) {
+                  console.log('🗓️ Updating assignment due date:', {
+                    assignmentId: sessionData.assignmentId,
+                    previousDate,
+                    nextDate
+                  });
+
+                  await axios.patch(
+                    `${getApiBaseUrlWithApi()}/assignments/${sessionData.assignmentId}`,
+                    { dueDate: nextDate },
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                }
               }
               // If there's already an assignment, we don't need to create a new one
               // The existing assignment is already linked to the updated session
@@ -1001,7 +1121,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            startDate: rangeStart,
+            endDate: rangeEnd,
+            limit: 200
+          }
         }
       );
 
@@ -1032,7 +1157,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               endTime: assignment.end_time,
               notes: assignment.notes,
               difficulty: assignment.difficulty,
-              workoutSessionId: assignment.workout_session_id
+              workoutSessionId: assignment.workout_session_id,
+              scheduled_date: assignment.scheduled_date || assignment.due_date
             };
 
           // Initialize array for this date if it doesn't exist
@@ -1690,18 +1816,30 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
             {/* Weekly Schedule */}
             <div className="grid grid-cols-7 gap-3">
-              {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => (
+              {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
+                const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
+                const dayKey = format(dayDate, 'yyyy-MM-dd');
+                const isToday = dayKey === format(new Date(), 'yyyy-MM-dd');
+                const isDropTarget = dragOverDate === dayKey;
+
+                return (
                 <div 
                  key={day} 
-                 className={`rounded-xl p-2 cursor-pointer transition-colors relative group h-[200px] overflow-hidden ${
-                   format(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                 className={`rounded-xl p-2 cursor-pointer transition-colors relative group h-[200px] overflow-hidden border ${
+                   isDropTarget
+                   ? 'bg-[#2f2f2f] border-[#e87c3e]'
+                   : isToday
                    ? 'bg-[#262626] border-2 border-[#e87c3e]'
-                   : 'bg-[#1a1a1a] hover:bg-[#262626]'
+                   : 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
                  }`}
-                 onClick={() => handleDayClick(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i))}
+                 onClick={() => handleDayClick(dayDate)}
+                 onDragOver={(event) => handleDayDragOver(event, dayDate)}
+                 onDragEnter={(event) => handleDayDragOver(event, dayDate)}
+                 onDragLeave={(event) => handleDayDragLeave(event, dayDate)}
+                 onDrop={(event) => handleDayDrop(event, dayDate)}
                >
                  <div className="text-xs text-gray-400 mb-2 flex justify-between items-center">
-                   <span>{day} {format(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i), 'dd')}</span>
+                   <span>{day} {format(dayDate, 'dd')}</span>
                    <Plus className="h-3 w-3 text-[#e87c3e] opacity-0 group-hover:opacity-100 transition-opacity" />
                  </div>
                  {loadingSessions ? (
@@ -1711,7 +1849,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                  ) : (
                    <>
                      {(() => {
-                       const dateKey = format(addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i), 'yyyy-MM-dd');
+                       const dateKey = dayKey;
                        const sessions = workoutSessions[dateKey] || [];
                        
                        if (sessions.length > 0) {
@@ -1726,9 +1864,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                                      : 'bg-[#262626] hover:bg-[#2a2a2a]'
                                  }`}
                                  style={{ minHeight: '80px' }}
+                                draggable
+                                onDragStart={(event) => handleSessionDragStart(event, session, dayDate)}
+                                onDragEnd={handleSessionDragEnd}
                              onClick={(e) => {
                                e.stopPropagation();
-                                   handleSessionClick(session, addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i));
+                                  handleSessionClick(session, dayDate);
                              }}
                            >
                              <div className="p-2">
@@ -1793,7 +1934,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                                                <button
                                                  onClick={(e) => {
                                                    e.stopPropagation();
-                                                   handlePublishDraftSession(session, addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i));
+                                                  handlePublishDraftSession(session, dayDate);
                                                  }}
                                                  className="text-green-400 hover:text-green-300 transition-colors"
                                                  title="Publier la séance"
@@ -1804,7 +1945,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                                              <button
                                                onClick={(e) => {
                                                  e.stopPropagation();
-                                                 handleDeleteSession(session.assignmentId || session.id, addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i));
+                                                 handleDeleteSession(session.assignmentId || session.id, dayDate);
                                                }}
                                                className="text-red-400 hover:text-red-300 transition-colors"
                                                title="Supprimer la séance"
@@ -1832,7 +1973,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   </>
                 )}
               </div>
-            ))}
+                );
+              })}
             </div>
           </>
         )}
