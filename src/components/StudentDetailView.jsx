@@ -35,6 +35,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
   const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
+  const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
+  const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
+  const [isPastingSession, setIsPastingSession] = useState(false);
   
   // Video analysis state
   const [studentVideos, setStudentVideos] = useState([]);
@@ -236,6 +239,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     const targetDate = day;
     const fromDate = draggedFromDate;
     handleSessionDragEnd();
+    setHoveredPasteDate(null);
     await handleMoveSession(draggedSession, fromDate, targetDate);
   };
 
@@ -1017,32 +1021,49 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   // Handle copying a single session
   const handleCopySession = async (session, day) => {
     try {
+      // Deep clone to avoid mutating original reference
+      const sessionClone = JSON.parse(JSON.stringify(session));
+      setCopiedSession({ session: sessionClone, fromDate: format(day, 'yyyy-MM-dd') });
+      alert('Séance copiée ! Survolez un jour et cliquez sur "Coller" pour la dupliquer.');
+    } catch (error) {
+      console.error('Error copying session:', error);
+      alert('Erreur lors de la copie de la séance');
+    }
+  };
+
+  const handlePasteCopiedSession = async (targetDay) => {
+    if (!copiedSession || isPastingSession) return;
+
+    try {
+      setIsPastingSession(true);
       const token = localStorage.getItem('authToken');
-      
-      // Create a new session with the same content but for a new date
+      const headers = { Authorization: `Bearer ${token}` };
+      const scheduledDate = format(targetDay, 'yyyy-MM-dd');
+
+      const originalStatus = copiedSession.session.status;
       const sessionData = {
-        title: session.title,
-        description: session.description || '',
-        exercises: session.exercises,
-        scheduled_date: format(day, 'yyyy-MM-dd'),
+        title: copiedSession.session.title,
+        description: copiedSession.session.description || '',
+        exercises: copiedSession.session.exercises || [],
+        scheduled_date: scheduledDate,
         student_id: student.id,
-        status: 'published'
+        status: originalStatus === 'draft' ? 'draft' : 'published'
       };
 
       await axios.post(
         `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
         sessionData,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers }
       );
 
-      // Refresh sessions
       await fetchWorkoutSessions();
-      alert('Séance copiée avec succès !');
+      setCopiedSession(null);
+      setHoveredPasteDate(null);
     } catch (error) {
-      console.error('Error copying session:', error);
-      alert('Erreur lors de la copie de la séance');
+      console.error('Error pasting copied session:', error);
+      alert('Erreur lors du collage de la séance');
+    } finally {
+      setIsPastingSession(false);
     }
   };
 
@@ -1556,6 +1577,369 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${unit}`;
   };
 
+  const trainingWeeks = useMemo(() => {
+    let startDate;
+
+    if (weekViewFilter === 2) {
+      startDate = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
+    } else {
+      const monthStart = startOfMonth(trainingMonthDate);
+      startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
+    }
+
+    return Array.from({ length: weekViewFilter }, (_, index) => {
+      const weekStart = addDays(startDate, index * 7);
+      const weekDays = Array.from({ length: 7 }, (_, dayIndex) => addDays(weekStart, dayIndex));
+      return { weekStart, weekDays };
+    });
+  }, [weekViewFilter, trainingMonthDate]);
+
+  const renderOverviewDayContent = (dayDate, dayKey) => {
+    const sessions = workoutSessions[dayKey] || [];
+
+    const sessionList = sessions.length > 0 ? (
+      <div className="session-container space-y-1" style={{ height: '150px', overflowY: 'auto' }}>
+        {sessions.map((session, sessionIndex) => {
+          const canDrag = session.status === 'draft' || session.status === 'assigned';
+          const dropdownKey = `${session.id || session.assignmentId}-${dayKey}`;
+          const exercises = session.exercises || [];
+
+          return (
+            <div
+              key={session.id || sessionIndex}
+              className={`rounded transition-colors ${
+                session.status === 'draft'
+                  ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
+                  : 'bg-[#262626] border border-transparent hover:bg-[#2a2a2a]'
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+              draggable
+              onDragStart={(event) => handleSessionDragStart(event, session, dayDate)}
+              onDragEnd={handleSessionDragEnd}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSessionClick(session, dayDate);
+              }}
+            >
+              <div className="p-2 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <span className="truncate text-[11px] font-medium">{session.title || 'Séance'}</span>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#e87c3e]" />}
+                      {session.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#22c55e]" />}
+                      {session.status === 'draft' && <EyeOff className="h-3 w-3 text-gray-400" />}
+                      {session.status === 'assigned' && <Clock className="h-3 w-3 text-[#3b82f6]" />}
+                    </div>
+                  </div>
+
+                  {session.status !== 'completed' && session.status !== 'in_progress' && (
+                    <div className="relative dropdown-container flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDropdown(session.id || session.assignmentId, dayKey, e);
+                        }}
+                        className="text-gray-400 hover:text-white transition-colors"
+                        title="Options de la séance"
+                      >
+                        <MoreHorizontal className="h-3 w-3" />
+                      </button>
+
+                      {dropdownOpen === dropdownKey && (
+                        <div
+                          className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
+                          style={{
+                            top: dropdownPosition?.top || 0,
+                            left: dropdownPosition?.left || 0,
+                            transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
+                          }}
+                        >
+                          {session.status === 'draft' ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDropdownOpen(null);
+                                setDropdownPosition(null);
+                                handlePublishDraftSession(session, dayDate);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                            >
+                              <Eye className="h-4 w-4" />
+                              Publier la séance
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDropdownOpen(null);
+                                setDropdownPosition(null);
+                                handleSwitchToDraft(session, dayDate);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                            >
+                              <EyeOff className="h-4 w-4" />
+                              Passer en mode brouillon
+                            </button>
+                          )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              handleCopySession(session, dayDate);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
+                          >
+                            <Copy className="h-4 w-4" />
+                            Copier
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              handleDeleteSession(session.assignmentId || session.id, dayDate);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  {exercises.slice(0, 2).map((exercise, index) => (
+                    <div key={index} className="text-[10px] text-gray-400 truncate">
+                      {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} {exercise.name}{' '}
+                      {exercise.sets?.[0]?.weight ? `@${exercise.sets[0].weight}kg` : ''}
+                    </div>
+                  ))}
+                  {exercises.length > 2 && (
+                    <div className="text-[10px] text-gray-500">+ {exercises.length - 2} exercices</div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[10px]">
+                  <span
+                    className={`px-2 py-0.5 rounded-full font-medium ${
+                      session.status === 'completed'
+                        ? 'bg-[#22c55e] text-white'
+                        : session.status === 'in_progress'
+                        ? 'bg-[#e87c3e] text-white'
+                        : session.status === 'draft'
+                        ? 'bg-gray-500 text-white'
+                        : session.status === 'assigned'
+                        ? 'bg-[#3b82f6] text-white'
+                        : 'bg-gray-600 text-gray-200'
+                    }`}
+                  >
+                    {session.status === 'completed'
+                      ? 'Terminé'
+                      : session.status === 'in_progress'
+                      ? 'En cours'
+                      : session.status === 'draft'
+                      ? 'Brouillon'
+                      : session.status === 'assigned'
+                      ? 'Assigné'
+                      : 'Pas commencé'}
+                  </span>
+
+                  {session.startTime && (
+                    <span className="text-gray-400">
+                      {format(parseISO(session.startTime), 'HH:mm')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="flex-1" />
+    );
+
+    return (
+      <>
+        {sessionList}
+        {copiedSession && hoveredPasteDate === dayKey && !draggedSession && (
+          <button
+            className={`absolute left-1/2 bottom-3 -translate-x-1/2 px-4 py-2 rounded-lg text-sm shadow-lg transition-colors ${
+              isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-[#2563eb]'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePasteCopiedSession(dayDate);
+            }}
+            disabled={isPastingSession}
+          >
+            {isPastingSession ? 'Collage…' : 'Coller'}
+          </button>
+        )}
+      </>
+    );
+  };
+
+  const renderTrainingDayContent = (day, dateKey) => {
+    const allSessions = workoutSessions[dateKey] || [];
+    const sessions = getFilteredSessions(allSessions);
+
+    const sessionList = sessions.length > 0 ? (
+      <div className={`session-container flex-1 ${weekViewFilter === 2 ? 'space-y-3' : 'space-y-1'} overflow-y-auto max-h-full`}>
+        {sessions.map((session, sessionIndex) => {
+          const canDrag = session.status === 'draft' || session.status === 'assigned';
+
+          return (
+            <div
+              key={session.id || sessionIndex}
+              className={`rounded transition-colors ${
+                session.status === 'draft'
+                  ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
+                  : session.status === 'assigned'
+                  ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
+                  : 'bg-[#262626] border-l-2 border-[#e87c3e] hover:bg-[#2a2a2a]'
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-4' : 'p-2'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSessionClick(session, day);
+              }}
+              draggable
+              onDragStart={(event) => handleSessionDragStart(event, session, day)}
+              onDragEnd={handleSessionDragEnd}
+            >
+              <div className={`flex items-center justify-between ${weekViewFilter === 2 ? 'mb-2' : 'mb-1'}`}>
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {session.status === 'in_progress' && (
+                      <PlayCircle className={`text-[#e87c3e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                    )}
+                    {session.status === 'completed' && (
+                      <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                    )}
+                    {session.status === 'draft' && (
+                      <EyeOff className={`text-gray-400 ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                    )}
+                    {session.status === 'assigned' && (
+                      <Clock className={`text-[#3b82f6] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                    )}
+                  </div>
+                </div>
+                {session.status !== 'completed' && session.status !== 'in_progress' && (
+                  <div className="relative ml-2 dropdown-container flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDropdown(session.id || session.assignmentId, dateKey, e);
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors"
+                      title="Options de la séance"
+                    >
+                      <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
+                    </button>
+                    {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
+                      <div
+                        className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
+                        style={{
+                          top: dropdownPosition?.top || 0,
+                          left: dropdownPosition?.left || 0,
+                          transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
+                        }}
+                      >
+                        {session.status === 'draft' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              handlePublishDraftSession(session, day);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Publier la séance
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDropdownOpen(null);
+                              setDropdownPosition(null);
+                              handleSwitchToDraft(session, day);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                          >
+                            <EyeOff className="h-4 w-4" />
+                            Passer en mode brouillon
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDropdownOpen(null);
+                            setDropdownPosition(null);
+                            handleCopySession(session, day);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
+                        >
+                          <Copy className="h-4 w-4" />
+                          Copier
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDropdownOpen(null);
+                            setDropdownPosition(null);
+                            handleDeleteSession(session.assignmentId || session.id, day);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className={`text-gray-400 ${weekViewFilter === 2 ? 'text-sm' : 'text-[9px]'}`}>
+                + {session.exercises.length} exercises en plus
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <div className="flex-1"></div>
+    );
+
+    return (
+      <>
+        {sessionList}
+        {copiedSession && hoveredPasteDate === dateKey && !draggedSession && (
+          <button
+            className={`absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1.5 rounded-lg text-xs shadow-lg transition-colors ${
+              isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-[#2563eb]'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePasteCopiedSession(day);
+            }}
+            disabled={isPastingSession}
+          >
+            {isPastingSession ? 'Collage…' : 'Coller'}
+          </button>
+        )}
+      </>
+    );
+  };
+
   if (loading) {
     return <div className="p-6">Loading...</div>;
   }
@@ -1846,6 +2230,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     onDragEnter={(event) => handleDayDragOver(event, dayDate)}
                     onDragLeave={(event) => handleDayDragLeave(event, dayDate)}
                     onDrop={(event) => handleDayDrop(event, dayDate)}
+                    onMouseEnter={() => setHoveredPasteDate(dayKey)}
+                    onMouseLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        setHoveredPasteDate((current) => (current === dayKey ? null : current));
+                      }
+                    }}
                   >
                     <div className="text-xs text-gray-400 mb-2 flex justify-between items-center">
                       <span>
@@ -1859,182 +2249,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                         <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
                       </div>
                     ) : (
-                      <>
-                        {(() => {
-                          const dateKey = dayKey;
-                          const sessions = workoutSessions[dateKey] || [];
-
-                          if (sessions.length > 0) {
-                            return (
-                              <div className="session-container space-y-1" style={{ height: '150px', overflowY: 'auto' }}>
-                                {sessions.map((session, sessionIndex) => {
-                                  const canDrag = session.status === 'draft' || session.status === 'assigned';
-                                  const dropdownKey = `${session.id || session.assignmentId}-${dayKey}`;
-                                  const exercises = session.exercises || [];
-
-                                  return (
-                                    <div
-                                      key={session.id || sessionIndex}
-                                      className={`rounded transition-colors ${
-                                        session.status === 'draft'
-                                          ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
-                                          : 'bg-[#262626] border border-transparent hover:bg-[#2a2a2a]'
-                                      } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
-                                      draggable
-                                      onDragStart={(event) => handleSessionDragStart(event, session, dayDate)}
-                                      onDragEnd={handleSessionDragEnd}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSessionClick(session, dayDate);
-                                      }}
-                                    >
-                                      <div className="p-2 space-y-2">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="flex items-center gap-1 min-w-0 flex-1">
-                                            <span className="truncate text-[11px] font-medium">{session.title || 'Séance'}</span>
-                                            <div className="flex items-center gap-0.5 flex-shrink-0">
-                                              {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#e87c3e]" />}
-                                              {session.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#22c55e]" />}
-                                              {session.status === 'draft' && <EyeOff className="h-3 w-3 text-gray-400" />}
-                                              {session.status === 'assigned' && <Clock className="h-3 w-3 text-[#3b82f6]" />}
-                                            </div>
-                                          </div>
-
-                                          {session.status !== 'completed' && session.status !== 'in_progress' && (
-                                            <div className="relative dropdown-container flex-shrink-0">
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  toggleDropdown(session.id || session.assignmentId, dayKey, e);
-                                                }}
-                                                className="text-gray-400 hover:text-white transition-colors"
-                                                title="Options de la séance"
-                                              >
-                                                <MoreHorizontal className="h-3 w-3" />
-                                              </button>
-
-                                              {dropdownOpen === dropdownKey && (
-                                                <div
-                                                  className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
-                                                  style={{
-                                                    top: dropdownPosition?.top || 0,
-                                                    left: dropdownPosition?.left || 0,
-                                                    transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
-                                                  }}
-                                                >
-                                                  {session.status === 'draft' ? (
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(null);
-                                                        setDropdownPosition(null);
-                                                        handlePublishDraftSession(session, dayDate);
-                                                      }}
-                                                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
-                                                    >
-                                                      <Eye className="h-4 w-4" />
-                                                      Publier la séance
-                                                    </button>
-                                                  ) : (
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(null);
-                                                        setDropdownPosition(null);
-                                                        handleSwitchToDraft(session, dayDate);
-                                                      }}
-                                                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
-                                                    >
-                                                      <EyeOff className="h-4 w-4" />
-                                                      Passer en mode brouillon
-                                                    </button>
-                                                  )}
-
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setDropdownOpen(null);
-                                                      setDropdownPosition(null);
-                                                      handleCopySession(session, dayDate);
-                                                    }}
-                                                    className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
-                                                  >
-                                                    <Copy className="h-4 w-4" />
-                                                    Copier
-                                                  </button>
-
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setDropdownOpen(null);
-                                                      setDropdownPosition(null);
-                                                      handleDeleteSession(session.assignmentId || session.id, dayDate);
-                                                    }}
-                                                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
-                                                  >
-                                                    <Trash2 className="h-4 w-4" />
-                                                    Supprimer
-                                                  </button>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        <div className="space-y-1">
-                                          {exercises.slice(0, 2).map((exercise, index) => (
-                                            <div key={index} className="text-[10px] text-gray-400 truncate">
-                                              {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} {exercise.name}{' '}
-                                              {exercise.sets?.[0]?.weight ? `@${exercise.sets[0].weight}kg` : ''}
-                                            </div>
-                                          ))}
-                                          {exercises.length > 2 && (
-                                            <div className="text-[10px] text-gray-500">+ {exercises.length - 2} exercices</div>
-                                          )}
-                                        </div>
-
-                                        <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[10px]">
-                                          <span
-                                            className={`px-2 py-0.5 rounded-full font-medium ${
-                                              session.status === 'completed'
-                                                ? 'bg-[#22c55e] text-white'
-                                                : session.status === 'in_progress'
-                                                ? 'bg-[#e87c3e] text-white'
-                                                : session.status === 'draft'
-                                                ? 'bg-gray-500 text-white'
-                                                : session.status === 'assigned'
-                                                ? 'bg-[#3b82f6] text-white'
-                                                : 'bg-gray-600 text-gray-200'
-                                            }`}
-                                          >
-                                            {session.status === 'completed'
-                                              ? 'Terminé'
-                                              : session.status === 'in_progress'
-                                              ? 'En cours'
-                                              : session.status === 'draft'
-                                              ? 'Brouillon'
-                                              : session.status === 'assigned'
-                                              ? 'Assigné'
-                                              : 'Pas commencé'}
-                                          </span>
-
-                                          {session.startTime && (
-                                            <span className="text-gray-400">
-                                              {format(parseISO(session.startTime), 'HH:mm')}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          }
-
-                          return <div className="flex-1" />;
-                        })()}
-                      </>
+                      renderOverviewDayContent(dayDate, dayKey)
                     )}
                   </div>
                 );
@@ -2157,279 +2372,111 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
             {/* Calendar Grid */}
             <div className={weekViewFilter === 2 ? 'space-y-4' : 'space-y-2'}>
-              {(() => {
-                // For 2-week view, center around current date or trainingMonthDate
-                let startDate, endDate;
-                
-                if (weekViewFilter === 2) {
-                  // Center 2 weeks around the trainingMonthDate
-                  const weekStart = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
-                  startDate = weekStart;
-                  endDate = addDays(startDate, 13); // 2 weeks = 14 days
-                } else {
-                  // For 4-week view, use the month-based logic
-                  const monthStart = startOfMonth(trainingMonthDate);
-                  startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-                  endDate = addDays(startDate, (weekViewFilter * 7) - 1);
-                }
-                
-                // Group days by weeks
-                const weeks = [];
-                for (let i = 0; i < weekViewFilter; i++) {
-                  const weekStart = addDays(startDate, i * 7);
-                  const weekDays = [];
-                  for (let j = 0; j < 7; j++) {
-                    weekDays.push(addDays(weekStart, j));
-                  }
-                  weeks.push({ weekStart, weekDays });
-                }
-
-                return (
-                  <>
-                    {/* Week headers */}
-          <div className="grid grid-cols-7 gap-2">
-            {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day) => (
-              <div key={day} className="text-center text-xs text-gray-400 py-2">
-                {day}
-              </div>
-            ))}
+              <div className="grid grid-cols-7 gap-2">
+                {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day) => (
+                  <div key={day} className="text-center text-xs text-gray-400 py-2">
+                    {day}
                   </div>
+                ))}
+              </div>
 
-                  {/* Week rows */}
-                  {weeks.map((week, weekIndex) => {
-                    const weekKey = format(week.weekStart, 'yyyy-MM-dd');
-                    const isHovered = hoveredWeek === weekKey;
-                    
-                    return (
-                      <div
-                        key={weekKey}
-                        className={`relative group flex ${weekViewFilter === 2 ? 'min-h-[320px]' : 'min-h-[140px]'}`}
-                      >
-                        {/* Container pour la zone de survol et les boutons */}
-                        <div
-                          className={`week-action-container absolute -left-12 top-0 bottom-0 w-16 z-20 transition-all duration-200 ${
-                            isHovered ? 'bg-gray-800/20 border-l-2 border-[#e87c3e]' : 'hover:bg-gray-800/10'
-                          }`}
-                          onMouseEnter={() => setHoveredWeek(weekKey)}
-                          onMouseLeave={() => setHoveredWeek(null)}
-                          title="Survolez pour voir les actions de semaine"
-                        >
-                          {/* Zone invisible pour déclencher le survol */}
-                          <div className="absolute inset-0 cursor-pointer" />
-                          
-                          {/* Week action buttons - apparaissent au centre */}
-                          {isHovered && (
-                            <div className="week-action-buttons flex flex-col gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                console.log('🔄 Copy button clicked!', week.weekStart);
-                                handleCopyWeek(week.weekStart);
-                              }}
-                              className="p-2 bg-[#e87c3e] hover:bg-[#d66d35] text-white rounded-lg transition-colors relative z-50 pointer-events-auto"
-                              title="Copier la semaine"
-                              style={{ pointerEvents: 'auto' }}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </button>
-                            {copiedWeek && (
-                              <button
-                                onClick={() => handlePasteWeek(week.weekStart)}
-                                className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                                title="Coller la semaine copiée"
-                              >
-                                <Clipboard className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDeleteWeek(week.weekStart)}
-                              className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                              title="Supprimer la semaine"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                            </div>
-                          )}
-                        </div>
+              {trainingWeeks.map((week) => {
+                const weekKey = format(week.weekStart, 'yyyy-MM-dd');
+                const isHovered = hoveredWeek === weekKey;
 
-                        {/* Week days */}
-                        <div className={`grid grid-cols-7 flex-1 ${weekViewFilter === 2 ? 'gap-6' : 'gap-2'}`}>
-                          {week.weekDays.map((day) => {
-                const dateKey = format(day, 'yyyy-MM-dd');
-                const session = workoutSessions[dateKey];
-                const isCurrentMonth = isSameMonth(day, trainingMonthDate);
-                const isDropTarget = dragOverDate === dateKey;
-                
                 return (
                   <div
-                    key={dateKey}
-                    className={`rounded-lg cursor-pointer transition-colors flex flex-col border ${
-                      isDropTarget
-                        ? 'bg-[#2f2f2f] border-[#e87c3e]'
-                        : format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-                        ? 'bg-[#262626] border-2 border-[#e87c3e]'
-                        : isCurrentMonth
-                        ? 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
-                        : 'bg-[#0a0a0a] border-transparent hover:bg-[#262626]'
-                    } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
-                    onClick={() => handleDayClick(day)}
-                    onDragOver={(event) => handleDayDragOver(event, day)}
-                    onDragEnter={(event) => handleDayDragOver(event, day)}
-                    onDragLeave={(event) => handleDayDragLeave(event, day)}
-                    onDrop={(event) => handleDayDrop(event, day)}
+                    key={weekKey}
+                    className={`relative group flex ${weekViewFilter === 2 ? 'min-h-[320px]' : 'min-h-[140px]'}`}
                   >
-                    <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-gray-600'}`}>
-                      {format(day, 'd')}
-                    </div>
-                                {(() => {
-                                  const allSessions = workoutSessions[dateKey] || [];
-                                  const sessions = getFilteredSessions(allSessions);
-                                  if (sessions.length > 0) {
-                                    return (
-                                      <div className={`session-container flex-1 ${weekViewFilter === 2 ? 'space-y-3' : 'space-y-1'} overflow-y-auto max-h-full`}>
-                                        {sessions.map((session, sessionIndex) => {
-                                          const canDrag = session.status === 'draft' || session.status === 'assigned';
+                    <div
+                      className={`week-action-container absolute -left-12 top-0 bottom-0 w-16 z-20 transition-all duration-200 ${
+                        isHovered ? 'bg-gray-800/20 border-l-2 border-[#e87c3e]' : 'hover:bg-gray-800/10'
+                      }`}
+                      onMouseEnter={() => setHoveredWeek(weekKey)}
+                      onMouseLeave={() => setHoveredWeek(null)}
+                      title="Survolez pour voir les actions de semaine"
+                    >
+                      <div className="absolute inset-0 cursor-pointer" />
 
-                                          return (
-                                            <div 
-                                              key={session.id || sessionIndex}
-                                              className={`rounded transition-colors ${
-                                                session.status === 'draft' 
-                                                  ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]' 
-                                                  : session.status === 'assigned'
-                                                  ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
-                                                  : 'bg-[#262626] border-l-2 border-[#e87c3e] hover:bg-[#2a2a2a]'
-                                              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-4' : 'p-2'}`}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSessionClick(session, day);
-                                              }}
-                                              draggable
-                                              onDragStart={(event) => handleSessionDragStart(event, session, day)}
-                                              onDragEnd={handleSessionDragEnd}
-                                            >
-                                              <div className={`flex items-center justify-between ${weekViewFilter === 2 ? 'mb-2' : 'mb-1'}`}>
-                                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                                  <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
-                                                  <div className="flex items-center gap-0.5 flex-shrink-0">
-                                                    {session.status === 'in_progress' && (
-                                                      <PlayCircle className={`text-[#e87c3e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
-                                                    )}
-                                                    {session.status === 'completed' && (
-                                                      <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
-                                                    )}
-                                                    {session.status === 'draft' && (
-                                                      <EyeOff className={`text-gray-400 ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
-                                                    )}
-                                                    {session.status === 'assigned' && (
-                                                      <Clock className={`text-[#3b82f6] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                {session.status !== 'completed' && session.status !== 'in_progress' && (
-                                                  <div className="relative ml-2 dropdown-container flex-shrink-0">
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleDropdown(session.id || session.assignmentId, dateKey, e);
-                                                      }}
-                                                      className="text-gray-400 hover:text-white transition-colors"
-                                                      title="Options de la séance"
-                                                    >
-                                                      <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
-                                                    </button>
-                                                    {/* Dropdown Menu */}
-                                                    {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
-                                                      <div 
-                                                        className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
-                                                        style={{
-                                                          top: dropdownPosition?.top || 0,
-                                                          left: dropdownPosition?.left || 0,
-                                                          transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
-                                                        }}
-                                                      >
-                                                        {session.status === 'draft' ? (
-                                                          <button
-                                                            onClick={(e) => {
-                                                              e.stopPropagation();
-                                                              setDropdownOpen(null);
-                                                              setDropdownPosition(null);
-                                                              handlePublishDraftSession(session, day);
-                                                            }}
-                                                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
-                                                          >
-                                                            <Eye className="h-4 w-4" />
-                                                            Publier la séance
-                                                          </button>
-                                                        ) : (
-                                                          <button
-                                                            onClick={(e) => {
-                                                              e.stopPropagation();
-                                                              setDropdownOpen(null);
-                                                              setDropdownPosition(null);
-                                                              handleSwitchToDraft(session, day);
-                                                            }}
-                                                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
-                                                          >
-                                                            <EyeOff className="h-4 w-4" />
-                                                            Passer en mode brouillon
-                                                          </button>
-                                                        )}
-                                                        <button
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDropdownOpen(null);
-                                                            setDropdownPosition(null);
-                                                            handleCopySession(session, day);
-                                                          }}
-                                                          className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
-                                                        >
-                                                          <Copy className="h-4 w-4" />
-                                                          Copier
-                                                        </button>
-                                                        <button
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDropdownOpen(null);
-                                                            setDropdownPosition(null);
-                                                            handleDeleteSession(session.assignmentId || session.id, day);
-                                                          }}
-                                                          className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
-                                                        >
-                                                          <Trash2 className="h-4 w-4" />
-                                                          Supprimer
-                                                        </button>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <div className={`text-gray-400 ${weekViewFilter === 2 ? 'text-sm' : 'text-[9px]'}`}>
-                                                + {session.exercises.length} exercises en plus
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    );
-                                  }
-                                  // For consistent height, return an empty container for both views
-                                  return <div className="flex-1"></div>;
-                                })()}
-                              </div>
-                            );
-                          })}
+                      {isHovered && (
+                        <div className="week-action-buttons flex flex-col gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyWeek(week.weekStart);
+                            }}
+                            className="p-2 bg-[#e87c3e] hover:bg-[#d66d35] text-white rounded-lg transition-colors relative z-50 pointer-events-auto"
+                            title="Copier la semaine"
+                            style={{ pointerEvents: 'auto' }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          {copiedWeek && (
+                            <button
+                              onClick={() => handlePasteWeek(week.weekStart)}
+                              className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                              title="Coller la semaine copiée"
+                            >
+                              <Clipboard className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteWeek(week.weekStart)}
+                            className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                            title="Supprimer la semaine"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </>
-              );
-            })()}
-          </div>
+                      )}
+                    </div>
 
-        </div>
-      )}
+                    <div className={`grid grid-cols-7 flex-1 ${weekViewFilter === 2 ? 'gap-6' : 'gap-2'}`}>
+                      {week.weekDays.map((day) => {
+                        const dateKey = format(day, 'yyyy-MM-dd');
+                        const isCurrentMonth = isSameMonth(day, trainingMonthDate);
+                        const isDropTarget = dragOverDate === dateKey;
+
+                        return (
+                          <div
+                            key={dateKey}
+                            className={`rounded-lg cursor-pointer transition-colors flex flex-col border relative ${
+                              isDropTarget
+                                ? 'bg-[#2f2f2f] border-[#e87c3e]'
+                                : format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                                ? 'bg-[#262626] border-2 border-[#e87c3e]'
+                                : isCurrentMonth
+                                ? 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
+                                : 'bg-[#0a0a0a] border-transparent hover:bg-[#262626]'
+                            } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
+                            onClick={() => handleDayClick(day)}
+                            onDragOver={(event) => handleDayDragOver(event, day)}
+                            onDragEnter={(event) => handleDayDragOver(event, day)}
+                            onDragLeave={(event) => handleDayDragLeave(event, day)}
+                            onDrop={(event) => handleDayDrop(event, day)}
+                            onMouseEnter={() => setHoveredPasteDate(dateKey)}
+                            onMouseLeave={(event) => {
+                              if (!event.currentTarget.contains(event.relatedTarget)) {
+                                setHoveredPasteDate((current) => (current === dateKey ? null : current));
+                              }
+                            }}
+                          >
+                            <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-gray-600'}`}>
+                              {format(day, 'd')}
+                            </div>
+
+                            {renderTrainingDayContent(day, dateKey)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Analyse vidéo Tab */}
         {activeTab === 'analyse' && (
@@ -2511,6 +2558,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             <p className="text-gray-400">Suivi Financier - Coming soon</p>
           </div>
         )}
+      </div>
 
       <CreateWorkoutSessionModal
         isOpen={isCreateModalOpen}
@@ -2554,7 +2602,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         selectedDate={selectedDate}
         studentId={student.id}
       />
-      </div>
     </div>
   );
 };
