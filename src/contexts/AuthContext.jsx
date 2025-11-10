@@ -464,21 +464,42 @@ export const AuthProvider = ({ children }) => {
       });
 
       console.log('🔐 Login response received:', response.status);
-      const { token, user } = response.data;
+      const { token, refreshToken, user } = response.data;
       
       // Synchroniser avec Supabase pour bénéficier de la gestion automatique
-      // Le backend a déjà créé la session, on la récupère depuis Supabase
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      let session = null;
+      const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
       
-      if (session && !sessionError) {
-        // Utiliser la session Supabase (plus fiable)
+      if (existingSession && !sessionError) {
+        session = existingSession;
+        console.log('🔐 Existing Supabase session detected');
+      }
+
+      if (!session && token && refreshToken) {
+        console.log('🔐 No Supabase session found, setting session manually');
+        const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refreshToken
+        });
+
+        if (setSessionError) {
+          console.error('❌ supabase.auth.setSession failed:', setSessionError.message);
+        } else {
+          session = setSessionData?.session || null;
+        }
+      }
+
+      if (session) {
+        // Utiliser la session Supabase (plus fiable, inclut refresh token)
         persistSessionTokens(session);
-        console.log('🔐 Using Supabase session token');
-      } else {
-        // Fallback: utiliser le token du backend
+        console.log('🔐 Supabase session established');
+      } else if (token) {
+        // Dernier recours: utiliser uniquement le token du backend pour ne pas bloquer l'utilisateur
         localStorage.setItem('authToken', token);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        console.log('🔐 Using backend token');
+        console.warn('⚠️ Supabase session not available, falling back to access token only');
+      } else {
+        throw new Error('No access token returned from login response');
       }
       
       // Update user state
@@ -538,18 +559,38 @@ export const AuthProvider = ({ children }) => {
       
       // Check if the response has the expected structure
       if (response.data.success && response.data.token && response.data.user) {
-        const { token, user } = response.data;
+        const { token, refreshToken, user } = response.data;
         
         // Synchroniser avec Supabase pour bénéficier de la gestion automatique
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        let session = null;
+        const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession();
         
-        if (session && !sessionError) {
+        if (existingSession && !sessionError) {
+          session = existingSession;
+        }
+
+        if (!session && token && refreshToken) {
+          const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
+            access_token: token,
+            refresh_token: refreshToken
+          });
+
+          if (setSessionError) {
+            console.error('❌ supabase.auth.setSession failed during register:', setSessionError.message);
+          } else {
+            session = setSessionData?.session || null;
+          }
+        }
+
+        if (session) {
           // Utiliser la session Supabase (plus fiable)
           persistSessionTokens(session);
-        } else {
+        } else if (token) {
           // Fallback: utiliser le token du backend
           localStorage.setItem('authToken', token);
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        } else {
+          throw new Error('No access token returned from register response');
         }
         
         // Update user state
