@@ -977,10 +977,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       
       console.log('✅ Session exists in database, proceeding with draft switch...');
       
-      // Update the session status to 'draft' in the database
+      const scheduledDateValue = session.scheduled_date || (day ? format(day, 'yyyy-MM-dd') : null);
+
+      const updatePayload = {
+        status: 'draft',
+        ...(scheduledDateValue ? { scheduled_date: scheduledDateValue } : {}),
+        student_id: student?.id || null
+      };
+
       const updateResponse = await axios.patch(
         `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
-        { status: 'draft' },
+        updatePayload,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
