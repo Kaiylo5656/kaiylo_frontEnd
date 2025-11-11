@@ -9,7 +9,7 @@ export const DEFAULT_ONE_RM_DATA = [
   {
     id: 'muscle-up',
     name: 'Muscle-up',
-    color: '#e87c3e',
+    color: '#d4845a',
     current: 37.5,
     best: 42.5,
     unit: 'kg',
@@ -216,12 +216,12 @@ const OneRmModal = ({
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#242424]">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="h-10 w-10 rounded-full border border-[#e87c3e]/70 bg-[#1a1a1a] flex items-center justify-center text-[#e87c3e] shadow-[0_0_15px_rgba(232,124,62,0.2)]">
+                <div className="h-10 w-10 rounded-full border border-[#d4845a]/70 bg-[#1a1a1a] flex items-center justify-center text-[#d4845a] shadow-[0_0_15px_rgba(212,132,90,0.2)]">
                   <TrendingUp className="h-5 w-5" />
                 </div>
                 <div>
                   <DialogTitle className="text-base sm:text-lg font-semibold tracking-wide">
-                    <span className="text-[#e87c3e]">1 RM</span>
+                    <span className="text-[#d4845a]">1 RM</span>
                     <span className="text-white"> — {studentName || 'Athlète'}</span>
                   </DialogTitle>
                   <DialogDescription className="text-xs text-gray-400 mt-1">
@@ -253,7 +253,7 @@ const OneRmModal = ({
                   }}
                   aria-expanded={isHistoryModalOpen}
                   aria-label={isHistoryModalOpen ? "Masquer l'historique" : "Voir l'historique du mouvement"}
-                  className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e87c3e]/60 bg-[#e87c3e] text-black transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#e87c3e]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111] shadow-[0_10px_24px_rgba(232,124,62,0.25)] ${
+                  className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d4845a]/60 bg-[#d4845a] text-black transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4845a]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111] shadow-[0_10px_24px_rgba(212,132,90,0.25)] ${
                     isHistoryModalOpen ? 'scale-95' : 'hover:scale-105'
                   }`}
                 >
@@ -275,14 +275,14 @@ const OneRmModal = ({
                       onClick={() => setSelectedLiftId(lift.id)}
                       className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-all duration-150 ${
                         isActive
-                          ? 'bg-[#1f1f1f]/90 border-l-2 border-[#e87c3e] shadow-[0_0_0_1px_rgba(232,124,62,0.35)]'
+                          ? 'bg-[#1f1f1f]/90 border-l-2 border-[#d4845a] shadow-[0_0_0_1px_rgba(212,132,90,0.35)]'
                           : 'hover:bg-[#1a1a1a]'
                       }`}
                     >
                       <div className="flex items-center gap-3 flex-1">
                         <span
                           className="inline-flex h-2 w-2 rounded-full"
-                          style={{ backgroundColor: lift.color || '#e87c3e' }}
+                          style={{ backgroundColor: lift.color || '#d4845a' }}
                         />
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-white">{lift.name}</span>
@@ -305,7 +305,7 @@ const OneRmModal = ({
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 bg-[#1a1a1a] border-t border-[#262626]">
                   <span className="text-[11px] uppercase tracking-wider text-gray-500">RIS</span>
-                  <span className="text-sm font-semibold text-[#e87c3e]">
+                  <span className="text-sm font-semibold text-[#d4845a]">
                     {risScore !== null && risScore !== undefined
                       ? Number(risScore).toLocaleString('fr-FR', { maximumFractionDigits: 2 })
                       : '95,99'}
@@ -321,7 +321,7 @@ const OneRmModal = ({
               onClick={handleViewEvolution}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#262626] bg-[#161616] px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-[#1f1f1f]"
             >
-              <BarChart3 className="h-4 w-4 text-[#e87c3e]" />
+              <BarChart3 className="h-4 w-4 text-[#d4845a]" />
               Voir l'évolution
             </button>
             <div className="flex flex-col sm:flex-row gap-2 sm:ml-auto">
@@ -335,7 +335,7 @@ const OneRmModal = ({
               <button
                 type="button"
                 onClick={handleSaveAndClose}
-                className="rounded-xl bg-[#e87c3e] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#d66d35]"
+                className="rounded-xl bg-[#d4845a] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#bf7348]"
               >
                 Enregistrer & fermer
               </button>

@@ -1555,7 +1555,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       return studentData.oneRepMaxes.map((record, index) => ({
         id: record.id || `one-rm-${index}`,
         name: record.name || record.exercise || `Mouvement ${index + 1}`,
-        color: record.color || fallback[index % fallback.length]?.color || '#e87c3e',
+        color: record.color || fallback[index % fallback.length]?.color || '#d4845a',
         current: Number(record.current) || Number(record.value) || 0,
         best: Number(record.best) || Number(record.personalBest) || Number(record.current) || 0,
         unit: record.unit || 'kg',
@@ -1632,7 +1632,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   <div className="flex items-center gap-1 min-w-0 flex-1">
                     <span className="truncate text-[11px] font-medium">{session.title || 'Séance'}</span>
                     <div className="flex items-center gap-0.5 flex-shrink-0">
-                      {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#e87c3e]" />}
+                      {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#d4845a]" />}
                       {session.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#22c55e]" />}
                       {session.status === 'draft' && <EyeOff className="h-3 w-3 text-gray-400" />}
                       {session.status === 'assigned' && <Clock className="h-3 w-3 text-[#3b82f6]" />}
@@ -1738,7 +1738,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       session.status === 'completed'
                         ? 'bg-[#22c55e] text-white'
                         : session.status === 'in_progress'
-                        ? 'bg-[#e87c3e] text-white'
+                        ? 'bg-[#d4845a] text-white'
                         : session.status === 'draft'
                         ? 'bg-gray-500 text-white'
                         : session.status === 'assigned'
@@ -1810,7 +1810,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
                   : session.status === 'assigned'
                   ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
-                  : 'bg-[#262626] border-l-2 border-[#e87c3e] hover:bg-[#2a2a2a]'
+                  : 'bg-[#262626] border-l-2 border-[#d4845a] hover:bg-[#2a2a2a]'
               } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-4' : 'p-2'}`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1825,7 +1825,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     {session.status === 'in_progress' && (
-                      <PlayCircle className={`text-[#e87c3e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <PlayCircle className={`text-[#d4845a] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'completed' && (
                       <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
@@ -1962,31 +1962,33 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center">
           <User className="w-4 h-4 text-gray-400" />
         </div>
-        <h1 className="text-xl font-medium">Théo Chomarat</h1>
+        <h1 className="text-xl font-medium">
+          {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
+        </h1>
       </div>
 
       {/* Navigation Tabs */}
       <div className="flex gap-6 px-4 border-b border-[#1a1a1a]">
         <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'overview' ? 'text-[#e87c3e] border-b-2 border-[#e87c3e]' : 'text-gray-400'}`}
+          className={`py-3 text-sm font-medium ${activeTab === 'overview' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
           onClick={() => setActiveTab('overview')}
         >
           Overview
         </button>
         <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'training' ? 'text-[#e87c3e] border-b-2 border-[#e87c3e]' : 'text-gray-400'}`}
+          className={`py-3 text-sm font-medium ${activeTab === 'training' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
           onClick={() => setActiveTab('training')}
         >
           Training
         </button>
         <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'analyse' ? 'text-[#e87c3e] border-b-2 border-[#e87c3e]' : 'text-gray-400'}`}
+          className={`py-3 text-sm font-medium ${activeTab === 'analyse' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
           onClick={() => setActiveTab('analyse')}
         >
           Analyse vidéo
         </button>
         <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'suivi' ? 'text-[#e87c3e] border-b-2 border-[#e87c3e]' : 'text-gray-400'}`}
+          className={`py-3 text-sm font-medium ${activeTab === 'suivi' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
           onClick={() => setActiveTab('suivi')}
         >
           Suivi Financier
@@ -2079,7 +2081,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           cx="28"
                           cy="28"
                           r="26"
-                          stroke="#e87c3e"
+                          stroke="#d4845a"
                           strokeWidth="3"
                           fill="none"
                           strokeDasharray="163"
@@ -2110,7 +2112,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           cx="28"
                           cy="28"
                           r="26"
-                          stroke="#e87c3e"
+                          stroke="#d4845a"
                           strokeWidth="3"
                           fill="none"
                           strokeDasharray="163"
@@ -2147,7 +2149,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       <div className="flex items-center gap-1.5">
                         <span
                           className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: record.color || '#e87c3e' }}
+                          style={{ backgroundColor: record.color || '#d4845a' }}
                           aria-hidden="true"
                         />
                         <span className="text-xs text-gray-400">{record.name}</span>
@@ -2178,8 +2180,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs">Théo Chomarat</span>
-                    <span className="text-[10px] text-[#e87c3e]">♂</span>
+                    <span className="text-xs">
+                      {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
+                    </span>
+                    <span className="text-[10px] text-[#d4845a]">♂</span>
                   </div>
                   <div className="text-xs text-gray-400">Discipline : Street Lifting</div>
                   <div className="text-xs text-gray-400">23 ans</div>
@@ -2200,7 +2204,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               </button>
               <button
                 onClick={() => setOverviewWeekDate(new Date())}
-                className="flex items-center gap-2 px-4 py-2 bg-[#e87c3e] text-white rounded-lg hover:bg-[#d66d35] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#d4845a] text-white rounded-lg hover:bg-[#bf7348] transition-colors"
               >
                 <Calendar className="h-4 w-4" />
                 <span>Aujourd'hui</span>
@@ -2227,9 +2231,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     key={day}
                     className={`rounded-xl p-2 cursor-pointer transition-colors relative group h-[200px] overflow-hidden border ${
                       isDropTarget
-                        ? 'bg-[#2f2f2f] border-[#e87c3e]'
+                        ? 'bg-[#2f2f2f] border-[#d4845a]'
                         : isToday
-                        ? 'bg-[#262626] border-2 border-[#e87c3e]'
+                        ? 'bg-[#262626] border-2 border-[#d4845a]'
                         : 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
                     }`}
                     onClick={() => handleDayClick(dayDate)}
@@ -2248,7 +2252,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       <span>
                         {day} {format(dayDate, 'dd')}
                       </span>
-                      <Plus className="h-3 w-3 text-[#e87c3e] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Plus className="h-3 w-3 text-[#d4845a] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
                     {loadingSessions ? (
@@ -2295,7 +2299,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       setTrainingMonthDate(new Date());
                       // For 2-week view, this will automatically center around today
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#e87c3e] text-white rounded-lg hover:bg-[#d66d35] transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#d4845a] text-white rounded-lg hover:bg-[#bf7348] transition-colors"
                   >
                     <Calendar className="h-4 w-4" />
                     <span>Aujourd'hui</span>
@@ -2309,7 +2313,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <button 
                   className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                     trainingFilter === 'assigned' 
-                      ? 'bg-[#e87c3e] text-white' 
+                      ? 'bg-[#d4845a] text-white' 
                       : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
                   }`}
                   onClick={() => setTrainingFilter('assigned')}
@@ -2319,7 +2323,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <button 
                   className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                     trainingFilter === 'draft' 
-                      ? 'bg-[#e87c3e] text-white' 
+                      ? 'bg-[#d4845a] text-white' 
                       : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
                   }`}
                   onClick={() => setTrainingFilter('draft')}
@@ -2329,7 +2333,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <button 
                   className={`px-4 py-2 rounded-lg text-sm transition-colors ${
                     trainingFilter === 'all' 
-                      ? 'bg-[#e87c3e] text-white' 
+                      ? 'bg-[#d4845a] text-white' 
                       : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
                   }`}
                   onClick={() => setTrainingFilter('all')}
@@ -2339,7 +2343,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <button 
                   className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                     weekViewFilter === 2 
-                      ? 'bg-[#e87c3e] text-white' 
+                      ? 'bg-[#d4845a] text-white' 
                       : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
                   }`}
                   onClick={() => setWeekViewFilter(2)}
@@ -2349,7 +2353,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <button 
                   className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                     weekViewFilter === 4 
-                      ? 'bg-[#e87c3e] text-white' 
+                      ? 'bg-[#d4845a] text-white' 
                       : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
                   }`}
                   onClick={() => setWeekViewFilter(4)}
@@ -2398,7 +2402,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   >
                     <div
                       className={`week-action-container absolute -left-12 top-0 bottom-0 w-16 z-20 transition-all duration-200 ${
-                        isHovered ? 'bg-gray-800/20 border-l-2 border-[#e87c3e]' : 'hover:bg-gray-800/10'
+                        isHovered ? 'bg-gray-800/20 border-l-2 border-[#d4845a]' : 'hover:bg-gray-800/10'
                       }`}
                       onMouseEnter={() => setHoveredWeek(weekKey)}
                       onMouseLeave={() => setHoveredWeek(null)}
@@ -2413,7 +2417,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                               e.stopPropagation();
                               handleCopyWeek(week.weekStart);
                             }}
-                            className="p-2 bg-[#e87c3e] hover:bg-[#d66d35] text-white rounded-lg transition-colors relative z-50 pointer-events-auto"
+                            className="p-2 bg-[#d4845a] hover:bg-[#bf7348] text-white rounded-lg transition-colors relative z-50 pointer-events-auto"
                             title="Copier la semaine"
                             style={{ pointerEvents: 'auto' }}
                           >
@@ -2448,11 +2452,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                         return (
                           <div
                             key={dateKey}
-                            className={`rounded-lg cursor-pointer transition-colors flex flex-col border relative ${
+                              className={`rounded-lg cursor-pointer transition-colors flex flex-col border relative ${
                               isDropTarget
-                                ? 'bg-[#2f2f2f] border-[#e87c3e]'
+                                ? 'bg-[#2f2f2f] border-[#d4845a]'
                                 : format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-                                ? 'bg-[#262626] border-2 border-[#e87c3e]'
+                                ? 'bg-[#262626] border-2 border-[#d4845a]'
                                 : isCurrentMonth
                                 ? 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
                                 : 'bg-[#0a0a0a] border-transparent hover:bg-[#262626]'

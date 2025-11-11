@@ -57,7 +57,7 @@ const OneRmHistoryModal = ({ isOpen, onClose, lift, studentName = '', position }
       <div className="rounded-[28px] border border-[#2c2c2c] bg-gradient-to-br from-[#181818]/95 via-[#121212]/95 to-[#0d0d0d]/95 shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur-md overflow-hidden">
         <div className="px-6 pt-6 pb-4 border-b border-[#242424] flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1f1f1f] text-[#e87c3e] border border-[#2d2d2d]">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1f1f1f] text-[#d4845a] border border-[#2d2d2d]">
               <CalendarDays className="h-5 w-5" />
             </span>
             <div>
@@ -104,7 +104,7 @@ const OneRmHistoryModal = ({ isOpen, onClose, lift, studentName = '', position }
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl bg-[#e87c3e] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#d66d35]"
+            className="inline-flex items-center justify-center rounded-xl bg-[#d4845a] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#bf7348]"
           >
             Fermer
           </button>

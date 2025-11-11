@@ -125,7 +125,7 @@
 }
 
 .workout-modal-body::-webkit-scrollbar-thumb {
-  background: #e87c3e;
+  background: #d4845a;
   border-radius: 4px;
 }
 
@@ -164,7 +164,7 @@
 }
 
 .exercise-sets-container::-webkit-scrollbar-thumb {
-  background: #e87c3e;
+  background: #d4845a;
   border-radius: 3px;
 }
 
@@ -183,7 +183,7 @@
 }
 
 .workout-modal-content::-webkit-scrollbar-thumb {
-  background: #e87c3e;
+  background: #d4845a;
   border-radius: 3px;
 }
 
@@ -668,7 +668,7 @@ input[type="number"] {
 }
 
 .video-container-scrollbar::-webkit-scrollbar-thumb {
-  background: #e87c3e;
+  background: #d4845a;
   border-radius: 4px;
 }
 
@@ -687,7 +687,7 @@ input[type="number"] {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e87c3e;
+  background: #d4845a;
   border-radius: 4px;
 }
 

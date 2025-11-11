@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -9,6 +9,8 @@ const LoginPage = () => {
   const { register, handleSubmit, formState: { errors } } = useForm();
   const { login, error: authError, loading, user } = useAuth();
   const navigate = useNavigate();
+  // Local UI state to control password visibility toggle
+  const [showPassword, setShowPassword] = useState(false);
 
   const getTargetPath = (role) => {
     switch (role) {
@@ -88,17 +90,23 @@ const LoginPage = () => {
                 )}
               </div>
 
-              <div>
+              <div className="relative">
                 <input
                   {...register('password', { required: 'Mot de passe requis' })}
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Mot de passe"
-                  className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-2 focus:ring-ring focus:outline-none"
+                  className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-2 focus:ring-ring focus:outline-none"
                   aria-invalid={errors.password ? 'true' : 'false'}
                 />
-                {errors.password && (
-                  <p className="text-destructive text-xs mt-1">{errors.password.message}</p>
-                )}
+                {/* Toggle button to reveal or hide the password */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 px-3 text-sm text-muted-foreground hover:text-primary transition-colors"
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                >
+                  {showPassword ? 'Masquer' : 'Afficher'}
+                </button>
               </div>
               
               <div className="text-right">

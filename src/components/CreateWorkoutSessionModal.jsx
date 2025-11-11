@@ -612,7 +612,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 }}
                 className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 ${
                   openSheet 
-                    ? 'bg-[#e87c3e] text-black' 
+                    ? 'bg-[#d4845a] text-black' 
                     : 'bg-[#262626] text-white hover:bg-[#404040]'
                 }`}
                 title="Bibliothèque d'exercices"
@@ -631,7 +631,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 }}
                 className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 ${
                   showSidebar 
-                    ? 'bg-[#e87c3e] text-black' 
+                    ? 'bg-[#d4845a] text-black' 
                     : 'bg-[#262626] text-white hover:bg-[#404040]'
                 }`}
                 title="Agencement des exercices"
@@ -658,7 +658,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   placeholder="Saisir le nom de la séance"
                   value={sessionName}
                   onChange={(e) => setSessionName(e.target.value)}
-                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#e87c3e] focus-visible:border-transparent transition-all duration-150 shadow-sm"
+                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#d4845a] focus-visible:border-transparent transition-all duration-150 shadow-sm"
                 />
               </div>
 
@@ -675,7 +675,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       setSessionDate(parseISO(nextValue));
                     }
                   }}
-                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#e87c3e] focus-visible:border-transparent transition-all duration-150 shadow-sm"
+                  className="bg-[#1f1f1f] border border-[#3a3a3a] text-white placeholder-gray-400 text-base rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:ring-[#d4845a] focus-visible:border-transparent transition-all duration-150 shadow-sm"
                   style={{ colorScheme: 'dark' }} // ensure native calendar icon stays visible on dark background
                 />
               </div>
@@ -819,7 +819,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         <button
                           type="button"
                           onClick={() => handleAddSet(exerciseIndex)}
-                          className="text-sm text-[#e87c3e] hover:text-[#e87c3e]/80 flex items-center gap-1"
+                          className="text-sm text-[#d4845a] hover:text-[#d4845a]/80 flex items-center gap-1"
                         >
                           <Plus className="h-4 w-4" />
                           Ajouter une série
@@ -939,7 +939,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <button
                   type="button"
                   onClick={handlePublish}
-                  className="w-full bg-[#e87c3e] hover:bg-[#d66d35] text-[#1D1D1F] py-3 rounded-xl transition-colors font-medium"
+                  className="w-full bg-[#d4845a] hover:bg-[#bf7348] text-[#1D1D1F] py-3 rounded-xl transition-colors font-medium"
                 >
                   Publier
                 </button>
