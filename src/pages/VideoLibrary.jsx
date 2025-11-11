@@ -667,7 +667,7 @@ const VideoLibrary = () => {
                 <select
                   value={selectedStudent}
                   onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',
@@ -685,7 +685,7 @@ const VideoLibrary = () => {
                 <select
                   value={selectedExercise}
                   onChange={(e) => setSelectedExercise(e.target.value)}
-                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',
@@ -703,7 +703,7 @@ const VideoLibrary = () => {
                 <select
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',

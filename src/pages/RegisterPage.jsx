@@ -10,6 +10,8 @@ import StudentRegistrationModal from '../components/StudentRegistrationModal';
 const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { login } = useAuth();
   const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
@@ -207,10 +209,10 @@ const RegisterPage = () => {
                 </div>
 
                 {/* Password Field */}
-                <div>
+                <div className="relative">
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     {...register('password', {
                       required: 'Mot de passe est requis',
                       minLength: {
@@ -222,21 +224,29 @@ const RegisterPage = () => {
                         message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
                       }
                     })}
-                    className={`w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.2)] text-foreground placeholder:text-[rgba(255,255,255,0.5)] focus:outline-none focus:ring-2 focus:ring-[rgba(255,255,255,0.4)] ${
+                    className={`w-full p-3 pr-20 rounded-[10px] border-[0.5px] bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.2)] text-foreground placeholder:text-[rgba(255,255,255,0.5)] focus:outline-none focus:ring-2 focus:ring-[rgba(255,255,255,0.4)] ${
                       errors.password ? 'border-red-400' : ''
                     }`}
                     placeholder="Mot de passe"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 px-3 text-sm text-[rgba(255,255,255,0.6)] hover:text-white transition-colors"
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showPassword ? 'Masquer' : 'Afficher'}
+                  </button>
                   {errors.password && (
                     <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
                   )}
                 </div>
 
                 {/* Confirm Password Field */}
-                <div>
+                <div className="relative">
                   <input
                     id="confirmPassword"
-                    type="password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     {...register('confirmPassword', {
                       required: 'Confirmation du mot de passe est requise',
                       validate: (value) => {
@@ -246,11 +256,19 @@ const RegisterPage = () => {
                         return true;
                       }
                     })}
-                    className={`w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.2)] text-foreground placeholder:text-[rgba(255,255,255,0.5)] focus:outline-none focus:ring-2 focus:ring-[rgba(255,255,255,0.4)] ${
+                    className={`w-full p-3 pr-20 rounded-[10px] border-[0.5px] bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.2)] text-foreground placeholder:text-[rgba(255,255,255,0.5)] focus:outline-none focus:ring-2 focus:ring-[rgba(255,255,255,0.4)] ${
                       errors.confirmPassword ? 'border-red-400' : ''
                     }`}
                     placeholder="Confirmer le mot de passe"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 px-3 text-sm text-[rgba(255,255,255,0.6)] hover:text-white transition-colors"
+                    aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showConfirmPassword ? 'Masquer' : 'Afficher'}
+                  </button>
                   {errors.confirmPassword && (
                     <p className="mt-1 text-xs text-red-400">{errors.confirmPassword.message}</p>
                   )}

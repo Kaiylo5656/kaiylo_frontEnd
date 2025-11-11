@@ -8,21 +8,21 @@ const StatusFilterChips = ({ value, onChange }) => {
   ];
 
   return (
-    <div className="flex items-center gap-2">
-      {filters.map(filter => (
-        <button
-          key={filter.key}
-          onClick={() => onChange(filter.key)}
-          className={`px-3 py-2 rounded-[5px] text-base font-light transition-all duration-200 ${
-            value === filter.key
-              ? 'bg-[#d4845a] text-white'
-              : 'bg-[#1a1a1a] text-white/75 border border-white/10 hover:bg-white/5 hover:border-[#d4845a]'
-          }`}
-          title={filter.description}
-        >
-          {filter.label}
-        </button>
-      ))}
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="appearance-none select-dark rounded-lg px-4 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#d4845a] focus:border-transparent transition-colors"
+      >
+        {filters.map((filter) => (
+          <option key={filter.key} value={filter.key}>
+            {filter.label}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/60">
+        ▾
+      </span>
     </div>
   );
 };

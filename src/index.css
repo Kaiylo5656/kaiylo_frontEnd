@@ -125,6 +125,24 @@
     background-color: var(--kaiylo-primary-hex) !important;
   }
 
+  /* Dark themed select dropdown */
+  .select-dark {
+    background-color: rgba(26, 26, 26, 0.95);
+    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .select-dark option {
+    background-color: rgba(14, 14, 14, 0.95);
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .select-dark:focus {
+    outline: none;
+    border-color: rgba(212, 132, 90, 0.8);
+    box-shadow: 0 0 0 2px rgba(212, 132, 90, 0.25);
+  }
+
   .bg-\[\#e87c3e\]\/10 {
     background-color: rgba(212, 132, 90, 0.1) !important;
   }
