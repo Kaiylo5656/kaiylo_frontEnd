@@ -1605,7 +1605,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     const sessions = workoutSessions[dayKey] || [];
 
     const sessionList = sessions.length > 0 ? (
-      <div className="session-container space-y-1" style={{ height: '150px', overflowY: 'auto' }}>
+      <div className="session-container space-y-2" style={{ height: '220px', overflowY: 'auto' }}>
         {sessions.map((session, sessionIndex) => {
           const canDrag = session.status === 'draft' || session.status === 'assigned';
           const dropdownKey = `${session.id || session.assignmentId}-${dayKey}`;
@@ -1721,18 +1721,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 </div>
 
                 <div className="space-y-1">
-                  {exercises.slice(0, 2).map((exercise, index) => (
-                    <div key={index} className="text-[10px] text-gray-400 truncate">
+                  {exercises.slice(0, 3).map((exercise, index) => (
+                    <div key={index} className="text-[11px] text-gray-300 truncate">
                       {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} {exercise.name}{' '}
                       {exercise.sets?.[0]?.weight ? `@${exercise.sets[0].weight}kg` : ''}
                     </div>
                   ))}
-                  {exercises.length > 2 && (
-                    <div className="text-[10px] text-gray-500">+ {exercises.length - 2} exercices</div>
+                  {exercises.length > 3 && (
+                    <div className="text-[10px] text-gray-500">+ {exercises.length - 3} exercices</div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[10px]">
+                <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[11px]">
                   <span
                     className={`px-2 py-0.5 rounded-full font-medium ${
                       session.status === 'completed'
@@ -1777,7 +1777,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         {sessionList}
         {copiedSession && hoveredPasteDate === dayKey && !draggedSession && (
           <button
-            className={`absolute left-1/2 bottom-3 -translate-x-1/2 px-4 py-2 rounded-lg text-sm shadow-lg transition-colors ${
+            className={`absolute left-1/2 bottom-4 -translate-x-1/2 px-5 py-2 rounded-lg text-sm shadow-lg transition-colors ${
               isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-[#2563eb]'
             }`}
             onClick={(e) => {
@@ -2229,7 +2229,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 return (
                   <div
                     key={day}
-                    className={`rounded-xl p-2 cursor-pointer transition-colors relative group h-[200px] overflow-hidden border ${
+                    className={`rounded-xl p-3 cursor-pointer transition-colors relative group min-h-[260px] overflow-hidden border ${
                       isDropTarget
                         ? 'bg-[#2f2f2f] border-[#d4845a]'
                         : isToday
@@ -2248,16 +2248,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       }
                     }}
                   >
-                    <div className="text-xs text-gray-400 mb-2 flex justify-between items-center">
+                    <div className="text-sm text-gray-300 mb-3 flex justify-between items-center">
                       <span>
                         {day} {format(dayDate, 'dd')}
                       </span>
-                      <Plus className="h-3 w-3 text-[#d4845a] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Plus className="h-4 w-4 text-[#d4845a] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
                     {loadingSessions ? (
-                      <div className="flex items-center justify-center py-6">
-                        <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
+                      <div className="flex items-center justify-center py-10">
+                        <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
                       </div>
                     ) : (
                       renderOverviewDayContent(dayDate, dayKey)
