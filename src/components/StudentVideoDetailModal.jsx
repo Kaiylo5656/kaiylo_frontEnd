@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { X } from 'lucide-react';
 
 /**
  * Mobile-optimized video detail modal for students
@@ -10,7 +12,6 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [videoStatus, setVideoStatus] = useState(video?.status || 'pending');
-  const [currentTime, setCurrentTime] = useState(0);
   
   const videoRef = useRef(null);
 
@@ -45,7 +46,7 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
       document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
       // Prevent iOS bounce scrolling
-      document.body.style.touchAction = 'none';
+        document.body.style.touchAction = 'manipulation';
       
       return () => {
         // Restore scroll position when modal closes
@@ -77,70 +78,70 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
 
   if (!isOpen || !video) return null;
 
-  const formatVideoTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <>
-      {/* Backdrop with blur */}
-      <div 
-        className="fixed inset-0 backdrop-blur-sm bg-black/85 z-50 flex items-center justify-center p-4"
-        onClick={onClose}
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] bg-black/60 backdrop-blur flex items-center justify-center px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative mx-auto w-full max-w-[900px] max-h-[92vh] overflow-hidden rounded-2xl border border-white/10 bg-[#121212]/95 shadow-2xl flex flex-col touch-pan-y"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Container - Larger to fit screen better */}
-        <div 
-          className="bg-[#1b1b1b] rounded-[20px] w-full max-w-[90%] sm:max-w-[340px] overflow-hidden shadow-xl relative"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header Section */}
-          <div className="px-6 pt-5 pb-0">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-white text-base font-light leading-tight">
-                  {video.exercise_name || 'Exercice'}
-                  <span className="text-white/50 ml-1">{video.set_number || 1}/3</span>
-                </h2>
-                <p className="text-white/50 text-xs font-extralight">
-                  {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
-                </p>
-              </div>
-              {/* Status Badge - Top Right */}
-              <div className={`px-2 py-1.5 rounded-[10px] flex items-center justify-center ${
-                videoStatus === 'pending' 
-                  ? 'bg-orange-500/75' 
-                  : 'bg-[rgba(47,160,100,0.75)]'
-              }`}>
-                <span className="text-white text-xs font-light leading-none">
-                  {videoStatus === 'pending' ? 'A feedback' : 'Complété'}
-                </span>
-              </div>
-            </div>
+        {/* Header pinned to the top */}
+        <div className="shrink-0 px-6 pt-5 pb-3 border-b border-white/10 flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-white text-base font-light leading-tight">
+              {video.exercise_name || 'Exercice'}
+              <span className="text-white/50 ml-1">{video.set_number || 1}/3</span>
+            </h2>
+            <p className="text-white/50 text-xs font-extralight">
+              {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
+            </p>
           </div>
 
-          {/* Video Player Container - Larger for better visibility */}
-          <div className="px-4 pb-0">
-            {video.video_url ? (
-              <div className="relative bg-black rounded-[10px] overflow-hidden shadow-[0px_4px_10px_0px_rgba(0,0,0,0.5)] w-full" style={{ minHeight: '300px', height: '65vh', maxHeight: '450px' }}>
+          <div className="flex items-center gap-3">
+            <div
+              className={`px-2 py-1.5 rounded-[10px] flex items-center justify-center ${
+                videoStatus === 'pending' ? 'bg-orange-500/75' : 'bg-[rgba(47,160,100,0.75)]'
+              }`}
+            >
+              <span className="text-white text-xs font-light leading-none">
+                {videoStatus === 'pending' ? 'A feedback' : 'Complété'}
+              </span>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Fermer la modale"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body is the only scrollable area */}
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-2 space-y-2 pb-14 md:pb-18 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/20"
+          style={{ scrollbarGutter: 'stable' }}
+        >
+          {/* Video player safely constrained */}
+          {video.video_url ? (
+            <>
+              <div className="relative w-full bg-black rounded-[14px] overflow-hidden shadow-[0px_4px_10px_0px_rgba(0,0,0,0.5)]">
                 <video
                   ref={videoRef}
                   src={video.video_url}
                   controls
-                  className="w-full h-full object-cover"
+                  playsInline
+                  className="w-full h-auto max-h-[70vh] object-contain"
                   onLoadedMetadata={() => {
                     const videoElement = videoRef.current;
                     if (videoElement) {
                       setIsVideoLoading(false);
                     }
                   }}
-                  onTimeUpdate={() => {
-                    if (videoRef.current) {
-                      setCurrentTime(videoRef.current.currentTime);
-                    }
-                  }}
+                  onCanPlay={() => setIsVideoLoading(false)}
                   onError={(error) => {
                     console.error('Video error:', error);
                     setVideoError('Erreur lors du chargement de la vidéo');
@@ -179,53 +180,37 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
                     </div>
                   </div>
                 )}
+              </div>
+            </>
+          ) : (
+            <div className="bg-black rounded-[14px] w-full flex items-center justify-center min-h-[240px]">
+              <p className="text-gray-400 text-sm">Aucune vidéo disponible</p>
+            </div>
+          )}
 
-                {/* Video Time Display - Bottom Left */}
-                {!isVideoLoading && !videoError && currentTime > 0 && (
-                  <div className="absolute bottom-2 left-3 bg-black/20 px-1.5 py-0.5 rounded text-xs">
-                    <span className="text-white text-xs font-normal">
-                      {formatVideoTime(currentTime)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              ) : (
-              <div className="bg-black rounded-[10px] w-full flex items-center justify-center" style={{ minHeight: '300px', height: '65vh', maxHeight: '450px' }}>
-                <p className="text-gray-400 text-sm">Aucune vidéo disponible</p>
-              </div>
+          {/* Coach feedback copy */}
+          <div className="flex flex-col gap-[2px] items-start">
+            <p className="text-white/25 text-xs font-light">Feedback du coach</p>
+            {video.coach_feedback ? (
+              <p className="text-white text-[13px] font-light leading-tight whitespace-pre-wrap">{video.coach_feedback}</p>
+            ) : (
+              <p className="text-white/50 text-sm font-light italic">Aucun feedback du coach pour le moment</p>
             )}
           </div>
+        </div>
 
-          {/* Coach Feedback Section */}
-          <div className="px-6 pt-6 pb-0">
-            <div className="flex flex-col gap-2 items-start">
-              <p className="text-white/25 text-xs font-light">
-                Feedback du coach
-              </p>
-              {video.coach_feedback ? (
-                <p className="text-white text-sm font-light leading-relaxed whitespace-pre-wrap">
-                  {video.coach_feedback}
-                </p>
-              ) : (
-                <p className="text-white/50 text-sm font-light italic">
-                  Aucun feedback du coach pour le moment
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Quit Button */}
-          <div className="px-6 pt-6 pb-6 flex justify-center">
-            <button
-              onClick={onClose}
-              className="bg-white/2 border border-white/10 rounded-[5px] px-6 py-3 flex items-center justify-center touch-target"
-            >
-              <span className="text-white/75 text-sm font-normal">Quitter</span>
-            </button>
-          </div>
+        {/* Footer pinned to the bottom */}
+        <div className="shrink-0 px-6 py-4 border-t border-white/10 bg-[#0f0f10]/95 backdrop-blur pb-[max(0px,env(safe-area-inset-bottom))] flex justify-center">
+          <button
+            onClick={onClose}
+            className="bg-white/2 border border-white/10 rounded-[6px] px-6 py-3 flex items-center justify-center touch-target text-white/75 text-sm font-normal hover:text-white hover:bg-white/10 transition-colors"
+          >
+            Quitter
+          </button>
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   );
 };
 

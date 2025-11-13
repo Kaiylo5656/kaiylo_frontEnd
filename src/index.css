@@ -191,7 +191,26 @@
     --tw-ring-color: rgba(212, 132, 90, 0.7) !important;
   }
 
-  .shadow-\[0_0_0_4px_rgba\(232,124,62,0\.08\)\] {
+  /* Custom brand shadow alias; commas escaped to keep selector valid */
+  .shadow-\[0_0_0_4px_rgba\(232\,124\,62\,0\.08\)\] {
     box-shadow: 0 0 0 4px rgba(212, 132, 90, 0.08) !important;
   }
+}
+
+/* Thin scrollbar utility for modal bodies */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
 }
