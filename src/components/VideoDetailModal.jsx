@@ -261,20 +261,22 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     }
 
     try {
-      const token = getAuthToken();
-      await axios.delete(
-        buildApiUrl(`/workout-sessions/videos/${video.id}`),
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Use axios directly without manually passing token - interceptor handles it
+      await axios.delete(buildApiUrl(`/workout-sessions/videos/${video.id}`));
       
-      onClose();
-      // Refresh the parent component
+      // Refresh the parent component BEFORE closing modal to prevent race conditions
       if (onFeedbackUpdate) {
         onFeedbackUpdate(video.id, null, null, true); // true indicates deletion
       }
+      
+      // Show success message
+      alert('✅ Vidéo supprimée avec succès');
+      
+      // Close modal after parent state is updated
+      onClose();
     } catch (error) {
       console.error('Error deleting video:', error);
-      alert('Erreur lors de la suppression de la vidéo');
+      alert('❌ Erreur lors de la suppression de la vidéo');
     }
   };
 
