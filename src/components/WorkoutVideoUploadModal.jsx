@@ -14,8 +14,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
   const [error, setError] = useState(null);
   const { getAuthToken } = useAuth();
 
-  // Maximum file size: 300MB (matches backend limit)
-  const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB in bytes
+  // Maximum file size: 48MB (Supabase free tier 50MB limit with 2MB safety margin)
+  const MAX_FILE_SIZE = 48 * 1024 * 1024; // 48MB in bytes
 
   // RPE scale options (1-10)
   const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -40,7 +40,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
         if (file) {
           // Validate file size BEFORE setting state
           if (file.size > MAX_FILE_SIZE) {
-            setError(`Fichier trop volumineux. La taille maximale est de 300 MB. Votre fichier fait ${formatFileSize(file.size)}.`);
+            setError(`❌ Vidéo trop volumineuse !\n\n📏 Taille maximale : 48 MB\n📦 Votre fichier : ${formatFileSize(file.size)}\n\n💡 Conseil : Utilisez une application de compression vidéo ou enregistrez en qualité réduite.`);
             return;
           }
           // Validate file type
@@ -116,6 +116,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           </DialogTitle>
           <DialogDescription className="text-gray-400 text-center text-sm">
             {exerciseInfo?.exerciseName} - {setInfo?.setNumber && `Série ${setInfo.setNumber}`}
+            <br />
+            <span className="text-xs text-gray-500">📏 Taille max : 48 MB</span>
           </DialogDescription>
         </DialogHeader>
 
