@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X, Video } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -1473,24 +1473,35 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             <div className="flex items-center gap-4">
               {/* Video Thumbnail */}
               <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                <video 
-                  src={video.video_url}
-                  className="w-full h-full object-cover"
-                  preload="metadata"
-                  onLoadedMetadata={(e) => {
-                    // Update the video duration when metadata loads
-                    const duration = e.target.duration;
-                    if (duration && !isNaN(duration)) {
-                      const minutes = Math.floor(duration / 60);
-                      const seconds = Math.floor(duration % 60);
-                      const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                      e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
-                    }
-                  }}
-                />
-                <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
-                  Loading...
-                </div>
+                {video?.video_url && video.video_url.trim() !== '' ? (
+                  <>
+                    <video 
+                      src={video.video_url}
+                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      onLoadedMetadata={(e) => {
+                        // Update the video duration when metadata loads
+                        const duration = e.target.duration;
+                        if (duration && !isNaN(duration)) {
+                          const minutes = Math.floor(duration / 60);
+                          const seconds = Math.floor(duration % 60);
+                          const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                          const durationDisplay = e.target.parentElement?.querySelector('.duration-display');
+                          if (durationDisplay) {
+                            durationDisplay.textContent = timeDisplay;
+                          }
+                        }
+                      }}
+                    />
+                    <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
+                      Loading...
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                    <Video size={24} className="text-gray-500" />
+                  </div>
+                )}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                   <PlayCircle size={24} className="text-white" />
                 </div>
@@ -2243,7 +2254,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     onDrop={(event) => handleDayDrop(event, dayDate)}
                     onMouseEnter={() => setHoveredPasteDate(dayKey)}
                     onMouseLeave={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                      // Check if relatedTarget is a valid node before calling contains
+                      if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) {
                         setHoveredPasteDate((current) => (current === dayKey ? null : current));
                       }
                     }}
@@ -2468,7 +2480,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                             onDrop={(event) => handleDayDrop(event, day)}
                             onMouseEnter={() => setHoveredPasteDate(dateKey)}
                             onMouseLeave={(event) => {
-                              if (!event.currentTarget.contains(event.relatedTarget)) {
+                              // Check if relatedTarget is a valid node before calling contains
+                              if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) {
                                 setHoveredPasteDate((current) => (current === dateKey ? null : current));
                               }
                             }}

@@ -14,8 +14,20 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
   const [error, setError] = useState(null);
   const { getAuthToken } = useAuth();
 
+  // Maximum file size: 300MB (matches backend limit)
+  const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB in bytes
+
   // RPE scale options (1-10)
   const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  // Helper function to format file size
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  };
 
   const handleFileSelect = (source) => {
     if (source === 'gallery') {
@@ -26,6 +38,17 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       input.onchange = (e) => {
         const file = e.target.files[0];
         if (file) {
+          // Validate file size BEFORE setting state
+          if (file.size > MAX_FILE_SIZE) {
+            setError(`Fichier trop volumineux. La taille maximale est de 300 MB. Votre fichier fait ${formatFileSize(file.size)}.`);
+            return;
+          }
+          // Validate file type
+          if (!file.type.startsWith('video/')) {
+            setError('Veuillez sélectionner un fichier vidéo valide.');
+            return;
+          }
+          setError(null);
           setVideoFile(file);
         }
       };
@@ -33,6 +56,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
     } else if (source === 'no-video') {
       // Student chooses not to upload a video
       setVideoFile('no-video'); // Special marker for no video
+      setError(null);
     }
   };
 
@@ -119,25 +143,40 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
 
           {/* Selected Video Preview */}
           {videoFile && (
-            <div className="bg-[#1a1a1a] rounded-lg p-3 flex items-center gap-3">
-              {videoFile === 'no-video' ? (
-                <>
-                  <X className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                  <span className="text-white text-sm flex-1 min-w-0">Pas de vidéo sélectionné</span>
-                </>
-              ) : (
-                <>
-                  <VideoIcon className="h-5 w-5 text-[#e87c3e] flex-shrink-0" />
-                  <span className="text-white text-sm flex-1 min-w-0 truncate">{videoFile.name}</span>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setVideoFile(null)}
-                className="text-gray-400 hover:text-white flex-shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="bg-[#1a1a1a] rounded-lg p-3 space-y-2">
+              <div className="flex items-center gap-3">
+                {videoFile === 'no-video' ? (
+                  <>
+                    <X className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <span className="text-white text-sm flex-1 min-w-0">Pas de vidéo sélectionné</span>
+                  </>
+                ) : (
+                  <>
+                    <VideoIcon className="h-5 w-5 text-[#e87c3e] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-sm truncate" title={videoFile.name}>
+                        {videoFile.name}
+                      </div>
+                      <div className="text-gray-400 text-xs mt-0.5">
+                        {formatFileSize(videoFile.size)}
+                        {videoFile.size > MAX_FILE_SIZE * 0.8 && (
+                          <span className="text-yellow-500 ml-1">(Grand fichier, téléchargement plus long)</span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVideoFile(null);
+                    setError(null);
+                  }}
+                  className="text-gray-400 hover:text-white flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -184,7 +223,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           {/* Error Message */}
           {error && (
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-              <p className="text-red-400 text-sm">{error}</p>
+              <p className="text-red-400 text-sm font-medium">{error}</p>
             </div>
           )}
         </div>

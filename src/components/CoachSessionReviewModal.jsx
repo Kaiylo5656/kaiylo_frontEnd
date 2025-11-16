@@ -115,10 +115,84 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     }
   };
 
-  const getVideosForExercise = (exerciseName) => {
-    return sessionVideos
-      .filter(video => video.exercise_name === exerciseName)
-      .sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+  const getVideosForExercise = (exercise, exerciseIndex) => {
+    if (!exercise) {
+      return [];
+    }
+    
+    // Prefer matching by exercise_index (most reliable for duplicate exercise names)
+    if (exerciseIndex !== undefined && exerciseIndex !== null) {
+      const filtered = sessionVideos.filter(
+        (video) => video.exercise_index === exerciseIndex && video.exercise_name === exercise.name
+      );
+      if (filtered.length > 0) {
+        return filtered.sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+      }
+    }
+    
+    // Fallback: match by exercise_id if available
+    // BUT: For duplicate exercise names, we must ALSO check exercise_index to avoid showing wrong videos
+    const exerciseId = exercise.id || exercise.exercise_id || exercise.exerciseId || null;
+    if (exerciseId) {
+      // Check if there are multiple exercises with the same name (duplicates)
+      const hasDuplicates = session?.exercises && 
+        session.exercises.filter(ex => ex.name === exercise.name).length > 1;
+      
+      if (hasDuplicates && exerciseIndex !== undefined && exerciseIndex !== null) {
+        // For duplicates, ONLY match if exercise_index also matches (or is null for old videos)
+        const filtered = sessionVideos.filter(
+          (video) => video.exercise_id && video.exercise_id === exerciseId && 
+          (video.exercise_index === exerciseIndex || video.exercise_index === null || video.exercise_index === undefined)
+        );
+        if (filtered.length > 0) {
+          return filtered.sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+        }
+      } else {
+        // No duplicates, safe to match by exercise_id only
+        const filtered = sessionVideos.filter(
+          (video) => video.exercise_id && video.exercise_id === exerciseId
+        );
+        if (filtered.length > 0) {
+          return filtered.sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+        }
+      }
+    }
+    
+    // Last resort: name-only match
+    // For backward compatibility with old videos without exercise_index
+    // Only show videos without exercise_index to the FIRST occurrence of an exercise name
+    if (exercise.name) {
+      const allVideosForName = sessionVideos.filter(
+        (video) => video.exercise_name === exercise.name
+      );
+      
+      // If we have an exerciseIndex, check if there are multiple exercises with this name
+      if (exerciseIndex !== undefined && exerciseIndex !== null && session?.exercises) {
+        const exercisesWithSameName = session.exercises.filter(ex => ex.name === exercise.name);
+        
+        // If there are multiple exercises with the same name
+        if (exercisesWithSameName.length > 1) {
+          // Only show videos without exercise_index to the first occurrence (index 0)
+          const firstOccurrenceIndex = session.exercises.findIndex(ex => ex.name === exercise.name);
+          
+          if (exerciseIndex === firstOccurrenceIndex) {
+            // This is the first occurrence, show videos without exercise_index
+            const filtered = allVideosForName.filter(video => 
+              video.exercise_index === null || video.exercise_index === undefined
+            );
+            return filtered.sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+          } else {
+            // This is NOT the first occurrence, don't show videos without exercise_index
+            return [];
+          }
+        }
+      }
+      
+      // No duplicates or no exerciseIndex provided, show all videos for this name
+      return allVideosForName.sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+    }
+    
+    return [];
   };
 
   const handleVideoSelect = (video) => {
@@ -172,7 +246,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const handleExerciseSelect = (exercise, index) => {
     setSelectedExerciseIndex(index);
     setSelectedSetIndex(0);
-    const exerciseVideos = getVideosForExercise(exercise.name);
+    const exerciseVideos = getVideosForExercise(exercise, index);
     if (exerciseVideos.length > 0) {
       setSelectedVideo(exerciseVideos[0]);
       setFeedback(exerciseVideos[0].coach_feedback || '');
@@ -306,13 +380,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               </div>
               <div className="min-w-0">
                 {session.exercises?.map((exercise, exerciseIndex) => {
-                console.log(`Exercise ${exerciseIndex + 1} (${exercise.name}) data:`, {
-                  exercise,
-                  sets: exercise.sets,
-                  hasValidation: exercise.sets?.some(s => s.validation_status || s.status)
-                });
-                
-                const exerciseVideos = getVideosForExercise(exercise.name);
+                const exerciseVideos = getVideosForExercise(exercise, exerciseIndex);
                 const hasVideos = exerciseVideos.length > 0;
                 
                 return (
@@ -363,7 +431,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {/* Exercise Sets Status */}
                 <div className="space-y-2">
                   {selectedExercise.sets?.map((set, setIndex) => {
-                    const setVideos = getVideosForExercise(selectedExercise.name).filter(v => v.set_number === setIndex + 1);
+                    const setVideos = getVideosForExercise(selectedExercise, selectedExerciseIndex).filter(v => v.set_number === setIndex + 1);
                     const hasVideo = setVideos.some(v => v.video_url); // only count real videos
                     const setStatus = set.validation_status;
                     const isSelected = selectedSetIndex === setIndex;
@@ -448,7 +516,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       {(() => {
                         const currentSet = (selectedSetIndex !== null && selectedExercise?.sets) ? selectedExercise.sets[selectedSetIndex] : null;
                         const videosForSelectedSet = (selectedExercise && selectedSetIndex !== null)
-                          ? getVideosForExercise(selectedExercise.name).filter(v => v.set_number === (selectedSetIndex + 1))
+                          ? getVideosForExercise(selectedExercise, selectedExerciseIndex).filter(v => v.set_number === (selectedSetIndex + 1))
                           : [];
                         const metaRecord = videosForSelectedSet[0];
                         const comment = selectedVideo?.comment || metaRecord?.comment || currentSet?.comment || currentSet?.student_comment;

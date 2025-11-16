@@ -343,7 +343,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
         {/* Video Container */}
         <div className="flex-shrink-0 p-4">
-          {video.video_url ? (
+          {video?.video_url && video.video_url.trim() !== '' ? (
             <VideoPlayer
               ref={videoRef}
               src={video.video_url}

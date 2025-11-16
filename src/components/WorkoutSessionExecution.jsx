@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle, XCircle, SkipForward, Video, Play, VideoOff } f
 import { Button } from './ui/button';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import SessionCompletionModal from './SessionCompletionModal';
+import VideoProcessingModal from './VideoProcessingModal'; // Import the new modal
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,8 +18,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false); // Video upload modal state
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false); // Session completion modal state
   const [localVideos, setLocalVideos] = useState([]); // Store videos locally until session completion
-  const [isUploadingVideos, setIsUploadingVideos] = useState(false); // Track video upload state
+  const [isUploadingVideos, setIsUploadingVideos] = useState(false); // Track video upload state - can be reused for the new modal
   const [uploadProgress, setUploadProgress] = useState(null); // Track upload progress
+  const [isVideoProcessingModalOpen, setIsVideoProcessingModalOpen] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [isUploadComplete, setIsUploadComplete] = useState(false);
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
@@ -271,21 +275,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   };
 
   const handleSessionCompletion = async (completionData) => {
-    // Upload all locally stored videos
+    setIsCompletionModalOpen(false); // Close completion modal
+
+    // If there are videos, handle the upload and processing flow
     if (localVideos.length > 0) {
+      setIsVideoProcessingModalOpen(true); // Open processing modal
       setIsUploadingVideos(true);
       
       try {
         let authToken = await getAuthToken();
-        console.log('🔐 Auth token for video upload:', authToken ? 'Present' : 'Missing');
-        console.log('🔐 Token preview:', authToken ? `${authToken.substring(0, 50)}...` : 'No token');
-        console.log('👤 Current user:', user);
-        console.log('👤 User role:', user?.user_metadata?.role);
         
-        if (!authToken) {
-          throw new Error('No authentication token found');
-        }
-        
+        // Step 1: Upload all videos
         for (let i = 0; i < localVideos.length; i++) {
           const videoData = localVideos[i];
           setUploadProgress({
@@ -293,21 +293,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             total: localVideos.length,
             exerciseName: videoData.exerciseInfo.exerciseName
           });
-          // Compute setNumber/setIndex with guaranteed fallback
+
+          // Existing upload logic... (formData creation, fetch, etc.)
           let setNumber = 1;
           let setIndex = 0;
-          // Compute from setInfo first
           if (videoData.setInfo) {
-            if (typeof videoData.setInfo.setNumber === 'number') {
-              setNumber = videoData.setInfo.setNumber;
-            }
-            if (typeof videoData.setInfo.setIndex === 'number') {
-              setIndex = videoData.setInfo.setIndex;
-            } else if (typeof videoData.setIndex === 'number') {
-              setIndex = videoData.setIndex;
-            } else if (typeof setNumber === 'number') {
-              setIndex = Math.max(0, setNumber - 1);
-            }
+            if (typeof videoData.setInfo.setNumber === 'number') setNumber = videoData.setInfo.setNumber;
+            if (typeof videoData.setInfo.setIndex === 'number') setIndex = videoData.setInfo.setIndex;
+            else if (typeof videoData.setIndex === 'number') setIndex = videoData.setIndex;
+            else if (typeof setNumber === 'number') setIndex = Math.max(0, setNumber - 1);
           } else if (typeof videoData.setIndex === 'number') {
             setIndex = videoData.setIndex; setNumber = setIndex + 1;
           }
@@ -324,68 +318,101 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           formData.append('rpeRating', videoData.rpeRating || 0);
           formData.append('set_index', String(setIndex));
           formData.append('set_number', String(setNumber));
-          if (videoData.exerciseInfo?.exerciseId) {
-            formData.append('exercise_id', String(videoData.exerciseInfo.exerciseId));
-          }
-          if (session?.id) {
-            formData.append('session_id', String(session.id));
-          }
-          if (session?.assignment_id || session?.id) {
-            formData.append('assignment_id', String(session?.assignment_id || session?.id));
-          }
-          
+          if (videoData.exerciseInfo?.exerciseId) formData.append('exercise_id', String(videoData.exerciseInfo.exerciseId));
+          if (videoData.exerciseInfo?.exerciseIndex !== undefined) formData.append('exercise_index', String(videoData.exerciseInfo.exerciseIndex));
+          if (session?.id) formData.append('session_id', String(session.id));
+          if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
+
           let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData
           });
-          
-          // If we get a 401 error, try to refresh the token and retry once
+
           if (response.status === 401) {
-            console.log('🔄 Token expired, attempting to refresh...');
-            try {
-              authToken = await refreshAuthToken();
-              console.log('✅ Token refreshed, retrying video upload...');
-              
-              response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${authToken}`
-                },
-                body: formData
-              });
-            } catch (refreshError) {
-              console.error('❌ Failed to refresh token:', refreshError);
-              throw new Error('Authentication failed. Please log in again.');
-            }
+            authToken = await refreshAuthToken();
+            response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${authToken}` },
+              body: formData
+            });
           }
-          
+
           if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Video upload failed:', response.status, errorText);
-            throw new Error(`Video upload failed: ${response.status} ${errorText}`);
+            // Parse error message from backend
+            let errorMessage = `Video upload failed (${response.status})`;
+            try {
+              const errorText = await response.text();
+              if (errorText) {
+                try {
+                  const errorData = JSON.parse(errorText);
+                  errorMessage = errorData.message || errorData.error || errorMessage;
+                } catch {
+                  // If not JSON, use the text directly (might contain the error message)
+                  errorMessage = errorText.length < 200 ? errorText : errorMessage;
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing error response:', e);
+            }
+            throw new Error(errorMessage);
           }
-          
-          console.log('✅ Video uploaded successfully');
         }
-      } catch (error) {
-        console.error('Error uploading videos:', error);
-        alert('Erreur lors du téléchargement des vidéos');
-      } finally {
+        
         setIsUploadingVideos(false);
+        setIsCompressing(true);
+
+        // Step 2: Trigger backend compression
+        const finalizeResponse = await fetch(buildApiUrl(`/api/workout-sessions/${session.id}/finalize-videos`), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!finalizeResponse.ok) {
+          // Even if finalization fails, the session is complete from user's perspective
+          console.error('Failed to trigger video finalization, but session is marked complete.');
+        }
+
+        setIsUploadComplete(true);
+
+        // Close modal after a short delay
+        setTimeout(() => {
+          setIsVideoProcessingModalOpen(false);
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error during video processing:', error);
+        // Extract and display specific error message
+        const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
+        
+        // Check if it's a file size error
+        if (errorMessage.toLowerCase().includes('too large') || errorMessage.toLowerCase().includes('trop volumineux')) {
+          alert(`❌ ${errorMessage}\n\nVeuillez sélectionner une vidéo plus petite (maximum 300 MB).`);
+        } else {
+          alert(`❌ Erreur lors du téléversement des vidéos:\n\n${errorMessage}\n\nVeuillez réessayer.`);
+        }
+        
+        setIsVideoProcessingModalOpen(false);
+        // Don't proceed to complete session if uploads fail
+        return;
+      } finally {
+        // Reset states
+        setIsUploadingVideos(false);
+        setIsCompressing(false);
         setUploadProgress(null);
       }
     }
     
+    // Step 3: Complete the session locally (happens for sessions with or without videos)
     setSessionStatus('completed');
     onCompleteSession({
       ...session,
       completionData,
-      completedSets // Pass the set statuses
+      completedSets
     });
-    setIsCompletionModalOpen(false);
   };
 
   const handleVideoUpload = (exerciseIndex) => {
@@ -724,6 +751,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         exerciseInfo={{
           exerciseName: exercises[currentExerciseIndex]?.name || 'Exercice',
           exerciseId: exercises[currentExerciseIndex]?.exerciseId,
+          exerciseIndex: currentExerciseIndex, // Add exercise index to uniquely identify exercises with same name
           sessionId: session?.id,
           coachId: session?.coach_id,
           assignmentId: session?.assignment_id || session?.id
@@ -742,6 +770,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         onComplete={handleSessionCompletion}
         isUploading={isUploadingVideos}
         uploadProgress={uploadProgress}
+      />
+
+      {/* Video Processing Modal */}
+      <VideoProcessingModal
+        isOpen={isVideoProcessingModalOpen}
+        progress={uploadProgress}
+        isCompressing={isCompressing}
+        isComplete={isUploadComplete}
       />
     </div>
   );

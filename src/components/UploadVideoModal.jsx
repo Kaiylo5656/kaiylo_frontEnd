@@ -16,13 +16,39 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const [error, setError] = useState(null);
   const { getAuthToken } = useAuth();
 
+  // Maximum file size: 300MB (matches backend limit)
+  const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB in bytes
+
+  // Helper function to format file size
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file && file.type.startsWith('video/')) {
-      setVideoFile(file);
-    } else {
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
       setError('Please select a valid video file.');
+      setVideoFile(null);
+      return;
     }
+    
+    // Validate file size BEFORE setting state
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large. Maximum size is 300 MB. Your file is ${formatFileSize(file.size)}.`);
+      setVideoFile(null);
+      return;
+    }
+    
+    // File is valid
+    setError(null);
+    setVideoFile(file);
   };
 
   const handleSubmit = async (e) => {
@@ -60,8 +86,23 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Failed to upload video.');
+        let errorMessage = 'Failed to upload video.';
+        try {
+          const errData = await response.json();
+          errorMessage = errData.message || errData.error || errorMessage;
+        } catch (e) {
+          // If response is not JSON, try to get text
+          const errorText = await response.text();
+          if (errorText) {
+            try {
+              const parsed = JSON.parse(errorText);
+              errorMessage = parsed.message || parsed.error || errorMessage;
+            } catch {
+              errorMessage = errorText || errorMessage;
+            }
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -146,21 +187,32 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
               className="max-w-full"
             />
             {videoFile && (
-              <div className="mt-2 max-w-full overflow-hidden">
+              <div className="mt-2 max-w-full overflow-hidden space-y-1">
                 <p
-                  className="text-xs text-white/60 truncate"
-                  title={`${videoFile.name}${videoFile.size ? ` • Size: ${Math.round(videoFile.size / 1024 / 1024 * 100) / 100} MB` : ""}`}
+                  className="text-xs text-white/90 truncate font-medium"
+                  title={videoFile.name}
                   data-testid="upload-file-meta"
                 >
                   {truncateMiddle(videoFile.name, 56)}
-                  {typeof videoFile.size === "number" && (
-                    <> • Size: {Math.round((videoFile.size / (1024 * 1024)) * 100) / 100} MB</>
-                  )}
                 </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-white/60">
+                    Size: {formatFileSize(videoFile.size)}
+                  </p>
+                  {videoFile.size > MAX_FILE_SIZE * 0.8 && (
+                    <span className="text-xs text-yellow-500">
+                      (Large file, longer upload time)
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+              <p className="text-sm text-red-400 font-medium">{error}</p>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose} disabled={isUploading}>
               Cancel

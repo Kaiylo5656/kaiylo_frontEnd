@@ -316,46 +316,34 @@ const StudentVideoLibrary = () => {
                   <div className="flex items-center gap-4">
                     {/* Video Thumbnail */}
                     <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                      {(() => {
-                        const getVideoSrc = () => {
-                          const url = video.video_url;
-                          if (url === null || url === undefined || url === '') return null;
-                          if (typeof url !== 'string') return null;
-                          const trimmed = url.trim();
-                          if (!trimmed || trimmed.length === 0) return null;
-                          return trimmed;
-                        };
-                        const videoSrc = getVideoSrc();
-                        
-                        return videoSrc ? (
-                          <>
-                            <video 
-                              src={videoSrc}
-                              className="w-full h-full object-cover"
-                              preload="metadata"
-                              onLoadedMetadata={(e) => {
-                                const duration = e.target.duration;
-                                if (duration && !isNaN(duration)) {
-                                  const minutes = Math.floor(duration / 60);
-                                  const seconds = Math.floor(duration % 60);
-                                  const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                                  const durationDisplay = e.target.parentElement?.querySelector('.duration-display');
-                                  if (durationDisplay) {
-                                    durationDisplay.textContent = timeDisplay;
-                                  }
+                      {video.video_url ? (
+                        <>
+                          <video 
+                            src={video.video_url}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                            onLoadedMetadata={(e) => {
+                              const duration = e.target.duration;
+                              if (duration && !isNaN(duration)) {
+                                const minutes = Math.floor(duration / 60);
+                                const seconds = Math.floor(duration % 60);
+                                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                const durationDisplay = e.target.parentElement?.querySelector('.duration-display');
+                                if (durationDisplay) {
+                                  durationDisplay.textContent = timeDisplay;
                                 }
-                              }}
-                            />
-                            <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
-                              Loading...
-                            </div>
-                          </>
-                        ) : (
-                          <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                            <Video size={24} className="text-gray-500" />
+                              }
+                            }}
+                          />
+                          <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
+                            Loading...
                           </div>
-                          );
-                      })()}
+                        </>
+                      ) : (
+                        <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                          <Video size={24} className="text-gray-500" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                         <PlayCircle size={24} className="text-white" />
                       </div>
@@ -452,29 +440,17 @@ const StudentVideoLibrary = () => {
                     <div className="flex items-center gap-4">
                       {/* Video Thumbnail */}
                       <div className="relative w-24 h-16 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                        {(() => {
-                          const getResourceSrc = () => {
-                            const url = resource.fileUrl;
-                            if (url === null || url === undefined || url === '') return null;
-                            if (typeof url !== 'string') return null;
-                            const trimmed = url.trim();
-                            if (!trimmed || trimmed.length === 0) return null;
-                            return trimmed;
-                          };
-                          const resourceSrc = getResourceSrc();
-                          
-                          return resourceSrc ? (
-                            <video 
-                              src={resourceSrc}
-                              className="w-full h-full object-cover"
-                              preload="metadata"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                              <Video size={20} className="text-gray-500" />
-                            </div>
-                          );
-                        })()}
+                        {resource.fileUrl ? (
+                          <video 
+                            src={resource.fileUrl}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                            <Video size={20} className="text-gray-500" />
+                          </div>
+                        )}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                           <PlayCircle size={20} className="text-white" />
                         </div>
