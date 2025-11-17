@@ -49,6 +49,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
   const [exerciseFilter, setExerciseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
   
   // Block information state
   const [blockNumber, setBlockNumber] = useState(3);
@@ -228,7 +229,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const handleDayDragLeave = (event, day) => {
     if (!draggedSession) return;
     // Only clear highlight when leaving the current card entirely
-    if (!event.currentTarget.contains(event.relatedTarget)) {
+    const relatedTarget = event.relatedTarget;
+    if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
       setDragOverDate((current) => (current === format(day, 'yyyy-MM-dd') ? null : current));
     }
   };
@@ -1452,94 +1454,181 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     });
   };
 
+  // Group videos by workout session
+  const groupedVideosBySession = useMemo(() => {
+    const filteredVideos = getFilteredVideos();
+    const groups = {};
+    
+    filteredVideos.forEach(video => {
+      const sessionId = video.workout_session_id || video.assignment_id || 'unknown';
+      
+      if (!groups[sessionId]) {
+        // Extract session name from the nested assignment data
+        const sessionName = video.assignment?.workout_session?.title || 
+                           video.session_name || 
+                           'Séance';
+        
+        groups[sessionId] = {
+          sessionId,
+          sessionDate: video.created_at || video.uploaded_at,
+          sessionName: sessionName,
+          videos: []
+        };
+      }
+      
+      groups[sessionId].videos.push(video);
+    });
+    
+    // Convert to array and sort by date (newest first)
+    return Object.values(groups).sort((a, b) => {
+      const dateA = new Date(a.sessionDate).getTime();
+      const dateB = new Date(b.sessionDate).getTime();
+      return dateB - dateA;
+    });
+  }, [studentVideos, statusFilter, exerciseFilter, dateFilter]);
+
+  // Toggle session open/closed
+  const toggleSession = (sessionId) => {
+    setOpenSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }));
+  };
+
   // Get unique exercises for filter dropdown
   const getUniqueExercises = () => {
     const exercises = [...new Set(studentVideos.map(video => video.exercise_name))];
     return exercises;
   };
 
-  // Render student videos with thumbnail cards
-  const renderStudentVideosCards = () => {
-    const filteredVideos = getFilteredVideos();
-    
+  // Render student videos grouped by session
+  const renderStudentVideosGrouped = () => {
+    if (groupedVideosBySession.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
+          <Video size={48} className="mb-4 opacity-30" />
+          <p className="font-medium">Aucune vidéo trouvée</p>
+          <p className="text-sm">Aucune vidéo ne correspond aux filtres sélectionnés.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
-        {filteredVideos.map((video) => (
-          <div 
-            key={video.id} 
-            className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
-            onClick={() => handleVideoClick(video)}
-          >
-            <div className="flex items-center gap-4">
-              {/* Video Thumbnail */}
-              <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                {video?.video_url && video.video_url.trim() !== '' ? (
-                  <>
-                    <video 
-                      src={video.video_url}
-                      className="w-full h-full object-cover"
-                      preload="metadata"
-                      onLoadedMetadata={(e) => {
-                        // Update the video duration when metadata loads
-                        const duration = e.target.duration;
-                        if (duration && !isNaN(duration)) {
-                          const minutes = Math.floor(duration / 60);
-                          const seconds = Math.floor(duration % 60);
-                          const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                          const durationDisplay = e.target.parentElement?.querySelector('.duration-display');
-                          if (durationDisplay) {
-                            durationDisplay.textContent = timeDisplay;
-                          }
-                        }
-                      }}
-                    />
-                    <div className="duration-display absolute bottom-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
-                      Loading...
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                    <Video size={24} className="text-gray-500" />
+        {groupedVideosBySession.map((session) => {
+          const isOpen = openSessions[session.sessionId];
+          const sessionTitle = `${session.sessionName} - ${format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr })}`;
+          
+          return (
+            <div 
+              key={session.sessionId}
+              className="border border-white/10 rounded-lg overflow-hidden"
+            >
+              {/* Session Header (Clickable) */}
+              <div 
+                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => toggleSession(session.sessionId)}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+                  <ChevronRight 
+                    size={20} 
+                    className={`text-white/50 transition-transform flex-shrink-0 ${
+                      isOpen ? 'rotate-90' : ''
+                    }`} 
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-white font-light text-base">{sessionTitle}</h3>
+                    <p className="text-sm text-white/50 mt-1">
+                      {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
+                    </p>
                   </div>
-                )}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                  <PlayCircle size={24} className="text-white" />
-                </div>
-              </div>
-              
-              {/* Video Info */}
-              <div className="flex-1 min-w-0">
-                {/* Exercise Tag */}
-                <div className="mb-2">
-                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
-                    {video.exercise_name}
-                  </span>
                 </div>
                 
-                {/* Series and Date */}
-                <div className="text-gray-400 text-sm">
-                  Série {video.set_number || 1}/3
-                </div>
-                <div className="text-gray-400 text-sm">
-                  {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                {/* Status indicator */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {session.videos.some(v => v.status === 'pending') && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                      {session.videos.filter(v => v.status === 'pending').length} à feedback
+                    </span>
+                  )}
+                  {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                      Complété
+                    </span>
+                  )}
                 </div>
               </div>
               
-              {/* Status Tag */}
-              <div className="flex-shrink-0">
-                {video.status === 'pending' ? (
-                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                    A feedback
-                  </span>
-                ) : (
-                  <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                    Complété
-                  </span>
-                )}
-              </div>
+              {/* Session Videos (Collapsible) */}
+              {isOpen && (
+                <div className="border-t border-white/10">
+                  <div className="p-4 space-y-3">
+                    {session.videos.map((video) => (
+                      <div 
+                        key={video.id} 
+                        className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
+                        onClick={() => handleVideoClick(video)}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Video Thumbnail */}
+                          <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                            {video?.video_url && video.video_url.trim() !== '' ? (
+                              <>
+                                <video 
+                                  src={video.video_url}
+                                  className="w-full h-full object-cover"
+                                  preload="metadata"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                  <PlayCircle size={24} className="text-white" />
+                                </div>
+                              </>
+                            ) : (
+                              <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                                <Video size={24} className="text-gray-500" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0">
+                            {/* Exercise Tag */}
+                            <div className="mb-2">
+                              <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
+                                {video.exercise_name}
+                              </span>
+                            </div>
+                            
+                            {/* Series and Date */}
+                            <div className="text-gray-400 text-sm">
+                              Série {video.set_number || 1}/3
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                            </div>
+                          </div>
+                          
+                          {/* Status Tag */}
+                          <div className="flex-shrink-0">
+                            {video.status === 'pending' ? (
+                              <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                                A feedback
+                              </span>
+                            ) : (
+                              <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                                Complété
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -2255,7 +2344,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     onMouseEnter={() => setHoveredPasteDate(dayKey)}
                     onMouseLeave={(event) => {
                       // Check if relatedTarget is a valid node before calling contains
-                      if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) {
+                      const relatedTarget = event.relatedTarget;
+                      if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
                         setHoveredPasteDate((current) => (current === dayKey ? null : current));
                       }
                     }}
@@ -2481,7 +2571,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                             onMouseEnter={() => setHoveredPasteDate(dateKey)}
                             onMouseLeave={(event) => {
                               // Check if relatedTarget is a valid node before calling contains
-                              if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) {
+                              const relatedTarget = event.relatedTarget;
+                              if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
                                 setHoveredPasteDate((current) => (current === dateKey ? null : current));
                               }
                             }}
@@ -2564,15 +2655,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               </div>
             )}
 
-            {!videosLoading && getFilteredVideos().length > 0 && renderStudentVideosCards()}
-
-            {!videosLoading && getFilteredVideos().length === 0 && (
-              <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
-                <PlayCircle size={48} className="mb-4" />
-                <p className="font-medium">Aucune vidéo trouvée</p>
-                <p className="text-sm">Les vidéos d'analyse pour {studentData?.raw_user_meta_data?.full_name || student.email} apparaîtront ici.</p>
-              </div>
-            )}
+            {!videosLoading && renderStudentVideosGrouped()}
           </div>
         )}
 

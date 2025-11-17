@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, Clock, CheckCircle, X, Play } from 'lucide-react';
+import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, ChevronRight, Clock, CheckCircle, X, Play, Video } from 'lucide-react';
 import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
@@ -35,6 +35,7 @@ const VideoLibrary = () => {
   const [selectedExercise, setSelectedExercise] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedFolder, setSelectedFolder] = useState(null); // For coach resources filtering
+  const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   
@@ -356,6 +357,50 @@ const VideoLibrary = () => {
   // Count videos needing feedback
   const videosNeedingFeedback = studentVideos.filter(video => video.status === 'pending').length;
 
+  // Group videos by workout session
+  const groupedVideosBySession = useMemo(() => {
+    const groups = {};
+    
+    filteredVideos.forEach(video => {
+      const sessionId = video.workout_session_id || video.assignment_id || 'unknown';
+      
+      if (!groups[sessionId]) {
+        // Extract session name from the nested assignment data
+        const sessionName = video.assignment?.workout_session?.title || 
+                           video.session_name || 
+                           'Séance';
+        
+        groups[sessionId] = {
+          sessionId,
+          sessionDate: video.created_at || video.uploaded_at,
+          sessionName: sessionName,
+          videos: [],
+          studentName: video.student?.raw_user_meta_data?.full_name || 
+                       video.student?.raw_user_meta_data?.name || 
+                       video.student?.email || 
+                       'Élève inconnu'
+        };
+      }
+      
+      groups[sessionId].videos.push(video);
+    });
+    
+    // Convert to array and sort by date (newest first)
+    return Object.values(groups).sort((a, b) => {
+      const dateA = new Date(a.sessionDate).getTime();
+      const dateB = new Date(b.sessionDate).getTime();
+      return dateB - dateA;
+    });
+  }, [filteredVideos]);
+
+  // Toggle session open/closed
+  const toggleSession = (sessionId) => {
+    setOpenSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }));
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending':
@@ -385,96 +430,137 @@ const VideoLibrary = () => {
     }
   };
 
-  const renderStudentVideosTable = () => (
-    <div className="bg-[#1a1a1a] rounded-lg border border-[#262626] overflow-hidden">
-      {/* Video table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-[#1a1a1a]">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Vidéo
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Elèves
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Exercice
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Série
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Date
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">
-                Statut
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-[#1a1a1a] divide-y divide-[#262626]">
-            {filteredVideos.map((video) => (
-              <tr 
-                key={video.id} 
-                className="hover:bg-[#262626] cursor-pointer transition-colors"
-                onClick={() => handleVideoClick(video)}
+  const renderStudentVideosGrouped = () => {
+    if (groupedVideosBySession.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
+          <Video size={48} className="mb-4 opacity-30" />
+          <p className="font-light text-base">Aucune vidéo trouvée</p>
+          <p className="text-sm text-white/30">Aucune vidéo ne correspond aux filtres sélectionnés.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {groupedVideosBySession.map((session) => {
+          const isOpen = openSessions[session.sessionId];
+          const sessionTitle = `${session.sessionName} - ${session.studentName} - ${format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr })}`;
+          
+          return (
+            <div 
+              key={session.sessionId}
+              className="border border-white/10 rounded-lg overflow-hidden"
+            >
+              {/* Session Header (Clickable) */}
+              <div 
+                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => toggleSession(session.sessionId)}
               >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="relative w-20 h-14 bg-[#262626] rounded-lg overflow-hidden">
-                      <video 
-                        src={video.video_url || undefined} 
-                        className="w-full h-full object-cover"
-                        preload="metadata"
-                        onLoadedMetadata={(e) => {
-                          // Update the video duration when metadata loads
-                          const duration = e.target.duration;
-                          if (duration && !isNaN(duration)) {
-                            const minutes = Math.floor(duration / 60);
-                            const seconds = Math.floor(duration % 60);
-                            const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                            e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
-                          }
-                        }}
-                      />
-                      <div className="duration-display absolute bottom-1 right-1 bg-black bg-opacity-75 text-white text-xs px-1 py-0.5 rounded">
-                        Loading...
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-                        <PlayCircle className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
+                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+                  <ChevronRight 
+                    size={20} 
+                    className={`text-white/50 transition-transform flex-shrink-0 ${
+                      isOpen ? 'rotate-90' : ''
+                    }`} 
+                  />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-white font-light text-base">{sessionTitle}</h3>
+                          <p className="text-sm text-white/50 mt-1">
+                            {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                </div>
+                
+                {/* Status indicator */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {session.videos.some(v => v.status === 'pending') && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                      {session.videos.filter(v => v.status === 'pending').length} à feedback
+                    </span>
+                  )}
+                  {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                      Complété
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Session Videos (Collapsible) */}
+              {isOpen && (
+                <div className="border-t border-white/10">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-[#131416] to-[#595d65]">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                            Vidéo
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                            Exercice
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                            Série
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                            Statut
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {session.videos.map((video) => (
+                          <tr 
+                            key={video.id} 
+                            className="border-t border-white/10 hover:bg-white/5 cursor-pointer transition-colors"
+                            onClick={() => handleVideoClick(video)}
+                          >
+                            <td className="px-4 py-4">
+                              <div className="relative w-28 h-20 bg-[#1a1a1a] rounded overflow-hidden group">
+                                <video 
+                                  src={video.video_url || undefined} 
+                                  className="w-full h-full object-cover"
+                                  preload="metadata"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Play className="h-6 w-6 text-white" />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-[#d4845a]/15 text-[#d4845a] border border-[#d4845a]/30">
+                                {video.exercise_name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-base text-white/75">
+                                Série {video.set_number}/3
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              {video.status === 'pending' ? (
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                  A feedback
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400 border border-green-500/30">
+                                  Complété
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-white">
-                    {video.student?.raw_user_meta_data?.full_name || 
-                     video.student?.raw_user_meta_data?.name || 
-                     video.student?.email || 
-                     'Unknown Student'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-600 text-gray-200">
-                    {video.exercise_name}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {video.set_number}/3
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                  {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {getStatusBadge(video.status)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderStudentVideosCards = () => {
     return (
@@ -736,91 +822,7 @@ const VideoLibrary = () => {
             
             {!loading && !error && (
               filteredVideos.length > 0 ? (
-                <div className="border border-white/10 rounded-lg overflow-hidden">
-                  {/* Table */}
-                  <table className="w-full">
-                    {/* Table Header */}
-                    <thead className="bg-gradient-to-r from-[#131416] to-[#595d65]">
-                      <tr>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Vidéo</th>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Elèves</th>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Exercice</th>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Série</th>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Date</th>
-                        <th className="px-4 py-4 text-left text-base font-light text-white/75">Statut</th>
-                      </tr>
-                    </thead>
-
-                    {/* Table Body */}
-                    <tbody>
-                      {filteredVideos.map((video, index) => (
-                        <tr 
-                          key={video.id}
-                          onClick={() => handleVideoClick(video)}
-                          className="border-t border-white/10 hover:bg-white/5 cursor-pointer transition-colors"
-                        >
-                          {/* Video Thumbnail */}
-                          <td className="px-4 py-4">
-                            <div className="relative w-28 h-20 bg-[#1a1a1a] rounded overflow-hidden group">
-                              <video 
-                                src={video.video_url || undefined} 
-                                className="w-full h-full object-cover"
-                                preload="metadata"
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Play className="h-6 w-6 text-white" />
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Student Name */}
-                          <td className="px-4 py-4">
-                            <span className="text-base text-white/75">
-                              {video.student?.raw_user_meta_data?.full_name || 
-                               video.student?.raw_user_meta_data?.name || 
-                               video.student?.email || 
-                               'Unknown Student'}
-                            </span>
-                          </td>
-
-                          {/* Exercise Tag */}
-                          <td className="px-4 py-4">
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-[#d4845a]/15 text-[#d4845a] border border-[#d4845a]/30">
-                              {video.exercise_name}
-                            </span>
-                          </td>
-
-                          {/* Set Info */}
-                          <td className="px-4 py-4">
-                            <span className="text-base text-white/75">
-                              Série {video.set_number}/3
-                            </span>
-                          </td>
-
-                          {/* Date */}
-                          <td className="px-4 py-4">
-                            <span className="text-base text-white/75">
-                              {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
-                            </span>
-                          </td>
-
-                          {/* Status Badge */}
-                          <td className="px-4 py-4">
-                            {video.status === 'pending' ? (
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                                A feedback
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400 border border-green-500/30">
-                                Complété
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                renderStudentVideosGrouped()
               ) : (
                 <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
                   <PlayCircle size={48} className="mb-4 opacity-30" />
