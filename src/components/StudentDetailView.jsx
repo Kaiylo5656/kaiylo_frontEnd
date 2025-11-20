@@ -1512,7 +1512,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         </div>
       );
     }
-
+    
     return (
       <div className="space-y-4">
         {groupedVideosBySession.map((session) => {
@@ -1564,65 +1564,65 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 <div className="border-t border-white/10">
                   <div className="p-4 space-y-3">
                     {session.videos.map((video) => (
-                      <div 
-                        key={video.id} 
-                        className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
-                        onClick={() => handleVideoClick(video)}
-                      >
-                        <div className="flex items-center gap-4">
-                          {/* Video Thumbnail */}
-                          <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+          <div 
+            key={video.id} 
+            className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
+            onClick={() => handleVideoClick(video)}
+          >
+            <div className="flex items-center gap-4">
+              {/* Video Thumbnail */}
+              <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
                             {video?.video_url && video.video_url.trim() !== '' ? (
                               <>
-                                <video 
-                                  src={video.video_url}
-                                  className="w-full h-full object-cover"
-                                  preload="metadata"
+                <video 
+                  src={video.video_url}
+                  className="w-full h-full object-cover"
+                  preload="metadata"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                  <PlayCircle size={24} className="text-white" />
-                                </div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                  <PlayCircle size={24} className="text-white" />
+                </div>
                               </>
                             ) : (
                               <div className="w-full h-full bg-gray-700 flex items-center justify-center">
                                 <Video size={24} className="text-gray-500" />
                               </div>
                             )}
-                          </div>
-                          
-                          {/* Video Info */}
-                          <div className="flex-1 min-w-0">
-                            {/* Exercise Tag */}
-                            <div className="mb-2">
-                              <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
-                                {video.exercise_name}
-                              </span>
-                            </div>
-                            
-                            {/* Series and Date */}
-                            <div className="text-gray-400 text-sm">
-                              Série {video.set_number || 1}/3
-                            </div>
-                            <div className="text-gray-400 text-sm">
-                              {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
-                            </div>
-                          </div>
-                          
-                          {/* Status Tag */}
-                          <div className="flex-shrink-0">
-                            {video.status === 'pending' ? (
-                              <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                                A feedback
-                              </span>
-                            ) : (
-                              <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                                Complété
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+              </div>
+              
+              {/* Video Info */}
+              <div className="flex-1 min-w-0">
+                {/* Exercise Tag */}
+                <div className="mb-2">
+                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
+                    {video.exercise_name}
+                  </span>
+                </div>
+                
+                {/* Series and Date */}
+                <div className="text-gray-400 text-sm">
+                  Série {video.set_number || 1}/3
+                </div>
+                <div className="text-gray-400 text-sm">
+                  {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                </div>
+              </div>
+              
+              {/* Status Tag */}
+              <div className="flex-shrink-0">
+                {video.status === 'pending' ? (
+                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                    A feedback
+                  </span>
+                ) : (
+                  <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
+                    Complété
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
                   </div>
                 </div>
               )}

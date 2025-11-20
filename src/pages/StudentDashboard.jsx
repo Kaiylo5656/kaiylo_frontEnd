@@ -90,12 +90,18 @@ const StudentDashboard = () => {
       // Extract completion data and set statuses from session
       const completionData = session.completionData || {};
       const completedSets = session.completedSets || {};
+      const exerciseComments = session.exerciseComments || {};
 
       // Create a deep copy of exercises to modify
       const updatedExercises = JSON.parse(JSON.stringify(session.workout_sessions.exercises));
 
-      // Inject validation_status into each set
+      // Inject validation_status into each set and add student comments
       updatedExercises.forEach((exercise, exerciseIndex) => {
+        // Add student comment to exercise if it exists
+        if (exerciseComments[exerciseIndex]) {
+          exercise.student_comment = exerciseComments[exerciseIndex];
+        }
+        
         if (exercise.sets && Array.isArray(exercise.sets)) {
           exercise.sets.forEach((set, setIndex) => {
             const key = `${exerciseIndex}-${setIndex}`;
@@ -184,11 +190,13 @@ const StudentDashboard = () => {
   // Show execution view if a session is being executed
   if (currentView === 'execution' && executingSession) {
     return (
-      <WorkoutSessionExecution
-        session={executingSession}
-        onBack={handleBackToPlanning}
-        onCompleteSession={handleCompleteSession}
-      />
+      <div className="-m-6 lg:-m-8 md:-m-6 -mb-20 md:-mb-6 w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] md:w-[calc(100%+3rem)] -ml-6 lg:-ml-8 md:-ml-6">
+        <WorkoutSessionExecution
+          session={executingSession}
+          onBack={handleBackToPlanning}
+          onCompleteSession={handleCompleteSession}
+        />
+      </div>
     );
   }
 

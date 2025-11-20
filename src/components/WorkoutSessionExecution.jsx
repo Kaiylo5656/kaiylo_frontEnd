@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, SkipForward, Video, Play, VideoOff } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowLeft, CheckCircle, XCircle, Video, Play, VideoOff } from 'lucide-react';
 import { Button } from './ui/button';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import SessionCompletionModal from './SessionCompletionModal';
 import VideoProcessingModal from './VideoProcessingModal'; // Import the new modal
+import ExerciseValidationModal from './ExerciseValidationModal'; // Import the exercise validation modal
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -13,6 +14,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentSetIndex, setCurrentSetIndex] = useState({}); // Track current set for each exercise
   const [selectedSetForVideo, setSelectedSetForVideo] = useState({}); // Track which set is selected for video upload per exercise
+  const [videoUploadExerciseIndex, setVideoUploadExerciseIndex] = useState(null); // Track exercise index when opening video modal
   const [selectedSetIndex, setSelectedSetIndex] = useState({}); // Track which set is currently selected for each exercise
   const [sessionStatus, setSessionStatus] = useState('in_progress'); // 'in_progress', 'completed'
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false); // Video upload modal state
@@ -23,13 +25,67 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [isVideoProcessingModalOpen, setIsVideoProcessingModalOpen] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isUploadComplete, setIsUploadComplete] = useState(false);
+  const [isExerciseValidationModalOpen, setIsExerciseValidationModalOpen] = useState(false);
+  const [selectedExerciseForValidation, setSelectedExerciseForValidation] = useState(null);
+  const [exerciseComments, setExerciseComments] = useState({}); // Store student comments for each exercise
+  const [sessionVideos, setSessionVideos] = useState([]); // Store videos from API to get coach feedback
+  const [dotPositions, setDotPositions] = useState({});
+  const exerciseCardRefs = useRef([]);
+  const exerciseListRef = useRef(null);
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
   
-  // Handle exercise selection
+  // Note: Coach feedback should be included in exercise data from the backend
+  // The /api/workout-sessions/videos endpoint is coach-only, so we don't fetch it here
+  // Coach feedback will be displayed if it's already in exercises[].coach_feedback
+  
+  // Mesurer les positions des cartes et mettre à jour les positions des points
+  useEffect(() => {
+    const updateDotPositions = () => {
+      if (!exerciseListRef.current) return;
+      
+      const listRect = exerciseListRef.current.getBoundingClientRect();
+      const listTop = listRect.top;
+      const positions = {};
+      
+      exerciseCardRefs.current.forEach((ref, index) => {
+        if (ref) {
+          const cardRect = ref.getBoundingClientRect();
+          const cardTop = cardRect.top;
+          const cardHeight = cardRect.height;
+          // Position relative au conteneur parent
+          const cardCenter = (cardTop - listTop) + (cardHeight / 2);
+          positions[index] = cardCenter;
+        }
+      });
+      
+      setDotPositions(positions);
+    };
+    
+    updateDotPositions();
+    
+    // Mettre à jour lors du redimensionnement ou du changement de contenu
+    window.addEventListener('resize', updateDotPositions);
+    const timer = setTimeout(updateDotPositions, 100); // Petit délai pour permettre le rendu
+    const observer = new MutationObserver(updateDotPositions); // Observer les changements DOM
+    
+    if (exerciseListRef.current) {
+      observer.observe(exerciseListRef.current, { childList: true, subtree: true, attributes: true });
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateDotPositions);
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [exercises, currentExerciseIndex, completedSets]);
+  
+  // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
+    setSelectedExerciseForValidation(exerciseIndex);
     setCurrentExerciseIndex(exerciseIndex);
+    setIsExerciseValidationModalOpen(true);
   };
 
   // Get current set index for an exercise
@@ -60,6 +116,29 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     return exercise.sets.filter(set => set.video === true).length;
   };
 
+  /**
+   * Build the compact summary displayed under the exercise name (e.g. "4x8 @35 kg")
+   * so that we can mirror the Figma card layout.
+   */
+  const getExerciseSummary = (exercise) => {
+    if (!exercise || !Array.isArray(exercise.sets) || exercise.sets.length === 0) {
+      return null;
+    }
+
+    const totalSets = exercise.sets.length;
+    const firstSet = exercise.sets[0] || {};
+    const reps = firstSet?.reps;
+    const weight = firstSet?.weight;
+
+    const scheme = reps ? `${totalSets}x${reps}` : `${totalSets} séries`;
+    const weightLabel =
+      weight !== undefined && weight !== null && weight !== ''
+        ? `@${weight} kg`
+        : null;
+
+    return { scheme, weight: weightLabel };
+  };
+
   // Check if video upload is enabled for the currently selected set
   const isVideoUploadEnabled = (exerciseIndex) => {
     const selectedSet = getSelectedSetIndex(exerciseIndex);
@@ -71,7 +150,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     return set && set.video === true;
   };
 
-  // Check if exercise is finalized (all sets have a status - completed, failed, or skipped)
+  // Check if exercise is finalized (all sets have a status - completed or failed)
   const isExerciseFullyComplete = (exerciseIndex) => {
     const exercise = exercises[exerciseIndex];
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -83,7 +162,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     for (let i = 0; i < totalSets; i++) {
       const status = getSetStatus(exerciseIndex, i);
-      // Count sets that have any status (completed, failed, or skipped) - not just completed
+      // Count sets that have any status (completed or failed) - not just completed
       if (status !== 'pending') finalizedCount++;
     }
     
@@ -207,7 +286,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     switch (status) {
       case 'completed': return 'bg-green-500';
       case 'failed': return 'bg-red-500';
-      case 'skipped': return 'bg-gray-500';
       default: return 'bg-white/5';
     }
   };
@@ -216,7 +294,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-white" />;
       case 'failed': return <XCircle className="h-4 w-4 text-white" />;
-      case 'skipped': return <SkipForward className="h-4 w-4 text-white" />;
       default: return null;
     }
   };
@@ -411,7 +488,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     onCompleteSession({
       ...session,
       completionData,
-      completedSets
+      completedSets,
+      exerciseComments // Include exercise comments
     });
   };
 
@@ -432,9 +510,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const handleVideoUploadSuccess = (videoData) => {
     console.log('Video stored locally:', videoData);
     
-    // Get current exercise and set indices
-    const exerciseIndex = currentExerciseIndex;
-    const setIndex = selectedSetForVideo[exerciseIndex];
+    // Get exercise and set indices from videoData (more reliable than currentExerciseIndex)
+    const exerciseIndex = videoData.exerciseInfo?.exerciseIndex !== undefined 
+      ? videoData.exerciseInfo.exerciseIndex 
+      : currentExerciseIndex;
+    const setIndex = videoData.setInfo?.setIndex !== undefined
+      ? videoData.setInfo.setIndex
+      : (videoData.setInfo?.setNumber ? videoData.setInfo.setNumber - 1 : selectedSetForVideo[exerciseIndex]);
     
     // Check if a video already exists for this set
     setLocalVideos(prev => {
@@ -456,11 +538,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     // Add video status for badge rendering
     setCompletedSets(prev => {
       const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
-      const isSkipped = videoData.file === 'no-video';
+      const hasNoVideo = videoData.file === 'no-video';
       const updatedSetData = {
         ...currentSetData,
-        hasVideo: !isSkipped,
-        videoStatus: isSkipped ? 'skipped' : 'uploaded'
+        hasVideo: !hasNoVideo,
+        videoStatus: hasNoVideo ? 'no-video' : 'uploaded'
       };
       return {
         ...prev,
@@ -489,257 +571,249 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen pb-20">
-      {/* Header with back button */}
-      <div className="px-[47px] pt-4">
-        <button 
-          onClick={onBack}
-          className="text-white/60 hover:text-white mb-4"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        
+    <div 
+      className="relative text-white min-h-screen pb-20 overflow-hidden"
+      style={{
+        background: 'linear-gradient(180deg, #1a1a1a 0%, #050505 55%, #000000 100%)'
+      }}
+    >
+      {/* Top glow to match Figma gradient */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, rgba(191,191,191,0.1) 45%, rgba(0,0,0,0) 70%)',
+          opacity: 0.35
+        }}
+      />
+      {/* Warm orange glow from timeline */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+          opacity: 0.45
+        }}
+      />
+      {/* Subtle bottom depth glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+          opacity: 0.25
+        }}
+      />
+      {/* Header - Centré comme dans Figma */}
+      <div className="px-[47px] pt-[64px] pb-5">
+        {/* Bouton retour */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 text-white/60 hover:text-white transition-colors"
+            title="Retour"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        )}
         {/* Title and subtitle */}
-        <div className="text-center mb-5">
-          <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal">
+        <div className="mb-5 text-center w-full">
+          <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-[7px]">
             {session.workout_sessions?.title || 'Séance'}
           </h1>
-          <p className="text-[10px] font-light text-white/50 mt-1">
+          <p className="text-[10px] font-light text-white/50">
             Durée estimée : 1h30
           </p>
         </div>
       </div>
 
-      {/* Exercise List */}
-      <div className="px-[47px] space-y-[10px]">
-        {exercises && exercises.length > 0 ? (
-          exercises.map((exercise, exerciseIndex) => {
-            const isActive = exerciseIndex === currentExerciseIndex;
-            const isCompleted = isExerciseFullyComplete(exerciseIndex);
-            const currentSet = getCurrentSetIndex(exerciseIndex);
-            
-            return (
-              <div 
-                key={exerciseIndex}
-                onClick={() => handleExerciseSelection(exerciseIndex)}
-                className={`rounded-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
-                  isActive && !isCompleted 
-                    ? 'bg-white/10 border-[1.5px] border-[#e87c3e] shadow-[0_0_0_4px_rgba(232,124,62,0.08)]' 
-                    : 'bg-white/5 border border-white/10'
-                } ${isActive && !isCompleted ? 'min-h-[130px]' : 'min-h-[80px]'} ${
-                  !isActive ? 'opacity-55 hover:opacity-75' : ''
-                }`}
-              >
-                <div className={isActive && !isCompleted ? 'p-5' : 'p-4'}>
-                  {/* Exercise Header */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <h3 className={`font-normal ${
-                        isActive && !isCompleted 
-                          ? 'text-white text-lg' 
-                          : 'text-white/60 text-base'
-                      }`}>
-                        {exercise.name}
-                      </h3>
-                      <p className={`font-light mt-1.5 ${
-                        isActive && !isCompleted ? 'text-xs' : 'text-[11px]'
-                      }`}>
-                        <span className={isActive && !isCompleted ? 'text-white/75' : 'text-white/60'}>
-                          {isActive 
-                            ? `Série ${getSelectedSetIndex(exerciseIndex) + 1}: ${exercise.sets?.[getSelectedSetIndex(exerciseIndex)]?.reps || '?'} rep`
-                            : `${exercise.sets?.[0]?.reps || '?'} rep`
+      {/* Exercise List - Tous les exercices visibles, format compact */}
+      <div className="relative pl-[47px] pr-[20px]">
+        {/* Ligne verticale pointillée à gauche (comme dans Figma) */}
+        {exercises && exercises.length > 0 && (
+          <div className="absolute left-[27px] top-0 bottom-0">
+            <div className="relative w-full h-full flex flex-col items-center">
+              {/* Ligne verticale pointillée */}
+              <div className="absolute top-0 bottom-0 left-1/2 transform -translate-x-1/2 w-[1px] border-l border-dashed border-[#d4845a]/30"></div>
+              {/* Points d'avancement : orange si exercice fait, blanc si pas encore fait - Alignés avec le centre de chaque carte */}
+              <div className="relative w-full h-full">
+                {exercises.map((_, index) => {
+                  const exerciseCompleted = isExerciseFullyComplete(index);
+                  const topPosition = dotPositions[index];
+                  
+                  if (topPosition === undefined) return null;
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className={`w-[5px] h-[5px] rounded-full flex-shrink-0 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 ${
+                        exerciseCompleted ? 'bg-[#d4845a]' : 'bg-white'
+                      }`}
+                      style={{ top: `${topPosition}px` }}
+                    ></div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div 
+          ref={exerciseListRef} 
+          className="space-y-[10px] ml-[-5px] flex flex-col w-full"
+        >
+          {exercises && exercises.length > 0 ? (
+            exercises.map((exercise, exerciseIndex) => {
+              const isActive = exerciseIndex === currentExerciseIndex;
+              const isCompleted = isExerciseFullyComplete(exerciseIndex);
+              const exerciseSummary = getExerciseSummary(exercise);
+              
+              return (
+                <div 
+                  key={exerciseIndex}
+                  ref={el => exerciseCardRefs.current[exerciseIndex] = el}
+                  onClick={() => handleExerciseSelection(exerciseIndex)}
+                  className={`
+                    rounded-[12px] overflow-hidden cursor-pointer transition-all duration-200
+                    ${isCompleted ? 'bg-[#262626]' : 'bg-[#1c1c1c]'}
+                    border border-white/5 hover:border-white/10
+                    w-full min-h-[64px]
+                  `}
+                >
+                  <div className="px-[18px] py-[10px] h-full">
+                    <div className="flex items-center justify-between gap-5 h-full">
+                      <div className="flex flex-col gap-[3px]">
+                        <h3 className="text-[15px] font-normal text-white break-words leading-tight">
+                          {exercise.name}
+                        </h3>
+                        {exerciseSummary && (
+                          <p className="text-[11px] font-light text-white/50 leading-tight">
+                            <span>{exerciseSummary.scheme}</span>{' '}
+                            {exerciseSummary.weight && (
+                              <span className="text-[#d4845a]">
+                                {exerciseSummary.weight}
+                              </span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* Set indicators - compact row */}
+                      <div className="flex gap-[10px] items-center flex-shrink-0">
+                        {exercise.sets?.map((set, setIndex) => {
+                          const status = getSetStatus(exerciseIndex, setIndex);
+                          const isSelected = getSelectedSetIndex(exerciseIndex) === setIndex;
+
+                          let variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
+                          if (status === 'completed') {
+                            variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
+                          } else if (status === 'failed') {
+                            variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
+                          } else if (isSelected && isActive) {
+                            variantClasses = 'bg-[rgba(0,0,0,0.45)] border-[#d4845a]';
                           }
-                        </span>
-                        {' '}
-                        <span className={isActive && !isCompleted ? 'text-[#d4845a]' : 'text-[#d4845a]/60'}>
-                          @{isActive 
-                            ? exercise.sets?.[getSelectedSetIndex(exerciseIndex)]?.weight || '?' 
-                            : exercise.sets?.[0]?.weight || '?'
-                          } kg
-                        </span>
-                      </p>
-                    </div>
-                    
-                    {/* Set indicators (small squares) */}
-                    <div className="flex flex-wrap gap-2.5 items-start ml-4 sm:ml-6 md:ml-8">
-                      {exercise.sets?.map((set, setIndex) => {
-                        const status = getSetStatus(exerciseIndex, setIndex);
-                        const videoEnabled = hasVideoForSet(exerciseIndex, setIndex);
-                        const isSelected = getSelectedSetIndex(exerciseIndex) === setIndex;
-                        const isActive = exerciseIndex === currentExerciseIndex;
-                        
-                        // Set styling based on status (matching Figma design)
-                        let bgColor = 'bg-[rgba(0,0,0,0.35)]';
-                        let borderColor = 'border-[rgba(255,255,255,0.1)]';
-                        let icon = null;
 
-                        if (status === 'completed') {
-                          // Validated: green background with checkmark
-                          bgColor = 'bg-green-500';
-                          borderColor = 'border-green-500';
-                          icon = <CheckCircle size={10} className="text-white" />;
-                        } else if (status === 'failed') {
-                          // Failed: red background with X
-                          bgColor = 'bg-red-500';
-                          borderColor = 'border-red-500';
-                          icon = <XCircle size={10} className="text-white" />;
-                        } else if (status === 'skipped') {
-                          // Skipped: gray background with skip icon
-                          bgColor = 'bg-gray-500';
-                          borderColor = 'border-gray-500';
-                          icon = <SkipForward size={10} className="text-white" />;
-                        }
-
-                        // Add selection highlight (only for active exercise)
-                        const selectionStyle = isSelected && isActive ? 'ring-2 ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]' : '';
-
-                        // Different styling for active vs inactive exercises
-                        const interactiveStyle = isActive 
-                          ? 'hover:opacity-80 hover:scale-105 transition-all duration-150 cursor-pointer' 
-                          : 'opacity-60 cursor-default';
-
-                        return (
-                          <div key={setIndex} className="relative flex items-center">
-                            {/* Main set status box */}
+                          return (
                             <button
+                              key={setIndex}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSetSelection(exerciseIndex, setIndex);
                               }}
                               disabled={!isActive}
-                              className={`w-5 h-5 rounded-[3px] border-[0.5px] border-solid flex items-center justify-center ${bgColor} ${borderColor} ${selectionStyle} ${interactiveStyle}`}
+                              className={`
+                                w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid 
+                                flex items-center justify-center relative
+                                transition-all duration-150
+                                ${variantClasses}
+                                ${isActive 
+                                  ? 'cursor-pointer hover:opacity-80' 
+                                  : 'opacity-60 cursor-default'
+                                }
+                              `}
                               title={isActive ? `Sélectionner la série ${setIndex + 1}` : 'Sélectionnez cet exercice pour modifier les séries'}
                             >
-                              {icon}
+                              {status === 'completed' && (
+                                <svg 
+                                  width="10" 
+                                  height="7" 
+                                  viewBox="0 0 10 7" 
+                                  fill="none" 
+                                  className="flex-shrink-0"
+                                  style={{ 
+                                    shapeRendering: 'crispEdges',
+                                    imageRendering: 'crisp-edges'
+                                  }}
+                                >
+                                  <path 
+                                    d="M1 3.5L3.5 6L9 1" 
+                                    stroke="#2FA064" 
+                                    strokeWidth="1.5" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                    vectorEffect="non-scaling-stroke"
+                                  />
+                                </svg>
+                              )}
+                              {status === 'failed' && (
+                                <svg 
+                                  width="17" 
+                                  height="17" 
+                                  viewBox="0 0 17 17" 
+                                  fill="none" 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  className="flex-shrink-0"
+                                  style={{ 
+                                    shapeRendering: 'crispEdges',
+                                    imageRendering: 'crisp-edges'
+                                  }}
+                                >
+                                  <path 
+                                    d="M5 12L12 5M5 5L12 12" 
+                                    stroke="#DA3336" 
+                                    strokeWidth="1.5" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                    vectorEffect="non-scaling-stroke"
+                                    style={{ 
+                                      shapeRendering: 'geometricPrecision'
+                                    }}
+                                  />
+                                </svg>
+                              )}
                             </button>
-                            
-                            {/* Small video indicator outside the box */}
-                            {videoEnabled && (
-                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#d4845a] rounded-full flex items-center justify-center border border-white/20">
-                                <Video size={6} className="text-white" />
-                              </div>
-                            )}
-                            {/* Video status badge (uploaded/skipped) */}
-                            {
-                              (() => {
-                                // Determine videoStatus for this set
-                                const key = `${exerciseIndex}-${setIndex}`;
-                                const setData = completedSets[key] || {};
-                                let videoStatus = setData.videoStatus;
-                                // Fallback logic if not yet set
-                                if (!videoStatus) {
-                                  if (setData.hasVideo) {
-                                    videoStatus = 'uploaded';
-                                  } else if (setData.status === 'skipped') {
-                                    videoStatus = 'skipped';
-                                  } else {
-                                    videoStatus = 'pending';
-                                  }
-                                }
-                                if (videoStatus === 'uploaded') {
-                                  return (
-                                    <span
-                                      role="img"
-                                      aria-label="Vidéo ajoutée"
-                                      title="Vidéo envoyée"
-                                      className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-600 grid place-items-center text-[10px] shadow ring-1 ring-emerald-300/40"
-                                    >
-                                      <Play className="h-2.5 w-2.5 text-white" />
-                                    </span>
-                                  );
-                                }
-                                if (videoStatus === 'skipped') {
-                                  return (
-                                    <span
-                                      role="img"
-                                      aria-label="Vidéo non fournie"
-                                      title="Vidéo non fournie (sautée)"
-                                      className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-amber-500 grid place-items-center text-[10px] shadow ring-1 ring-amber-300/50"
-                                    >
-                                      <VideoOff className="h-2.5 w-2.5 text-black/80" />
-                                    </span>
-                                  );
-                                }
-                                return null;
-                              })()
-                            }
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Active Exercise Controls */}
-                  {isActive && (
-                    <div className="mt-5 space-y-2.5">
-                      {/* Video button */}
-                      {isVideoUploadEnabled(exerciseIndex) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVideoUpload(exerciseIndex);
-                          }}
-                          className="w-[155px] h-8 bg-[#d4845a] hover:bg-[#c47850] rounded-[3px] border-[0.5px] border-white/10 flex items-center justify-center text-[10px] font-normal text-white transition-colors"
-                        >
-                          Ajouter une vidéo
-                        </button>
-                      )}
-
-                      {/* Action buttons */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetValidation(exerciseIndex, 'completed', getSelectedSetIndex(exerciseIndex));
-                          }}
-                          className="flex-1 h-6 bg-[rgba(0,0,0,0.35)] hover:bg-green-500/20 rounded-[2px] border-[0.5px] border-white/10 flex items-center justify-center text-[10px] font-normal text-white/75 hover:text-green-400 transition-colors"
-                        >
-                          Validé
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetValidation(exerciseIndex, 'failed', getSelectedSetIndex(exerciseIndex));
-                          }}
-                          className="flex-1 h-6 bg-[rgba(0,0,0,0.35)] hover:bg-red-500/20 rounded-[2px] border-[0.5px] border-white/10 flex items-center justify-center text-[10px] font-normal text-white/75 hover:text-red-400 transition-colors"
-                        >
-                          Echec
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetValidation(exerciseIndex, 'skipped', getSelectedSetIndex(exerciseIndex));
-                          }}
-                          className="flex-1 h-6 bg-[rgba(0,0,0,0.35)] hover:bg-gray-500/20 rounded-[2px] border-[0.5px] border-white/10 flex items-center justify-center text-[10px] font-normal text-white/75 hover:text-gray-400 transition-colors"
-                        >
-                          Skip
-                        </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="text-center py-8 text-gray-400">
-            Aucun exercice trouvé
-          </div>
-        )}
+              );
+            })
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              Aucun exercice trouvé
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Complete Session Button */}
-      <div className="px-[47px] mt-[10px]">
+      {/* Complete Session Button - Style Figma */}
+      <div className="px-[48px] mt-[10px]">
         <button
           onClick={handleCompleteSession}
           disabled={!isAllExercisesCompleted()}
-          className={`w-full h-[30px] rounded-[5px] flex items-center justify-center text-white font-medium transition-colors ${
-            isAllExercisesCompleted()
-              ? 'bg-[#d4845a] hover:bg-[#c47850] active:bg-[#b56949]'
-              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-          }`}
+          className={`
+            w-full h-[30px] rounded-[5px] 
+            flex items-center justify-center 
+            text-[10px] font-normal transition-colors
+            ${isAllExercisesCompleted()
+              ? 'bg-white/3 hover:bg-white/5 text-white/25 hover:text-white/40 active:bg-white/7'
+              : 'bg-white/3 text-white/25 cursor-not-allowed'
+            }
+          `}
         >
-          <span className="text-[10px]">Valider la séance</span>
+          Valider la séance
         </button>
       </div>
 
@@ -749,18 +823,26 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         onClose={() => setIsVideoModalOpen(false)}
         onUploadSuccess={handleVideoUploadSuccess}
         exerciseInfo={{
-          exerciseName: exercises[currentExerciseIndex]?.name || 'Exercice',
-          exerciseId: exercises[currentExerciseIndex]?.exerciseId,
-          exerciseIndex: currentExerciseIndex, // Add exercise index to uniquely identify exercises with same name
+          exerciseName: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.name || 'Exercice',
+          exerciseId: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.exerciseId,
+          exerciseIndex: videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex, // Use the exercise index from modal if available
           sessionId: session?.id,
           coachId: session?.coach_id,
           assignmentId: session?.assignment_id || session?.id
         }}
         setInfo={{
-          setNumber: (selectedSetForVideo[currentExerciseIndex] || 0) + 1,
-          weight: exercises[currentExerciseIndex]?.sets?.[selectedSetForVideo[currentExerciseIndex]]?.weight || 0,
-          reps: exercises[currentExerciseIndex]?.sets?.[selectedSetForVideo[currentExerciseIndex]]?.reps || 0
+          setIndex: selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex] || 0,
+          setNumber: (selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex] || 0) + 1,
+          weight: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.sets?.[selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]]?.weight || 0,
+          reps: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.sets?.[selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]]?.reps || 0
         }}
+        existingVideo={(() => {
+          const exerciseIdx = videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex;
+          const setIdx = selectedSetForVideo[exerciseIdx] || 0;
+          return localVideos.find(
+            v => v.exerciseIndex === exerciseIdx && v.setIndex === setIdx
+          );
+        })()}
       />
 
       {/* Session Completion Modal */}
@@ -779,6 +861,51 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         isCompressing={isCompressing}
         isComplete={isUploadComplete}
       />
+
+      {/* Exercise Validation Modal */}
+      {selectedExerciseForValidation !== null && (
+        <ExerciseValidationModal
+          isOpen={isExerciseValidationModalOpen}
+          onClose={() => {
+            setIsExerciseValidationModalOpen(false);
+            setSelectedExerciseForValidation(null);
+          }}
+          exercise={exercises[selectedExerciseForValidation]}
+          exerciseIndex={selectedExerciseForValidation}
+          sets={exercises[selectedExerciseForValidation]?.sets || []}
+          completedSets={completedSets}
+          onValidateSet={handleSetValidation}
+          onVideoUpload={(exerciseIndex, setIndex) => {
+            const exercise = exercises[exerciseIndex];
+            if (exercise && exercise.sets && exercise.sets[setIndex] && exercise.sets[setIndex].video === true) {
+              setSelectedSetForVideo(prev => ({
+                ...prev,
+                [exerciseIndex]: setIndex
+              }));
+              setVideoUploadExerciseIndex(exerciseIndex); // Store the exercise index for video upload
+              // Keep ExerciseValidationModal open while opening video upload modal
+              setIsVideoModalOpen(true);
+            }
+          }}
+          coachFeedback={exercises[selectedExerciseForValidation]?.coach_feedback || exercises[selectedExerciseForValidation]?.coachFeedback || exercises[selectedExerciseForValidation]?.notes || null}
+          localVideos={localVideos}
+          allExercises={exercises}
+          studentComment={exerciseComments[selectedExerciseForValidation] || exercises[selectedExerciseForValidation]?.student_comment || exercises[selectedExerciseForValidation]?.comment || ''}
+          onStudentComment={(exerciseIndex, comment) => {
+            setExerciseComments(prev => ({
+              ...prev,
+              [exerciseIndex]: comment
+            }));
+          }}
+          onExerciseChange={(newExerciseIndex) => {
+            if (newExerciseIndex >= 0 && newExerciseIndex < exercises.length) {
+              setSelectedExerciseForValidation(newExerciseIndex);
+              setCurrentExerciseIndex(newExerciseIndex);
+            }
+          }}
+          onCompleteSession={handleCompleteSession}
+        />
+      )}
     </div>
   );
 };

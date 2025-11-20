@@ -246,10 +246,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const handleExerciseSelect = (exercise, index) => {
     setSelectedExerciseIndex(index);
     setSelectedSetIndex(0);
+    // Sélectionner la vidéo de la première série (setIndex 0) si elle existe
     const exerciseVideos = getVideosForExercise(exercise, index);
-    if (exerciseVideos.length > 0) {
-      setSelectedVideo(exerciseVideos[0]);
-      setFeedback(exerciseVideos[0].coach_feedback || '');
+    const firstSetVideo = exerciseVideos.find(v => v.set_number === 1);
+    if (firstSetVideo) {
+      setSelectedVideo(firstSetVideo);
+      setFeedback(firstSetVideo.coach_feedback || '');
     } else {
       setSelectedVideo(null);
       setFeedback('');
@@ -381,7 +383,9 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               <div className="min-w-0">
                 {session.exercises?.map((exercise, exerciseIndex) => {
                 const exerciseVideos = getVideosForExercise(exercise, exerciseIndex);
-                const hasVideos = exerciseVideos.length > 0;
+                // Compter uniquement les vidéos qui ont réellement un video_url (pas les "pas de vidéo")
+                const realVideos = exerciseVideos.filter(v => v.video_url && v.video_url.trim() !== '');
+                const hasVideos = realVideos.length > 0;
                 
                 return (
                   <div
@@ -404,7 +408,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         {hasVideos && (
                           <div className="flex items-center gap-1 text-sm">
                             <Video className="h-4 w-4" />
-                            <span>{exerciseVideos.length}</span>
+                            <span>{realVideos.length}</span>
                           </div>
                         )}
                         <ChevronRight className="h-4 w-4" />
@@ -432,10 +436,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 <div className="space-y-2">
                   {selectedExercise.sets?.map((set, setIndex) => {
                     const setVideos = getVideosForExercise(selectedExercise, selectedExerciseIndex).filter(v => v.set_number === setIndex + 1);
-                    const hasVideo = setVideos.some(v => v.video_url); // only count real videos
+                    // Vérifier si une vidéo réelle existe (avec video_url non vide)
+                    const hasVideo = setVideos.some(v => v.video_url && v.video_url.trim() !== '');
                     const setStatus = set.validation_status;
                     const isSelected = selectedSetIndex === setIndex;
-                    const firstRecord = setVideos[0];
+                    // Prendre la première vidéo réelle, ou la première enregistrement si aucune vidéo réelle
+                    const firstRecord = setVideos.find(v => v.video_url && v.video_url.trim() !== '') || setVideos[0];
                     const rpeValue = (firstRecord && firstRecord.rpe_rating) || set.rpe || set.rpe_rating || set.RPE || null;
                     const hasComment = (firstRecord && !!firstRecord.comment) || !!set.comment || !!set.student_comment;
                     return (
@@ -501,6 +507,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       />
                     </div>
                   </div>
+                ) : selectedSetIndex !== null ? (
+                  <div className="text-center text-gray-400 py-6">
+                    <Video className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p>Aucune vidéo pour cette série</p>
+                  </div>
                 ) : (
                   <div className="text-center text-gray-400 py-6">
                     <Video className="h-10 w-10 mx-auto mb-2 opacity-50" />
@@ -512,16 +523,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 <div className="mt-2">
                   <label className="block text-sm font-medium text-gray-300 mb-1">Commentaire de l'étudiant :</label>
                   <div className="bg-[#262626] p-3 rounded-lg min-h-[40px]">
-                    <p className="text-sm text-gray-400 italic">
-                      {(() => {
-                        const currentSet = (selectedSetIndex !== null && selectedExercise?.sets) ? selectedExercise.sets[selectedSetIndex] : null;
-                        const videosForSelectedSet = (selectedExercise && selectedSetIndex !== null)
-                          ? getVideosForExercise(selectedExercise, selectedExerciseIndex).filter(v => v.set_number === (selectedSetIndex + 1))
-                          : [];
-                        const metaRecord = videosForSelectedSet[0];
-                        const comment = selectedVideo?.comment || metaRecord?.comment || currentSet?.comment || currentSet?.student_comment;
-                        return comment || 'Aucun commentaire de l\'étudiant';
-                      })()}
+                    <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                      {selectedExercise.student_comment || 'Aucun commentaire de l\'étudiant'}
                     </p>
                   </div>
                 </div>
