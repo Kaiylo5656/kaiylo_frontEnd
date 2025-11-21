@@ -1,14 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Bell, Settings, Zap, Search, User, CreditCard } from 'lucide-react';
+import { Bell, Settings, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import MobileNavigationDrawer from './MobileNavigationDrawer';
 
 const Header = () => {
   const { user } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const renderCoachHeader = () => (
-    <div className="flex items-center justify-end">
+    <div className="flex items-center justify-between w-full">
+      {/* Left side - Hamburger menu (mobile only) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden text-muted-foreground hover:text-foreground"
+        onClick={() => setIsMobileMenuOpen(true)}
+        aria-label="Ouvrir le menu"
+      >
+        <Menu className="h-6 w-6" />
+      </Button>
+
       {/* Right side - Action buttons */}
       <div className="flex items-center space-x-4">
         {/* Upgrade button */}
@@ -31,8 +44,19 @@ const Header = () => {
   );
 
   const renderStudentHeader = () => (
-    <div className="flex items-center justify-between space-x-4">
-      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+    <div className="flex items-center justify-between space-x-4 w-full">
+      {/* Hamburger menu (mobile only) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden text-muted-foreground hover:text-foreground"
+        onClick={() => setIsMobileMenuOpen(true)}
+        aria-label="Ouvrir le menu"
+      >
+        <Menu className="h-6 w-6" />
+      </Button>
+
+      <Button variant="ghost" size="icon" className="hidden md:flex text-muted-foreground hover:text-foreground">
         <User className="h-6 w-6" />
       </Button>
       <div className="relative flex-1">
@@ -69,9 +93,15 @@ const Header = () => {
   const isStudent = user?.role === 'student';
 
   return (
-    <header className="bg-card border-b border-border px-4 sm:px-6 py-3">
-       {isStudent ? renderStudentHeader() : renderCoachHeader()}
-    </header>
+    <>
+      <header className="bg-card border-b border-border px-4 sm:px-6 py-3">
+        {isStudent ? renderStudentHeader() : renderCoachHeader()}
+      </header>
+      <MobileNavigationDrawer 
+        isOpen={isMobileMenuOpen} 
+        onClose={() => setIsMobileMenuOpen(false)} 
+      />
+    </>
   );
 };
 
