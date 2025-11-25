@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, MessageCircle, Info } from 'lucide-react';
+import ExerciseCommentModal from './ExerciseCommentModal';
+import ExerciseInfoModal from './ExerciseInfoModal';
 
 const ExerciseValidationModal = ({
   isOpen,
@@ -23,9 +25,10 @@ const ExerciseValidationModal = ({
   const [touchStart, setTouchStart] = useState({ x: null, y: null });
   const [touchEnd, setTouchEnd] = useState({ x: null, y: null });
   const [studentComment, setStudentComment] = useState(initialStudentComment);
-  const [isCommentSectionOpen, setIsCommentSectionOpen] = useState(false);
   const [showMissingVideoModal, setShowMissingVideoModal] = useState(false);
   const [pendingExerciseIndex, setPendingExerciseIndex] = useState(null);
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const modalRef = useRef(null);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
@@ -449,7 +452,7 @@ const ExerciseValidationModal = ({
                 <div className="w-8" />
               )}
             </div>
-            <div className="flex flex-col gap-[15px] items-start">
+            <div className="flex flex-col gap-[15px] items-start w-full">
               <p className="text-[10px] font-light text-white/50">
                 Durée estimée : {estimatedDuration}
               </p>
@@ -471,12 +474,39 @@ const ExerciseValidationModal = ({
                 </div>
               )}
               
-              {/* Progress bar */}
-              <div className="h-[5px] w-[67px] bg-white/10 rounded-full overflow-hidden">
+              {/* Progress bar - Fine, en dessous des points */}
+              <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-[#d4845a] transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
+              </div>
+              
+              {/* Icônes information et commentaire - En bas de la barre de progression */}
+              <div className="flex gap-[10px] items-center">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsInfoModalOpen(true);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity cursor-pointer"
+                  title="Voir les instructions et la vidéo de l'exercice"
+                >
+                  <Info className="w-5 h-5 text-[#d4845a]" strokeWidth={1} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsCommentModalOpen(true);
+                  }}
+                  className="cursor-pointer relative w-5 h-5 flex items-center justify-center hover:opacity-80 transition-opacity"
+                  title="Ajouter un commentaire pour le coach"
+                >
+                  <MessageCircle 
+                    className="w-5 h-5 text-[#d4845a]" 
+                    strokeWidth={1}
+                  />
+                </button>
               </div>
             </div>
           </div>
@@ -621,75 +651,6 @@ const ExerciseValidationModal = ({
           })}
         </div>
 
-        {/* Section commentaire étudiant - Toggleable */}
-        <div className="px-12 mb-6">
-          <button
-            onClick={() => setIsCommentSectionOpen(!isCommentSectionOpen)}
-            className="w-full flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-              <g clipPath="url(#clip0_343_650)">
-                <path
-                  d="M2.5 16.6667L3.58333 13.4167C2.64704 12.0319 2.30833 10.392 2.63018 8.80194C2.95204 7.21185 3.91255 5.77975 5.33314 4.77192C6.75373 3.76409 8.53772 3.24911 10.3534 3.32273C12.1691 3.39634 13.8929 4.05355 15.2044 5.17216C16.5159 6.29076 17.3257 7.79464 17.4834 9.40418C17.6411 11.0137 17.1358 12.6194 16.0616 13.9226C14.9873 15.2259 13.4172 16.138 11.6432 16.4895C9.86911 16.8409 8.01184 16.6078 6.41667 15.8334L2.5 16.6667"
-                  stroke="white"
-                  strokeOpacity="0.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </g>
-              <defs>
-                <clipPath id="clip0_343_650">
-                  <rect width="20" height="20" fill="white"/>
-                </clipPath>
-              </defs>
-            </svg>
-            <div className="h-[1px] flex-1 bg-white/10" />
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`flex-shrink-0 transition-transform duration-200 ${isCommentSectionOpen ? 'rotate-180' : ''}`}
-            >
-              <path
-                d="M3 4.5L6 7.5L9 4.5"
-                stroke="white"
-                strokeOpacity="0.5"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          {isCommentSectionOpen && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-normal text-white/25">
-                Votre commentaire sur l'exécution :
-              </p>
-              <textarea
-                value={studentComment}
-                onChange={(e) => {
-                  const newComment = e.target.value;
-                  setStudentComment(newComment);
-                  // Save comment immediately when changed
-                  if (onStudentComment) {
-                    onStudentComment(exerciseIndex, newComment);
-                  }
-                }}
-                onBlur={() => {
-                  // Ensure comment is saved when textarea loses focus
-                  if (onStudentComment) {
-                    onStudentComment(exerciseIndex, studentComment);
-                  }
-                }}
-                placeholder="Ajoutez un commentaire sur votre exécution de l'exercice..."
-                className="w-full min-h-[80px] px-3 py-2 bg-white/5 border border-white/10 rounded-[5px] text-[12px] text-white placeholder:text-white/25 focus:outline-none focus:border-white/20 focus:bg-white/10 transition-colors resize-none"
-              />
-            </div>
-          )}
-        </div>
-
         {/* Boutons fermer et valider la séance */}
         <div className="px-12 pb-8 space-y-3">
           {onCompleteSession && (
@@ -722,6 +683,27 @@ const ExerciseValidationModal = ({
       </div>
     </div>
       , document.body)}
+      
+      {/* Exercise Comment Modal */}
+      <ExerciseCommentModal
+        isOpen={isCommentModalOpen}
+        onClose={() => setIsCommentModalOpen(false)}
+        onSave={(comment) => {
+          setStudentComment(comment);
+          if (onStudentComment) {
+            onStudentComment(exerciseIndex, comment);
+          }
+        }}
+        exerciseName={exercise?.name}
+        initialComment={studentComment}
+      />
+      
+      {/* Exercise Info Modal */}
+      <ExerciseInfoModal
+        isOpen={isInfoModalOpen}
+        onClose={() => setIsInfoModalOpen(false)}
+        exercise={exercise}
+      />
     </>
   );
 };
