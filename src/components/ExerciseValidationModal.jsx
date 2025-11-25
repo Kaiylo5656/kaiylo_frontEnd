@@ -226,28 +226,22 @@ const ExerciseValidationModal = ({
   // Calculer la durée estimée (par exemple 15 min par exercice)
   const estimatedDuration = '15 min';
 
-  // Progress bar : progression de toute la séance (tous les exercices)
-  // Calculer le nombre total de séries dans tous les exercices
-  const totalSetsInSession = allExercises?.reduce((total, exercise) => {
-    return total + (exercise?.sets?.length || 0);
-  }, 0) || 0;
+  // Progress bar : progression de l'exercice actuel uniquement (les sets de cet exercice)
+  // Calculer le nombre total de séries dans l'exercice actuel
+  const totalSetsInExercise = exercise?.sets?.length || 0;
 
-  // Calculer le nombre de séries complétées dans tous les exercices
-  const completedSetsInSession = allExercises?.reduce((total, exercise, exIdx) => {
-    if (!exercise?.sets) return total;
-    const completedInExercise = exercise.sets.filter((_, setIdx) => {
-      const key = `${exIdx}-${setIdx}`;
-      const setData = completedSets[key];
-      if (setData && typeof setData === 'object' && 'status' in setData) {
-        return setData.status === 'completed';
-      }
-      return false;
-    }).length;
-    return total + completedInExercise;
-  }, 0) || 0;
+  // Calculer le nombre de séries complétées dans l'exercice actuel
+  const completedSetsInExercise = exercise?.sets?.filter((_, setIdx) => {
+    const key = `${exerciseIndex}-${setIdx}`;
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'status' in setData) {
+      return setData.status === 'completed' || setData.status === 'failed';
+    }
+    return false;
+  }).length || 0;
 
-  // Calculer le pourcentage de progression pour toute la séance
-  const progress = totalSetsInSession > 0 ? (completedSetsInSession / totalSetsInSession) * 100 : 0;
+  // Calculer le pourcentage de progression pour l'exercice actuel
+  const progress = totalSetsInExercise > 0 ? (completedSetsInExercise / totalSetsInExercise) * 100 : 0;
 
   // Obtenir le statut d'une série
   const getSetStatus = (setIndex) => {

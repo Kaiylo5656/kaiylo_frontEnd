@@ -213,14 +213,34 @@ export const AuthProvider = ({ children }) => {
       if (!activeSession || !activeSession.access_token) {
         const storedRefreshToken = localStorage.getItem('supabaseRefreshToken');
         if (storedRefreshToken) {
-          const { data, error } = await supabase.auth.refreshSession({
-            refresh_token: storedRefreshToken
-          });
-          if (error) {
-            console.error('❌ refreshSession failed:', error.message);
-            throw error;
+          try {
+            const { data, error } = await supabase.auth.refreshSession({
+              refresh_token: storedRefreshToken
+            });
+            if (error) {
+              // Si le refresh token est invalide, nettoyer et arrêter
+              if (error.message?.includes('Invalid Refresh Token') || 
+                  error.message?.includes('Refresh Token Not Found')) {
+                console.log('ℹ️ Refresh token invalid, cleaning up...');
+                localStorage.removeItem('supabaseRefreshToken');
+                localStorage.removeItem('authToken');
+                throw new Error('Refresh token invalid');
+              }
+              console.error('❌ refreshSession failed:', error.message);
+              throw error;
+            }
+            activeSession = data?.session;
+          } catch (refreshError) {
+            // Si le refresh échoue, nettoyer les tokens et arrêter
+            if (refreshError.message?.includes('Refresh token invalid') ||
+                refreshError.message?.includes('Invalid Refresh Token') ||
+                refreshError.message?.includes('Refresh Token Not Found')) {
+              localStorage.removeItem('supabaseRefreshToken');
+              localStorage.removeItem('authToken');
+              throw refreshError;
+            }
+            throw refreshError;
           }
-          activeSession = data?.session;
         }
       }
 
@@ -236,7 +256,12 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ Failed to refresh token:', error);
       resolveRefreshQueue(error, null);
-      logout();
+      // Ne pas appeler logout() automatiquement ici car cela peut créer une boucle
+      // Le logout sera géré par checkAuthStatus si nécessaire
+      // Nettoyer seulement les tokens invalides
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('supabaseRefreshToken');
+      delete axios.defaults.headers.common['Authorization'];
       return null;
     } finally {
       isRefreshingRef.current = false;
@@ -249,7 +274,12 @@ export const AuthProvider = ({ children }) => {
       (response) => response,
       async (error) => {
         const originalRequest = error.config || {};
-        if (error.response && error.response.status === 401 && !originalRequest._retry) {
+        
+        // Ne pas intercepter les erreurs 401 pour /auth/me ou /auth/login pour éviter les boucles
+        const isAuthEndpoint = originalRequest.url?.includes('/auth/me') || 
+                               originalRequest.url?.includes('/auth/login');
+        
+        if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           console.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
           originalRequest._retry = true;
           const newToken = await refreshAuthToken();
@@ -261,7 +291,8 @@ export const AuthProvider = ({ children }) => {
             };
             return axios(originalRequest);
           }
-          console.warn('❌ Refresh failed or no session. Not retrying. Logging out.');
+          console.warn('❌ Refresh failed or no session. Not retrying.');
+          // Ne pas appeler logout() ici, laisser l'application gérer l'état de déconnexion
           return Promise.reject(error);
         }
         return Promise.reject(error);
@@ -272,7 +303,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(interceptor);
     };
-  }, [refreshAuthToken, logout]);
+  }, [refreshAuthToken]);
 
   // Function to check if user is already authenticated (optimized with timeout)
   const checkAuthStatus = async () => {
@@ -310,13 +341,13 @@ export const AuthProvider = ({ children }) => {
         const { data: { session }, error: sessionError } = await Promise.race([
           sessionPromise,
           timeoutPromise
-        ]).catch(() => {
+        ]).catch((error) => {
           // Timeout ou erreur, on ignore Supabase
           console.warn('⚠️ Supabase session check timed out or failed, skipping');
-          return { data: { session: null }, error: { message: 'Timeout' } };
+          return { data: { session: null }, error: { message: error.message || 'Timeout' } };
         });
         
-        if (session && !sessionError) {
+        if (session && !sessionError && session.access_token) {
           // Session Supabase valide
           persistSessionTokens(session);
           
@@ -327,28 +358,52 @@ export const AuthProvider = ({ children }) => {
             });
             setUser(response.data.user);
             console.log('✅ Auth check successful via Supabase session');
+            return; // Succès, on sort
           } catch (error) {
-            console.error('Failed to get user info from backend:', error);
-            // Si le backend échoue, utiliser les infos de la session Supabase
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              name: session.user.user_metadata?.name || 'User',
-              role: session.user.user_metadata?.role || 'coach'
-            });
+            // Si le backend retourne 401, le token Supabase est peut-être invalide
+            if (error.response?.status === 401) {
+              console.warn('⚠️ Supabase session token invalid with backend, cleaning up...');
+              // Nettoyer et continuer
+            } else {
+              console.error('Failed to get user info from backend:', error);
+              // Si le backend échoue pour une autre raison, utiliser les infos de la session Supabase
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.user_metadata?.name || 'User',
+                role: session.user.user_metadata?.role || 'coach'
+              });
+              return; // Succès avec infos Supabase
+            }
           }
-        } else {
-          // Pas de session valide, on est déconnecté
-          console.log('ℹ️ No valid session found');
         }
+        
+        // Pas de session valide, on est déconnecté
+        console.log('ℹ️ No valid session found');
+        // Nettoyer les tokens invalides
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('supabaseRefreshToken');
+        delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
       } catch (error) {
-        console.warn('⚠️ Supabase check failed:', error.message);
-        // Ignorer l'erreur, on continue
+        // Ignorer les erreurs de refresh token invalide (c'est normal si l'utilisateur est déconnecté)
+        if (error.message?.includes('Invalid Refresh Token') || error.message?.includes('Refresh Token Not Found')) {
+          console.log('ℹ️ Refresh token invalid (user logged out), cleaning up...');
+        } else {
+          console.warn('⚠️ Supabase check failed:', error.message);
+        }
+        // Nettoyer les tokens invalides
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('supabaseRefreshToken');
+        delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('authToken');
+      localStorage.removeItem('supabaseRefreshToken');
       delete axios.defaults.headers.common['Authorization'];
+      setUser(null);
     } finally {
       setLoading(false);
       console.log('✅ Auth check completed');

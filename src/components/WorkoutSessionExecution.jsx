@@ -5,6 +5,8 @@ import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import SessionCompletionModal from './SessionCompletionModal';
 import VideoProcessingModal from './VideoProcessingModal'; // Import the new modal
 import ExerciseValidationModal from './ExerciseValidationModal'; // Import the exercise validation modal
+import LeaveSessionWarningModal from './LeaveSessionWarningModal'; // Import the leave warning modal
+import MissingVideosWarningModal from './MissingVideosWarningModal'; // Import the missing videos warning modal
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -27,14 +29,335 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [isUploadComplete, setIsUploadComplete] = useState(false);
   const [isExerciseValidationModalOpen, setIsExerciseValidationModalOpen] = useState(false);
   const [selectedExerciseForValidation, setSelectedExerciseForValidation] = useState(null);
+  const [isLeaveWarningModalOpen, setIsLeaveWarningModalOpen] = useState(false); // Modal d'avertissement pour quitter
+  const [isMissingVideosModalOpen, setIsMissingVideosModalOpen] = useState(false); // Modal d'avertissement pour vidéos manquantes
+  const [pendingExerciseChange, setPendingExerciseChange] = useState(null); // Stocker le changement d'exercice en attente
+  const [pendingSessionCompletion, setPendingSessionCompletion] = useState(false); // Flag pour validation de séance en attente
   const [exerciseComments, setExerciseComments] = useState({}); // Store student comments for each exercise
   const [sessionVideos, setSessionVideos] = useState([]); // Store videos from API to get coach feedback
   const [dotPositions, setDotPositions] = useState({});
   const exerciseCardRefs = useRef([]);
   const exerciseListRef = useRef(null);
+  const hasRestoredProgress = useRef(false); // Flag to track if progress has been restored
+  const isRestoringProgress = useRef(false); // Flag to prevent saving during restoration
+  const lastRestoredSessionId = useRef(null); // Track which session was last restored
+  const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
+  
+  // Generate a unique storage key for this session (memoized)
+  const sessionId = React.useMemo(() => {
+    return session?.id || session?.workout_sessions?.id || session?.assignment_id;
+  }, [session]);
+  
+  const storageKey = React.useMemo(() => {
+    return sessionId ? `workout_progress_${sessionId}` : null;
+  }, [sessionId]);
+  
+  // Helper function to save progress to localStorage
+  const saveProgressToStorage = React.useCallback((progressData) => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        ...progressData,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Error saving progress to localStorage:', error);
+    }
+  }, [storageKey]);
+  
+  // Helper function to load progress from localStorage
+  const loadProgressFromStorage = React.useCallback(() => {
+    if (!storageKey) return null;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      console.error('Error loading progress from localStorage:', error);
+    }
+    return null;
+  }, [storageKey]);
+  
+  // Helper function to clear progress from localStorage
+  const clearProgressFromStorage = React.useCallback(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (error) {
+      console.error('Error clearing progress from localStorage:', error);
+    }
+  }, [storageKey]);
+  
+  // Gérer l'avertissement avant de quitter la page (fermeture d'onglet, navigation)
+  useEffect(() => {
+    const hasProgress = Object.keys(completedSets).length > 0 || 
+                        currentExerciseIndex > 0 || 
+                        Object.keys(exerciseComments).length > 0 ||
+                        localVideos.length > 0;
+    
+    if (!hasProgress) {
+      return; // Pas besoin d'avertir si pas de progression
+    }
+
+    const handleBeforeUnload = (e) => {
+      // La progression est déjà sauvegardée automatiquement via localStorage
+      // Mais on avertit quand même l'utilisateur
+      e.preventDefault();
+      e.returnValue = ''; // Chrome nécessite returnValue
+      return ''; // Pour les autres navigateurs
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [completedSets, currentExerciseIndex, exerciseComments, localVideos]);
+
+  // Load saved progress on mount or when session changes (only once per session)
+  useEffect(() => {
+    if (!sessionId || !storageKey) {
+      return;
+    }
+    
+    // Check if we've already restored for this session
+    if (lastRestoredSessionId.current === sessionId && hasRestoredProgress.current) {
+      // Already restored for this session, but check if flag is stuck
+      if (isRestoringProgress.current && restoreTimeoutRef.current === null) {
+        // Flag is stuck, reset it
+        console.warn('⚠️ isRestoringProgress flag stuck after restoration, resetting...');
+        isRestoringProgress.current = false;
+      }
+      console.log('⏭️ Skipping restoration - already restored for session:', sessionId);
+      return;
+    }
+    
+    console.log('🔄 Starting restoration check for session:', sessionId, {
+      lastRestoredSessionId: lastRestoredSessionId.current,
+      hasRestoredProgress: hasRestoredProgress.current
+    });
+    
+    // If session changed, reset flags and clear any pending timeout
+    if (lastRestoredSessionId.current !== sessionId && lastRestoredSessionId.current !== null) {
+      hasRestoredProgress.current = false;
+      isRestoringProgress.current = false;
+      if (restoreTimeoutRef.current) {
+        clearTimeout(restoreTimeoutRef.current);
+        restoreTimeoutRef.current = null;
+      }
+    }
+    
+    // Prevent saving during restoration
+    isRestoringProgress.current = true;
+    
+    // Load saved progress synchronously to avoid race conditions
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const savedProgress = JSON.parse(saved);
+        console.log('📦 Restoring saved progress for session:', sessionId);
+        console.log('📦 Progress details:', {
+          currentExerciseIndex: savedProgress.currentExerciseIndex,
+          completedSetsKeys: Object.keys(savedProgress.completedSets || {}),
+          currentSetIndex: savedProgress.currentSetIndex,
+          selectedSetIndex: savedProgress.selectedSetIndex,
+          exerciseCommentsKeys: Object.keys(savedProgress.exerciseComments || {})
+        });
+        
+        // Restore all states directly (we control restoration with hasRestoredProgress flag)
+        if (savedProgress.completedSets) {
+          console.log('✅ Restoring completedSets:', savedProgress.completedSets);
+          setCompletedSets(savedProgress.completedSets);
+        }
+        if (savedProgress.currentExerciseIndex !== undefined) {
+          console.log('✅ Restoring currentExerciseIndex:', savedProgress.currentExerciseIndex);
+          setCurrentExerciseIndex(savedProgress.currentExerciseIndex);
+        }
+        if (savedProgress.currentSetIndex) {
+          console.log('✅ Restoring currentSetIndex:', savedProgress.currentSetIndex);
+          setCurrentSetIndex(savedProgress.currentSetIndex);
+        }
+        if (savedProgress.selectedSetIndex) {
+          console.log('✅ Restoring selectedSetIndex:', savedProgress.selectedSetIndex);
+          setSelectedSetIndex(savedProgress.selectedSetIndex);
+        }
+        if (savedProgress.exerciseComments) {
+          console.log('✅ Restoring exerciseComments:', savedProgress.exerciseComments);
+          setExerciseComments(savedProgress.exerciseComments);
+        }
+        // Restaurer les métadonnées des vidéos (sans les fichiers)
+        // Cela permet à WorkoutVideoUploadModal de savoir qu'une vidéo a été enregistrée
+        if (savedProgress.videoMetadata && savedProgress.videoMetadata.length > 0) {
+          console.log('📹 Restoring video metadata:', savedProgress.videoMetadata.length, 'videos');
+          const restoredVideos = savedProgress.videoMetadata.map(metadata => ({
+            exerciseIndex: metadata.exerciseIndex,
+            setIndex: metadata.setIndex,
+            rpeRating: metadata.rpeRating,
+            comment: metadata.comment,
+            // Si "pas de vidéo" était choisi, restaurer avec 'no-video'
+            // Sinon, mettre null pour indiquer qu'une vidéo était là mais ne peut pas être restaurée
+            file: metadata.isNoVideo ? 'no-video' : null,
+            exerciseInfo: {
+              exerciseName: exercises[metadata.exerciseIndex]?.name || 'Exercice',
+              exerciseId: exercises[metadata.exerciseIndex]?.exerciseId,
+              exerciseIndex: metadata.exerciseIndex,
+              sessionId: session?.id,
+              coachId: session?.coach_id,
+              assignmentId: session?.assignment_id || session?.id
+            },
+            setInfo: {
+              setIndex: metadata.setIndex,
+              setNumber: metadata.setIndex + 1,
+              weight: exercises[metadata.exerciseIndex]?.sets?.[metadata.setIndex]?.weight || 0,
+              reps: exercises[metadata.exerciseIndex]?.sets?.[metadata.setIndex]?.reps || 0
+            },
+            timestamp: new Date().toISOString()
+          }));
+          setLocalVideos(restoredVideos);
+          
+          // Réinitialiser l'état hasVideo dans completedSets pour les vidéos qui ne peuvent pas être restaurées
+          // Cela permet à l'étudiant de re-uploader la vidéo
+          setCompletedSets(prev => {
+            const updated = { ...prev };
+            let hasResetVideos = false;
+            
+            restoredVideos.forEach(video => {
+              // Si la vidéo n'a pas de fichier (null) et n'est pas "no-video", 
+              // cela signifie qu'elle ne peut pas être restaurée
+              if (video.file === null) {
+                const key = `${video.exerciseIndex}-${video.setIndex}`;
+                if (updated[key] && typeof updated[key] === 'object') {
+                  // Réinitialiser hasVideo et videoStatus pour permettre un nouvel upload
+                  updated[key] = {
+                    ...updated[key],
+                    hasVideo: false,
+                    videoStatus: undefined
+                  };
+                  hasResetVideos = true;
+                  console.log(`🔄 Réinitialisation de l'état vidéo pour l'exercice ${video.exerciseIndex}, série ${video.setIndex}`);
+                }
+              }
+            });
+            
+            if (hasResetVideos) {
+              console.log('⚠️ Des vidéos étaient enregistrées mais les fichiers ne peuvent pas être restaurés. L\'état a été réinitialisé pour permettre un nouvel upload.');
+            }
+            
+            return updated;
+          });
+        }
+      } else {
+        console.log('📭 No saved progress found for session:', sessionId);
+      }
+    } catch (error) {
+      console.error('Error loading progress from localStorage:', error);
+    }
+    
+    // Mark as restored immediately
+    hasRestoredProgress.current = true;
+    lastRestoredSessionId.current = sessionId;
+    
+    // Clear any existing timeout
+    if (restoreTimeoutRef.current) {
+      clearTimeout(restoreTimeoutRef.current);
+      restoreTimeoutRef.current = null;
+    }
+    
+    // Reset the flag immediately after a short delay to allow React to process state updates
+    // Use a simple setTimeout instead of requestAnimationFrame for more reliable execution
+    restoreTimeoutRef.current = setTimeout(() => {
+      isRestoringProgress.current = false;
+      restoreTimeoutRef.current = null;
+      console.log('✅ Progress restoration complete, saving enabled');
+    }, 150);
+    
+    // Safety mechanism: also reset the flag after a longer delay to ensure it's never stuck
+    setTimeout(() => {
+      if (isRestoringProgress.current) {
+        console.warn('⚠️ Safety: Forcing isRestoringProgress to false after 1 second');
+        isRestoringProgress.current = false;
+        if (restoreTimeoutRef.current) {
+          clearTimeout(restoreTimeoutRef.current);
+          restoreTimeoutRef.current = null;
+        }
+      }
+    }, 1000);
+  }, [sessionId, storageKey]);
+  
+  // Save progress whenever it changes (but not during restoration)
+  useEffect(() => {
+    if (!sessionId || !storageKey) {
+      return;
+    }
+    
+    if (isRestoringProgress.current) {
+      // Don't save if we're still restoring
+      // But check if the timeout has expired (safety check)
+      if (restoreTimeoutRef.current === null) {
+        // Timeout has completed, but flag wasn't reset - reset it now
+        console.warn('⚠️ isRestoringProgress flag stuck (timeout null), resetting...');
+        isRestoringProgress.current = false;
+        // Continue to save below
+      } else {
+        // If we're here and the flag is true, we're still in the restoration window
+        // Allow a small grace period, but if it's been too long, force reset
+        console.log('⏸️ Skipping save - restoration in progress');
+        return;
+      }
+    }
+    
+    if (!hasRestoredProgress.current) {
+      // Don't save if we haven't restored yet (initial mount)
+      console.log('⏸️ Skipping save - restoration not complete yet');
+      return;
+    }
+    
+    const progressData = {
+      completedSets,
+      currentExerciseIndex,
+      currentSetIndex,
+      selectedSetIndex,
+      exerciseComments,
+      // Note: On ne sauvegarde pas localVideos car les fichiers ne peuvent pas être stockés
+      // Mais on peut sauvegarder les métadonnées des vidéos (sans les fichiers)
+      videoMetadata: localVideos.map(v => ({
+        exerciseIndex: v.exerciseIndex,
+        setIndex: v.setIndex,
+        rpeRating: v.rpeRating,
+        comment: v.comment,
+        hasVideo: v.file && v.file !== 'no-video',
+        isNoVideo: v.file === 'no-video'
+      }))
+    };
+    
+    // Only save if there's actual progress (not just empty initial state)
+    const hasProgress = Object.keys(completedSets).length > 0 || 
+                        currentExerciseIndex > 0 || 
+                        Object.keys(exerciseComments).length > 0 ||
+                        localVideos.length > 0;
+    
+    if (!hasProgress) {
+      console.log('⏸️ Skipping save - no progress to save yet');
+      return;
+    }
+    
+    console.log('💾 Saving progress to localStorage:', { 
+      sessionId, 
+      currentExerciseIndex,
+      completedSetsCount: Object.keys(completedSets).length,
+      completedSets: completedSets,
+      currentSetIndex: currentSetIndex,
+      selectedSetIndex: selectedSetIndex,
+      exerciseCommentsCount: Object.keys(exerciseComments).length,
+      exerciseComments: exerciseComments,
+      localVideosCount: localVideos.length
+    });
+    
+    saveProgressToStorage(progressData);
+  }, [completedSets, currentExerciseIndex, currentSetIndex, selectedSetIndex, exerciseComments, localVideos, sessionId, storageKey, saveProgressToStorage]);
   
   // Note: Coach feedback should be included in exercise data from the backend
   // The /api/workout-sessions/videos endpoint is coach-only, so we don't fetch it here
@@ -81,8 +404,95 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     };
   }, [exercises, currentExerciseIndex, completedSets]);
   
+  // Vérifier si un exercice a été commencé (au moins un set complété ou une vidéo uploadée)
+  const hasExerciseBeenStarted = (exerciseIndex) => {
+    const exercise = exercises[exerciseIndex];
+    if (!exercise || !Array.isArray(exercise.sets)) {
+      return false;
+    }
+
+    // Vérifier si au moins un set a été complété ou échoué
+    for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+      const key = `${exerciseIndex}-${setIndex}`;
+      const setData = completedSets[key];
+      
+      // Vérifier le statut du set
+      let status = 'pending';
+      if (setData && typeof setData === 'object' && 'status' in setData) {
+        status = setData.status;
+      } else if (typeof setData === 'string') {
+        status = setData;
+      }
+      
+      if (status === 'completed' || status === 'failed') {
+        return true;
+      }
+    }
+
+    // Vérifier si au moins une vidéo a été uploadée pour cet exercice
+    const hasAnyVideo = localVideos.some(
+      (video) =>
+        video.exerciseIndex === exerciseIndex &&
+        video.file !== null &&
+        video.file !== undefined
+    );
+
+    return hasAnyVideo;
+  };
+
+  // Vérifier si des vidéos sont manquantes pour un exercice spécifique
+  const hasMissingVideosForExercise = (exerciseIndex) => {
+    const exercise = exercises[exerciseIndex];
+    if (!exercise || !Array.isArray(exercise.sets)) {
+      return false;
+    }
+
+    // Parcourir tous les sets de l'exercice
+    for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+      const set = exercise.sets[setIndex];
+      
+      // Si le set nécessite une vidéo
+      if (set.video === true) {
+        // Vérifier si une vidéo a été uploadée pour ce set
+        const hasVideo = hasVideoForSet(exerciseIndex, setIndex);
+        
+        // Vérifier aussi si "no-video" a été choisi
+        const hasNoVideoChoice = localVideos.some(
+          (video) =>
+            video.exerciseIndex === exerciseIndex &&
+            video.setIndex === setIndex &&
+            video.file === 'no-video'
+        );
+        
+        // Si aucune vidéo n'est uploadée et "no-video" n'a pas été choisi, la vidéo est manquante
+        if (!hasVideo && !hasNoVideoChoice) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  // Vérifier si des vidéos sont manquantes pour toute la séance
+  const hasMissingVideosForSession = () => {
+    if (!exercises || exercises.length === 0) {
+      return false;
+    }
+
+    // Vérifier tous les exercices
+    for (let i = 0; i < exercises.length; i++) {
+      if (hasMissingVideosForExercise(i)) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
+    // Ouvrir directement la modale de validation sans vérification
     setSelectedExerciseForValidation(exerciseIndex);
     setCurrentExerciseIndex(exerciseIndex);
     setIsExerciseValidationModalOpen(true);
@@ -269,14 +679,32 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const hasVideoForSet = (exerciseIndex, setIndex) => {
     const key = `${exerciseIndex}-${setIndex}`;
     const setData = completedSets[key];
+    
+    // Vérifier d'abord dans completedSets, mais seulement si hasVideo est true
+    // et qu'une vidéo existe réellement dans localVideos
     if (setData && typeof setData === 'object' && setData.hasVideo) {
-      return true;
+      // Vérifier qu'une vidéo existe réellement avec un fichier (pas null, pas 'no-video')
+      const hasRealVideo = localVideos.some(
+        (video) =>
+          video.exerciseIndex === exerciseIndex &&
+          video.setIndex === setIndex &&
+          video.file !== null &&
+          video.file !== 'no-video'
+      );
+      if (hasRealVideo) {
+        return true;
+      }
+      // Si hasVideo est true mais qu'il n'y a pas de fichier réel, retourner false
+      return false;
     }
+    
     // Strict: only match by local video indices (NO fallback by id or name)
+    // Vérifier qu'une vidéo existe avec un fichier réel (pas null, pas 'no-video')
     return localVideos.some(
       (video) =>
         video.exerciseIndex === exerciseIndex &&
         video.setIndex === setIndex &&
+        video.file !== null &&
         video.file !== 'no-video'
     );
   };
@@ -348,6 +776,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       alert('Veuillez compléter tous les exercices avant de terminer la séance');
       return;
     }
+    
+    // Vérifier si des vidéos sont manquantes avant de valider
+    if (hasMissingVideosForSession()) {
+      setPendingSessionCompletion(true);
+      setIsMissingVideosModalOpen(true);
+      return;
+    }
+    
     setIsCompletionModalOpen(true);
   };
 
@@ -485,6 +921,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     // Step 3: Complete the session locally (happens for sessions with or without videos)
     setSessionStatus('completed');
+    
+    // Clear saved progress from localStorage when session is completed
+    clearProgressFromStorage();
+    
     onCompleteSession({
       ...session,
       completionData,
@@ -553,6 +993,34 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     setIsVideoModalOpen(false);
   };
 
+  // Handle back button - show warning modal before leaving
+  const handleBack = () => {
+    // Vérifier s'il y a une progression à sauvegarder
+    const hasProgress = Object.keys(completedSets).length > 0 || 
+                        currentExerciseIndex > 0 || 
+                        Object.keys(exerciseComments).length > 0 ||
+                        localVideos.length > 0;
+    
+    // Si il y a de la progression, afficher le modal d'avertissement
+    if (hasProgress) {
+      setIsLeaveWarningModalOpen(true);
+    } else {
+      // Sinon, quitter directement
+      if (onBack) {
+        onBack();
+      }
+    }
+  };
+
+  // Confirmer la sortie après l'avertissement
+  const handleConfirmLeave = () => {
+    setIsLeaveWarningModalOpen(false);
+    // Progress is already saved automatically via useEffect
+    if (onBack) {
+      onBack();
+    }
+  };
+
   // Early return if no session data
   if (!session) {
     return (
@@ -560,7 +1028,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         <div className="text-center">
           <p className="text-gray-400">Aucune séance trouvée</p>
           <Button 
-            onClick={onBack}
+            onClick={handleBack}
             className="mt-4 bg-[#d4845a] hover:bg-[#c47850] text-white"
           >
             Retour
@@ -609,7 +1077,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         {/* Bouton retour */}
         {onBack && (
           <button
-            onClick={onBack}
+            onClick={handleBack}
             className="mb-4 text-white/60 hover:text-white transition-colors"
             title="Retour"
           >
@@ -799,17 +1267,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       </div>
 
       {/* Complete Session Button - Style Figma */}
-      <div className="px-[48px] mt-[10px]">
+      <div className="pl-[47px] pr-[20px] mt-[10px]">
         <button
           onClick={handleCompleteSession}
           disabled={!isAllExercisesCompleted()}
           className={`
             w-full h-[30px] rounded-[5px] 
             flex items-center justify-center 
-            text-[10px] font-normal transition-colors
+            text-[10px] font-normal transition-all duration-200
             ${isAllExercisesCompleted()
-              ? 'bg-white/3 hover:bg-white/5 text-white/25 hover:text-white/40 active:bg-white/7'
-              : 'bg-white/3 text-white/25 cursor-not-allowed'
+              ? 'bg-[#d4845a] hover:bg-[#c47850] text-white active:bg-[#b86d45] cursor-pointer shadow-sm'
+              : 'bg-white/3 text-white/25 cursor-not-allowed opacity-50'
             }
           `}
         >
@@ -899,6 +1367,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           }}
           onExerciseChange={(newExerciseIndex) => {
             if (newExerciseIndex >= 0 && newExerciseIndex < exercises.length) {
+              // Ne pas vérifier les vidéos manquantes quand on change d'exercice dans la modale
+              // L'étudiant est toujours en train de travailler, donc on permet le changement librement
               setSelectedExerciseForValidation(newExerciseIndex);
               setCurrentExerciseIndex(newExerciseIndex);
             }
@@ -906,6 +1376,53 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           onCompleteSession={handleCompleteSession}
         />
       )}
+
+      {/* Leave Session Warning Modal */}
+      <LeaveSessionWarningModal
+        isOpen={isLeaveWarningModalOpen}
+        onClose={() => setIsLeaveWarningModalOpen(false)}
+        onConfirm={handleConfirmLeave}
+      />
+
+      {/* Missing Videos Warning Modal */}
+      <MissingVideosWarningModal
+        isOpen={isMissingVideosModalOpen}
+        onClose={() => {
+          // "Rester sur la page" - fermer le modal et annuler l'action en attente
+          setIsMissingVideosModalOpen(false);
+          setPendingExerciseChange(null);
+          setPendingSessionCompletion(false);
+        }}
+        onConfirm={() => {
+          // "Quitter quand même" - continuer malgré les vidéos manquantes
+          setIsMissingVideosModalOpen(false);
+          
+          // Si une validation de séance était en attente
+          if (pendingSessionCompletion) {
+            setPendingSessionCompletion(false);
+            setIsCompletionModalOpen(true);
+            return;
+          }
+          
+          // Si un changement d'exercice était en attente, l'appliquer maintenant
+          if (pendingExerciseChange !== null) {
+            const newExerciseIndex = pendingExerciseChange;
+            setPendingExerciseChange(null);
+            
+            // Si on était dans la modale de validation, la fermer et changer d'exercice
+            if (isExerciseValidationModalOpen) {
+              setIsExerciseValidationModalOpen(false);
+              setSelectedExerciseForValidation(newExerciseIndex);
+              setCurrentExerciseIndex(newExerciseIndex);
+            } else {
+              // Sinon, ouvrir la modale de validation pour le nouvel exercice
+              setSelectedExerciseForValidation(newExerciseIndex);
+              setCurrentExerciseIndex(newExerciseIndex);
+              setIsExerciseValidationModalOpen(true);
+            }
+          }
+        }}
+      />
     </div>
   );
 };

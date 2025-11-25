@@ -23,15 +23,28 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
   // Initialize with existing video data when modal opens
   useEffect(() => {
     if (isOpen && existingVideo) {
-      if (existingVideo.file && existingVideo.file !== 'no-video' && typeof existingVideo.file === 'object') {
+      // Si le fichier est 'no-video', restaurer cet état
+      if (existingVideo.file === 'no-video') {
+        setVideoFile('no-video');
+        setVideoPreviewUrl(null);
+      } 
+      // Si le fichier est null (vidéo était là mais ne peut pas être restaurée), ne rien faire
+      // L'utilisateur devra re-uploader
+      else if (existingVideo.file === null) {
+        // Vidéo était enregistrée mais ne peut pas être restaurée
+        // Ne pas définir videoFile pour que l'utilisateur puisse re-uploader
+        setVideoFile(null);
+        setVideoPreviewUrl(null);
+      }
+      // Si c'est un vrai fichier, le restaurer
+      else if (existingVideo.file && typeof existingVideo.file === 'object') {
         setVideoFile(existingVideo.file);
         // Create preview URL for the existing video
         const url = URL.createObjectURL(existingVideo.file);
         setVideoPreviewUrl(url);
-      } else if (existingVideo.file === 'no-video') {
-        setVideoFile('no-video');
-        setVideoPreviewUrl(null);
       }
+      
+      // Toujours restaurer RPE et commentaire si disponibles
       if (existingVideo.rpeRating) {
         setRpeRating(existingVideo.rpeRating);
       }
@@ -359,6 +372,17 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
             <span>Pas de vidéo</span>
           </button>
         </div>
+
+        {/* Message si une vidéo était enregistrée mais ne peut pas être restaurée */}
+        {isOpen && existingVideo && existingVideo.file === null && !videoFile && (
+          <div className="px-[28px] pt-[12px]">
+            <div className="bg-[#2d2d2d] border border-white/10 rounded-[5px] px-[12px] py-[8px]">
+              <p className="text-[10px] font-light text-white/75 leading-normal">
+                <span className="text-[#d4845a]">⚠️</span> Une vidéo était enregistrée mais ne peut pas être restaurée. Veuillez la re-uploader.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Video Preview or File Name Display */}
         {videoFile && videoFile !== 'no-video' && typeof videoFile === 'object' && (
