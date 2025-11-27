@@ -814,15 +814,80 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         </table>
                       </div>
 
-                      {/* Add Set Row */}
-                      <div className="flex justify-end mt-3 pt-3 border-t border-[#262626]">
+                      {/* Controls Row: Tempo input, Ajouter une série */}
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262626]">
+                        {/* Left side: Tempo input */}
+                        <Input
+                          type="text"
+                          value={exercise.tempo || ''}
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            const currentTempo = exercise.tempo || '';
+                            
+                            // Vérifier si le format actuel est déjà complet (4 chiffres séparés par des tirets)
+                            const currentParts = currentTempo.split('-');
+                            const isCurrentComplete = currentParts.length === 4 && 
+                              currentParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
+                            
+                            // Si le format est complet et que l'utilisateur essaie d'ajouter un caractère, bloquer
+                            if (isCurrentComplete && value.length > currentTempo.length) {
+                              // Ne pas mettre à jour la valeur, garder l'ancienne
+                              return;
+                            }
+                            
+                            // Si l'utilisateur tape un chiffre et que le dernier caractère n'est pas un tiret
+                            // Ajouter automatiquement un tiret après le chiffre
+                            const lastChar = value[value.length - 1];
+                            if (lastChar && /[0-9]/.test(lastChar)) {
+                              // Vérifier si on n'est pas déjà à la fin d'un format complet (x-x-x-x)
+                              const parts = value.split('-');
+                              // Si on a moins de 4 parties et que le dernier caractère est un chiffre
+                              if (parts.length < 4 && !value.endsWith('-')) {
+                                value = value + '-';
+                              }
+                            }
+                            
+                            // Vérifier à nouveau si le nouveau format est complet
+                            const newParts = value.split('-');
+                            const isNewComplete = newParts.length === 4 && 
+                              newParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
+                            
+                            // Si le nouveau format est complet, s'assurer qu'il n'y a pas de caractères supplémentaires
+                            if (isNewComplete) {
+                              // Limiter à exactement le format x-x-x-x (sans caractères supplémentaires)
+                              const formattedValue = newParts.join('-');
+                              if (value.length > formattedValue.length) {
+                                value = formattedValue;
+                              }
+                            }
+                            
+                            const updatedExercises = [...exercises];
+                            updatedExercises[exerciseIndex].tempo = value;
+                            setExercises(updatedExercises);
+                          }}
+                          onFocus={(e) => {
+                            if (!e.target.value) {
+                              e.target.placeholder = 'x-x-x-x';
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (!e.target.value) {
+                              e.target.placeholder = 'Tempo';
+                            }
+                          }}
+                          placeholder="Tempo"
+                          className="bg-[rgba(255,255,255,0.05)] border-[0.5px] border-[rgba(255,255,255,0.2)] rounded-[5px] text-white text-[8px] font-light px-[11px] py-[5px] h-[29px] w-[80px] focus:outline-none focus:ring-1 focus:ring-[rgba(255,255,255,0.3)] placeholder:text-[rgba(255,255,255,0.5)]"
+                        />
+
+                        {/* Right side: Ajouter une série button */}
                         <button
                           type="button"
                           onClick={() => handleAddSet(exerciseIndex)}
-                          className="text-sm text-[#d4845a] hover:text-[#d4845a]/80 flex items-center gap-1"
+                          className="bg-[rgba(212,132,90,0.15)] border-[0.5px] border-[#d4845a] rounded-[5px] px-[10px] py-[4px] flex items-center justify-center hover:bg-[rgba(212,132,90,0.25)] transition-colors"
                         >
-                          <Plus className="h-4 w-4" />
-                          Ajouter une série
+                          <span className="text-[8px] font-light text-[#d4845a] whitespace-nowrap">
+                            Ajouter une série
+                          </span>
                         </button>
                       </div>
 
@@ -990,6 +1055,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       onClose={() => setIsAddExerciseModalOpen(false)}
       onExerciseCreated={handleExerciseCreated}
     />
+
     </>
   );
 };

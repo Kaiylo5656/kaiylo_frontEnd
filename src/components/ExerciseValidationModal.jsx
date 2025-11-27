@@ -481,9 +481,12 @@ const ExerciseValidationModal = ({
               )}
             </div>
             <div className="flex flex-col gap-[15px] items-start w-full">
-              <p className="text-[10px] font-light text-white/50">
-                Durée estimée : {estimatedDuration}
-              </p>
+              {/* Tempo - Affiché si défini par le coach */}
+              {exercise.tempo && (
+                <p className="text-[10px] font-light text-white/50">
+                  Tempo : {exercise.tempo}
+                </p>
+              )}
               
               {/* Points d'avancement - représentent les exercices de la séance */}
               {allExercises && allExercises.length > 0 && (
