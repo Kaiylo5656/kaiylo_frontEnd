@@ -218,17 +218,26 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           }));
           setLocalVideos(restoredVideos);
           
-          // Réinitialiser l'état hasVideo dans completedSets pour les vidéos qui ne peuvent pas être restaurées
+          // Restaurer le RPE dans completedSets et réinitialiser l'état hasVideo pour les vidéos qui ne peuvent pas être restaurées
           // Cela permet à l'étudiant de re-uploader la vidéo
           setCompletedSets(prev => {
             const updated = { ...prev };
             let hasResetVideos = false;
             
             restoredVideos.forEach(video => {
+              const key = `${video.exerciseIndex}-${video.setIndex}`;
+              const currentSetData = updated[key];
+              
+              // Restaurer le RPE dans completedSets
+              if (video.rpeRating !== null && video.rpeRating !== undefined) {
+                updated[key] = typeof currentSetData === 'object' && currentSetData !== null
+                  ? { ...currentSetData, rpeRating: video.rpeRating }
+                  : { rpeRating: video.rpeRating };
+              }
+              
               // Si la vidéo n'a pas de fichier (null) et n'est pas "no-video", 
               // cela signifie qu'elle ne peut pas être restaurée
               if (video.file === null) {
-                const key = `${video.exerciseIndex}-${video.setIndex}`;
                 if (updated[key] && typeof updated[key] === 'object') {
                   // Réinitialiser hasVideo et videoStatus pour permettre un nouvel upload
                   updated[key] = {
@@ -323,14 +332,25 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       exerciseComments,
       // Note: On ne sauvegarde pas localVideos car les fichiers ne peuvent pas être stockés
       // Mais on peut sauvegarder les métadonnées des vidéos (sans les fichiers)
-      videoMetadata: localVideos.map(v => ({
-        exerciseIndex: v.exerciseIndex,
-        setIndex: v.setIndex,
-        rpeRating: v.rpeRating,
-        comment: v.comment,
-        hasVideo: v.file && v.file !== 'no-video',
-        isNoVideo: v.file === 'no-video'
-      }))
+      // Le RPE est maintenant récupéré depuis completedSets
+      videoMetadata: localVideos.map(v => {
+        const exerciseIndex = v.exerciseIndex;
+        const setIndex = v.setIndex;
+        const key = `${exerciseIndex}-${setIndex}`;
+        const setData = completedSets[key];
+        const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
+          ? setData.rpeRating 
+          : (v.rpeRating || null);
+        
+        return {
+          exerciseIndex,
+          setIndex,
+          rpeRating,
+          comment: v.comment,
+          hasVideo: v.file && v.file !== 'no-video',
+          isNoVideo: v.file === 'no-video'
+        };
+      })
     };
     
     // Only save if there's actual progress (not just empty initial state)
@@ -660,6 +680,35 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     }
   };
 
+  // Gérer la mise à jour du RPE pour une série
+  const handleRpeUpdate = (exerciseIndex, setIndex, rpeRating) => {
+    const exercise = exercises[exerciseIndex];
+    
+    if (!exercise || !Array.isArray(exercise.sets)) {
+      return;
+    }
+
+    if (setIndex >= exercise.sets.length) {
+      return; // Invalid set index
+    }
+
+    // Mettre à jour le RPE dans completedSets
+    const key = `${exerciseIndex}-${setIndex}`;
+    setCompletedSets(prev => {
+      const currentSetData = prev[key];
+      
+      // Préserver les données existantes et ajouter/mettre à jour le RPE
+      const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
+        ? { ...currentSetData, rpeRating }
+        : { rpeRating };
+      
+      return {
+        ...prev,
+        [key]: updatedSetData
+      };
+    });
+  };
+
   const getSetStatus = (exerciseIndex, setIndex) => {
     const key = `${exerciseIndex}-${setIndex}`;
     const setData = completedSets[key];
@@ -825,10 +874,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           } else {
             formData.append('noVideo', 'true');
           }
+          // Récupérer le RPE depuis completedSets
+          const exerciseIndex = videoData.exerciseInfo?.exerciseIndex ?? videoData.exerciseIndex;
+          const rpeKey = `${exerciseIndex}-${setIndex}`;
+          const setData = completedSets[rpeKey];
+          const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
+            ? setData.rpeRating 
+            : (videoData.rpeRating || 0);
+
           formData.append('exerciseInfo', JSON.stringify(videoData.exerciseInfo));
           formData.append('setInfo', JSON.stringify(fullSetInfo));
           formData.append('comment', videoData.comment || '');
-          formData.append('rpeRating', videoData.rpeRating || 0);
+          formData.append('rpeRating', rpeRating);
           formData.append('set_index', String(setIndex));
           formData.append('set_number', String(setNumber));
           if (videoData.exerciseInfo?.exerciseId) formData.append('exercise_id', String(videoData.exerciseInfo.exerciseId));
@@ -873,6 +930,94 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         }
         
         setIsUploadingVideos(false);
+        
+        // Step 1.5: Upload RPE for sets without video requirement but with RPE
+        // Parcourir toutes les séries pour trouver celles qui ont un RPE mais pas de vidéo
+        if (exercises && exercises.length > 0) {
+          for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
+            const exercise = exercises[exerciseIndex];
+            if (!exercise || !exercise.sets) continue;
+            
+            for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+              const set = exercise.sets[setIndex];
+              const key = `${exerciseIndex}-${setIndex}`;
+              const setData = completedSets[key];
+              
+              // Vérifier si cette série a un RPE
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
+                ? setData.rpeRating 
+                : null;
+              
+              if (!rpeRating) continue; // Pas de RPE, on passe
+              
+              // Vérifier si cette série a déjà été traitée dans localVideos
+              const alreadyProcessed = localVideos.some(video => {
+                const videoExerciseIndex = video.exerciseInfo?.exerciseIndex ?? video.exerciseIndex;
+                const videoSetIndex = video.setInfo?.setIndex ?? video.setIndex;
+                return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
+              });
+              
+              if (alreadyProcessed) continue; // Déjà traité, on passe
+              
+              // Cette série a un RPE mais pas de vidéo, créer un enregistrement
+              try {
+                const setNumber = setIndex + 1;
+                const exerciseInfo = {
+                  exerciseId: exercise.exerciseId || exercise.id || exercise.exercise_id,
+                  exerciseName: exercise.name,
+                  exerciseIndex: exerciseIndex,
+                  sessionId: session?.id,
+                  assignmentId: session?.assignment_id || session?.id
+                };
+                const setInfo = {
+                  setNumber: setNumber,
+                  setIndex: setIndex,
+                  weight: set.weight || 0,
+                  reps: set.reps || 0
+                };
+                
+                const formData = new FormData();
+                formData.append('noVideo', 'true'); // Pas de vidéo
+                formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
+                formData.append('setInfo', JSON.stringify(setInfo));
+                formData.append('comment', ''); // Pas de commentaire
+                formData.append('rpeRating', rpeRating);
+                formData.append('set_index', String(setIndex));
+                formData.append('set_number', String(setNumber));
+                if (exerciseInfo.exerciseId) formData.append('exercise_id', String(exerciseInfo.exerciseId));
+                if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
+                if (session?.id) formData.append('session_id', String(session.id));
+                if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
+                
+                let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${authToken}` },
+                  body: formData
+                });
+                
+                if (response.status === 401) {
+                  authToken = await refreshAuthToken();
+                  response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: formData
+                  });
+                }
+                
+                if (!response.ok) {
+                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                  // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
+                } else {
+                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                }
+              } catch (error) {
+                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+                // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
+              }
+            }
+          }
+        }
+        
         setIsCompressing(true);
 
         // Step 2: Trigger backend compression
@@ -916,6 +1061,90 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         setIsUploadingVideos(false);
         setIsCompressing(false);
         setUploadProgress(null);
+      }
+    } else {
+      // Pas de vidéos, mais on doit quand même sauvegarder les RPE des séries sans vidéo
+      try {
+        let authToken = await getAuthToken();
+        
+        if (exercises && exercises.length > 0) {
+          for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
+            const exercise = exercises[exerciseIndex];
+            if (!exercise || !exercise.sets) continue;
+            
+            for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+              const set = exercise.sets[setIndex];
+              const key = `${exerciseIndex}-${setIndex}`;
+              const setData = completedSets[key];
+              
+              // Vérifier si cette série a un RPE
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
+                ? setData.rpeRating 
+                : null;
+              
+              if (!rpeRating) continue; // Pas de RPE, on passe
+              
+              // Cette série a un RPE mais pas de vidéo, créer un enregistrement
+              try {
+                const setNumber = setIndex + 1;
+                const exerciseInfo = {
+                  exerciseId: exercise.exerciseId || exercise.id || exercise.exercise_id,
+                  exerciseName: exercise.name,
+                  exerciseIndex: exerciseIndex,
+                  sessionId: session?.id,
+                  assignmentId: session?.assignment_id || session?.id
+                };
+                const setInfo = {
+                  setNumber: setNumber,
+                  setIndex: setIndex,
+                  weight: set.weight || 0,
+                  reps: set.reps || 0
+                };
+                
+                const formData = new FormData();
+                formData.append('noVideo', 'true'); // Pas de vidéo
+                formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
+                formData.append('setInfo', JSON.stringify(setInfo));
+                formData.append('comment', ''); // Pas de commentaire
+                formData.append('rpeRating', rpeRating);
+                formData.append('set_index', String(setIndex));
+                formData.append('set_number', String(setNumber));
+                if (exerciseInfo.exerciseId) formData.append('exercise_id', String(exerciseInfo.exerciseId));
+                if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
+                if (session?.id) formData.append('session_id', String(session.id));
+                if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
+                
+                let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${authToken}` },
+                  body: formData
+                });
+                
+                if (response.status === 401) {
+                  authToken = await refreshAuthToken();
+                  response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: formData
+                  });
+                }
+                
+                if (!response.ok) {
+                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                  // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
+                } else {
+                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                }
+              } catch (error) {
+                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+                // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error saving RPEs for sets without video:', error);
+        // Ne pas bloquer la complétion de la séance si l'enregistrement des RPE échoue
       }
     }
     
@@ -1343,6 +1572,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           sets={exercises[selectedExerciseForValidation]?.sets || []}
           completedSets={completedSets}
           onValidateSet={handleSetValidation}
+          onRpeUpdate={handleRpeUpdate}
           onVideoUpload={(exerciseIndex, setIndex) => {
             const exercise = exercises[exerciseIndex];
             if (exercise && exercise.sets && exercise.sets[setIndex] && exercise.sets[setIndex].video === true) {

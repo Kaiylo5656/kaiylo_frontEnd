@@ -442,7 +442,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     const isSelected = selectedSetIndex === setIndex;
                     // Prendre la première vidéo réelle, ou la première enregistrement si aucune vidéo réelle
                     const firstRecord = setVideos.find(v => v.video_url && v.video_url.trim() !== '') || setVideos[0];
-                    const rpeValue = (firstRecord && firstRecord.rpe_rating) || set.rpe || set.rpe_rating || set.RPE || null;
+                    // Récupérer le RPE : priorité aux données de la série, puis aux enregistrements vidéo (même sans vidéo)
+                    // Les étudiants peuvent maintenant mettre un RPE sur toutes les séries, même sans vidéo
+                    // Vérifier d'abord dans les données de la série, puis dans les enregistrements (y compris ceux sans vidéo)
+                    const rpeValue = set.rpe || set.rpe_rating || set.RPE || 
+                                     (firstRecord && firstRecord.rpe_rating) || 
+                                     (setVideos.length > 0 && setVideos[0]?.rpe_rating) || 
+                                     null;
                     const hasComment = (firstRecord && !!firstRecord.comment) || !!set.comment || !!set.student_comment;
                     return (
                       <div 

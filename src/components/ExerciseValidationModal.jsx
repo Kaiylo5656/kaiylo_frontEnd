@@ -12,6 +12,7 @@ const ExerciseValidationModal = ({
   sets,
   completedSets,
   onValidateSet,
+  onRpeUpdate,
   onVideoUpload,
   coachFeedback,
   localVideos = [],
@@ -29,6 +30,8 @@ const ExerciseValidationModal = ({
   const [pendingExerciseIndex, setPendingExerciseIndex] = useState(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [isRpeModalOpen, setIsRpeModalOpen] = useState(false);
+  const [selectedSetForRpe, setSelectedSetForRpe] = useState(null);
   const modalRef = useRef(null);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
@@ -309,6 +312,31 @@ const ExerciseValidationModal = ({
     return true;
   };
 
+  // Obtenir le RPE d'une série
+  const getRpeForSet = (setIndex) => {
+    const key = `${exerciseIndex}-${setIndex}`;
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'rpeRating' in setData) {
+      return setData.rpeRating;
+    }
+    return null;
+  };
+
+  // Gérer le clic sur le bouton RPE
+  const handleRpeClick = (setIndex) => {
+    setSelectedSetForRpe(setIndex);
+    setIsRpeModalOpen(true);
+  };
+
+  // Gérer la sélection du RPE
+  const handleRpeSelect = (rpeRating) => {
+    if (selectedSetForRpe !== null && onRpeUpdate) {
+      onRpeUpdate(exerciseIndex, selectedSetForRpe, rpeRating);
+    }
+    setIsRpeModalOpen(false);
+    setSelectedSetForRpe(null);
+  };
+
   // Vérifier si une série a une vidéo
   const hasVideoForSet = (setIndex) => {
     const key = `${exerciseIndex}-${setIndex}`;
@@ -399,17 +427,17 @@ const ExerciseValidationModal = ({
       <MissingVideoErrorModal />
       {createPortal(
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm"
           onClick={handleClose}
         >
-      <div 
-        ref={modalRef}
-        className="relative bg-black text-white rounded-[27px] w-full max-w-[550px] max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
+          <div 
+            ref={modalRef}
+            className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] bg-black text-white rounded-[27px] w-full max-w-[550px] max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
         {/* Header avec titre */}
         <div className="px-12 pt-8 pb-6">
           <div className="mb-6">
@@ -531,18 +559,24 @@ const ExerciseValidationModal = ({
         </div>
 
         {/* Liste des séries */}
-        <div className="px-12 space-y-3 pb-6">
+        <div className="pl-6 pr-12 space-y-3 pb-6">
           {/* Headers - Positionnés au-dessus des séries */}
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-[245px] px-[15px] pr-[30px]">
+          <div className="flex items-center mb-2">
+            <div className="w-[20px]" />
+            <div className="w-[265px] px-[15px] pr-[30px]">
               <div className="flex items-center">
-                <div className="w-[20px]" />
-                <div className="flex items-center gap-[36px] flex-1 justify-end px-[30px]">
+                <div className="w-[50px] flex justify-center">
                   <p className="text-[8px] font-normal text-white/25">Charge (kg)</p>
-                  <div className="flex flex-col items-center">
-                    <p className="text-[8px] font-normal text-white/25">Rep.</p>
-                  </div>
-                  <div className="w-[49px]" />
+                </div>
+                <div className="w-[40px] flex justify-center ml-[20px]">
+                  <p className="text-[8px] font-normal text-white/25">Rep.</p>
+                </div>
+                <div className="flex-1 flex justify-center gap-[15px]">
+                  <div className="w-[17px] h-[17px]" />
+                  <div className="w-[17px] h-[17px]" />
+                </div>
+                <div className="w-[24px] flex justify-center">
+                  <p className="text-[8px] font-normal text-white/25">RPE</p>
                 </div>
               </div>
             </div>
@@ -559,19 +593,26 @@ const ExerciseValidationModal = ({
             const weight = set.weight || '?';
             const reps = set.reps || '?';
             const videoEnabled = set.video === true || set.video === 1 || set.video === 'true';
+            const rpeRating = getRpeForSet(setIndex);
 
             return (
-              <div key={setIndex} className="flex items-center gap-3">
+              <div key={setIndex} className="flex items-center">
+                {/* Numéro de série - À l'extérieur de la box */}
+                <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
                 <div 
-                  className="bg-white/5 rounded-[5px] flex items-center justify-between px-[15px] pr-[30px] py-[13px] w-[245px] min-w-[245px] max-w-[245px] hover:bg-white/10 transition-colors"
+                  className="bg-white/5 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] w-[265px] min-w-[265px] max-w-[265px] hover:bg-white/10 transition-colors"
                 >
-                  <span className="text-[10px] text-white/50">{setNumber}</span>
-                  <div className="flex items-center gap-[36px] flex-1 justify-end">
-                    <span className="text-[15px] text-[#d4845a]">{weight}</span>
-                    <div className="flex flex-col items-center">
+                  <div className="flex items-center w-full">
+                    {/* Colonne Charge - Centrée */}
+                    <div className="w-[50px] flex justify-center">
+                      <span className="text-[15px] text-[#d4845a]">{weight}</span>
+                    </div>
+                    {/* Colonne Rep - Centrée */}
+                    <div className="w-[40px] flex justify-center ml-[20px]">
                       <span className="text-[15px] text-white">{reps}</span>
                     </div>
-                    <div className="flex items-center gap-[15px]">
+                    {/* Boutons de validation - Centrés */}
+                    <div className="flex-1 flex justify-center items-center gap-[15px]">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -615,6 +656,23 @@ const ExerciseValidationModal = ({
                         </svg>
                       </button>
                     </div>
+                    {/* Bouton RPE - Centré */}
+                    <div className="w-[24px] flex justify-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRpeClick(setIndex);
+                        }}
+                        className="bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[14px] h-[14px] flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
+                        title="Évaluer l'effort (RPE)"
+                      >
+                        <span className={`text-[8px] font-normal leading-normal ${
+                          rpeRating ? 'text-[#d4845a]' : 'text-white/50'
+                        }`}>
+                          {rpeRating || ''}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -627,7 +685,7 @@ const ExerciseValidationModal = ({
                         onVideoUpload(exerciseIndex, setIndex);
                       }
                     }}
-                    className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 flex-shrink-0 ${
+                    className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 flex-shrink-0 ml-2 ${
                       hasVideo 
                         ? 'bg-white/10 hover:bg-white/20' 
                         : 'bg-[rgba(212,132,90,0.30)] hover:bg-[rgba(212,132,90,0.40)]'
@@ -680,8 +738,8 @@ const ExerciseValidationModal = ({
             Fermer
           </button>
         </div>
-      </div>
-    </div>
+          </div>
+        </div>
       , document.body)}
       
       {/* Exercise Comment Modal */}
@@ -704,6 +762,97 @@ const ExerciseValidationModal = ({
         onClose={() => setIsInfoModalOpen(false)}
         exercise={exercise}
       />
+
+      {/* RPE Selection Modal */}
+      {isRpeModalOpen && selectedSetForRpe !== null && (() => {
+        const currentRpe = getRpeForSet(selectedSetForRpe);
+        return createPortal(
+          <div 
+            className="fixed inset-0 z-[111] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => {
+              setIsRpeModalOpen(false);
+              setSelectedSetForRpe(null);
+            }}
+          >
+            <div 
+              className="bg-[#1b1b1b] rounded-[20px] w-[220px] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rpe-title"
+            >
+              {/* Content */}
+              <div className="px-[10px] py-[17px] flex flex-col gap-[20px] items-center">
+                <h2 id="rpe-title" className="text-[17px] font-normal text-[#d4845a] leading-normal text-center">
+                  RPE
+                </h2>
+                
+                {/* Grille de boutons RPE - 2 lignes de 5 */}
+                <div className="flex flex-col gap-[8px] items-start w-[199px]">
+                  {/* Première ligne : 1-5 */}
+                  <div className="flex gap-[6px] items-center w-full">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        key={rating}
+                        type="button"
+                        onClick={() => handleRpeSelect(rating)}
+                        className={`border rounded-[50px] w-[35px] h-[35px] flex items-center justify-center transition-colors ${
+                          currentRpe === rating 
+                            ? 'bg-[#d4845a] border-[#d4845a]' 
+                            : 'bg-[#1e1e1e] border-white/25 hover:bg-[#2a2a2a]'
+                        }`}
+                      >
+                        <span className={`text-[15px] font-normal leading-normal ${
+                          currentRpe === rating ? 'text-white' : 'text-[#d4845a]'
+                        }`}>
+                          {rating}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Deuxième ligne : 6-10 */}
+                  <div className="flex gap-[6px] items-center w-full">
+                    {[6, 7, 8, 9, 10].map((rating) => (
+                      <button
+                        key={rating}
+                        type="button"
+                        onClick={() => handleRpeSelect(rating)}
+                        className={`border rounded-[50px] w-[35px] h-[35px] flex items-center justify-center transition-colors ${
+                          currentRpe === rating 
+                            ? 'bg-[#d4845a] border-[#d4845a]' 
+                            : 'bg-[#1e1e1e] border-white/25 hover:bg-[#2a2a2a]'
+                        }`}
+                      >
+                        <span className={`text-[15px] font-normal leading-normal ${
+                          currentRpe === rating ? 'text-white' : 'text-[#d4845a]'
+                        }`}>
+                          {rating}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Bouton Quitter */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRpeModalOpen(false);
+                    setSelectedSetForRpe(null);
+                  }}
+                  className="bg-white/2 border-[0.5px] border-white/10 h-[20px] rounded-[5px] w-[70px] flex items-center justify-center transition-colors hover:bg-white/5"
+                >
+                  <span className="text-[10px] font-normal text-white leading-normal text-center">
+                    Quitter
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </>
   );
 };

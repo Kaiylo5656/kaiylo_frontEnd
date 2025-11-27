@@ -9,7 +9,6 @@ import { ImageIcon, VideoIcon, X, Camera, VideoOff } from 'lucide-react';
 const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInfo, setInfo, existingVideo }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [comment, setComment] = useState('');
-  const [rpeRating, setRpeRating] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -44,10 +43,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
         setVideoPreviewUrl(url);
       }
       
-      // Toujours restaurer RPE et commentaire si disponibles
-      if (existingVideo.rpeRating) {
-        setRpeRating(existingVideo.rpeRating);
-      }
+      // Toujours restaurer commentaire si disponible
       if (existingVideo.comment) {
         setComment(existingVideo.comment);
       }
@@ -56,7 +52,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       setVideoFile(null);
       setVideoPreviewUrl(null);
       setComment('');
-      setRpeRating(null);
     }
   }, [isOpen, existingVideo]);
 
@@ -71,9 +66,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
 
   // Maximum file size: 48MB (Supabase free tier 50MB limit with 2MB safety margin)
   const MAX_FILE_SIZE = 48 * 1024 * 1024; // 48MB in bytes
-
-  // RPE scale options (1-10)
-  const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   // Helper function to format file size
   const formatFileSize = (bytes) => {
@@ -196,11 +188,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       return;
     }
 
-    if (!rpeRating) {
-      setError('Veuillez évaluer votre effort (RPE).');
-      return;
-    }
-
     setIsUploading(true);
     setError(null);
 
@@ -209,7 +196,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       const videoData = {
         file: videoFile,
         comment: comment,
-        rpeRating: rpeRating,
         exerciseInfo: exerciseInfo,
         setInfo: setInfo,
         timestamp: new Date().toISOString()
@@ -250,7 +236,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
     
     setVideoFile(null);
     setComment('');
-    setRpeRating(null);
     setError(null);
     setIsUploading(false);
     setIsRecording(false);
@@ -438,29 +423,6 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           />
         )}
 
-        {/* RPE Section */}
-        <div className="px-[28px] pt-[20px] flex flex-col gap-[8px]">
-          <p className="text-[11px] font-normal text-white leading-normal whitespace-pre-wrap">
-            RPE :
-          </p>
-          <div className="flex gap-[8px] items-center">
-            {rpeOptions.map((rating) => (
-              <button
-                key={rating}
-                type="button"
-                onClick={() => setRpeRating(rating)}
-                className={`w-[24px] h-[24px] rounded-[3px] flex items-center justify-center transition-colors ${
-                  rpeRating === rating
-                    ? 'bg-[#d4845a] text-white'
-                    : 'bg-[#2d2d2d] text-white/50 hover:bg-[#3a3a3a]'
-                }`}
-              >
-                <span className="text-[11px] font-normal leading-normal">{rating}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Error Message */}
         {error && (
           <div className="px-[28px] pt-3">
@@ -484,7 +446,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
             type="button"
             onClick={handleSubmit}
             className="bg-[#d4845a] border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] flex items-center justify-center transition-colors hover:bg-[#c47850] disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isUploading || !videoFile || !rpeRating}
+            disabled={isUploading || !videoFile}
           >
             <span className="text-[12px] font-normal text-white">
               {isUploading ? 'Enregistrement...' : 'Terminer'}
