@@ -430,14 +430,14 @@ const ExerciseValidationModal = ({
           className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm"
           onClick={handleClose}
         >
-          <div 
-            ref={modalRef}
+      <div 
+        ref={modalRef}
             className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] bg-black text-white rounded-[27px] w-full max-w-[550px] max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {/* Header avec titre */}
         <div className="px-12 pt-8 pb-6">
           <div className="mb-6">
@@ -483,9 +483,9 @@ const ExerciseValidationModal = ({
             <div className="flex flex-col gap-[15px] items-start w-full">
               {/* Tempo - Affiché si défini par le coach */}
               {exercise.tempo && (
-                <p className="text-[10px] font-light text-white/50">
+              <p className="text-[10px] font-light text-white/50">
                   Tempo : {exercise.tempo}
-                </p>
+              </p>
               )}
               
               {/* Points d'avancement - représentent les exercices de la séance */}
@@ -572,8 +572,8 @@ const ExerciseValidationModal = ({
                   <p className="text-[8px] font-normal text-white/25">Charge (kg)</p>
                 </div>
                 <div className="w-[40px] flex justify-center ml-[20px]">
-                  <p className="text-[8px] font-normal text-white/25">Rep.</p>
-                </div>
+                    <p className="text-[8px] font-normal text-white/25">Rep.</p>
+                  </div>
                 <div className="flex-1 flex justify-center gap-[15px]">
                   <div className="w-[17px] h-[17px]" />
                   <div className="w-[17px] h-[17px]" />
@@ -608,7 +608,7 @@ const ExerciseValidationModal = ({
                   <div className="flex items-center w-full">
                     {/* Colonne Charge - Centrée */}
                     <div className="w-[50px] flex justify-center">
-                      <span className="text-[15px] text-[#d4845a]">{weight}</span>
+                    <span className="text-[15px] text-[#d4845a]">{weight}</span>
                     </div>
                     {/* Colonne Rep - Centrée */}
                     <div className="w-[40px] flex justify-center ml-[20px]">
@@ -741,8 +741,8 @@ const ExerciseValidationModal = ({
             Fermer
           </button>
         </div>
-          </div>
-        </div>
+      </div>
+    </div>
       , document.body)}
       
       {/* Exercise Comment Modal */}

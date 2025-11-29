@@ -1274,13 +1274,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('authToken');
+      
+      // Fetch student details
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/coach/student/${student.id}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      setStudentData(response.data.data);
+      const data = response.data.data;
+      
+      // Fetch 1RM records from backend
+      try {
+        const oneRmResponse = await axios.get(
+          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/one-rep-max`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        if (oneRmResponse.data.success && oneRmResponse.data.data) {
+          data.oneRepMaxes = oneRmResponse.data.data;
+        }
+      } catch (oneRmError) {
+        console.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmError);
+        // Fallback to localStorage if backend fails
+        const storageKey = `oneRm_${student.id}`;
+        const savedOneRm = localStorage.getItem(storageKey);
+        if (savedOneRm) {
+          try {
+            const parsedOneRm = JSON.parse(savedOneRm);
+            data.oneRepMaxes = parsedOneRm;
+          } catch (e) {
+            console.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
+          }
+        }
+      }
+      
+      setStudentData(data);
     } catch (error) {
       console.error('Error fetching student details:', error);
     } finally {
@@ -1650,9 +1681,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
   const oneRmRecords = useMemo(() => {
     const fallback = DEFAULT_ONE_RM_DATA;
+    
+    // Define custom order for exercises: Muscle-up, Traction (Pull-up), Dips, Squat
+    const exerciseOrder = ['Muscle-up', 'Traction', 'Pull-up', 'Dips', 'Squat'];
 
     if (studentData?.oneRepMaxes && Array.isArray(studentData.oneRepMaxes) && studentData.oneRepMaxes.length > 0) {
-      return studentData.oneRepMaxes.map((record, index) => ({
+      // Map records with fallback data
+      const mappedRecords = studentData.oneRepMaxes.map((record, index) => ({
         id: record.id || `one-rm-${index}`,
         name: record.name || record.exercise || `Mouvement ${index + 1}`,
         color: record.color || fallback[index % fallback.length]?.color || '#d4845a',
@@ -1666,6 +1701,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         lastSession: record.lastSession || fallback[index % fallback.length]?.lastSession,
         history: record.history || fallback[index % fallback.length]?.history || [],
       }));
+      
+      // Sort according to custom order
+      mappedRecords.sort((a, b) => {
+        const indexA = exerciseOrder.findIndex(name => 
+          a.name.toLowerCase().includes(name.toLowerCase()) || 
+          name.toLowerCase().includes(a.name.toLowerCase())
+        );
+        const indexB = exerciseOrder.findIndex(name => 
+          b.name.toLowerCase().includes(name.toLowerCase()) || 
+          name.toLowerCase().includes(b.name.toLowerCase())
+        );
+        
+        // If both found, sort by index
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
+        // If only A found, A comes first
+        if (indexA !== -1) return -1;
+        // If only B found, B comes first
+        if (indexB !== -1) return 1;
+        // If neither found, sort alphabetically
+        return a.name.localeCompare(b.name);
+      });
+      
+      return mappedRecords;
     }
 
     return fallback;
@@ -2690,7 +2750,171 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         isOpen={isOneRmModalOpen}
         onClose={() => setIsOneRmModalOpen(false)}
         data={oneRmRecords}
-        studentName={studentData?.raw_user_meta_data?.full_name || student?.email || 'Athlète'}
+        studentName={student?.full_name || student?.name || student?.profile?.full_name || studentData?.name || 'Athlète'}
+        onSave={async (updatedLifts) => {
+          try {
+            const token = localStorage.getItem('authToken');
+            const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+            
+            // Préparer les données à sauvegarder
+            const oneRepMaxes = updatedLifts.map(lift => {
+              // Vérifier si la valeur a changé par rapport aux données originales
+              const originalLift = oneRmRecords.find(l => l.id === lift.id);
+              const valueChanged = originalLift && Number(originalLift.current) !== Number(lift.current);
+              
+              // Mettre à jour l'historique si la valeur a changé
+              let updatedHistory = lift.history || [];
+              if (valueChanged) {
+                // Ajouter une nouvelle entrée au début de l'historique avec la date actuelle
+                updatedHistory = [
+                  {
+                    value: Number(lift.current),
+                    date: today,
+                    label: lift.lastSession || 'Mise à jour'
+                  },
+                  ...updatedHistory
+                ];
+              }
+              
+              return {
+                id: lift.id,
+                name: lift.name,
+                current: Number(lift.current) || 0,
+                best: Number(lift.best) || Number(lift.current) || 0,
+                unit: lift.unit || 'kg',
+                delta: Number(lift.delta) || 0,
+                goal: lift.goal,
+                weeklyVolume: lift.weeklyVolume,
+                totalReps: lift.totalReps,
+                lastSession: lift.lastSession,
+                history: updatedHistory
+              };
+            });
+
+            // Mettre à jour les données localement
+            setStudentData(prev => ({
+              ...prev,
+              oneRepMaxes: oneRepMaxes
+            }));
+
+            // Sauvegarder dans le backend
+            try {
+              const response = await axios.put(
+                `${getApiBaseUrlWithApi()}/coach/student/${student.id}/one-rep-max`,
+                { oneRepMaxes },
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (response.data.success) {
+                // Sauvegarder aussi dans localStorage comme cache
+                const storageKey = `oneRm_${student.id}`;
+                localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
+                console.log('✅ 1RM sauvegardées dans le backend:', oneRepMaxes);
+              } else {
+                throw new Error(response.data.message || 'Erreur lors de la sauvegarde');
+              }
+            } catch (apiError) {
+              console.error('Erreur lors de la sauvegarde dans le backend:', apiError);
+              // Fallback: sauvegarder dans localStorage
+              const storageKey = `oneRm_${student.id}`;
+              localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
+              console.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
+              alert('Les modifications ont été sauvegardées localement. Veuillez réessayer plus tard pour synchroniser avec le serveur.');
+            }
+          } catch (error) {
+            console.error('Erreur lors de la sauvegarde des 1RM:', error);
+            alert('Erreur lors de la sauvegarde des modifications');
+          }
+        }}
+        onSaveAndClose={async (updatedLifts) => {
+          try {
+            const token = localStorage.getItem('authToken');
+            const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+            
+            // Préparer les données à sauvegarder
+            const oneRepMaxes = updatedLifts.map(lift => {
+              // Vérifier si la valeur a changé par rapport aux données originales
+              const originalLift = oneRmRecords.find(l => l.id === lift.id);
+              const valueChanged = originalLift && Number(originalLift.current) !== Number(lift.current);
+              
+              // Mettre à jour l'historique si la valeur a changé
+              let updatedHistory = lift.history || [];
+              if (valueChanged) {
+                // Ajouter une nouvelle entrée au début de l'historique avec la date actuelle
+                updatedHistory = [
+                  {
+                    value: Number(lift.current),
+                    date: today,
+                    label: lift.lastSession || 'Mise à jour'
+                  },
+                  ...updatedHistory
+                ];
+              }
+              
+              return {
+                id: lift.id,
+                name: lift.name,
+                current: Number(lift.current) || 0,
+                best: Number(lift.best) || Number(lift.current) || 0,
+                unit: lift.unit || 'kg',
+                delta: Number(lift.delta) || 0,
+                goal: lift.goal,
+                weeklyVolume: lift.weeklyVolume,
+                totalReps: lift.totalReps,
+                lastSession: lift.lastSession,
+                history: updatedHistory,
+                color: lift.color
+              };
+            });
+
+            // Sauvegarder dans le backend
+            try {
+              const response = await axios.put(
+                `${getApiBaseUrlWithApi()}/coach/student/${student.id}/one-rep-max`,
+                { oneRepMaxes },
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              if (response.data.success) {
+                // Mettre à jour les données localement après succès backend
+                setStudentData(prev => ({
+                  ...prev,
+                  oneRepMaxes: oneRepMaxes
+                }));
+
+                // Sauvegarder aussi dans localStorage comme cache
+                const storageKey = `oneRm_${student.id}`;
+                localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
+
+                console.log('✅ 1RM sauvegardées dans le backend et modale fermée:', oneRepMaxes);
+                setIsOneRmModalOpen(false);
+              } else {
+                throw new Error(response.data.message || 'Erreur lors de la sauvegarde');
+              }
+            } catch (apiError) {
+              console.error('Erreur lors de la sauvegarde dans le backend:', apiError);
+              // Fallback: sauvegarder dans localStorage et mettre à jour l'état local
+              const storageKey = `oneRm_${student.id}`;
+              localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
+              
+              setStudentData(prev => ({
+                ...prev,
+                oneRepMaxes: oneRepMaxes
+              }));
+              
+              console.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
+              alert('Les modifications ont été sauvegardées localement. Veuillez réessayer plus tard pour synchroniser avec le serveur.');
+              setIsOneRmModalOpen(false);
+            }
+          } catch (error) {
+            console.error('Erreur lors de la sauvegarde des 1RM:', error);
+            alert('Erreur lors de la sauvegarde des modifications');
+          }
+        }}
       />
 
       <VideoDetailModal 

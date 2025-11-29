@@ -116,7 +116,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [completedSets, currentExerciseIndex, exerciseComments, localVideos]);
-
+  
   // Load saved progress on mount or when session changes (only once per session)
   useEffect(() => {
     if (!sessionId || !storageKey) {
@@ -346,9 +346,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           exerciseIndex,
           setIndex,
           rpeRating,
-          comment: v.comment,
-          hasVideo: v.file && v.file !== 'no-video',
-          isNoVideo: v.file === 'no-video'
+        comment: v.comment,
+        hasVideo: v.file && v.file !== 'no-video',
+        isNoVideo: v.file === 'no-video'
         };
       })
     };
@@ -509,7 +509,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     return false;
   };
-
+  
   // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
     // Ouvrir directement la modale de validation sans vérification
@@ -741,8 +741,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           video.file !== 'no-video'
       );
       if (hasRealVideo) {
-        return true;
-      }
+      return true;
+    }
       // Si hasVideo est true mais qu'il n'y a pas de fichier réel, retourner false
       return false;
     }

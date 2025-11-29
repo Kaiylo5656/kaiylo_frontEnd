@@ -886,7 +886,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           className="bg-[rgba(212,132,90,0.15)] border-[0.5px] border-[#d4845a] rounded-[5px] px-[10px] py-[4px] flex items-center justify-center hover:bg-[rgba(212,132,90,0.25)] transition-colors"
                         >
                           <span className="text-[8px] font-light text-[#d4845a] whitespace-nowrap">
-                            Ajouter une série
+                          Ajouter une série
                           </span>
                         </button>
                       </div>

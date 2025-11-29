@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { TrendingUp, CalendarDays, BarChart3, List } from 'lucide-react';
+import { TrendingUp, CalendarDays, BarChart3, List, ChevronUp, ChevronDown } from 'lucide-react';
 import OneRmHistoryModal from './OneRmHistoryModal';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -114,6 +114,12 @@ const OneRmModal = ({
   const lifts = useMemo(() => (data.length ? data : DEFAULT_ONE_RM_DATA), [data]);
   const [selectedLiftId, setSelectedLiftId] = useState(lifts[0]?.id ?? null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  // État local pour stocker les valeurs modifiées
+  const [editedLifts, setEditedLifts] = useState(() => {
+    return lifts.map(lift => ({ ...lift }));
+  });
+  // État pour gérer les valeurs en cours de saisie dans les inputs
+  const [inputValues, setInputValues] = useState({});
   // Initialize with default position (relative to modal, positioned to the right)
   const [historyPosition, setHistoryPosition] = useState({ 
     top: 0, 
@@ -121,6 +127,11 @@ const OneRmModal = ({
     width: 340 
   });
   const contentRef = useRef(null);
+
+  // Synchroniser editedLifts quand lifts change
+  useEffect(() => {
+    setEditedLifts(lifts.map(lift => ({ ...lift })));
+  }, [lifts]);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,8 +148,8 @@ const OneRmModal = ({
   }, [isOpen, lifts, selectedLiftId]);
 
   const selectedLift = useMemo(
-    () => lifts.find((lift) => lift.id === selectedLiftId) || lifts[0] || null,
-    [lifts, selectedLiftId]
+    () => editedLifts.find((lift) => lift.id === selectedLiftId) || editedLifts[0] || null,
+    [editedLifts, selectedLiftId]
   );
 
   const updateHistoryPosition = useCallback(() => {
@@ -184,24 +195,88 @@ const OneRmModal = ({
   }, [isHistoryModalOpen, updateHistoryPosition]);
 
   const totalCurrent = useMemo(
-    () => lifts.reduce((acc, item) => acc + (Number(item.current) || 0), 0),
-    [lifts]
+    () => editedLifts.reduce((acc, item) => acc + (Number(item.current) || 0), 0),
+    [editedLifts]
   );
+
+  // Fonction pour mettre à jour la valeur d'un lift
+  const updateLiftValue = useCallback((liftId, newValue) => {
+    setEditedLifts(prev => prev.map(lift => 
+      lift.id === liftId 
+        ? { ...lift, current: Number(newValue) || 0 }
+        : lift
+    ));
+  }, []);
+
+  // Fonction pour gérer le changement de valeur via input
+  const handleInputChange = useCallback((liftId, value) => {
+    // Ne garder que les chiffres et le point/virgule pour les décimales
+    // Permettre un seul point ou virgule
+    let cleanedValue = value.replace(/[^0-9.,]/g, '');
+    
+    // Remplacer la virgule par un point
+    cleanedValue = cleanedValue.replace(',', '.');
+    
+    // S'assurer qu'il n'y a qu'un seul point
+    const parts = cleanedValue.split('.');
+    if (parts.length > 2) {
+      cleanedValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Mettre à jour l'état local de l'input
+    setInputValues(prev => ({
+      ...prev,
+      [liftId]: cleanedValue
+    }));
+    
+    // Mettre à jour la valeur si elle est valide
+    if (cleanedValue === '' || cleanedValue === '.') {
+      updateLiftValue(liftId, 0);
+    } else {
+      const numValue = parseFloat(cleanedValue);
+      if (!isNaN(numValue) && numValue >= 0) {
+        updateLiftValue(liftId, numValue);
+      }
+    }
+  }, [updateLiftValue]);
+
+  // Fonction pour incrémenter/décrémenter la valeur
+  const adjustLiftValue = useCallback((liftId, delta) => {
+    setEditedLifts(prev => prev.map(lift => {
+      if (lift.id === liftId) {
+        const currentValue = Number(lift.current) || 0;
+        const newValue = Math.max(0, currentValue + delta);
+        return { ...lift, current: newValue };
+      }
+      return lift;
+    }));
+  }, []);
+
+  // Fonction pour mettre à jour l'objectif d'un lift
+  const updateLiftGoal = useCallback((liftId, newGoal) => {
+    setEditedLifts(prev => prev.map(lift => 
+      lift.id === liftId 
+        ? { ...lift, goal: newGoal }
+        : lift
+    ));
+  }, []);
 
   const lastUpdatedAt = useMemo(() => selectedLift?.history?.[0]?.date || lifts[0]?.history?.[0]?.date || null, [selectedLift, lifts]);
 
   const handleSave = useCallback(() => {
     if (onSave) {
-      onSave(selectedLift || null);
+      // Envoyer tous les lifts modifiés
+      onSave(editedLifts);
     }
-  }, [onSave, selectedLift]);
+  }, [onSave, editedLifts]);
 
   const handleSaveAndClose = useCallback(() => {
     if (onSaveAndClose) {
-      onSaveAndClose(selectedLift || null);
+      // Envoyer tous les lifts modifiés
+      onSaveAndClose(editedLifts);
     }
     onClose();
-  }, [onSaveAndClose, selectedLift, onClose]);
+  }, [onSaveAndClose, editedLifts, onClose]);
 
   const handleViewEvolution = useCallback(() => {
     if (onViewEvolution) {
@@ -211,7 +286,7 @@ const OneRmModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent ref={contentRef} className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-w-3xl w-full border-none bg-transparent p-0 text-white overflow-visible">
+      <DialogContent ref={contentRef} className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] max-w-xl w-full border-none bg-transparent p-0 text-white overflow-visible">
         <div className="relative overflow-hidden rounded-[28px] border border-[#2c2c2c] bg-gradient-to-br from-[#181818]/95 via-[#121212]/95 to-[#0d0d0d]/95 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#242424]">
             <div className="flex items-start justify-between gap-4">
@@ -231,12 +306,6 @@ const OneRmModal = ({
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                {selectedLift?.history?.[0]?.label && (
-                  <div className="hidden sm:flex flex-col items-end text-[11px] text-gray-500">
-                    <span className="uppercase tracking-wider text-gray-500">Bloc actuel</span>
-                    <span className="text-gray-300 font-medium">{selectedLift.history[0].label}</span>
-                  </div>
-                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -266,34 +335,128 @@ const OneRmModal = ({
           <div className="px-6 py-6 flex flex-col gap-5">
             <div className="flex-1 space-y-4">
               <div className="rounded-2xl border border-[#262626] bg-[#151515]/85 divide-y divide-[#1e1e1e] shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-                {lifts.map((lift) => {
+                {editedLifts.map((lift) => {
                   const isActive = lift.id === selectedLift?.id;
+                  const editedLift = editedLifts.find(l => l.id === lift.id) || lift;
                   return (
-                    <button
+                    <div
                       key={lift.id}
-                      type="button"
-                      onClick={() => setSelectedLiftId(lift.id)}
-                      className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-all duration-150 ${
+                      className={`w-full flex items-center gap-4 px-4 py-3 transition-all duration-150 ${
                         isActive
                           ? 'bg-[#1f1f1f]/90 border-l-2 border-[#d4845a] shadow-[0_0_0_1px_rgba(212,132,90,0.35)]'
                           : 'hover:bg-[#1a1a1a]'
                       }`}
                     >
-                      <div className="flex items-center gap-3 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLiftId(lift.id)}
+                        className="flex items-center gap-3 flex-1 text-left"
+                      >
                         <span
-                          className="inline-flex h-2 w-2 rounded-full"
+                          className="inline-flex h-2 w-2 rounded-full flex-shrink-0"
                           style={{ backgroundColor: lift.color || '#d4845a' }}
                         />
-                        <div className="flex flex-col">
+                        <div className="flex flex-col flex-1 min-w-0">
                           <span className="text-sm font-medium text-white">{lift.name}</span>
-                          <span className="text-[11px] text-gray-500">{lift.goal || 'Objectif à définir'}</span>
+                          <input
+                            type="text"
+                            value={editedLift.goal || ''}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateLiftGoal(lift.id, e.target.value);
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onFocus={(e) => {
+                              e.stopPropagation();
+                            }}
+                            placeholder="Objectif à définir"
+                            className="text-[11px] text-gray-500 bg-transparent border-none outline-none p-0 m-0 focus:text-white transition-colors w-full"
+                            style={{ caretColor: '#d4845a' }}
+                          />
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right mr-2">
+                          <p className="text-[11px] text-gray-500">{formatDate(lift.history?.[0]?.date)}</p>
+                        </div>
+                        {/* Champ de valeur RM éditable */}
+                        <div className="relative bg-[#151517] border-[0.5px] border-[#36383a] rounded-[5px] h-[36px] w-[99px] flex items-center justify-center pr-[20px]">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={inputValues[lift.id] !== undefined 
+                              ? inputValues[lift.id] 
+                              : Number(editedLift.current).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleInputChange(lift.id, e.target.value);
+                            }}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              // Permettre les touches de navigation et suppression
+                              if (!/[0-9.,]/.test(e.key) && 
+                                  !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Escape'].includes(e.key) &&
+                                  !(e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase()))) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onFocus={(e) => {
+                              e.stopPropagation();
+                              // Afficher la valeur brute sans formatage au focus
+                              const rawValue = Number(editedLift.current);
+                              setInputValues(prev => ({
+                                ...prev,
+                                [lift.id]: rawValue.toString()
+                              }));
+                              // Sélectionner tout le texte au focus pour faciliter la modification
+                              e.target.select();
+                            }}
+                            onBlur={(e) => {
+                              e.stopPropagation();
+                              // Valider et reformater la valeur au blur
+                              const numValue = parseFloat(e.target.value) || 0;
+                              updateLiftValue(lift.id, numValue);
+                              // Réinitialiser l'état de l'input pour afficher la valeur formatée
+                              setInputValues(prev => {
+                                const newValues = { ...prev };
+                                delete newValues[lift.id];
+                                return newValues;
+                              });
+                            }}
+                            className="text-[18px] font-normal text-white text-center bg-transparent border-none outline-none w-full pr-[25px]"
+                            style={{ caretColor: '#d4845a' }}
+                          />
+                          <span className="absolute right-[20px] text-[18px] font-normal text-white pointer-events-none">
+                            {editedLift.unit}
+                          </span>
+                          {/* Boutons de flèches */}
+                          <div className="absolute right-0 top-0 bottom-0 w-[20px] flex flex-col">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustLiftValue(lift.id, 0.5);
+                              }}
+                              className="flex-1 flex items-center justify-center hover:bg-[#2c2e31] transition-colors"
+                            >
+                              <ChevronUp className="w-[13px] h-[13px] text-[#717171]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustLiftValue(lift.id, -0.5);
+                              }}
+                              className="flex-1 flex items-center justify-center hover:bg-[#2c2e31] transition-colors"
+                            >
+                              <ChevronDown className="w-[13px] h-[13px] text-[#717171]" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-white">{formatWeight(lift.current, lift.unit)}</p>
-                        <p className="text-[11px] text-gray-500">{formatDate(lift.history?.[0]?.date)}</p>
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
