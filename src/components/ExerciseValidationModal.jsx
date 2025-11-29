@@ -232,22 +232,27 @@ const ExerciseValidationModal = ({
   // Calculer la durée estimée (par exemple 15 min par exercice)
   const estimatedDuration = '15 min';
 
-  // Progress bar : progression de l'exercice actuel uniquement (les sets de cet exercice)
-  // Calculer le nombre total de séries dans l'exercice actuel
-  const totalSetsInExercise = exercise?.sets?.length || 0;
+  // Progress bar : progression de toute la session (tous les exercices)
+  // Calculer le nombre total de séries dans tous les exercices
+  const totalSetsInSession = allExercises.reduce((total, ex, exIdx) => {
+    return total + (ex?.sets?.length || 0);
+  }, 0);
 
-  // Calculer le nombre de séries complétées dans l'exercice actuel
-  const completedSetsInExercise = exercise?.sets?.filter((_, setIdx) => {
-    const key = `${exerciseIndex}-${setIdx}`;
-    const setData = completedSets[key];
-    if (setData && typeof setData === 'object' && 'status' in setData) {
-      return setData.status === 'completed' || setData.status === 'failed';
-    }
-    return false;
-  }).length || 0;
+  // Calculer le nombre de séries complétées dans toute la session
+  const completedSetsInSession = allExercises.reduce((total, ex, exIdx) => {
+    const completedInExercise = (ex?.sets || []).filter((_, setIdx) => {
+      const key = `${exIdx}-${setIdx}`;
+      const setData = completedSets[key];
+      if (setData && typeof setData === 'object' && 'status' in setData) {
+        return setData.status === 'completed' || setData.status === 'failed';
+      }
+      return false;
+    }).length;
+    return total + completedInExercise;
+  }, 0);
 
-  // Calculer le pourcentage de progression pour l'exercice actuel
-  const progress = totalSetsInExercise > 0 ? (completedSetsInExercise / totalSetsInExercise) * 100 : 0;
+  // Calculer le pourcentage de progression pour toute la session
+  const progress = totalSetsInSession > 0 ? (completedSetsInSession / totalSetsInSession) * 100 : 0;
 
   // Obtenir le statut d'une série
   const getSetStatus = (setIndex) => {
@@ -493,11 +498,12 @@ const ExerciseValidationModal = ({
                 <div className="flex items-center gap-2">
                   {allExercises.map((_, exIndex) => {
                     const isFinalized = isSpecificExerciseFinalized(exIndex);
+                    const isCurrentExercise = exIndex === exerciseIndex;
                     return (
                       <div
                         key={exIndex}
                         className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
-                          isFinalized ? 'bg-[#d4845a]' : 'bg-white/30'
+                          isCurrentExercise || isFinalized ? 'bg-[#d4845a]' : 'bg-white/30'
                         }`}
                       />
                     );

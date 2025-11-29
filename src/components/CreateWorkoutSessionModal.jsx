@@ -824,6 +824,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             let value = e.target.value;
                             const currentTempo = exercise.tempo || '';
                             
+                            // Filtrer pour n'accepter que les chiffres (0-9) et les tirets (-)
+                            // Supprimer tous les caractères qui ne sont pas des chiffres ou des tirets
+                            value = value.replace(/[^0-9-]/g, '');
+                            
                             // Vérifier si le format actuel est déjà complet (4 chiffres séparés par des tirets)
                             const currentParts = currentTempo.split('-');
                             const isCurrentComplete = currentParts.length === 4 && 
@@ -864,6 +868,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             const updatedExercises = [...exercises];
                             updatedExercises[exerciseIndex].tempo = value;
                             setExercises(updatedExercises);
+                          }}
+                          onKeyPress={(e) => {
+                            // Empêcher la saisie de caractères non numériques (sauf les tirets qui sont gérés dans onChange)
+                            const char = String.fromCharCode(e.which || e.keyCode);
+                            if (!/[0-9-]/.test(char)) {
+                              e.preventDefault();
+                            }
                           }}
                           onFocus={(e) => {
                             if (!e.target.value) {
