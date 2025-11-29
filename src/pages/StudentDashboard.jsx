@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format, addDays, startOfWeek, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings, Home, Clock, MessageCircle, Video } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { buildApiUrl } from '../config/api';
@@ -201,66 +201,142 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div className="bg-[#121212] text-white min-h-screen">
-      <main className="p-4 pb-20">
-        <h1 className="text-2xl font-bold mb-6 text-white">Planning de la semaine</h1>
+    <div 
+      className="text-foreground w-full min-h-full relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(180deg, #1a1a1a 0%, #050505 55%, #000000 100%)'
+      }}
+    >
+      {/* Top glow to match WorkoutSessionExecution */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, rgba(191,191,191,0.1) 45%, rgba(0,0,0,0) 70%)',
+          opacity: 0.35
+        }}
+      />
+      {/* Warm orange glow from timeline */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+          opacity: 0.45
+        }}
+      />
+      {/* Subtle bottom depth glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+        style={{
+          background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+          opacity: 0.25
+        }}
+      />
+      <div className="p-4 pb-20 w-full max-w-6xl mx-auto relative z-10">
+        {/* Titre du mois */}
+        <h1 className="text-[28px] font-light text-center text-white mb-6">
+          {format(currentDate, 'MMMM', { locale: fr })}
+        </h1>
 
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" size="icon" onClick={() => changeWeek('prev')} className="text-white hover:bg-[#1a1a1a]">
-            <ChevronLeft className="h-6 w-6" />
-          </Button>
-          <div className="flex justify-around flex-1 overflow-x-auto gap-2">
-            {week.map(day => {
-              const dayStr = format(day, 'yyyy-MM-dd');
-              const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
-              const isSelected = format(selectedDate, 'yyyy-MM-dd') === dayStr;
-              
-              // Determine the overall status for the day
-              const completedCount = assignmentsForDay.filter(a => a.status === 'completed').length;
-              const totalCount = assignmentsForDay.length;
-              const allCompleted = totalCount > 0 && completedCount === totalCount;
-              const someCompleted = completedCount > 0 && completedCount < totalCount;
-              
-              return (
-                <div 
-                  key={dayStr}
-                  className={`text-center p-2 rounded-lg cursor-pointer min-w-[60px] ${isSelected ? 'bg-[#e87c3e] text-white' : 'text-white'}`}
-                  onClick={() => setSelectedDate(day)}
-                >
-                  <p className="text-xs uppercase opacity-70">{format(day, 'eee', { locale: fr })}</p>
-                  <p className="font-bold text-base">{format(day, 'd')}</p>
-                  <div className="h-4 flex justify-center items-center mt-1">
-                    {assignmentsForDay.length > 0 && (
-                      <>
-                        {allCompleted ? (
-                          <CheckCircle2 className="h-3 w-3 text-green-400" />
-                        ) : someCompleted ? (
-                          <div className="flex items-center gap-1">
-                            <CheckCircle2 className="h-2 w-2 text-green-400" />
-                            <Circle className="h-2 w-2 fill-current" />
-                          </div>
+        {/* Planning de la semaine - Design Figma */}
+        <div className="relative mb-6">
+          <div className="flex items-center justify-between gap-2">
+            {/* Flèche gauche */}
+            <button
+              onClick={() => changeWeek('prev')}
+              className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
+            >
+              <ChevronLeft className="w-[15px] h-[15px] text-white/50 rotate-90" />
+            </button>
+            
+            {/* Jours de la semaine - Tous visibles sur une ligne */}
+            <div className="flex-1 flex items-center justify-between gap-0 min-w-0">
+              {week.map((day, index) => {
+                const dayStr = format(day, 'yyyy-MM-dd');
+                const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
+                const isSelected = format(selectedDate, 'yyyy-MM-dd') === dayStr;
+                
+                // Determine the overall status for the day
+                const completedCount = assignmentsForDay.filter(a => a.status === 'completed').length;
+                const totalCount = assignmentsForDay.length;
+                const allCompleted = totalCount > 0 && completedCount === totalCount;
+                const hasAssignments = totalCount > 0;
+                
+                return (
+                  <div key={dayStr} className="flex-1 flex flex-col items-center min-w-0">
+                    <button
+                      onClick={() => setSelectedDate(day)}
+                      className={`w-full flex flex-col items-center gap-[5px] px-0 py-[5px] rounded-[5px] text-[10px] font-normal transition-colors ${
+                        isSelected 
+                          ? 'bg-[#d4845a] text-white' 
+                          : hasAssignments && !allCompleted
+                            ? 'text-white/75'
+                            : 'text-white/50'
+                      }`}
+                    >
+                      <p className="leading-normal whitespace-nowrap uppercase">
+                        {format(day, 'eee', { locale: fr }).substring(0, 3)}
+                      </p>
+                      <p className="leading-normal whitespace-nowrap">
+                        {format(day, 'd')}
+                      </p>
+                      
+                      {/* Indicateur de statut sous chaque jour avec nombre de séances */}
+                      {/* Toujours afficher un espace pour garder la même hauteur */}
+                      <div className="mt-[2px] flex items-center justify-center gap-1 h-[8px]">
+                        {hasAssignments ? (
+                          <>
+                            {allCompleted ? (
+                              <div className="bg-[#2fa064] rounded-[10px] w-[8px] h-[8px] flex-shrink-0" />
+                            ) : completedCount > 0 ? (
+                              <div className={`rounded-[10px] w-[8px] h-[8px] border-[0.5px] flex-shrink-0 ${
+                                isSelected 
+                                  ? 'bg-white/20 border-white/30' 
+                                  : 'bg-white/5 border-white/5'
+                              }`} />
+                            ) : (
+                              <div className={`rounded-[10px] w-[8px] h-[8px] flex-shrink-0 ${
+                                isSelected 
+                                  ? 'bg-white' 
+                                  : 'bg-white'
+                              }`} />
+                            )}
+                            {/* Nombre de séances à côté de la pastille */}
+                            {totalCount > 0 && (
+                              <span className={`text-[8px] font-normal leading-normal ${
+                                isSelected ? 'text-white' : 'text-white/60'
+                              }`}>
+                                {totalCount}
+                              </span>
+                            )}
+                          </>
                         ) : (
-                          <Circle className="h-2 w-2 fill-current" />
+                          // Espace réservé invisible pour les jours sans séance pour garder la même hauteur
+                          <div className="w-[8px] h-[8px] flex-shrink-0 opacity-0" />
                         )}
-                        {assignmentsForDay.length > 1 && (
-                          <span className="text-xs text-gray-400 ml-1">{assignmentsForDay.length}</span>
-                        )}
-                      </>
-                    )}
+                      </div>
+                    </button>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            
+            {/* Flèche droite */}
+            <button
+              onClick={() => changeWeek('next')}
+              className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
+            >
+              <ChevronRight className="w-[15px] h-[15px] text-white/50 rotate-90" />
+            </button>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => changeWeek('next')} className="text-white hover:bg-[#1a1a1a]">
-            <ChevronRight className="h-6 w-6" />
-          </Button>
         </div>
 
         {selectedAssignments.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-4 w-full max-w-4xl mx-auto">
             {selectedAssignments.map((assignment, index) => (
-              <Card key={assignment.id || index} className="bg-[#1a1a1a] border-[#262626] rounded-lg">
+              <Card key={assignment.id || index} className="bg-card border-border rounded-lg w-full">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-[#e87c3e] text-xl font-bold">
                     {assignment.workout_sessions?.title || 'Workout'}
@@ -275,7 +351,9 @@ const StudentDashboard = () => {
                     {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
                       <div key={exIndex} className="flex justify-between items-center">
                         <p className="truncate text-white font-medium">{ex.name}</p>
-                        <p className="text-gray-400 whitespace-nowrap">{ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} reps @{ex.sets?.[0]?.weight || 'N/A'} kg</p>
+                        <p className="text-gray-400 whitespace-nowrap">
+                          {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a]">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -302,31 +380,6 @@ const StudentDashboard = () => {
             <p className="text-gray-400">Pas de séance prévue pour aujourd'hui.</p>
           </div>
         )}
-      </main>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-[#262626] rounded-t-lg">
-        <div className="flex items-center justify-around py-2">
-          <div className="flex flex-col items-center py-2">
-            <Home className="h-6 w-6 text-[#e87c3e]" />
-            <span className="text-xs text-[#e87c3e] font-medium mt-1">Accueil</span>
-          </div>
-          <div className="flex flex-col items-center py-2">
-            <Clock className="h-6 w-6 text-gray-400" />
-            <span className="text-xs text-gray-400 mt-1">Historique</span>
-          </div>
-          <div className="flex flex-col items-center py-2">
-            <MessageCircle className="h-6 w-6 text-gray-400" />
-            <span className="text-xs text-gray-400 mt-1">Messages</span>
-          </div>
-          <button 
-            onClick={() => navigate('/student/videos')}
-            className="flex flex-col items-center py-2 hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <Video className="h-6 w-6 text-gray-400" />
-            <span className="text-xs text-gray-400 mt-1">Vidéothèque</span>
-          </button>
-        </div>
       </div>
     </div>
   );

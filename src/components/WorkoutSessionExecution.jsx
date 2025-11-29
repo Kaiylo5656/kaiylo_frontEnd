@@ -9,9 +9,11 @@ import LeaveSessionWarningModal from './LeaveSessionWarningModal'; // Import the
 import MissingVideosWarningModal from './MissingVideosWarningModal'; // Import the missing videos warning modal
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useWorkoutSession } from './MainLayout';
 
 const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
+  const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentSetIndex, setCurrentSetIndex] = useState({}); // Track current set for each exercise
@@ -42,6 +44,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const isRestoringProgress = useRef(false); // Flag to prevent saving during restoration
   const lastRestoredSessionId = useRef(null); // Track which session was last restored
   const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
+
+  // Show/hide Header and BottomNavBar when component mounts/unmounts
+  useEffect(() => {
+    setIsWorkoutSessionOpen(true);
+    return () => {
+      setIsWorkoutSessionOpen(false);
+    };
+  }, [setIsWorkoutSessionOpen]);
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
@@ -1325,7 +1335,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       </div>
 
       {/* Exercise List - Tous les exercices visibles, format compact */}
-      <div className="relative pl-[47px] pr-[20px]">
+      <div className="relative pl-[47px] pr-[20px] max-w-[400px] mx-auto">
         {/* Ligne verticale pointillée à gauche (comme dans Figma) */}
         {exercises && exercises.length > 0 && (
           <div className="absolute left-[27px] top-0 bottom-0">
@@ -1496,7 +1506,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       </div>
 
       {/* Complete Session Button - Style Figma */}
-      <div className="pl-[47px] pr-[20px] mt-[10px]">
+      <div className="pl-[47px] pr-[20px] mt-[10px] max-w-[400px] mx-auto">
         <button
           onClick={handleCompleteSession}
           disabled={!isAllExercisesCompleted()}

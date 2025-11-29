@@ -432,7 +432,7 @@ const ExerciseValidationModal = ({
       <MissingVideoErrorModal />
       {createPortal(
         <div 
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]"
           onClick={handleClose}
         >
       <div 
@@ -499,11 +499,13 @@ const ExerciseValidationModal = ({
                   {allExercises.map((_, exIndex) => {
                     const isFinalized = isSpecificExerciseFinalized(exIndex);
                     const isCurrentExercise = exIndex === exerciseIndex;
+                    // Le point est orange si c'est l'exercice actuel (même s'il n'est pas finalisé)
+                    // ou si l'exercice est finalisé ET c'est l'exercice actuel
                     return (
                       <div
                         key={exIndex}
                         className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
-                          isCurrentExercise || isFinalized ? 'bg-[#d4845a]' : 'bg-white/30'
+                          isCurrentExercise ? 'bg-[#d4845a]' : isFinalized ? 'bg-white/50' : 'bg-white/30'
                         }`}
                       />
                     );
@@ -718,28 +720,8 @@ const ExerciseValidationModal = ({
           })}
         </div>
 
-        {/* Boutons fermer et valider la séance */}
-        <div className="px-12 pb-8 space-y-3">
-          {onCompleteSession && (
-            <button
-              onClick={() => {
-                if (isAllExercisesCompleted()) {
-                  onCompleteSession();
-                  handleClose();
-                } else {
-                  alert('Veuillez compléter tous les exercices avant de terminer la séance');
-                }
-              }}
-              disabled={!isAllExercisesCompleted()}
-              className={`w-full h-[30px] rounded-[5px] text-[10px] font-normal transition-colors flex items-center justify-center ${
-                isAllExercisesCompleted()
-                  ? 'bg-[#d4845a] hover:bg-[#c47850] text-white'
-                  : 'bg-white/3 text-white/25 cursor-not-allowed'
-              }`}
-            >
-              Valider la séance
-            </button>
-          )}
+        {/* Bouton fermer */}
+        <div className="px-12 pb-8">
           <button
             onClick={handleClose}
             className="w-full h-[30px] rounded-[5px] bg-white/3 hover:bg-white/5 text-[10px] font-normal text-white/25 hover:text-white/40 transition-colors flex items-center justify-center"
