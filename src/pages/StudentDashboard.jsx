@@ -1,30 +1,180 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { format, addDays, startOfWeek, subDays } from 'date-fns';
+import { format, addDays, startOfWeek, subDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { buildApiUrl } from '../config/api';
 import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const StudentDashboard = () => {
   const { user, getAuthToken, refreshAuthToken } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Initialize dates from URL parameter if present, otherwise use current date
+  const initializeDate = () => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      try {
+        const parsedDate = parseISO(dateParam);
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+        }
+      } catch (error) {
+        console.error('Error parsing date from URL:', error);
+      }
+    }
+    return new Date();
+  };
+
+  const [currentDate, setCurrentDate] = useState(initializeDate());
+  const [selectedDate, setSelectedDate] = useState(initializeDate());
   const [currentView, setCurrentView] = useState('planning'); // 'planning' or 'execution'
   const [executingSession, setExecutingSession] = useState(null);
+
+  // Update dates when URL parameter changes
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      try {
+        const parsedDate = parseISO(dateParam);
+        if (!isNaN(parsedDate.getTime())) {
+          setCurrentDate(parsedDate);
+          setSelectedDate(parsedDate);
+        }
+      } catch (error) {
+        console.error('Error parsing date from URL:', error);
+      }
+    }
+  }, [searchParams]);
+
+  // Helper function to capitalize first letter of month
+  const capitalizeMonth = (date) => {
+    const monthName = format(date, 'MMMM', { locale: fr });
+    return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  };
+
+  // Track scroll attempts when at bottom (forcing scroll)
+  const forceScrollAttempts = useRef(0);
+  const isAtBottom = useRef(false);
+  const lastScrollTop = useRef(0);
+
+  // Handle scroll to navigate to monthly view - based on forcing scroll at bottom
+  useEffect(() => {
+    const handleScroll = (e) => {
+      // Find the scrollable container (from MainLayout)
+      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
+                              document.querySelector('.overflow-y-auto');
+      
+      if (!scrollContainer) return;
+      
+      const scrollTop = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const clientHeight = scrollContainer.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // Check if we're at or very close to the bottom (within 5px)
+      const atBottom = distanceFromBottom <= 5;
+      
+      // Check if user is trying to scroll down
+      const isScrollingDown = scrollTop >= lastScrollTop.current;
+      lastScrollTop.current = scrollTop;
+      
+      if (atBottom && isScrollingDown) {
+        // User is at bottom and trying to scroll down (forcing)
+        isAtBottom.current = true;
+        forceScrollAttempts.current += 1;
+        
+        // Require multiple force attempts (user trying to scroll when already at bottom)
+        // This indicates intentional "pull" to navigate
+        if (forceScrollAttempts.current >= 5) {
+          navigate('/student/monthly');
+          forceScrollAttempts.current = 0;
+          isAtBottom.current = false;
+        }
+      } else {
+        // Reset if user scrolls away from bottom or scrolls up
+        if (!atBottom || !isScrollingDown) {
+          forceScrollAttempts.current = 0;
+          isAtBottom.current = false;
+        }
+      }
+    };
+
+    // Also handle wheel events when at bottom to detect "forcing"
+    const handleWheel = (e) => {
+      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
+                              document.querySelector('.overflow-y-auto');
+      
+      if (!scrollContainer) return;
+      
+      const scrollTop = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const clientHeight = scrollContainer.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      // If at bottom and user scrolls down with wheel, count as force attempt
+      if (distanceFromBottom <= 5 && e.deltaY > 0) {
+        forceScrollAttempts.current += 1;
+        
+        if (forceScrollAttempts.current >= 3) {
+          navigate('/student/monthly');
+          forceScrollAttempts.current = 0;
+        }
+      } else {
+        // Reset if not at bottom or scrolling up
+        forceScrollAttempts.current = 0;
+      }
+    };
+
+    const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
+                            document.querySelector('.overflow-y-auto');
+    
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      scrollContainer.addEventListener('wheel', handleWheel, { passive: true });
+      return () => {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+        scrollContainer.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, [navigate]);
 
   const week = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
     return Array.from({ length: 7 }).map((_, i) => addDays(start, i));
   }, [currentDate]);
+
+  // Determine which month to display based on which month has the most days in the week
+  const displayMonth = useMemo(() => {
+    const monthCounts = new Map();
+    
+    week.forEach(day => {
+      const monthKey = format(day, 'yyyy-MM');
+      monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1);
+    });
+    
+    // Find the month with the most days
+    let maxCount = 0;
+    let dominantMonth = currentDate;
+    
+    monthCounts.forEach((count, monthKey) => {
+      if (count > maxCount) {
+        maxCount = count;
+        // Parse the month key to get the date
+        const [year, month] = monthKey.split('-');
+        dominantMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
+      }
+    });
+    
+    return dominantMonth;
+  }, [week, currentDate]);
 
   const selectedAssignments = useMemo(() => {
     return assignments.filter(a => 
@@ -234,10 +384,17 @@ const StudentDashboard = () => {
           opacity: 0.25
         }}
       />
-      <div className="p-4 pb-20 w-full max-w-6xl mx-auto relative z-10">
+      <div 
+        className="p-4 pb-20 w-full max-w-6xl mx-auto relative z-10"
+        style={{ 
+          scrollBehavior: 'auto',
+          // Add resistance at the bottom to prevent accidental navigation
+          paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))'
+        }}
+      >
         {/* Titre du mois */}
         <h1 className="text-[28px] font-light text-center text-white mb-6">
-          {format(currentDate, 'MMMM', { locale: fr })}
+          {capitalizeMonth(displayMonth)}
         </h1>
 
         {/* Planning de la semaine - Design Figma */}
@@ -248,7 +405,7 @@ const StudentDashboard = () => {
               onClick={() => changeWeek('prev')}
               className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
             >
-              <ChevronLeft className="w-[15px] h-[15px] text-white/50 rotate-90" />
+              <ChevronLeft className="w-[15px] h-[15px] text-white/50" />
             </button>
             
             {/* Jours de la semaine - Tous visibles sur une ligne */}
@@ -328,7 +485,7 @@ const StudentDashboard = () => {
               onClick={() => changeWeek('next')}
               className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
             >
-              <ChevronRight className="w-[15px] h-[15px] text-white/50 rotate-90" />
+              <ChevronRight className="w-[15px] h-[15px] text-white/50" />
             </button>
           </div>
         </div>
@@ -380,6 +537,20 @@ const StudentDashboard = () => {
             <p className="text-gray-400">Pas de séance prévue pour aujourd'hui.</p>
           </div>
         )}
+
+        {/* Icon to navigate to monthly view */}
+        <div className="flex items-center justify-center mt-8 mb-4">
+          <button 
+            onClick={() => navigate('/student/monthly')}
+            className="flex items-center justify-center w-[15px] h-[15px] text-white/60 hover:text-white transition-colors"
+            title="Voir le calendrier mensuel"
+          >
+            <ChevronDown className="h-[15px] w-[15px]" />
+          </button>
+        </div>
+        
+        {/* Extra padding at bottom to add scroll resistance and prevent accidental navigation */}
+        <div className="h-[200px] w-full" aria-hidden="true" />
       </div>
     </div>
   );

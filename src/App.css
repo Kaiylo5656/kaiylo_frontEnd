@@ -829,6 +829,14 @@ input[type="number"] {
 }
 
 /* Dashboard scrollbar styles */
+/* Make scroll less smooth and more resistant for StudentDashboard */
+.dashboard-scrollbar {
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: contain;
+  /* Add friction to scroll - makes it feel less smooth */
+  -webkit-overflow-scrolling: touch;
+}
+
 .dashboard-scrollbar::-webkit-scrollbar {
   width: 8px;
 }

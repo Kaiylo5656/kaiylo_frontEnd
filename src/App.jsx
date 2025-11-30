@@ -8,6 +8,7 @@ import StudentInvitationPage from './pages/StudentInvitationPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import StudentDashboard from './pages/StudentDashboard';
+import StudentMonthlyView from './pages/StudentMonthlyView';
 import ExerciseManagement from './pages/ExerciseManagement';
 import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
 import MainLayout from './components/MainLayout'; // Import the new layout
@@ -185,6 +186,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/monthly" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentMonthlyView />
                 </ProtectedRoute>
               } 
             />
