@@ -191,21 +191,67 @@ const StudentDashboard = () => {
   const fetchAssignments = async () => {
     try {
       const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/assignments/student'), {
+      if (!token) {
+        console.error('No auth token available');
+        setLoading(false);
+        return;
+      }
+
+      let response = await fetch(buildApiUrl('/api/assignments/student'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
+      // If 401, try to refresh token and retry once
+      if (response.status === 401) {
+        console.warn('401 Unauthorized, attempting token refresh...');
+        const newToken = await refreshAuthToken();
+        
+        if (newToken && newToken !== token) {
+          console.log('Retrying request with refreshed token...');
+          // Retry with the new token directly returned by refreshAuthToken
+          response = await fetch(buildApiUrl('/api/assignments/student'), {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          // If still 401 after refresh, the user might not be authenticated
+          if (response.status === 401) {
+            console.error('Still 401 after token refresh. User may need to re-authenticate.');
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            // Don't throw here, just log and let the error handling below catch it
+          }
+        } else if (!newToken) {
+          console.error('Failed to refresh token');
+          throw new Error('Failed to refresh token');
+        } else {
+          console.warn('Token unchanged after refresh, may indicate refresh issue');
+          // Even if token is unchanged, try to retry with it
+          response = await fetch(buildApiUrl('/api/assignments/student'), {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
+        const errorText = await response.text();
+        console.error(`Failed to fetch assignments: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Failed to fetch assignments: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       setAssignments(data.data || []);
     } catch (error) {
       console.error('Error fetching assignments:', error);
+      // Don't set assignments to empty array on error, keep previous state
     } finally {
       setLoading(false);
     }

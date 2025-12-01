@@ -26,7 +26,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [dragOverDate, setDragOverDate] = useState(null); // Date currently highlighted as drop target
   const [isRescheduling, setIsRescheduling] = useState(false); // Prevent concurrent rescheduling calls
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
-  const [trainingMonthDate, setTrainingMonthDate] = useState(new Date()); // For training monthly calendar
+  const [trainingWeekDate, setTrainingWeekDate] = useState(new Date()); // For training weekly calendar (starts with current week)
   const [workoutSessions, setWorkoutSessions] = useState({}); // Will store arrays of sessions per date
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [hoveredWeek, setHoveredWeek] = useState(null); // Track which week is being hovered
@@ -34,10 +34,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'draft', 'all'
   const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false); // Track if filter dropdown is open
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false); // Track if duration dropdown is open
   const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
+  const [isCopyWeekOverlayOpen, setIsCopyWeekOverlayOpen] = useState(false); // Track if copy week overlay is open
+  const [isPasteWeekOverlayOpen, setIsPasteWeekOverlayOpen] = useState(false); // Track if paste week overlay is open
+  const [hoveredWeekForCopy, setHoveredWeekForCopy] = useState(null); // Track which week is hovered for copying
+  const [hoveredWeekForPaste, setHoveredWeekForPaste] = useState(null); // Track which week is hovered for pasting
   
   // Video analysis state
   const [studentVideos, setStudentVideos] = useState([]);
@@ -58,6 +64,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [isEditingBlock, setIsEditingBlock] = useState(false);
 
   const { socket } = useSocket();
+
+  const trainingWeeks = useMemo(() => {
+    const start = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
+    const allDays = [];
+    const numberOfDays = weekViewFilter * 7;
+    for (let i = 0; i < numberOfDays; i++) {
+      allDays.push(addDays(start, i));
+    }
+    return allDays;
+  }, [trainingWeekDate, weekViewFilter]);
 
   // Listen for real-time session updates
   useEffect(() => {
@@ -137,29 +153,30 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         setDropdownOpen(null);
         setDropdownPosition(null);
       }
+      // Close filter and duration menus when clicking outside
+      if (filterMenuOpen && !event.target.closest('[data-filter-menu]')) {
+        setFilterMenuOpen(false);
+      }
+      if (durationMenuOpen && !event.target.closest('[data-duration-menu]')) {
+        setDurationMenuOpen(false);
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [dropdownOpen]);
+  }, [dropdownOpen, filterMenuOpen, durationMenuOpen]);
 
   const changeOverviewWeek = (direction) => {
     const newDate = direction === 'next' ? addDays(overviewWeekDate, 7) : subDays(overviewWeekDate, 7);
     setOverviewWeekDate(newDate);
   };
 
-  const changeTrainingMonth = (direction) => {
-    if (weekViewFilter === 2) {
-      // For 2-week view, navigate by 2 weeks from the current trainingMonthDate
-      const newDate = direction === 'next' ? addDays(trainingMonthDate, 14) : subDays(trainingMonthDate, 14);
-      setTrainingMonthDate(newDate);
-    } else {
-      // For 4-week view, navigate by month
-      const newDate = direction === 'next' ? addMonths(trainingMonthDate, 1) : subMonths(trainingMonthDate, 1);
-      setTrainingMonthDate(newDate);
-    }
+  const changeTrainingWeek = (direction) => {
+    // Navigate by one week at a time
+    const newDate = direction === 'next' ? addDays(trainingWeekDate, 7) : subDays(trainingWeekDate, 7);
+    setTrainingWeekDate(newDate);
   };
 
   const handleDayClick = (day) => {
@@ -226,18 +243,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     setDragOverDate(format(day, 'yyyy-MM-dd'));
   };
 
-  const handleDayDragLeave = (event, day) => {
-    if (!draggedSession) return;
-    // Only clear highlight when leaving the current card entirely
-    const relatedTarget = event.relatedTarget;
-    if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
-      setDragOverDate((current) => (current === format(day, 'yyyy-MM-dd') ? null : current));
-    }
+  const handleDragLeave = () => {
+    setDragOverDate(null);
   };
 
   const handleDayDrop = async (event, day) => {
-    if (!draggedSession || !draggedFromDate) return;
     event.preventDefault();
+    if (!draggedSession || !draggedFromDate || isRescheduling) return;
     const targetDate = day;
     const fromDate = draggedFromDate;
     handleSessionDragEnd();
@@ -1143,16 +1155,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       setLoadingSessions(true);
       const token = localStorage.getItem('authToken');
       
-      // Get a wider date range to include both week and month data for progress indicators
+      // Get a wider date range to include both week and training week data for progress indicators
       const weekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
       const weekEnd = addDays(weekStart, 6);
-        const monthStart = startOfMonth(trainingMonthDate);
-      const monthEnd = endOfMonth(trainingMonthDate);
+      const trainingWeekStart = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
+      const trainingWeekEnd = addDays(trainingWeekStart, (weekViewFilter * 7) - 1);
       
       // Use a much wider range to ensure we get all sessions needed for progress calculation
       // Go back 2 months and forward 2 months to be sure we have all data
-      const extendedStart = subDays(Math.min(weekStart.getTime(), monthStart.getTime()), 60);
-      const extendedEnd = addDays(Math.max(weekEnd.getTime(), monthEnd.getTime()), 60);
+      const extendedStart = subDays(Math.min(weekStart.getTime(), trainingWeekStart.getTime()), 60);
+      const extendedEnd = addDays(Math.max(weekEnd.getTime(), trainingWeekEnd.getTime()), 60);
       
       const rangeStart = format(extendedStart, 'yyyy-MM-dd');
       const rangeEnd = format(extendedEnd, 'yyyy-MM-dd');
@@ -1345,7 +1357,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
   useEffect(() => {
     fetchWorkoutSessions();
-  }, [overviewWeekDate, trainingMonthDate, activeTab]);
+  }, [overviewWeekDate, trainingWeekDate, activeTab, weekViewFilter]);
 
   // Update activeTab when initialTab prop changes
   useEffect(() => {
@@ -1365,13 +1377,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     const weekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
     
-    // Get current month range - use entire calendar month
-    const monthStart = startOfMonth(trainingMonthDate);
-    const monthEnd = endOfMonth(trainingMonthDate);
+    // Get current training week range - use the displayed weeks
+    const trainingWeekStart = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
+    const trainingWeekEnd = addDays(trainingWeekStart, (weekViewFilter * 7) - 1);
     
     // Get date keys for the ranges
     const weekDateKeys = [];
-    const monthDateKeys = [];
+    const trainingWeekDateKeys = [];
     
     // Generate week date keys
     for (let i = 0; i < 7; i++) {
@@ -1379,17 +1391,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       weekDateKeys.push(format(date, 'yyyy-MM-dd'));
     }
     
-    // Generate month date keys - ensure we cover the entire month
-    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    monthDays.forEach(day => {
-      monthDateKeys.push(format(day, 'yyyy-MM-dd'));
-    });
+    // Generate training week date keys - ensure we cover all displayed weeks
+    for (let i = 0; i < (weekViewFilter * 7); i++) {
+      const date = addDays(trainingWeekStart, i);
+      trainingWeekDateKeys.push(format(date, 'yyyy-MM-dd'));
+    }
     
-    console.log('Month date range:', {
-      monthStart: format(monthStart, 'yyyy-MM-dd'),
-      monthEnd: format(monthEnd, 'yyyy-MM-dd'),
-      totalDays: monthDays.length,
-      monthDateKeys: monthDateKeys.slice(0, 5) + '...' + monthDateKeys.slice(-5)
+    console.log('Training week date range:', {
+      trainingWeekStart: format(trainingWeekStart, 'yyyy-MM-dd'),
+      trainingWeekEnd: format(trainingWeekEnd, 'yyyy-MM-dd'),
+      totalDays: trainingWeekDateKeys.length,
+      trainingWeekDateKeys: trainingWeekDateKeys.slice(0, 5) + '...' + trainingWeekDateKeys.slice(-5)
     });
     
     // Count sessions for current week (flatten arrays)
@@ -1397,29 +1409,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
     
-    // Count sessions for current month (flatten arrays)
-    const allMonthSessions = monthDateKeys
+    // Count sessions for training weeks (flatten arrays)
+    const allTrainingWeekSessions = trainingWeekDateKeys
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
     
     // Filter to only assigned workouts (exclude drafts)
     const weekSessions = allWeekSessions.filter(session => session.status !== 'draft');
-    const monthSessions = allMonthSessions.filter(session => session.status !== 'draft');
+    const trainingWeekSessions = allTrainingWeekSessions.filter(session => session.status !== 'draft');
     
     // Count completed sessions
     const weekCompleted = weekSessions.filter(session => session.status === 'completed').length;
-    const monthCompleted = monthSessions.filter(session => session.status === 'completed').length;
+    const trainingWeekCompleted = trainingWeekSessions.filter(session => session.status === 'completed').length;
     
     // Debug logging
     console.log('Progress calculation debug:', {
       weekDateKeys: weekDateKeys,
-      monthDateKeys: monthDateKeys.slice(0, 10) + '...',
+      trainingWeekDateKeys: trainingWeekDateKeys.slice(0, 10) + '...',
       weekSessions: weekSessions.length,
-      monthSessions: monthSessions.length,
+      trainingWeekSessions: trainingWeekSessions.length,
       weekCompleted,
-      monthCompleted,
+      trainingWeekCompleted,
       workoutSessionsKeys: Object.keys(workoutSessions),
-      sampleSession: weekSessions[0] || monthSessions[0],
+      sampleSession: weekSessions[0] || trainingWeekSessions[0],
       allWorkoutSessions: workoutSessions
     });
     
@@ -1429,10 +1441,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         total: weekSessions.length,
         progress: weekSessions.length > 0 ? (weekCompleted / weekSessions.length) * 100 : 0
       },
-      month: {
-        completed: monthCompleted,
-        total: monthSessions.length,
-        progress: monthSessions.length > 0 ? (monthCompleted / monthSessions.length) * 100 : 0
+      trainingWeek: {
+        completed: trainingWeekCompleted,
+        total: trainingWeekSessions.length,
+        progress: trainingWeekSessions.length > 0 ? (trainingWeekCompleted / trainingWeekSessions.length) * 100 : 0
       }
     };
   };
@@ -1744,23 +1756,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${unit}`;
   };
 
-  const trainingWeeks = useMemo(() => {
-    let startDate;
-
-    if (weekViewFilter === 2) {
-      startDate = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
-    } else {
-      const monthStart = startOfMonth(trainingMonthDate);
-      startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    }
-
-    return Array.from({ length: weekViewFilter }, (_, index) => {
-      const weekStart = addDays(startDate, index * 7);
-      const weekDays = Array.from({ length: 7 }, (_, dayIndex) => addDays(weekStart, dayIndex));
-      return { weekStart, weekDays };
-    });
-  }, [weekViewFilter, trainingMonthDate]);
-
   const renderOverviewDayContent = (dayDate, dayKey) => {
     const sessions = workoutSessions[dayKey] || [];
 
@@ -1958,7 +1953,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     const sessions = getFilteredSessions(allSessions);
 
     const sessionList = sessions.length > 0 ? (
-      <div className={`session-container flex-1 ${weekViewFilter === 2 ? 'space-y-3' : 'space-y-1'} overflow-y-auto max-h-full`}>
+      <div className={`session-container flex-1 ${weekViewFilter === 2 ? 'space-y-1.5' : 'space-y-0.5'} overflow-y-auto max-h-full`}>
         {sessions.map((session, sessionIndex) => {
           const canDrag = session.status === 'draft' || session.status === 'assigned';
 
@@ -1971,7 +1966,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   : session.status === 'assigned'
                   ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
                   : 'bg-[#262626] border-l-2 border-[#d4845a] hover:bg-[#2a2a2a]'
-              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-4' : 'p-2'}`}
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-1.5' : 'p-1'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSessionClick(session, day);
@@ -2075,7 +2070,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   </div>
                 )}
               </div>
-              <div className={`text-gray-400 ${weekViewFilter === 2 ? 'text-sm' : 'text-[9px]'}`}>
+              <div className={`text-gray-400 ${weekViewFilter === 2 ? 'text-[10px]' : 'text-[8px]'}`}>
                 + {session.exercises.length} exercises en plus
               </div>
             </div>
@@ -2276,13 +2271,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           strokeWidth="3"
                           fill="none"
                           strokeDasharray="163"
-                          strokeDashoffset={163 - (progressStats.month.progress / 100) * 163}
+                          strokeDashoffset={163 - (progressStats.trainingWeek.progress / 100) * 163}
                           strokeLinecap="round"
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="text-sm font-medium text-white">
-                          {progressStats.month.completed}/{progressStats.month.total}
+                          {progressStats.trainingWeek.completed}/{progressStats.trainingWeek.total}
                         </span>
                       </div>
                     </div>
@@ -2399,7 +2394,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     onClick={() => handleDayClick(dayDate)}
                     onDragOver={(event) => handleDayDragOver(event, dayDate)}
                     onDragEnter={(event) => handleDayDragOver(event, dayDate)}
-                    onDragLeave={(event) => handleDayDragLeave(event, dayDate)}
+                    onDragLeave={(event) => handleDragLeave(event, dayDate)}
                     onDrop={(event) => handleDayDrop(event, dayDate)}
                     onMouseEnter={() => setHoveredPasteDate(dayKey)}
                     onMouseLeave={(event) => {
@@ -2431,229 +2426,320 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
           </>
         )}
 
-        {/* Training Tab - Monthly Calendar View */}
         {activeTab === 'training' && (
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <button onClick={() => changeTrainingMonth('prev')} className="p-2 rounded-lg hover:bg-[#1a1a1a]">
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm">
-                      {weekViewFilter === 2 ? (
-                        // For 2-week view, show the actual 2-week range
-                        (() => {
-                          const weekStart = startOfWeek(trainingMonthDate, { weekStartsOn: 1 });
-                          const weekEnd = addDays(weekStart, 13);
-                          return `${format(weekStart, 'd MMM', { locale: fr })} - ${format(weekEnd, 'd MMM', { locale: fr })}`;
-                        })()
-                      ) : (
-                        // For 4-week view, show the month range
-                        `${format(startOfMonth(trainingMonthDate), 'd MMM', { locale: fr })} - ${format(endOfMonth(trainingMonthDate), 'd MMM', { locale: fr })}`
-                      )}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setTrainingMonthDate(new Date());
-                      // For 2-week view, this will automatically center around today
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#d4845a] text-white rounded-lg hover:bg-[#bf7348] transition-colors"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    <span>Aujourd'hui</span>
-                  </button>
-                </div>
-                <button onClick={() => changeTrainingMonth('next')} className="p-2 rounded-lg hover:bg-[#1a1a1a]">
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                    trainingFilter === 'assigned' 
-                      ? 'bg-[#d4845a] text-white' 
-                      : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setTrainingFilter('assigned')}
-                >
-                  Assigné
-                </button>
-                <button 
-                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                    trainingFilter === 'draft' 
-                      ? 'bg-[#d4845a] text-white' 
-                      : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setTrainingFilter('draft')}
-                >
-                  Brouillon
-                </button>
-                <button 
-                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                    trainingFilter === 'all' 
-                      ? 'bg-[#d4845a] text-white' 
-                      : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setTrainingFilter('all')}
-                >
-                  Tous
-                </button>
-                <button 
-                  className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                    weekViewFilter === 2 
-                      ? 'bg-[#d4845a] text-white' 
-                      : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setWeekViewFilter(2)}
-                >
-                  2 semaines
-                </button>
-                <button 
-                  className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                    weekViewFilter === 4 
-                      ? 'bg-[#d4845a] text-white' 
-                      : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setWeekViewFilter(4)}
-                >
-                  4 semaines
-                </button>
-              </div>
+          <div className="relative">
+            {/* Floating Action Bar */}
+            <div className="absolute top-1/2 -translate-y-1/2 -left-16 bg-[rgba(255,255,255,0.05)] rounded-md p-2 flex flex-col gap-y-8">
+              <button
+                onClick={() => setIsCopyWeekOverlayOpen(!isCopyWeekOverlayOpen)}
+                className={`transition-colors ${isCopyWeekOverlayOpen ? 'text-[#d4845a]' : 'text-white/50 hover:text-white'}`}
+              >
+                <Copy className="h-6 w-6" />
+              </button>
+              <button
+                onClick={() => {
+                  if (copiedWeek) {
+                    setIsPasteWeekOverlayOpen(true);
+                  } else {
+                    alert('Aucune semaine copiée ! Cliquez sur l\'icône de copie pour copier une semaine.');
+                  }
+                }}
+                className={`transition-colors ${copiedWeek ? 'text-white hover:text-[#d4845a]' : 'text-white/30 cursor-not-allowed'}`}
+                disabled={!copiedWeek}
+              >
+                <Clipboard className="h-6 w-6" />
+              </button>
             </div>
 
-            {/* Copy Status Indicator */}
-            {copiedWeek && (
-              <div className="mb-4 p-3 bg-green-900/20 border border-green-500/30 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clipboard className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-green-400">
-                    {copiedWeek.sessions.length} séance(s) prête(s) à être collée(s)
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCopiedWeek(null)}
-                  className="text-green-400 hover:text-green-300 text-sm underline"
+            {/* Copy Week Overlay Removed - Integrated into Calendar Grid */}
+            
+            {/* Paste Week Overlay */}
+            {isPasteWeekOverlayOpen && (
+              <div 
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+                onClick={() => setIsPasteWeekOverlayOpen(false)}
+              >
+                <div 
+                  className="bg-[rgba(26,26,26,0.95)] border border-white/20 rounded-lg p-6 max-w-2xl w-full mx-4"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  Annuler
-                </button>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-white">Coller la semaine</h3>
+                    <button
+                      onClick={() => setIsPasteWeekOverlayOpen(false)}
+                      className="text-white/50 hover:text-white transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-white/60 mb-4">
+                    Sélectionnez la semaine où vous souhaitez coller les séances copiées.
+                  </p>
+                  
+                  {/* Calendar Preview Headers */}
+                  <div className="grid grid-cols-7 gap-2 mb-4">
+                    {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
+                      <div key={day} className="text-center text-xs text-white/50 font-light">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Weeks List */}
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {(() => {
+                      // Get unique weeks from trainingWeeks
+                      const uniqueWeeks = new Map();
+                      trainingWeeks.forEach(day => {
+                        if (!isValid(day)) return;
+                        const weekStart = startOfWeek(day, { weekStartsOn: 1 });
+                        const weekKey = format(weekStart, 'yyyy-MM-dd');
+                        if (!uniqueWeeks.has(weekKey)) {
+                          uniqueWeeks.set(weekKey, weekStart);
+                        }
+                      });
+                      
+                      return Array.from(uniqueWeeks.entries()).map(([weekKey, weekStart]) => {
+                        const isHovered = hoveredWeekForPaste === weekKey;
+                        
+                        // Count existing sessions in this target week
+                        const sessionsInWeek = [];
+                        for (let i = 0; i < 7; i++) {
+                          const weekDay = addDays(weekStart, i);
+                          const weekDayKey = format(weekDay, 'yyyy-MM-dd');
+                          const sessions = (workoutSessions[weekDayKey] || []).filter(session => {
+                            if (trainingFilter === 'all') return true;
+                            return session.status === trainingFilter;
+                          });
+                          sessionsInWeek.push(...sessions);
+                        }
+                        
+                        return (
+                          <div
+                            key={weekKey}
+                            className={`bg-[rgba(255,255,255,0.05)] rounded-lg p-3 cursor-pointer transition-all ${
+                              isHovered ? 'bg-[rgba(212,132,90,0.2)] border-2 border-[#d4845a]' : 'border border-white/10 hover:border-white/20'
+                            }`}
+                            onMouseEnter={() => setHoveredWeekForPaste(weekKey)}
+                            onMouseLeave={() => setHoveredWeekForPaste(null)}
+                            onClick={() => {
+                              handlePasteWeek(weekStart);
+                              setIsPasteWeekOverlayOpen(false);
+                              setHoveredWeekForPaste(null);
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-white">
+                                  {format(weekStart, 'd MMM', { locale: fr })} - {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: fr })}
+                                </p>
+                                <p className="text-xs text-white/60 mt-1">
+                                  {sessionsInWeek.length > 0 ? (
+                                    <span className="text-orange-400">
+                                      Attention : {sessionsInWeek.length} séance(s) existante(s) seront remplacées
+                                    </span>
+                                  ) : (
+                                    <span className="text-green-400">Semaine vide</span>
+                                  )}
+                                </p>
+                              </div>
+                              {isHovered && (
+                                <button className="bg-[#d4845a] text-white text-xs px-4 py-2 rounded-md hover:bg-[#c47850] transition-colors">
+                                  Coller ici
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
               </div>
             )}
 
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => changeTrainingWeek('prev')} className="p-1.5 rounded-full hover:bg-white/10">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="text-sm font-light text-white/75 w-40 text-center">
+                    {format(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), 'd MMM', { locale: fr })} - {format(addDays(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), (weekViewFilter * 7) - 1), 'd MMM yyyy', { locale: fr })}
+                  </span>
+                  <button onClick={() => changeTrainingWeek('next')} className="p-1.5 rounded-full hover:bg-white/10">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                <button 
+                  onClick={() => setTrainingWeekDate(new Date())}
+                  className="bg-[rgba(255,255,255,0.1)] text-white/75 text-xs px-3 py-1.5 rounded-full hover:bg-white/20"
+                >
+                  Aujourd'hui
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                   <button
+                    onClick={() => setTrainingFilter('assigned')}
+                    className={`text-xs px-3 py-1.5 rounded-md ${trainingFilter === 'assigned' ? 'bg-[#d4845a] text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
+                  >
+                    Assigné
+                  </button>
+                  <button
+                    onClick={() => setTrainingFilter('draft')}
+                    className={`text-xs px-3 py-1.5 rounded-md border-[0.5px] ${trainingFilter === 'draft' ? 'border-[#d4845a] bg-black/10 text-[#d4845a]' : 'border-white/20 bg-white/5 text-white/75 hover:bg-white/10'}`}
+                  >
+                    Brouillon
+                  </button>
+                </div>
+
+                <div className="h-5 w-[1px] bg-white/20 mx-2"></div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setWeekViewFilter(2)}
+                    className={`text-xs px-3 py-1.5 rounded-full ${weekViewFilter === 2 ? 'bg-white/20 text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
+                  >
+                    2 semaines
+                  </button>
+                  <button
+                    onClick={() => setWeekViewFilter(4)}
+                    className={`text-xs px-3 py-1.5 rounded-full ${weekViewFilter === 4 ? 'bg-white/20 text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
+                  >
+                    4 semaines
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-b border-white/10 mb-3"></div>
+            
             {/* Calendar Grid */}
-            <div className={weekViewFilter === 2 ? 'space-y-4' : 'space-y-2'}>
-              <div className="grid grid-cols-7 gap-2">
-                {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day) => (
-                  <div key={day} className="text-center text-xs text-gray-400 py-2">
+            <div>
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
+                  <div key={day} className="text-center text-xs text-white/50 font-light">
                     {day}
                   </div>
                 ))}
               </div>
 
-              {trainingWeeks.map((week) => {
-                const weekKey = format(week.weekStart, 'yyyy-MM-dd');
-                const isHovered = hoveredWeek === weekKey;
+              {/* Weeks with potential overlays */}
+              <div className="flex flex-col gap-2">
+                {(() => {
+                  // Group days by week for rendering
+                  const weeks = [];
+                  let currentWeek = [];
+                  
+                  trainingWeeks.forEach((day, index) => {
+                    if (!isValid(day)) return;
+                    currentWeek.push({ day, index });
+                    
+                    if (currentWeek.length === 7 || index === trainingWeeks.length - 1) {
+                      weeks.push([...currentWeek]);
+                      currentWeek = [];
+                    }
+                  });
+                  
+                  return weeks.map((weekDays, weekIndex) => {
+                    const weekStart = startOfWeek(weekDays[0].day, { weekStartsOn: 1 });
+                    const weekKey = format(weekStart, 'yyyy-MM-dd');
+                    
+                    return (
+                      <div key={weekKey} className="relative group">
+                        {/* The Grid for this week */}
+                        <div className="grid grid-cols-7 gap-2">
+                          {weekDays.map(({ day, index }) => {
+                            const dateKey = format(day, 'yyyy-MM-dd');
+                            const sessionsOnDay = (workoutSessions[dateKey] || []).filter(session => {
+                              if (trainingFilter === 'all') return true;
+                              return session.status === trainingFilter;
+                            });
+                            const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
-                return (
-                  <div
-                    key={weekKey}
-                    className={`relative group flex ${weekViewFilter === 2 ? 'min-h-[320px]' : 'min-h-[140px]'}`}
-                  >
-                    <div
-                      className={`week-action-container absolute -left-12 top-0 bottom-0 w-16 z-20 transition-all duration-200 ${
-                        isHovered ? 'bg-gray-800/20 border-l-2 border-[#d4845a]' : 'hover:bg-gray-800/10'
-                      }`}
-                      onMouseEnter={() => setHoveredWeek(weekKey)}
-                      onMouseLeave={() => setHoveredWeek(null)}
-                      title="Survolez pour voir les actions de semaine"
-                    >
-                      <div className="absolute inset-0 cursor-pointer" />
-
-                      {isHovered && (
-                        <div className="week-action-buttons flex flex-col gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyWeek(week.weekStart);
-                            }}
-                            className="p-2 bg-[#d4845a] hover:bg-[#bf7348] text-white rounded-lg transition-colors relative z-50 pointer-events-auto"
-                            title="Copier la semaine"
-                            style={{ pointerEvents: 'auto' }}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          {copiedWeek && (
-                            <button
-                              onClick={() => handlePasteWeek(week.weekStart)}
-                              className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                              title="Coller la semaine copiée"
-                            >
-                              <Clipboard className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteWeek(week.weekStart)}
-                            className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                            title="Supprimer la semaine"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                            return (
+                              <div
+                                key={dateKey}
+                                className="bg-[rgba(255,255,255,0.05)] rounded-lg p-2 flex flex-col h-[200px]"
+                                onDragOver={(e) => handleDragOver(e, day)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, day)}
+                              >
+                                <div className="flex items-center mb-2">
+                                  <span className={`text-xs ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 text-white' : 'text-white/50'}`}>
+                                    {format(day, 'd')}
+                                  </span>
+                                </div>
+                                <div className="flex-1 space-y-1 overflow-y-auto">
+                                  {sessionsOnDay.map(session => {
+                                    const exercises = session.exercises || [];
+                                    const sessionTitle = session.title || 'Séance';
+                                    return (
+                                      <div key={session.id || session.workoutSessionId} 
+                                           draggable={session.status === 'draft' || session.status === 'assigned'}
+                                           onDragStart={(e) => handleSessionDragStart(e, session, day)}
+                                           onDragEnd={handleSessionDragEnd}
+                                           onClick={() => handleSessionClick(session, day)}
+                                           className="bg-[rgba(255,255,255,0.03)] border border-white/20 rounded-md p-1.5 cursor-pointer"
+                                      >
+                                        <p className="text-xs text-[#d4845a] truncate">{sessionTitle}</p>
+                                        <p className="text-[10px] text-white/60">
+                                          {exercises.length} exercise{exercises.length > 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <button onClick={() => handleDayClick(day)} className="mt-auto flex items-center justify-center w-full h-6 bg-white/5 rounded-md hover:bg-white/10">
+                                  <Plus className="h-4 w-4 text-white/50" />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
-
-                    <div className={`grid grid-cols-7 flex-1 ${weekViewFilter === 2 ? 'gap-6' : 'gap-2'}`}>
-                      {week.weekDays.map((day) => {
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        const isCurrentMonth = isSameMonth(day, trainingMonthDate);
-                        const isDropTarget = dragOverDate === dateKey;
-
-                        return (
-                          <div
-                            key={dateKey}
-                              className={`rounded-lg cursor-pointer transition-colors flex flex-col border relative ${
-                              isDropTarget
-                                ? 'bg-[#2f2f2f] border-[#d4845a]'
-                                : format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-                                ? 'bg-[#262626] border-2 border-[#d4845a]'
-                                : isCurrentMonth
-                                ? 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
-                                : 'bg-[#0a0a0a] border-transparent hover:bg-[#262626]'
-                            } ${weekViewFilter === 2 ? 'p-4 h-[280px]' : 'p-3 h-[120px]'}`}
-                            onClick={() => handleDayClick(day)}
-                            onDragOver={(event) => handleDayDragOver(event, day)}
-                            onDragEnter={(event) => handleDayDragOver(event, day)}
-                            onDragLeave={(event) => handleDayDragLeave(event, day)}
-                            onDrop={(event) => handleDayDrop(event, day)}
-                            onMouseEnter={() => setHoveredPasteDate(dateKey)}
-                            onMouseLeave={(event) => {
-                              // Check if relatedTarget is a valid node before calling contains
-                              const relatedTarget = event.relatedTarget;
-                              if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
-                                setHoveredPasteDate((current) => (current === dateKey ? null : current));
-                              }
-                            }}
-                          >
-                            <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-gray-600'}`}>
-                              {format(day, 'd')}
-                            </div>
-
-                            {renderTrainingDayContent(day, dateKey)}
+                        
+                        {/* Copy Week Overlay Button - Visible on hover when Copy Mode is active */}
+                        {isCopyWeekOverlayOpen && (
+                          <div className="absolute inset-0 z-10 hidden group-hover:flex items-center justify-center bg-black/60 rounded-lg backdrop-blur-[1px]">
+                            <button 
+                              onClick={() => {
+                                handleCopyWeek(weekStart);
+                                setIsCopyWeekOverlayOpen(false); // Turn off copy mode after copying
+                              }}
+                              className="bg-[#d4845a] text-white px-6 py-2 rounded-md shadow-lg hover:bg-[#c47850] transition-colors font-medium"
+                            >
+                              Copier la semaine
+                            </button>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                        )}
+                        
+                        {/* Paste Week Overlay Button - Visible on hover when Paste Mode is active */}
+                        {isPasteWeekOverlayOpen && (
+                          <div className="absolute inset-0 z-10 hidden group-hover:flex items-center justify-center bg-black/60 rounded-lg backdrop-blur-[1px]">
+                            <button 
+                              onClick={() => {
+                                handlePasteWeek(weekStart);
+                                setIsPasteWeekOverlayOpen(false); // Turn off paste mode after pasting
+                              }}
+                              className="bg-[#d4845a] text-white px-6 py-2 rounded-md shadow-lg hover:bg-[#c47850] transition-colors font-medium"
+                            >
+                              Coller ici
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Analyse vidéo Tab */}
         {activeTab === 'analyse' && (
           <div className="p-4">
             {/* Filters */}
@@ -2719,7 +2805,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
           </div>
         )}
 
-        {/* Suivi Financier Tab */}
         {activeTab === 'suivi' && (
           <div className="p-4">
             <p className="text-gray-400">Suivi Financier - Coming soon</p>
