@@ -40,10 +40,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
-  const [isCopyWeekOverlayOpen, setIsCopyWeekOverlayOpen] = useState(false); // Track if copy week overlay is open
-  const [isPasteWeekOverlayOpen, setIsPasteWeekOverlayOpen] = useState(false); // Track if paste week overlay is open
-  const [hoveredWeekForCopy, setHoveredWeekForCopy] = useState(null); // Track which week is hovered for copying
-  const [hoveredWeekForPaste, setHoveredWeekForPaste] = useState(null); // Track which week is hovered for pasting
   
   // Video analysis state
   const [studentVideos, setStudentVideos] = useState([]);
@@ -2428,136 +2424,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
         {activeTab === 'training' && (
           <div className="relative">
-            {/* Floating Action Bar */}
-            <div className="absolute top-1/2 -translate-y-1/2 -left-16 bg-[rgba(255,255,255,0.05)] rounded-md p-2 flex flex-col gap-y-8">
-              <button
-                onClick={() => setIsCopyWeekOverlayOpen(!isCopyWeekOverlayOpen)}
-                className={`transition-colors ${isCopyWeekOverlayOpen ? 'text-[#d4845a]' : 'text-white/50 hover:text-white'}`}
-              >
-                <Copy className="h-6 w-6" />
-              </button>
-              <button
-                onClick={() => {
-                  if (copiedWeek) {
-                    setIsPasteWeekOverlayOpen(true);
-                  } else {
-                    alert('Aucune semaine copiée ! Cliquez sur l\'icône de copie pour copier une semaine.');
-                  }
-                }}
-                className={`transition-colors ${copiedWeek ? 'text-white hover:text-[#d4845a]' : 'text-white/30 cursor-not-allowed'}`}
-                disabled={!copiedWeek}
-              >
-                <Clipboard className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Copy Week Overlay Removed - Integrated into Calendar Grid */}
-            
-            {/* Paste Week Overlay */}
-            {isPasteWeekOverlayOpen && (
-              <div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
-                onClick={() => setIsPasteWeekOverlayOpen(false)}
-              >
-                <div 
-                  className="bg-[rgba(26,26,26,0.95)] border border-white/20 rounded-lg p-6 max-w-2xl w-full mx-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-white">Coller la semaine</h3>
-                    <button
-                      onClick={() => setIsPasteWeekOverlayOpen(false)}
-                      className="text-white/50 hover:text-white transition-colors"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                  <p className="text-sm text-white/60 mb-4">
-                    Sélectionnez la semaine où vous souhaitez coller les séances copiées.
-                  </p>
-                  
-                  {/* Calendar Preview Headers */}
-                  <div className="grid grid-cols-7 gap-2 mb-4">
-                    {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
-                      <div key={day} className="text-center text-xs text-white/50 font-light">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Weeks List */}
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {(() => {
-                      // Get unique weeks from trainingWeeks
-                      const uniqueWeeks = new Map();
-                      trainingWeeks.forEach(day => {
-                        if (!isValid(day)) return;
-                        const weekStart = startOfWeek(day, { weekStartsOn: 1 });
-                        const weekKey = format(weekStart, 'yyyy-MM-dd');
-                        if (!uniqueWeeks.has(weekKey)) {
-                          uniqueWeeks.set(weekKey, weekStart);
-                        }
-                      });
-                      
-                      return Array.from(uniqueWeeks.entries()).map(([weekKey, weekStart]) => {
-                        const isHovered = hoveredWeekForPaste === weekKey;
-                        
-                        // Count existing sessions in this target week
-                        const sessionsInWeek = [];
-                        for (let i = 0; i < 7; i++) {
-                          const weekDay = addDays(weekStart, i);
-                          const weekDayKey = format(weekDay, 'yyyy-MM-dd');
-                          const sessions = (workoutSessions[weekDayKey] || []).filter(session => {
-                            if (trainingFilter === 'all') return true;
-                            return session.status === trainingFilter;
-                          });
-                          sessionsInWeek.push(...sessions);
-                        }
-                        
-                        return (
-                          <div
-                            key={weekKey}
-                            className={`bg-[rgba(255,255,255,0.05)] rounded-lg p-3 cursor-pointer transition-all ${
-                              isHovered ? 'bg-[rgba(212,132,90,0.2)] border-2 border-[#d4845a]' : 'border border-white/10 hover:border-white/20'
-                            }`}
-                            onMouseEnter={() => setHoveredWeekForPaste(weekKey)}
-                            onMouseLeave={() => setHoveredWeekForPaste(null)}
-                            onClick={() => {
-                              handlePasteWeek(weekStart);
-                              setIsPasteWeekOverlayOpen(false);
-                              setHoveredWeekForPaste(null);
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-white">
-                                  {format(weekStart, 'd MMM', { locale: fr })} - {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: fr })}
-                                </p>
-                                <p className="text-xs text-white/60 mt-1">
-                                  {sessionsInWeek.length > 0 ? (
-                                    <span className="text-orange-400">
-                                      Attention : {sessionsInWeek.length} séance(s) existante(s) seront remplacées
-                                    </span>
-                                  ) : (
-                                    <span className="text-green-400">Semaine vide</span>
-                                  )}
-                                </p>
-                              </div>
-                              {isHovered && (
-                                <button className="bg-[#d4845a] text-white text-xs px-4 py-2 rounded-md hover:bg-[#c47850] transition-colors">
-                                  Coller ici
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-4">
@@ -2618,7 +2484,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             <div className="border-b border-white/10 mb-3"></div>
             
             {/* Calendar Grid */}
-            <div>
+            <div className="pr-14">
               {/* Day Headers */}
               <div className="grid grid-cols-7 gap-2 mb-2">
                 {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
@@ -2651,6 +2517,33 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     
                     return (
                       <div key={weekKey} className="relative group">
+                        {/* Week Actions - Side Buttons */}
+                        <div className="absolute -right-12 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 px-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyWeek(weekStart);
+                            }}
+                            className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
+                            title="Copier la semaine"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          
+                          {copiedWeek && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePasteWeek(weekStart);
+                              }}
+                              className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
+                              title="Coller la semaine"
+                            >
+                              <Clipboard className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+
                         {/* The Grid for this week */}
                         <div className="grid grid-cols-7 gap-2">
                           {weekDays.map(({ day, index }) => {
@@ -2702,35 +2595,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           })}
                         </div>
                         
-                        {/* Copy Week Overlay Button - Visible on hover when Copy Mode is active */}
-                        {isCopyWeekOverlayOpen && (
-                          <div className="absolute inset-0 z-10 hidden group-hover:flex items-center justify-center bg-black/60 rounded-lg backdrop-blur-[1px]">
-                            <button 
-                              onClick={() => {
-                                handleCopyWeek(weekStart);
-                                setIsCopyWeekOverlayOpen(false); // Turn off copy mode after copying
-                              }}
-                              className="bg-[#d4845a] text-white px-6 py-2 rounded-md shadow-lg hover:bg-[#c47850] transition-colors font-medium"
-                            >
-                              Copier la semaine
-                            </button>
-                          </div>
-                        )}
-                        
-                        {/* Paste Week Overlay Button - Visible on hover when Paste Mode is active */}
-                        {isPasteWeekOverlayOpen && (
-                          <div className="absolute inset-0 z-10 hidden group-hover:flex items-center justify-center bg-black/60 rounded-lg backdrop-blur-[1px]">
-                            <button 
-                              onClick={() => {
-                                handlePasteWeek(weekStart);
-                                setIsPasteWeekOverlayOpen(false); // Turn off paste mode after pasting
-                              }}
-                              className="bg-[#d4845a] text-white px-6 py-2 rounded-md shadow-lg hover:bg-[#c47850] transition-colors font-medium"
-                            >
-                              Coller ici
-                            </button>
-                          </div>
-                        )}
                       </div>
                     );
                   });
