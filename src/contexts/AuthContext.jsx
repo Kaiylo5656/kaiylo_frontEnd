@@ -222,18 +222,26 @@ export const AuthProvider = ({ children }) => {
         const storedRefreshToken =
           storedSession?.refresh_token || safeGetItem('supabaseRefreshToken');
 
-        if (storedRefreshToken) {
+        // Only try setSession if we have BOTH access_token AND refresh_token
+        // If we only have refresh_token, skip to refreshSession (step 3)
+        if (storedSession?.access_token && storedRefreshToken) {
           console.log('🔄 Rehydrating Supabase session from stored tokens');
           const { data, error } = await supabase.auth.setSession({
-            access_token: storedSession?.access_token,
+            access_token: storedSession.access_token,
             refresh_token: storedRefreshToken
           });
 
           if (error) {
             console.error('❌ setSession failed:', error.message);
+            // If setSession fails, clear activeSession to force refreshSession
+            activeSession = null;
           } else {
             activeSession = data?.session;
           }
+        } else if (storedRefreshToken) {
+          // We have refresh token but no access token - skip to refreshSession
+          console.log('🔄 No access token found, will use refreshSession');
+          activeSession = null; // Force to try refreshSession in step 3
         }
       }
 
@@ -284,12 +292,21 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ Failed to refresh token:', error);
       resolveRefreshQueue(error, null);
-      // Ne pas appeler logout() automatiquement ici car cela peut créer une boucle
-      // Le logout sera géré par checkAuthStatus si nécessaire
-      // Nettoyer seulement les tokens invalides
+      
+      // If refresh token is invalid, we MUST log out the user locally
+      // otherwise they are stuck in a loop of failed refreshes
+      if (error.message && (
+          error.message.includes('Refresh token invalid') || 
+          error.message.includes('Invalid Refresh Token') ||
+          error.message.includes('Refresh Token Not Found'))) {
+          console.log('🔒 Refresh token invalid, forcing logout...');
+          logout(true); // skipSignOut=true because session is likely gone
+      } else {
+          // Just clean up tokens for other errors
       safeRemoveItem('authToken');
       safeRemoveItem('supabaseRefreshToken');
       delete axios.defaults.headers.common['Authorization'];
+      }
       return null;
     } finally {
       isRefreshingRef.current = false;
@@ -768,6 +785,28 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         console.error('❌ Could not get or refresh token:', error);
         return null;
+      }
+    } else {
+      // Check if token is expired or about to expire (within 30 seconds)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expiration = payload.exp * 1000;
+        if (Date.now() > expiration - 30000) {
+          console.log('🔄 Token expired or about to expire, refreshing...');
+          try {
+            token = await refreshAuthToken();
+          } catch (error) {
+            console.error('❌ Failed to refresh expired token:', error);
+            return null;
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Invalid token format in getAuthToken, refreshing...');
+        try {
+          token = await refreshAuthToken();
+        } catch (error) {
+          return null;
+        }
       }
     }
     

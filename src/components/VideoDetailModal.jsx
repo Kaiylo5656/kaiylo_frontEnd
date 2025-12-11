@@ -201,7 +201,13 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
     setIsSubmitting(true);
     try {
-      const token = getAuthToken();
+      // Get auth token asynchronously (it may need to refresh)
+      const token = await getAuthToken();
+      
+      if (!token) {
+        alert('Erreur d\'authentification. Veuillez vous reconnecter.');
+        return;
+      }
       
       if (videoType === 'coach') {
         // For coach resources, update the description

@@ -205,7 +205,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
     try {
       setSavingFeedback(true);
-      const token = localStorage.getItem('authToken');
+      // Get auth token asynchronously (it may need to refresh)
+      const token = await getAuthToken();
+      
+      if (!token) {
+        alert('Erreur d\'authentification. Veuillez vous reconnecter.');
+        return;
+      }
       
       const response = await axios.patch(
         `${getApiBaseUrlWithApi()}/workout-sessions/videos/${selectedVideo.id}/feedback`,

@@ -440,11 +440,17 @@ const StudentVideoLibrary = () => {
                               <div className="flex items-start gap-4">
                                 {/* Video Thumbnail */}
                                 <div className="relative w-24 h-16 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                                  <video 
-                                    src={video.video_url}
-                                    className="w-full h-full object-cover"
-                                    preload="metadata"
-                                  />
+                                  {video.video_url ? (
+                                    <video 
+                                      src={video.video_url}
+                                      className="w-full h-full object-cover"
+                                      preload="metadata"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <Video className="w-8 h-8 text-gray-600" />
+                                    </div>
+                                  )}
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                                     <PlayCircle size={20} className="text-white" />
                                   </div>
@@ -599,11 +605,17 @@ const StudentVideoLibrary = () => {
                             <div className="flex items-center gap-3">
                               {/* Video Thumbnail */}
                               <div className="relative w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                                <video 
-                                  src={resource.fileUrl}
-                                  className="w-full h-full object-cover"
-                                  preload="metadata"
-                                />
+                                {resource.fileUrl ? (
+                                  <video 
+                                    src={resource.fileUrl}
+                                    className="w-full h-full object-cover"
+                                    preload="metadata"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Video className="w-6 h-6 text-gray-600" />
+                                  </div>
+                                )}
                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                                   <PlayCircle size={16} className="text-white" />
                                 </div>

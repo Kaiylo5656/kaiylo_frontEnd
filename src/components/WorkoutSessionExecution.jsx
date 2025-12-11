@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, CheckCircle, XCircle, Video, Play, VideoOff } from 'lucide-react';
 import { Button } from './ui/button';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
@@ -7,9 +7,11 @@ import VideoProcessingModal from './VideoProcessingModal'; // Import the new mod
 import ExerciseValidationModal from './ExerciseValidationModal'; // Import the exercise validation modal
 import LeaveSessionWarningModal from './LeaveSessionWarningModal'; // Import the leave warning modal
 import MissingVideosWarningModal from './MissingVideosWarningModal'; // Import the missing videos warning modal
-import { buildApiUrl } from '../config/api';
+import { buildApiUrl, getApiBaseUrlWithApi } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkoutSession } from './MainLayout';
+import { safeGetItem, safeSetItem, safeRemoveItem, isStorageAvailable } from '../utils/storage';
+import axios from 'axios';
 
 const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
@@ -69,10 +71,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const saveProgressToStorage = React.useCallback((progressData) => {
     if (!storageKey) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({
+      // Use safe storage function to handle contexts where localStorage is not available
+      const success = safeSetItem(storageKey, JSON.stringify({
         ...progressData,
         savedAt: new Date().toISOString()
       }));
+      if (!success) {
+        console.warn('⚠️ Could not save progress to localStorage (storage not available)');
+      }
     } catch (error) {
       console.error('Error saving progress to localStorage:', error);
     }
@@ -82,7 +88,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const loadProgressFromStorage = React.useCallback(() => {
     if (!storageKey) return null;
     try {
-      const saved = localStorage.getItem(storageKey);
+      // Use safe storage function to handle contexts where localStorage is not available
+      const saved = safeGetItem(storageKey);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -96,7 +103,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const clearProgressFromStorage = React.useCallback(() => {
     if (!storageKey) return;
     try {
-      localStorage.removeItem(storageKey);
+      // Use safe storage function to handle contexts where localStorage is not available
+      safeRemoveItem(storageKey);
     } catch (error) {
       console.error('Error clearing progress from localStorage:', error);
     }
@@ -165,7 +173,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     // Load saved progress synchronously to avoid race conditions
     try {
-      const saved = localStorage.getItem(storageKey);
+      const saved = safeGetItem(storageKey);
       if (saved) {
         const savedProgress = JSON.parse(saved);
         console.log('📦 Restoring saved progress for session:', sessionId);
@@ -304,7 +312,209 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         }
       }
     }, 1000);
-  }, [sessionId, storageKey]);
+    
+    // Fetch videos from API for this session (after localStorage restoration)
+    // This will merge uploaded videos from Supabase with local videos
+    // Wait a bit to ensure exercises are loaded
+    if (sessionId && exercises && exercises.length > 0) {
+      const assignmentId = session?.assignment_id || session?.id;
+      if (assignmentId) {
+        // Small delay to ensure exercises are fully loaded
+        setTimeout(() => {
+          fetchSessionVideosFromAPI(assignmentId);
+        }, 300);
+      }
+    }
+  }, [sessionId, storageKey, session, exercises]);
+  
+  // Function to fetch videos from API for this session
+  const fetchSessionVideosFromAPI = React.useCallback(async (assignmentId) => {
+    if (!assignmentId) return;
+    
+    // Wait for exercises to be available
+    if (!exercises || exercises.length === 0) {
+      console.log('⏳ Waiting for exercises to load before fetching videos...');
+      return;
+    }
+    
+    try {
+      const token = await getAuthToken();
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/student-videos`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { assignmentId }
+        }
+      );
+      
+      if (response.data.success && response.data.data && response.data.data.length > 0) {
+        console.log('📹 Fetched videos from API for session:', assignmentId, response.data.data.length, 'videos');
+        console.log('📊 Available exercises:', exercises.map((ex, idx) => ({ index: idx, name: ex.name, id: ex.exerciseId })));
+        
+            // Map API videos to local video format
+            const apiVideos = response.data.data
+              .filter(video => {
+                // Only include videos with valid URL and that are not still processing
+                const hasValidUrl = video.video_url && video.video_url.trim() !== '';
+                const isReady = video.status === 'READY' || video.status === 'completed' || video.status === 'reviewed';
+                const isNotProcessing = !['PROCESSING', 'UPLOADING', 'PENDING'].includes(video.status);
+                
+                if (!hasValidUrl) {
+                  console.log(`⏭️ Skipping video ${video.id}: No valid URL`);
+                  return false;
+                }
+                
+                if (!isReady && !isNotProcessing) {
+                  console.log(`⏭️ Skipping video ${video.id}: Still processing (status: ${video.status})`);
+                  return false;
+                }
+                
+                return true;
+              })
+              .map(video => {
+            // Extract exercise index and set index from metadata or video data
+            const metadata = video.metadata || {};
+            const exerciseName = video.exercise_name || metadata.exercise_name || '';
+            const setNumber = video.set_number || metadata.set_number || 1;
+            const setIndex = video.set_index !== undefined ? video.set_index : (metadata.set_index !== undefined ? metadata.set_index : (setNumber - 1));
+            
+            // PRIORITY 1: Use exercise_index from metadata if available (most reliable)
+            let exerciseIndex = -1;
+            if (metadata.exercise_index !== undefined && metadata.exercise_index !== null) {
+              exerciseIndex = parseInt(metadata.exercise_index, 10);
+              if (exerciseIndex >= 0 && exerciseIndex < exercises.length) {
+                console.log(`✅ Using exercise_index from metadata: ${exerciseIndex} for video: ${exerciseName}`);
+              } else {
+                console.warn(`⚠️ exercise_index from metadata (${exerciseIndex}) is out of range. Exercises count: ${exercises.length}`);
+                exerciseIndex = -1;
+              }
+            }
+            
+            // PRIORITY 2: Try to find by exercise_id if available
+            if (exerciseIndex === -1 && video.exercise_id) {
+              exerciseIndex = exercises.findIndex(ex => ex.exerciseId === video.exercise_id);
+              if (exerciseIndex !== -1) {
+                console.log(`✅ Found exercise by exercise_id: ${video.exercise_id} at index ${exerciseIndex}`);
+              }
+            }
+            
+            // PRIORITY 3: Find matching exercise by name (flexible matching)
+            if (exerciseIndex === -1 && exerciseName) {
+              // Normalize names for comparison (trim, lowercase, remove extra spaces)
+              const normalizeName = (name) => {
+                if (!name) return '';
+                return name.toLowerCase().trim().replace(/\s+/g, ' ');
+              };
+              
+              const normalizedExerciseName = normalizeName(exerciseName);
+              
+              // Try exact match first
+              exerciseIndex = exercises.findIndex(ex => 
+                normalizeName(ex.name) === normalizedExerciseName
+              );
+              
+              // Try partial match if exact match fails
+              if (exerciseIndex === -1) {
+                exerciseIndex = exercises.findIndex(ex => {
+                  const normalizedExName = normalizeName(ex.name);
+                  return normalizedExName.includes(normalizedExerciseName) || 
+                         normalizedExerciseName.includes(normalizedExName);
+                });
+              }
+              
+              if (exerciseIndex !== -1) {
+                console.log(`✅ Found exercise by name matching: "${exerciseName}" -> "${exercises[exerciseIndex]?.name}" at index ${exerciseIndex}`);
+              }
+            }
+            
+            if (exerciseIndex === -1) {
+              console.warn('⚠️ Could not find exercise for video:', {
+                exerciseName,
+                exercise_index: metadata.exercise_index,
+                exercise_id: video.exercise_id,
+                availableExercises: exercises.map((ex, idx) => ({ index: idx, name: ex.name, id: ex.exerciseId }))
+              });
+              return null;
+            }
+            
+            return {
+              exerciseIndex,
+              setIndex,
+              rpeRating: video.rpe_rating || metadata.rpe_rating || metadata.rpe || null,
+              comment: video.comment || metadata.comment || null,
+              file: 'uploaded', // Mark as uploaded (not a File object, but uploaded to Supabase)
+              videoId: video.id,
+              videoUrl: video.video_url,
+              status: video.status,
+              exerciseInfo: {
+                exerciseName: exerciseName,
+                exerciseId: video.exercise_id || exercises[exerciseIndex]?.exerciseId,
+                exerciseIndex: exerciseIndex,
+                sessionId: session?.id,
+                coachId: session?.coach_id,
+                assignmentId: assignmentId
+              },
+              setInfo: {
+                setIndex: setIndex,
+                setNumber: setNumber,
+                weight: video.weight || metadata.weight || exercises[exerciseIndex]?.sets?.[setIndex]?.weight || 0,
+                reps: video.reps || metadata.reps || exercises[exerciseIndex]?.sets?.[setIndex]?.reps || 0
+              },
+              timestamp: video.created_at || new Date().toISOString(),
+              isFromAPI: true // Flag to identify API videos
+            };
+          })
+          .filter(video => video !== null); // Remove null entries
+        
+        if (apiVideos.length > 0) {
+          console.log('✅ Mapped', apiVideos.length, 'videos from API');
+          
+          // Merge with local videos, prioritizing API videos (they're already uploaded)
+          setLocalVideos(prev => {
+            const merged = [...prev];
+            
+            apiVideos.forEach(apiVideo => {
+              const existingIndex = merged.findIndex(v => 
+                v.exerciseIndex === apiVideo.exerciseIndex && 
+                v.setIndex === apiVideo.setIndex
+              );
+              
+              if (existingIndex !== -1) {
+                // Replace local video with API video (API video is the source of truth)
+                console.log(`🔄 Replacing local video with API video for exercise ${apiVideo.exerciseIndex}, set ${apiVideo.setIndex}`);
+                merged[existingIndex] = apiVideo;
+              } else {
+                // Add new API video
+                merged.push(apiVideo);
+              }
+            });
+            
+            return merged;
+          });
+          
+          // Update completedSets to mark these sets as having videos
+          setCompletedSets(prev => {
+            const updated = { ...prev };
+            apiVideos.forEach(video => {
+              const key = `${video.exerciseIndex}-${video.setIndex}`;
+              updated[key] = {
+                ...(updated[key] || {}),
+                hasVideo: true,
+                videoStatus: video.status === 'READY' || video.status === 'completed' ? 'completed' : 'uploaded',
+                rpeRating: video.rpeRating || updated[key]?.rpeRating
+              };
+            });
+            return updated;
+          });
+        }
+      } else {
+        console.log('📭 No videos found in API for session:', assignmentId);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching videos from API:', error);
+      // Don't throw - this is not critical, just a nice-to-have feature
+    }
+  }, [exercises, session, getAuthToken]);
   
   // Save progress whenever it changes (but not during restoration)
   useEffect(() => {
@@ -342,8 +552,19 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       exerciseComments,
       // Note: On ne sauvegarde pas localVideos car les fichiers ne peuvent pas être stockés
       // Mais on peut sauvegarder les métadonnées des vidéos (sans les fichiers)
+      // IMPORTANT: Ne pas sauvegarder les vidéos déjà uploadées sur Supabase (isFromAPI ou file === 'uploaded')
+      // Ces vidéos seront récupérées depuis Supabase lors de la restauration
       // Le RPE est maintenant récupéré depuis completedSets
-      videoMetadata: localVideos.map(v => {
+      videoMetadata: localVideos
+        .filter(v => {
+          // Exclure les vidéos déjà uploadées sur Supabase
+          const isFromSupabase = v.file === 'uploaded' || v.isFromAPI === true;
+          if (isFromSupabase) {
+            console.log(`📦 Skipping cache for uploaded video: exercise ${v.exerciseIndex}, set ${v.setIndex} (will be fetched from Supabase)`);
+          }
+          return !isFromSupabase;
+        })
+        .map(v => {
         const exerciseIndex = v.exerciseIndex;
         const setIndex = v.setIndex;
         const key = `${exerciseIndex}-${setIndex}`;
@@ -736,36 +957,58 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   // Check if a video has been uploaded for this set
   const hasVideoForSet = (exerciseIndex, setIndex) => {
+    // PRIORITÉ 1: Vérifier dans localVideos avec correspondance STRICTE (exerciseIndex ET setIndex)
+    // C'est la source de vérité la plus fiable pour éviter que plusieurs sets affichent la même vidéo
+    const hasLocalVideo = localVideos.some(
+      (video) => {
+        // Format principal: exerciseIndex et setIndex directs
+        if (video.exerciseIndex === exerciseIndex && video.setIndex === setIndex) {
+          return video.file !== null && video.file !== undefined && video.file !== 'no-video';
+        }
+        
+        // Format alternatif: via exerciseInfo et setInfo
+        if (video.exerciseInfo && video.setInfo) {
+          const videoExerciseIndex = video.exerciseInfo.exerciseIndex;
+          const videoSetIndex = video.setInfo.setIndex;
+          if (videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex) {
+            return video.file !== null && video.file !== undefined && video.file !== 'no-video';
+          }
+        }
+        
+        // Format alternatif: via exerciseIndex direct et setInfo
+        if (video.exerciseIndex === exerciseIndex && video.setInfo) {
+          const videoSetIndex = video.setInfo.setIndex;
+          if (videoSetIndex === setIndex) {
+            return video.file !== null && video.file !== undefined && video.file !== 'no-video';
+          }
+        }
+        
+        return false;
+      }
+    );
+    
+    if (hasLocalVideo) {
+      return true;
+    }
+    
+    // PRIORITÉ 2: Vérifier dans completedSets seulement si aucune vidéo trouvée dans localVideos
+    // ET vérifier que le setIndex correspond exactement
     const key = `${exerciseIndex}-${setIndex}`;
     const setData = completedSets[key];
     
-    // Vérifier d'abord dans completedSets, mais seulement si hasVideo est true
-    // et qu'une vidéo existe réellement dans localVideos
-    if (setData && typeof setData === 'object' && setData.hasVideo) {
-      // Vérifier qu'une vidéo existe réellement avec un fichier (pas null, pas 'no-video')
-      const hasRealVideo = localVideos.some(
-        (video) =>
-          video.exerciseIndex === exerciseIndex &&
-          video.setIndex === setIndex &&
-          video.file !== null &&
-          video.file !== 'no-video'
-      );
-      if (hasRealVideo) {
-      return true;
-    }
-      // Si hasVideo est true mais qu'il n'y a pas de fichier réel, retourner false
-      return false;
+    if (setData && typeof setData === 'object' && setData.hasVideo === true) {
+      // Double vérification: s'assurer qu'une vidéo existe vraiment dans localVideos pour ce set spécifique
+      const hasMatchingVideo = localVideos.some((video) => {
+        const videoExerciseIndex = video.exerciseIndex ?? video.exerciseInfo?.exerciseIndex;
+        const videoSetIndex = video.setIndex ?? video.setInfo?.setIndex;
+        return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
+      });
+      
+      // Ne retourner true que si une vidéo correspond vraiment à ce set
+      return hasMatchingVideo;
     }
     
-    // Strict: only match by local video indices (NO fallback by id or name)
-    // Vérifier qu'une vidéo existe avec un fichier réel (pas null, pas 'no-video')
-    return localVideos.some(
-      (video) =>
-        video.exerciseIndex === exerciseIndex &&
-        video.setIndex === setIndex &&
-        video.file !== null &&
-        video.file !== 'no-video'
-    );
+    return false;
   };
 
 
@@ -849,21 +1092,56 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const handleSessionCompletion = async (completionData) => {
     setIsCompletionModalOpen(false); // Close completion modal
 
-    // If there are videos, handle the upload and processing flow
-    if (localVideos.length > 0) {
+    // Filter videos that haven't been uploaded yet (via TUS)
+    // Videos uploaded via TUS have status 'READY' or 'UPLOADED_RAW' and a videoId
+    // OR they have file === 'uploaded' or isFromAPI === true (retrieved from Supabase)
+    const videosToUpload = localVideos.filter(video => {
+      // Skip videos that are already uploaded via TUS (have status and videoId)
+      const isAlreadyUploadedViaTUS = (
+        (video.status === 'READY' || video.status === 'UPLOADED_RAW') && 
+        video.videoId
+      );
+      // Skip videos that were retrieved from Supabase API (already uploaded)
+      const isFromSupabase = video.file === 'uploaded' || video.isFromAPI === true;
+      // Skip 'no-video' choices
+      const isNoVideo = video.file === 'no-video';
+      // Skip videos that have a videoId (already uploaded, even if status is not set)
+      const hasVideoId = !!video.videoId;
+      
+      const shouldSkip = isAlreadyUploadedViaTUS || isFromSupabase || isNoVideo || hasVideoId;
+      
+      if (shouldSkip) {
+        console.log(`⏭️ Skipping video upload for exercise ${video.exerciseIndex}, set ${video.setIndex}:`, {
+          isAlreadyUploadedViaTUS,
+          isFromSupabase,
+          isNoVideo,
+          hasVideoId,
+          status: video.status,
+          videoId: video.videoId,
+          file: typeof video.file === 'string' ? video.file : (video.file ? 'File object' : 'null')
+        });
+      }
+      
+      return !shouldSkip;
+    });
+    
+    console.log(`📊 Video upload check: ${localVideos.length} total videos, ${videosToUpload.length} to upload, ${localVideos.length - videosToUpload.length} already uploaded`);
+
+    // If there are videos that need to be uploaded (old flow for compatibility)
+    if (videosToUpload.length > 0) {
       setIsVideoProcessingModalOpen(true); // Open processing modal
       setIsUploadingVideos(true);
       
       try {
         let authToken = await getAuthToken();
         
-        // Step 1: Upload all videos
-        for (let i = 0; i < localVideos.length; i++) {
-          const videoData = localVideos[i];
+        // Step 1: Upload only videos that haven't been uploaded yet
+        for (let i = 0; i < videosToUpload.length; i++) {
+          const videoData = videosToUpload[i];
           setUploadProgress({
             current: i + 1,
-            total: localVideos.length,
-            exerciseName: videoData.exerciseInfo.exerciseName
+            total: videosToUpload.length,
+            exerciseName: videoData.exerciseInfo?.exerciseName || 'Exercice'
           });
 
           // Existing upload logic... (formData creation, fetch, etc.)
@@ -1028,9 +1306,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           }
         }
         
+        // Step 2: Trigger backend compression for videos uploaded via old flow
+        // Videos uploaded via TUS are already being processed by the worker
         setIsCompressing(true);
 
-        // Step 2: Trigger backend compression
         const finalizeResponse = await fetch(buildApiUrl(`/api/workout-sessions/${session.id}/finalize-videos`), {
           method: 'POST',
           headers: {
@@ -1049,7 +1328,145 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         // Close modal after a short delay
         setTimeout(() => {
           setIsVideoProcessingModalOpen(false);
+          // Clear local videos after successful upload and processing
+          // They're now safely stored in Supabase Storage and database
+          setLocalVideos([]);
+          console.log('🧹 Cleaned localVideos after successful video processing');
         }, 2000);
+
+      } catch (error) {
+        console.error('Error during video upload (old flow):', error);
+        const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
+        
+        if (errorMessage.toLowerCase().includes('too large') || errorMessage.toLowerCase().includes('trop volumineux')) {
+          alert(`❌ ${errorMessage}\n\nVeuillez sélectionner une vidéo plus petite (maximum 300 MB).`);
+        } else {
+          alert(`❌ Erreur lors du téléversement des vidéos:\n\n${errorMessage}\n\nVeuillez réessayer.`);
+        }
+        
+        setIsVideoProcessingModalOpen(false);
+        setIsUploadingVideos(false);
+        setIsCompressing(false);
+        setUploadProgress(null);
+        return;
+      } finally {
+        setIsUploadingVideos(false);
+        setIsCompressing(false);
+        setUploadProgress(null);
+      }
+    } else if (localVideos.length > 0) {
+      // All videos were already uploaded via TUS, just confirm session completion
+      console.log('✅ All videos already uploaded via TUS, proceeding to session confirmation');
+      
+      try {
+        let authToken = await getAuthToken();
+        
+        // Still need to upload RPE for sets without video requirement but with RPE
+        if (exercises && exercises.length > 0) {
+          for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
+            const exercise = exercises[exerciseIndex];
+            if (!exercise || !exercise.sets) continue;
+            
+            for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+              const set = exercise.sets[setIndex];
+              const key = `${exerciseIndex}-${setIndex}`;
+              const setData = completedSets[key];
+              
+              // Vérifier si cette série a un RPE
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
+                ? setData.rpeRating 
+                : null;
+              
+              if (!rpeRating) continue; // Pas de RPE, on passe
+              
+              // Vérifier si cette série a déjà été traitée dans localVideos
+              const alreadyProcessed = localVideos.some(video => {
+                const videoExerciseIndex = video.exerciseInfo?.exerciseIndex ?? video.exerciseIndex;
+                const videoSetIndex = video.setInfo?.setIndex ?? video.setIndex;
+                return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
+              });
+              
+              if (alreadyProcessed) continue; // Déjà traité, on passe
+              
+              // Cette série a un RPE mais pas de vidéo, créer un enregistrement
+              try {
+                const setNumber = setIndex + 1;
+                const exerciseInfo = {
+                  exerciseId: exercise.exerciseId || exercise.id || exercise.exercise_id,
+                  exerciseName: exercise.name,
+                  exerciseIndex: exerciseIndex,
+                  sessionId: session?.id,
+                  assignmentId: session?.assignment_id || session?.id
+                };
+                const setInfo = {
+                  setNumber: setNumber,
+                  setIndex: setIndex,
+                  weight: set.weight || 0,
+                  reps: set.reps || 0
+                };
+                
+                const formData = new FormData();
+                formData.append('noVideo', 'true');
+                formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
+                formData.append('setInfo', JSON.stringify(setInfo));
+                formData.append('comment', '');
+                formData.append('rpeRating', rpeRating);
+                formData.append('set_index', String(setIndex));
+                formData.append('set_number', String(setNumber));
+                if (exerciseInfo.exerciseId) formData.append('exercise_id', String(exerciseInfo.exerciseId));
+                if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
+                if (session?.id) formData.append('session_id', String(session.id));
+                if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
+                
+                let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${authToken}` },
+                  body: formData
+                });
+                
+                if (response.status === 401) {
+                  authToken = await refreshAuthToken();
+                  response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: formData
+                  });
+                }
+                
+                if (!response.ok) {
+                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                } else {
+                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                }
+              } catch (error) {
+                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+              }
+            }
+          }
+        }
+        
+        // Trigger finalize to ensure TUS uploads are processed and visible to coaches
+        try {
+          const finalizeResponse = await fetch(buildApiUrl(`/api/workout-sessions/${session.id}/finalize-videos`), {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+  
+          if (!finalizeResponse.ok) {
+            console.error('Failed to trigger video finalization for TUS uploads.');
+          } else {
+            console.log('✅ Finalization triggered for TUS uploads.');
+          }
+        } catch (error) {
+          console.error('Error triggering finalization for TUS uploads:', error);
+        }
+        
+        // Clear local videos since they're already uploaded
+        setLocalVideos([]);
+        console.log('🧹 Cleaned localVideos - all videos already uploaded via TUS');
 
       } catch (error) {
         console.error('Error during video processing:', error);
@@ -1162,7 +1579,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     setSessionStatus('completed');
     
     // Clear saved progress from localStorage when session is completed
+    // This includes video metadata that was stored temporarily
     clearProgressFromStorage();
+    
+    // Clear local videos state since they're now in Supabase Storage and database
+    // No need to keep them in memory after session completion
+    setLocalVideos([]);
+    
+    console.log('🧹 Cleaned localStorage and localVideos after session completion');
     
     onCompleteSession({
       ...session,
@@ -1173,29 +1597,53 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   };
 
   const handleVideoUpload = (exerciseIndex) => {
+    console.log('🎬 handleVideoUpload called:', { exerciseIndex, exercisesLength: exercises?.length });
     const selectedSet = getSelectedSetIndex(exerciseIndex);
+    console.log('🎬 Selected set:', { selectedSet, exerciseIndex });
     // Check if the selected set has video enabled
     const exercise = exercises[exerciseIndex];
+    console.log('🎬 Exercise:', { exercise: exercise?.name, sets: exercise?.sets, selectedSet });
     if (exercise && exercise.sets && exercise.sets[selectedSet] && exercise.sets[selectedSet].video === true) {
       // Update the video selection to match the current selection
-      setSelectedSetForVideo(prev => ({
-        ...prev,
-        [exerciseIndex]: selectedSet
-      }));
+      setSelectedSetForVideo(prev => {
+        const updated = {
+          ...prev,
+          [exerciseIndex]: selectedSet
+        };
+        console.log('🎬 Setting selectedSetForVideo:', updated);
+        return updated;
+      });
+      console.log('🎬 Opening video modal for exercise', exerciseIndex, 'set', selectedSet);
       setIsVideoModalOpen(true);
+    } else {
+      console.warn('⚠️ Cannot open video modal:', {
+        hasExercise: !!exercise,
+        hasSets: !!(exercise?.sets),
+        hasSelectedSet: !!(exercise?.sets?.[selectedSet]),
+        videoEnabled: exercise?.sets?.[selectedSet]?.video
+      });
     }
   };
 
-  const handleVideoUploadSuccess = (videoData) => {
-    console.log('Video stored locally:', videoData);
+  const handleVideoUploadSuccess = useCallback((videoData) => {
+    console.log('✅ Video upload success received:', {
+      exerciseIndex: videoData.exerciseInfo?.exerciseIndex,
+      setIndex: videoData.setInfo?.setIndex,
+      status: videoData.status,
+      file: videoData.file ? 'Present' : 'None'
+    });
     
     // Get exercise and set indices from videoData (more reliable than currentExerciseIndex)
     const exerciseIndex = videoData.exerciseInfo?.exerciseIndex !== undefined 
       ? videoData.exerciseInfo.exerciseIndex 
       : currentExerciseIndex;
+      
+    // Prioritize setIndex from setInfo, fallback to selectedSetForVideo
     const setIndex = videoData.setInfo?.setIndex !== undefined
       ? videoData.setInfo.setIndex
-      : (videoData.setInfo?.setNumber ? videoData.setInfo.setNumber - 1 : selectedSetForVideo[exerciseIndex]);
+      : (videoData.setInfo?.setNumber ? videoData.setInfo.setNumber - 1 : (selectedSetForVideo[exerciseIndex] ?? 0));
+
+    console.log('🔄 Processing upload for target:', { exerciseIndex, setIndex });
     
     // Check if a video already exists for this set
     setLocalVideos(prev => {
@@ -1214,6 +1662,19 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       ];
     });
     
+    // If video was uploaded successfully (has videoId and status), re-fetch from API to get signed URL
+    // This ensures the video can be displayed in the modal when reopened
+    if (videoData.videoId && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
+      const assignmentId = session?.assignment_id || session?.id;
+      if (assignmentId) {
+        // Re-fetch immediately to get the signed URL for the newly uploaded video
+        // Use a small delay to ensure backend has processed the upload confirmation
+        setTimeout(() => {
+          fetchSessionVideosFromAPI(assignmentId);
+        }, 500);
+      }
+    }
+    
     // Add video status for badge rendering
     setCompletedSets(prev => {
       const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
@@ -1230,7 +1691,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     });
     
     setIsVideoModalOpen(false);
-  };
+  }, [currentExerciseIndex, selectedSetForVideo]);
 
   // Handle back button - show warning modal before leaving
   const handleBack = () => {
@@ -1525,32 +1986,88 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       </div>
 
       {/* Video Upload Modal */}
-      <WorkoutVideoUploadModal
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-        onUploadSuccess={handleVideoUploadSuccess}
-        exerciseInfo={{
-          exerciseName: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.name || 'Exercice',
-          exerciseId: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.exerciseId,
-          exerciseIndex: videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex, // Use the exercise index from modal if available
-          sessionId: session?.id,
-          coachId: session?.coach_id,
-          assignmentId: session?.assignment_id || session?.id
-        }}
-        setInfo={{
-          setIndex: selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex] || 0,
-          setNumber: (selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex] || 0) + 1,
-          weight: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.sets?.[selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]]?.weight || 0,
-          reps: exercises[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]?.sets?.[selectedSetForVideo[videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex]]?.reps || 0
-        }}
-        existingVideo={(() => {
-          const exerciseIdx = videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex;
-          const setIdx = selectedSetForVideo[exerciseIdx] || 0;
-          return localVideos.find(
-            v => v.exerciseIndex === exerciseIdx && v.setIndex === setIdx
-          );
-        })()}
-      />
+      {(() => {
+        // Calculer les indices actifs pour le modal avec sécurité
+        const activeExerciseIndex = videoUploadExerciseIndex !== null ? videoUploadExerciseIndex : currentExerciseIndex;
+        // Utiliser l'opérateur nullish coalescing (??) pour accepter 0 comme valeur valide
+        const activeSetIndex = selectedSetForVideo[activeExerciseIndex] ?? 0;
+        const activeExercise = exercises[activeExerciseIndex];
+        const activeSet = activeExercise?.sets?.[activeSetIndex];
+        
+        // Trouver la vidéo existante pour ce set spécifique
+        const existingVideoForSet = localVideos.find(
+          v => v.exerciseIndex === activeExerciseIndex && v.setIndex === activeSetIndex
+        );
+        
+        console.log('🔍 existingVideoForSet lookup:', {
+          activeExerciseIndex,
+          activeSetIndex,
+          localVideosCount: localVideos.length,
+          found: !!existingVideoForSet,
+          hasVideoUrl: !!existingVideoForSet?.videoUrl,
+          hasVideoId: !!existingVideoForSet?.videoId,
+          file: existingVideoForSet?.file,
+          isFromAPI: existingVideoForSet?.isFromAPI
+        });
+
+        // If video exists but has no videoUrl (uploaded but not yet fetched from API), trigger a re-fetch
+        if (isVideoModalOpen && existingVideoForSet && existingVideoForSet.videoId && !existingVideoForSet.videoUrl) {
+          const assignmentId = session?.assignment_id || session?.id;
+          if (assignmentId) {
+            console.log('🔄 Video has no URL yet, fetching from API...', existingVideoForSet.videoId);
+            fetchSessionVideosFromAPI(assignmentId);
+          }
+        }
+
+        // Log pour déboguer l'ouverture du modal
+        if (isVideoModalOpen) {
+          console.log('🎥 Opening Video Modal for:', { 
+            exercise: activeExercise?.name,
+            exerciseIndex: activeExerciseIndex, 
+            setIndex: activeSetIndex,
+            existingVideo: existingVideoForSet ? 'Found' : 'None',
+            hasVideoUrl: existingVideoForSet?.videoUrl ? 'Yes' : 'No',
+            videoId: existingVideoForSet?.videoId
+          });
+        }
+
+        // Log what we're passing to the modal
+        if (isVideoModalOpen && existingVideoForSet) {
+          console.log('📤 Passing existingVideo to modal:', {
+            videoId: existingVideoForSet.videoId,
+            videoUrl: existingVideoForSet.videoUrl,
+            file: existingVideoForSet.file,
+            isFromAPI: existingVideoForSet.isFromAPI,
+            status: existingVideoForSet.status
+          });
+        }
+        
+        return (
+          <WorkoutVideoUploadModal
+            // Clé unique pour forcer le remontage du composant quand les indices changent
+            // C'est CRUCIAL pour éviter la duplication d'affichage entre les sets
+            key={`upload-modal-${activeExerciseIndex}-${activeSetIndex}`}
+            isOpen={isVideoModalOpen}
+            onClose={() => setIsVideoModalOpen(false)}
+            onUploadSuccess={handleVideoUploadSuccess}
+            exerciseInfo={{
+              exerciseName: activeExercise?.name || 'Exercice',
+              exerciseId: activeExercise?.exerciseId,
+              exerciseIndex: activeExerciseIndex,
+              sessionId: session?.id,
+              coachId: session?.coach_id,
+              assignmentId: session?.assignment_id || session?.id
+            }}
+            setInfo={{
+              setIndex: activeSetIndex,
+              setNumber: activeSetIndex + 1,
+              weight: activeSet?.weight || 0,
+              reps: activeSet?.reps || 0
+            }}
+            existingVideo={existingVideoForSet}
+          />
+        );
+      })()}
 
       {/* Session Completion Modal */}
       <SessionCompletionModal

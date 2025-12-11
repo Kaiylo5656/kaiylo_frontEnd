@@ -96,13 +96,9 @@ const CoachDashboard = () => {
     setLoading(true);
     try {
       console.log('🔍 Fetching students from:', `${getApiBaseUrlWithApi()}/coach/students`);
-      console.log('🔍 Auth token:', localStorage.getItem('authToken') ? 'Present' : 'Missing');
       
-      const studentsResponse = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
-      });
+      // Use the global axios instance which handles headers via AuthContext
+      const studentsResponse = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`);
       
       console.log('🔍 Full API response:', studentsResponse.data);
       console.log('🔍 Response status:', studentsResponse.status);
@@ -142,13 +138,9 @@ const CoachDashboard = () => {
   
   const fetchDashboardCounts = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
-
       console.log('Fetching dashboard counts...');
       const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/coach/dashboard-counts`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        `${getApiBaseUrlWithApi()}/coach/dashboard-counts`
       );
 
       if (response.data.success) {

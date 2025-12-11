@@ -343,21 +343,16 @@ const ExerciseValidationModal = ({
   };
 
   // Vérifier si une série a une vidéo
+  // IMPORTANT: Vérifier d'abord localVideos avec une correspondance STRICTE par setIndex
+  // pour éviter que plusieurs sets affichent la même vidéo
   const hasVideoForSet = (setIndex) => {
-    const key = `${exerciseIndex}-${setIndex}`;
-    const setData = completedSets[key];
-    
-    // Vérifier dans completedSets
-    if (setData && typeof setData === 'object' && setData.hasVideo) {
-      return true;
-    }
-    
-    // Vérifier dans localVideos avec plusieurs formats possibles
+    // PRIORITÉ 1: Vérifier dans localVideos avec correspondance STRICTE (exerciseIndex ET setIndex)
+    // C'est la source de vérité la plus fiable
     const hasLocalVideo = localVideos.some((video) => {
-      // Format 1: exerciseIndex et setIndex directs
+      // Format 1: exerciseIndex et setIndex directs (format principal)
       if (video.exerciseIndex === exerciseIndex && video.setIndex === setIndex) {
-        // Retourner true si une vidéo existe (même si c'est 'no-video', pour griser l'icône)
-        return video.file !== null && video.file !== undefined;
+        // Retourner true seulement si une vidéo réelle existe (pas 'no-video')
+        return video.file !== null && video.file !== undefined && video.file !== 'no-video';
       }
       
       // Format 2: via exerciseInfo et setInfo
@@ -365,8 +360,7 @@ const ExerciseValidationModal = ({
         const videoExerciseIndex = video.exerciseInfo.exerciseIndex;
         const videoSetIndex = video.setInfo.setIndex;
         if (videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex) {
-          // Retourner true si une vidéo existe (même si c'est 'no-video', pour griser l'icône)
-          return video.file !== null && video.file !== undefined;
+          return video.file !== null && video.file !== undefined && video.file !== 'no-video';
         }
       }
       
@@ -374,15 +368,35 @@ const ExerciseValidationModal = ({
       if (video.exerciseIndex === exerciseIndex && video.setInfo) {
         const videoSetIndex = video.setInfo.setIndex;
         if (videoSetIndex === setIndex) {
-          // Retourner true si une vidéo existe (même si c'est 'no-video', pour griser l'icône)
-          return video.file !== null && video.file !== undefined;
+          return video.file !== null && video.file !== undefined && video.file !== 'no-video';
         }
       }
       
       return false;
     });
     
-    return hasLocalVideo;
+    if (hasLocalVideo) {
+      return true;
+    }
+    
+    // PRIORITÉ 2: Vérifier dans completedSets seulement si aucune vidéo trouvée dans localVideos
+    // ET vérifier que le setIndex correspond exactement
+    const key = `${exerciseIndex}-${setIndex}`;
+    const setData = completedSets[key];
+    
+    if (setData && typeof setData === 'object' && setData.hasVideo === true) {
+      // Double vérification: s'assurer qu'une vidéo existe vraiment dans localVideos pour ce set spécifique
+      const hasMatchingVideo = localVideos.some((video) => {
+        const videoExerciseIndex = video.exerciseIndex ?? video.exerciseInfo?.exerciseIndex;
+        const videoSetIndex = video.setIndex ?? video.setInfo?.setIndex;
+        return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
+      });
+      
+      // Ne retourner true que si une vidéo correspond vraiment à ce set
+      return hasMatchingVideo;
+    }
+    
+    return false;
   };
 
   // Gérer la validation d'une série (completed)

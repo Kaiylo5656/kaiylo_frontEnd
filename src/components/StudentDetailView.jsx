@@ -1475,6 +1475,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   // Filter videos based on current filters
   const getFilteredVideos = () => {
     return studentVideos.filter(video => {
+      // Filter out videos without valid video_url (RPE-only entries should not appear in video analysis)
+      if (!video.video_url || video.video_url.trim() === '') {
+        return false;
+      }
+      
       // Status filter
       if (statusFilter === 'A feedback' && video.status !== 'pending') return false;
       if (statusFilter === 'Complété' && video.status !== 'completed' && video.status !== 'reviewed') return false;
