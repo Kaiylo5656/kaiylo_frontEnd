@@ -399,6 +399,66 @@ const ExerciseValidationModal = ({
     return false;
   };
 
+  // Vérifier si l'élève a fait un choix pour cette série (vidéo uploadée OU "pas de vidéo")
+  // Retourne: true si vidéo uploadée, 'no-video' si "pas de vidéo" choisi, false si aucun choix
+  const hasVideoChoiceForSet = (setIndex) => {
+    // PRIORITÉ 1: Vérifier dans localVideos
+    const matchingVideo = localVideos.find((video) => {
+      // Format 1: exerciseIndex et setIndex directs
+      if (video.exerciseIndex === exerciseIndex && video.setIndex === setIndex) {
+        return true;
+      }
+      
+      // Format 2: via exerciseInfo et setInfo
+      if (video.exerciseInfo && video.setInfo) {
+        const videoExerciseIndex = video.exerciseInfo.exerciseIndex;
+        const videoSetIndex = video.setInfo.setIndex;
+        if (videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex) {
+          return true;
+        }
+      }
+      
+      // Format 3: via exerciseIndex direct et setInfo
+      if (video.exerciseIndex === exerciseIndex && video.setInfo) {
+        const videoSetIndex = video.setInfo.setIndex;
+        if (videoSetIndex === setIndex) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    if (matchingVideo) {
+      // Si file est 'no-video', retourner 'no-video', sinon retourner true (vidéo uploadée)
+      if (matchingVideo.file === 'no-video') {
+        return 'no-video';
+      }
+      // Vérifier aussi dans completedSets pour videoStatus
+      const key = `${exerciseIndex}-${setIndex}`;
+      const setData = completedSets[key];
+      if (setData && typeof setData === 'object' && setData.videoStatus === 'no-video') {
+        return 'no-video';
+      }
+      return true; // Vidéo uploadée
+    }
+    
+    // PRIORITÉ 2: Vérifier dans completedSets
+    const key = `${exerciseIndex}-${setIndex}`;
+    const setData = completedSets[key];
+    
+    if (setData && typeof setData === 'object') {
+      if (setData.videoStatus === 'no-video') {
+        return 'no-video';
+      }
+      if (setData.hasVideo === true) {
+        return true;
+      }
+    }
+    
+    return false; // Aucun choix fait
+  };
+
   // Gérer la validation d'une série (completed)
   const handleValidateSet = (setIndex) => {
     const currentStatus = getSetStatus(setIndex);
@@ -614,6 +674,8 @@ const ExerciseValidationModal = ({
             const isCompleted = status === 'completed';
             const isFailed = status === 'failed';
             const hasVideo = hasVideoForSet(setIndex);
+            const videoChoice = hasVideoChoiceForSet(setIndex); // 'no-video', true, or false
+            const hasVideoOrNoVideo = hasVideo || videoChoice === 'no-video'; // True si vidéo uploadée OU "pas de vidéo" choisi
             const setNumber = setIndex + 1;
             const weight = set.weight || '?';
             const reps = set.reps || '?';
@@ -711,14 +773,14 @@ const ExerciseValidationModal = ({
                       }
                     }}
                     className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 flex-shrink-0 ml-2 ${
-                      hasVideo 
+                      hasVideoOrNoVideo 
                         ? 'bg-white/10 hover:bg-white/20' 
                         : 'bg-[rgba(212,132,90,0.30)] hover:bg-[rgba(212,132,90,0.40)]'
                     }`}
-                    title={hasVideo ? "Vidéo uploadée" : "Ajouter une vidéo"}
+                    title={hasVideo ? "Vidéo uploadée" : videoChoice === 'no-video' ? "Pas de vidéo" : "Ajouter une vidéo"}
                   >
-                    {hasVideo ? (
-                      // Icône grisée pour indiquer qu'une vidéo a été uploadée
+                    {hasVideoOrNoVideo ? (
+                      // Icône grisée pour indiquer qu'une vidéo a été uploadée OU que "Pas de vidéo" a été choisi
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                         <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" fill="#9CA3AF" fillOpacity="0.6"/>
                       </svg>

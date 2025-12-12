@@ -1,15 +1,15 @@
 import React from 'react';
 
 /**
- * Modal d'avertissement affiché quand l'étudiant tente de quitter un exercice ou valider la séance
+ * Modal d'erreur affiché quand l'élève tente de valider la séance
  * alors que des vidéos requises ne sont pas uploadées
  * Design basé sur Figma node-id: 348-730
  */
-const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm }) => {
+const MissingVideosValidationErrorModal = ({ isOpen, onClose, missingVideosCount = 0 }) => {
   // Empêcher la fermeture par clic sur le backdrop
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
-      // Ne rien faire - forcer l'utilisateur à choisir
+      // Ne rien faire - forcer l'utilisateur à fermer avec le bouton
       return;
     }
   };
@@ -44,13 +44,13 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm }) => {
         <div className="flex flex-col items-center px-[5px] pt-[17px] pb-[17px]">
           {/* Title and Description Container */}
           <div className="flex flex-col items-center gap-[15px] w-full mb-[15px]">
-            {/* Title - "Vidéos manquantes" */}
+            {/* Title - "Impossible de valider la séance" */}
             <div className="flex flex-col justify-center w-full">
               <p 
                 className="text-[#d4845a] text-[17px] font-light leading-normal text-center whitespace-pre-wrap"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
-                Vidéos manquantes
+                Impossible de valider la séance
               </p>
             </div>
             
@@ -64,12 +64,15 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm }) => {
                   fontWeight: 300
                 }}
               >
-                Pour valider la séance, toutes les vidéos demandées doivent être ajoutées.
+                {missingVideosCount > 0 
+                  ? `Vous devez compléter et uploader ${missingVideosCount} ${missingVideosCount === 1 ? 'vidéo manquante' : 'vidéos manquantes'} avant de pouvoir valider la séance.`
+                  : 'Vous devez compléter et uploader toutes les vidéos requises avant de pouvoir valider la séance.'
+                }
               </p>
             </div>
           </div>
 
-          {/* Button - "Ajouter les vidéos" */}
+          {/* Button - "Compris" */}
           <button
             onClick={onClose}
             className="bg-[#d4845a] border-[0.5px] border-[rgba(255,255,255,0.1)] border-solid flex items-center justify-center h-[25px] px-[14px] py-[4px] rounded-[5px] w-[200px] transition-opacity hover:opacity-90 active:opacity-80"
@@ -78,7 +81,7 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm }) => {
               className="text-white text-[10px] font-normal leading-normal text-center whitespace-nowrap"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
-              Ajouter les vidéos
+              Compris
             </p>
           </button>
         </div>
@@ -87,5 +90,5 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm }) => {
   );
 };
 
-export default MissingVideosWarningModal;
+export default MissingVideosValidationErrorModal;
 
