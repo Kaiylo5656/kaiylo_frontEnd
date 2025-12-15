@@ -1,0 +1,22 @@
+# Frontend Docker ignore
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+.DS_Store
+*.log
+.vscode
+.idea
+dist
+build
+coverage
+*.swp
+*.swo
+*~
+.cache
+.vercel
+.turbo
+
