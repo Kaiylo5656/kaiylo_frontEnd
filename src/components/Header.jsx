@@ -4,39 +4,67 @@ import { Bell, Settings, Zap, Search, User, CreditCard, Menu } from 'lucide-reac
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
+import { useLocation } from 'react-router-dom';
 
 const Header = () => {
   const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const location = useLocation();
+
+  // Determine page title based on current route
+  const getPageTitle = () => {
+    if (location.pathname.includes('/coach/dashboard') || location.pathname === '/dashboard') {
+      return 'Clients';
+    }
+    // Add more route-based titles as needed
+    return 'Clients';
+  };
 
   const renderCoachHeader = () => (
     <div className="flex items-center justify-between w-full">
-      {/* Left side - Hamburger menu (mobile only) */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="md:hidden text-muted-foreground hover:text-foreground"
-        onClick={() => setIsMobileMenuOpen(true)}
-        aria-label="Ouvrir le menu"
-      >
-        <Menu className="h-6 w-6" />
-      </Button>
+      {/* Left side - Title and Hamburger menu */}
+      <div className="flex items-center gap-4">
+        {/* Hamburger menu (mobile only) */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden text-muted-foreground hover:text-foreground"
+          onClick={() => setIsMobileMenuOpen(true)}
+          aria-label="Ouvrir le menu"
+        >
+          <Menu className="h-6 w-6" />
+        </Button>
+        
+        {/* Page Title - "Clients" */}
+        <h1 className="text-[32px] text-white leading-[0] not-italic whitespace-nowrap" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 200 }}>
+          <span className="leading-[normal]">{getPageTitle()}</span>
+        </h1>
+      </div>
 
       {/* Right side - Action buttons */}
-      <div className="flex items-center space-x-4">
-        {/* Upgrade button */}
-        <Button size="sm" className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600">
-          <Zap className="h-4 w-4 mr-2" />
+      <div className="flex items-center gap-4">
+        {/* Upgrade button with gradient */}
+        <button 
+          className="bg-gradient-to-r from-[#a855f7] to-[#0f66c9] border border-white/20 rounded-[10px] px-[10px] py-[10px] text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+        >
           Upgrade
-        </Button>
+        </button>
 
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        {/* Notification bell icon */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-white/75 hover:text-white hover:bg-white/10"
+        >
           <Bell className="h-5 w-5" />
         </Button>
 
-        {/* Settings/Parameters */}
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        {/* Settings icon */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-white/75 hover:text-white hover:bg-white/10"
+        >
           <Settings className="h-5 w-5" />
         </Button>
       </div>
@@ -94,8 +122,10 @@ const Header = () => {
 
   return (
     <>
-      <header className="bg-card border-b border-border px-4 sm:px-6 py-3">
+      <header className="relative bg-background border-b border-white/10 px-4 sm:px-6 py-3">
         {isStudent ? renderStudentHeader() : renderCoachHeader()}
+        {/* Separator line at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-[0.5px] bg-white/10" />
       </header>
       <MobileNavigationDrawer 
         isOpen={isMobileMenuOpen} 
