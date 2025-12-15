@@ -407,7 +407,7 @@ const CoachDashboard = () => {
                           />
                         </svg>
                       </div>
-                      <span className="font-medium">{student.name}</span>
+                      <span className="font-medium" style={{ fontSize: '4px' }}>{student.name}</span>
                     </td>
                     <td className="p-4 text-muted-foreground">{student.lastActivity}</td>
                     <td className="p-4">
