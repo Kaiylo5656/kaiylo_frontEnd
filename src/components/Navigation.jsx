@@ -61,7 +61,6 @@ const Navigation = () => {
         { name: 'Exercices', path: '/coach/exercises', icon: Dumbbell },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: Video },
         { name: 'Messages', path: '/chat', icon: MessageSquare },
-        { name: 'Suivi Financier', path: '/coach/financial', icon: FileText },
       ];
     }
     // Add other roles here later if needed

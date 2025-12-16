@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { X, Send, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
@@ -10,8 +10,10 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen) {
+      // Charger les invitations uniquement à l'ouverture de la modale
       fetchInvitations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const fetchInvitations = async () => {
@@ -30,7 +32,21 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
       );
 
       if (response.data.success) {
-        setInvitations(response.data.data || []);
+        // Filtrer les invitations acceptées et expirées pour ne garder que celles en attente
+        const allInvitations = response.data.data || [];
+        const pendingInvitations = allInvitations.filter(invitation => {
+          const status = invitation.status?.toLowerCase() || '';
+          // Exclure les invitations acceptées et expirées (peu importe la langue)
+          return status !== 'accepted' && 
+                 status !== 'acceptée' && 
+                 status !== 'accepte' &&
+                 status !== 'validated' &&
+                 status !== 'validée' &&
+                 status !== 'expired' &&
+                 status !== 'expirée' &&
+                 status !== 'expire';
+        });
+        setInvitations(pendingInvitations);
       } else {
         setError(response.data.message || 'Erreur lors du chargement des invitations');
       }
@@ -115,12 +131,23 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
               Demandes en attente
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* Bouton de rafraîchissement manuel */}
+            <button
+              onClick={fetchInvitations}
+              disabled={loading}
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Rafraîchir la liste"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -135,7 +162,8 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
             </div>
           ) : invitations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Aucune invitation trouvée
+              <div className="mb-2">✅ Toutes les invitations ont été acceptées</div>
+              <div className="text-sm">Aucune invitation en attente</div>
             </div>
           ) : (
             <div className="space-y-4">

@@ -43,22 +43,6 @@ const Header = () => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-4">
-        {/* Upgrade button with gradient */}
-        <button 
-          className="bg-gradient-to-r from-[#a855f7] to-[#0f66c9] border border-white/20 rounded-[10px] px-[10px] py-[10px] text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-        >
-          Upgrade
-        </button>
-
-        {/* Notification bell icon */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="text-white/75 hover:text-white hover:bg-white/10"
-        >
-          <Bell className="h-5 w-5" />
-        </Button>
-
         {/* Settings icon */}
         <Button 
           variant="ghost" 

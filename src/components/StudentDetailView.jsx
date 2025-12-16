@@ -1064,7 +1064,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         exercises: copiedSession.session.exercises || [],
         scheduled_date: scheduledDate,
         student_id: student.id,
-        status: originalStatus === 'draft' ? 'draft' : 'published'
+        status: originalStatus === 'draft' ? 'draft' : originalStatus === 'completed' ? 'published' : 'published'
       };
 
       await axios.post(
@@ -1795,7 +1795,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     </div>
                   </div>
 
-                  {session.status !== 'completed' && session.status !== 'in_progress' && (
+                  {(session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed' ? (
                     <div className="relative dropdown-container flex-shrink-0">
                       <button
                         onClick={(e) => {
@@ -1817,63 +1817,81 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                             transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
                           }}
                         >
-                          {session.status === 'draft' ? (
+                          {session.status === 'completed' ? (
+                            // For completed sessions, only show copy option
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setDropdownOpen(null);
                                 setDropdownPosition(null);
-                                handlePublishDraftSession(session, dayDate);
+                                handleCopySession(session, dayDate);
                               }}
-                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-lg"
                             >
-                              <Eye className="h-4 w-4" />
-                              Publier la séance
+                              <Copy className="h-4 w-4" />
+                              Copier
                             </button>
                           ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDropdownOpen(null);
-                                setDropdownPosition(null);
-                                handleSwitchToDraft(session, dayDate);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
-                            >
-                              <EyeOff className="h-4 w-4" />
-                              Passer en mode brouillon
-                            </button>
+                            <>
+                              {session.status === 'draft' ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(null);
+                                    setDropdownPosition(null);
+                                    handlePublishDraftSession(session, dayDate);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  Publier la séance
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDropdownOpen(null);
+                                    setDropdownPosition(null);
+                                    handleSwitchToDraft(session, dayDate);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                                >
+                                  <EyeOff className="h-4 w-4" />
+                                  Passer en mode brouillon
+                                </button>
+                              )}
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDropdownOpen(null);
+                                  setDropdownPosition(null);
+                                  handleCopySession(session, dayDate);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
+                              >
+                                <Copy className="h-4 w-4" />
+                                Copier
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDropdownOpen(null);
+                                  setDropdownPosition(null);
+                                  handleDeleteSession(session.assignmentId || session.id, dayDate);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Supprimer
+                              </button>
+                            </>
                           )}
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDropdownOpen(null);
-                              setDropdownPosition(null);
-                              handleCopySession(session, dayDate);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
-                          >
-                            <Copy className="h-4 w-4" />
-                            Copier
-                          </button>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDropdownOpen(null);
-                              setDropdownPosition(null);
-                              handleDeleteSession(session.assignmentId || session.id, dayDate);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Supprimer
-                          </button>
                         </div>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
@@ -2112,9 +2130,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white">
+    <div className="min-h-screen bg-transparent text-white">
       {/* Header */}
-      <div className="flex items-center gap-2 p-4 border-b border-[#1a1a1a]">
+      <div className="flex items-center gap-2 p-4">
         <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center">
           <User className="w-4 h-4 text-gray-400" />
         </div>
@@ -2124,31 +2142,43 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-6 px-4 border-b border-[#1a1a1a]">
-        <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'overview' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          Overview
-        </button>
-        <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'training' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-          onClick={() => setActiveTab('training')}
-        >
-          Training
-        </button>
-        <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'analyse' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-          onClick={() => setActiveTab('analyse')}
-        >
-          Analyse vidéo
-        </button>
-        <button 
-          className={`py-3 text-sm font-medium ${activeTab === 'suivi' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-          onClick={() => setActiveTab('suivi')}
-        >
-          Suivi Financier
-        </button>
+      <div className="relative">
+        <div className="flex gap-6 px-4">
+          <button 
+            className={`py-3 text-sm font-medium ${activeTab === 'overview' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`py-3 text-sm font-medium ${activeTab === 'training' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('training')}
+          >
+            Training
+          </button>
+          <button 
+            className={`py-3 text-sm font-medium ${activeTab === 'analyse' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('analyse')}
+          >
+            Analyse vidéo
+          </button>
+          <button 
+            className={`py-3 text-sm font-medium ${activeTab === 'suivi' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
+            onClick={() => setActiveTab('suivi')}
+          >
+            Suivi Financier
+          </button>
+        </div>
+        {/* Separator line at bottom - Figma design */}
+        <div className="absolute bottom-0 left-4 right-4 h-[1px]">
+          <div className="absolute inset-[-0.5px_0_0_0]">
+            <img 
+              alt="" 
+              className="block max-w-none w-full h-full object-cover" 
+              src="https://www.figma.com/api/mcp/asset/9fa52d82-d8b7-44d9-a21b-f89ba65e4a7f" 
+            />
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}

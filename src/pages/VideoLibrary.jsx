@@ -312,6 +312,21 @@ const VideoLibrary = () => {
   };
 
   // Get unique students and exercises for filters
+  // Create a map of student emails to their names
+  const studentMap = useMemo(() => {
+    const map = new Map();
+    studentVideos.forEach(video => {
+      const email = video.student?.email || 'Unknown';
+      if (!map.has(email)) {
+        const name = video.student?.raw_user_meta_data?.full_name || 
+                     video.student?.raw_user_meta_data?.name || 
+                     email;
+        map.set(email, name);
+      }
+    });
+    return map;
+  }, [studentVideos]);
+  
   const uniqueStudents = [...new Set(studentVideos.map(video => video.student?.email || 'Unknown'))];
   const uniqueExercises = [...new Set(studentVideos.map(video => video.exercise_name))];
 
@@ -761,9 +776,11 @@ const VideoLibrary = () => {
                     paddingRight: '28px'
                   }}
                 >
-                  <option value="">Elève</option>
-                  {uniqueStudents.map(student => (
-                    <option key={student} value={student}>{student}</option>
+                  <option value="">Tous</option>
+                  {uniqueStudents.map(studentEmail => (
+                    <option key={studentEmail} value={studentEmail}>
+                      {studentMap.get(studentEmail) || studentEmail}
+                    </option>
                   ))}
                 </select>
 
