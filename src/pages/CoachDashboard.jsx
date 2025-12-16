@@ -317,6 +317,40 @@ const CoachDashboard = () => {
           </div>
         </div>
 
+        {/* Column Headers */}
+        {!loading && filteredStudents.length > 0 && (
+          <div className="w-full flex items-center px-9 mb-2">
+            {/* Name Column Header */}
+            <div className="flex items-center gap-[30px] flex-1">
+              <div className="w-5 h-5 shrink-0"></div>
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-[46px] shrink-0"></div>
+                <div className="flex flex-col justify-center text-[13px] text-white/50 font-extralight text-center whitespace-nowrap">
+                  <p className="leading-normal">Name</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback en attente Column Header */}
+            <div className="flex items-center justify-start flex-1 mr-16 ml-8">
+              <div className="flex items-center gap-[300px]">
+                <div className="shrink-0"></div>
+                <div className="flex flex-col justify-center text-[13px] text-white/50 font-extralight text-center shrink-0">
+                  <p className="leading-normal whitespace-pre-wrap">Feedback en attente</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Programme jusqu'au Column Header */}
+            <div className="text-[13px] text-white/50 font-extralight w-[166px] text-center mr-12 whitespace-nowrap">
+              <p className="leading-normal">Programmé jusqu'au</p>
+            </div>
+
+            {/* Status Column Header - Empty space for alignment */}
+            <div className="w-[10px] shrink-0"></div>
+          </div>
+        )}
+
         {/* Client List */}
         <div className="space-y-3">
           {loading ? (
@@ -405,11 +439,11 @@ const CoachDashboard = () => {
                 </div>
 
                 {/* Activity / Messages Center Section */}
-                <div className="flex items-center justify-center flex-1 mr-16">
+                <div className="flex items-center justify-start flex-1 mr-16 ml-8">
                   {/* Messages / Notifications */}
                   {(studentMessageCounts[student.id] > 0 || studentVideoCounts[student.id] > 0) ? (
-                    <div className="flex items-center gap-32">
-                      {/* Message Icon */}
+                    <div className="flex items-center gap-[300px]">
+                      {/* Message Icon - Positionné à gauche */}
                       <div 
                         className="relative cursor-pointer group/icon shrink-0"
                         onClick={(e) => handleMessageClick(student, e)}
@@ -436,7 +470,7 @@ const CoachDashboard = () => {
                         <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
                       </div>
 
-                      {/* Count Badge */}
+                      {/* Count Badge - Positionné à gauche après l'icône */}
                       <div className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0">
                         <span className="text-[13px] text-white font-normal leading-none">
                           {(studentMessageCounts[student.id] || 0) + (studentVideoCounts[student.id] || 0)}

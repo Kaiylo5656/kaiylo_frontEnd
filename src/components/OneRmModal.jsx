@@ -478,16 +478,8 @@ const OneRmModal = ({
             </div>
           </div>
 
-          <div className="px-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleViewEvolution}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#262626] bg-[#161616] px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-[#1f1f1f]"
-            >
-              <BarChart3 className="h-4 w-4 text-[#d4845a]" />
-              Voir l'évolution
-            </button>
-            <div className="flex flex-col sm:flex-row gap-2 sm:ml-auto">
+          <div className="px-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
                 onClick={handleSave}
