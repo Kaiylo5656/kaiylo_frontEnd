@@ -41,6 +41,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [exerciseComments, setExerciseComments] = useState({}); // Store student comments for each exercise
   const [sessionVideos, setSessionVideos] = useState([]); // Store videos from API to get coach feedback
   const [dotPositions, setDotPositions] = useState({});
+  const [isSessionStarted, setIsSessionStarted] = useState(false); // Track if the session has been started
   const exerciseCardRefs = useRef([]);
   const exerciseListRef = useRef(null);
   const hasRestoredProgress = useRef(false); // Flag to track if progress has been restored
@@ -58,6 +59,25 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
+  
+  // Calculate estimated duration: each exercise = 10 minutes
+  const calculateEstimatedDuration = () => {
+    const totalMinutes = exercises.length * 10;
+    if (totalMinutes === 0) return '0min';
+    
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    if (hours > 0 && minutes > 0) {
+      return `${hours}h${minutes.toString().padStart(2, '0')}`;
+    } else if (hours > 0) {
+      return `${hours}h`;
+    } else {
+      return `${minutes}min`;
+    }
+  };
+  
+  const estimatedDuration = calculateEstimatedDuration();
   
   // Generate a unique storage key for this session (memoized)
   const sessionId = React.useMemo(() => {
@@ -744,10 +764,25 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   
   // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
+    // Ne rien faire si la séance n'a pas encore commencé
+    if (!isSessionStarted) {
+      return;
+    }
     // Ouvrir directement la modale de validation sans vérification
     setSelectedExerciseForValidation(exerciseIndex);
     setCurrentExerciseIndex(exerciseIndex);
     setIsExerciseValidationModalOpen(true);
+  };
+
+  // Handle start session button click
+  const handleStartSession = () => {
+    setIsSessionStarted(true);
+    // Sélectionner automatiquement la première série du premier exercice
+    if (exercises && exercises.length > 0) {
+      setCurrentExerciseIndex(0);
+      setSelectedSetIndex({ 0: 0 });
+      setCurrentSetIndex({ 0: 0 });
+    }
   };
 
   // Get current set index for an exercise
@@ -757,11 +792,19 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   // Get selected set index for an exercise (for display purposes)
   const getSelectedSetIndex = (exerciseIndex) => {
+    // Ne pas retourner de série sélectionnée si la séance n'a pas commencé
+    if (!isSessionStarted) {
+      return undefined;
+    }
     return selectedSetIndex[exerciseIndex] !== undefined ? selectedSetIndex[exerciseIndex] : 0;
   };
 
   // Handle set selection (only for active exercise)
   const handleSetSelection = (exerciseIndex, setIndex) => {
+    // Ne rien faire si la séance n'a pas commencé
+    if (!isSessionStarted) {
+      return;
+    }
     // Only allow selection if this is the current active exercise
     if (exerciseIndex === currentExerciseIndex) {
       setSelectedSetIndex(prev => ({
@@ -1714,8 +1757,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                         Object.keys(exerciseComments).length > 0 ||
                         localVideos.length > 0;
     
-    // Si il y a de la progression, afficher le modal d'avertissement
-    if (hasProgress) {
+    // Si la séance a été commencée ou s'il y a de la progression, afficher le modal d'avertissement
+    if (isSessionStarted || hasProgress) {
       setIsLeaveWarningModalOpen(true);
     } else {
       // Sinon, quitter directement
@@ -1753,17 +1796,95 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   return (
     <div 
-      className="relative text-white min-h-screen pb-20 overflow-hidden"
+      className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
-        background: 'linear-gradient(180deg, #1a1a1a 0%, #050505 55%, #000000 100%)'
+        background: 'unset',
+        backgroundColor: '#0a0a0a',
+        backgroundImage: 'none'
       }}
     >
-      {/* Top glow to match Figma gradient */}
+      {/* Image de fond */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backgroundImage: 'url(/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 1,
+          backgroundColor: '#0a0a0a'
+        }}
+      />
+      
+      {/* Layer blur sur l'écran */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backdropFilter: 'blur(50px)',
+          WebkitBackdropFilter: 'blur(100px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.01)',
+          zIndex: 6,
+          pointerEvents: 'none',
+          opacity: 0.95
+        }}
+      />
+
+      {/* Gradient conique Figma - partie droite */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '0',
+          transform: 'translateY(-50%)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite'
+        }}
+      />
+      
+      {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '50vw',
+          transform: 'translateY(-50%) scaleX(-1)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+        }}
+      />
+
+      {/* Top glow to match WorkoutSessionExecution */}
       <div
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
         style={{
-          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, rgba(191,191,191,0.1) 45%, rgba(0,0,0,0) 70%)',
+          background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
           opacity: 0.35
         }}
       />
@@ -1786,58 +1907,78 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         }}
       />
       {/* Header - Centré comme dans Figma */}
-      <div className="px-[47px] pt-[64px] pb-5">
+      <div className="pt-[64px] pb-0 relative z-10">
         {/* Bouton retour */}
         {onBack && (
-          <button
-            onClick={handleBack}
-            className="mb-4 text-white/60 hover:text-white transition-colors"
-            title="Retour"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
+          <div className="pl-[47px] pr-[20px] max-w-[400px] mx-auto">
+            <button
+              onClick={handleBack}
+              className="mb-4 text-white/60 hover:text-white transition-colors"
+              title="Retour"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          </div>
         )}
         {/* Title and subtitle */}
-        <div className="mb-5 text-center w-full">
-          <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-[7px]">
-            {session.workout_sessions?.title || 'Séance'}
-          </h1>
-          <p className="text-[10px] font-light text-white/50">
-            Durée estimée : 1h30
-          </p>
+        <div className="pl-[47px] pr-[20px] max-w-[400px] mx-auto">
+          <div className="mb-5 text-left w-full ml-[-5px] pl-0">
+            <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-0">
+              {session.workout_sessions?.title || 'Séance'}
+            </h1>
+            <p className="text-[10px] font-light text-white/50">
+              Durée estimée : {estimatedDuration}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Exercise List - Tous les exercices visibles, format compact */}
-      <div className="relative pl-[47px] pr-[20px] max-w-[400px] mx-auto">
+      <div className="relative pl-[47px] pr-[30px] max-w-[400px] mx-auto z-10">
         {/* Ligne verticale pointillée à gauche (comme dans Figma) */}
-        {exercises && exercises.length > 0 && (
-          <div className="absolute left-[27px] top-0 bottom-0">
-            <div className="relative w-full h-full flex flex-col items-center">
-              {/* Ligne verticale pointillée */}
-              <div className="absolute top-0 bottom-0 left-1/2 transform -translate-x-1/2 w-[1px] border-l border-dashed border-[#d4845a]/30"></div>
-              {/* Points d'avancement : orange si exercice fait, blanc si pas encore fait - Alignés avec le centre de chaque carte */}
-              <div className="relative w-full h-full">
-                {exercises.map((_, index) => {
-                  const exerciseCompleted = isExerciseFullyComplete(index);
-                  const topPosition = dotPositions[index];
-                  
-                  if (topPosition === undefined) return null;
-                  
-                  return (
-                    <div 
-                      key={index} 
-                      className={`w-[5px] h-[5px] rounded-full flex-shrink-0 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 ${
-                        exerciseCompleted ? 'bg-[#d4845a]' : 'bg-white'
-                      }`}
-                      style={{ top: `${topPosition}px` }}
-                    ></div>
-                  );
-                })}
+        {exercises && exercises.length > 0 && (() => {
+          // Calculer la position du premier et du dernier point
+          const validPositions = Object.values(dotPositions).filter(pos => pos !== undefined);
+          const firstDotPosition = validPositions.length > 0 ? Math.min(...validPositions) : 0;
+          const lastDotPosition = validPositions.length > 0 ? Math.max(...validPositions) : 0;
+          const lineHeight = lastDotPosition > firstDotPosition ? lastDotPosition - firstDotPosition : 0;
+          
+          return (
+            <div className="absolute left-[27px] top-0 bottom-0" style={{ width: '5px' }}>
+              <div className="relative w-full h-full flex flex-col items-center">
+                {/* Ligne verticale pointillée - commence au premier point et s'arrête au dernier point */}
+                <div 
+                  className="absolute w-[1px] border-l border-dashed border-[#d4845a]/30"
+                  style={{ 
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    top: `${firstDotPosition}px`,
+                    height: lineHeight > 0 ? `${lineHeight}px` : '0px'
+                  }}
+                ></div>
+                {/* Points d'avancement : orange si exercice fait, blanc si pas encore fait - Alignés avec le centre de chaque carte */}
+                <div className="relative w-full h-full">
+                  {exercises.map((_, index) => {
+                    const exerciseCompleted = isExerciseFullyComplete(index);
+                    const topPosition = dotPositions[index];
+                    
+                    if (topPosition === undefined) return null;
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        className={`w-[5px] h-[5px] rounded-full flex-shrink-0 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 ${
+                          exerciseCompleted ? 'bg-[#d4845a]' : 'bg-white'
+                        }`}
+                        style={{ top: `${topPosition}px` }}
+                      ></div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div 
           ref={exerciseListRef} 
@@ -1855,23 +1996,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   ref={el => exerciseCardRefs.current[exerciseIndex] = el}
                   onClick={() => handleExerciseSelection(exerciseIndex)}
                   className={`
-                    rounded-[12px] overflow-hidden cursor-pointer transition-all duration-200
-                    ${isCompleted ? 'bg-[#262626]' : 'bg-[#1c1c1c]'}
-                    border border-white/5 hover:border-white/10
-                    w-full min-h-[64px]
+                    rounded-[12px] overflow-hidden transition-all duration-200
+                    ${isCompleted ? 'bg-[#262626]' : 'bg-[rgba(255,255,255,0.05)]'}
+                    ${isSessionStarted ? 'cursor-pointer' : 'cursor-default opacity-75'}
+                    w-full min-h-[64px] flex items-center justify-center
                   `}
                 >
-                  <div className="px-[18px] py-[10px] h-full">
+                  <div className="px-[18px] py-[10px] h-full w-full">
                     <div className="flex items-center justify-between gap-5 h-full">
                       <div className="flex flex-col gap-[3px]">
-                        <h3 className="text-[15px] font-normal text-white break-words leading-tight">
+                        <h3 className="text-[15px] font-light text-white/70 break-words leading-tight">
                           {exercise.name}
                         </h3>
                         {exerciseSummary && (
                           <p className="text-[11px] font-light text-white/50 leading-tight">
                             <span>{exerciseSummary.scheme}</span>{' '}
                             {exerciseSummary.weight && (
-                              <span className="text-[#d4845a]">
+                              <span className="text-[#d4845a] font-medium">
                                 {exerciseSummary.weight}
                               </span>
                             )}
@@ -1883,7 +2024,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                       <div className="flex gap-[10px] items-center flex-shrink-0">
                         {exercise.sets?.map((set, setIndex) => {
                           const status = getSetStatus(exerciseIndex, setIndex);
-                          const isSelected = getSelectedSetIndex(exerciseIndex) === setIndex;
+                          const selectedSetIndex = getSelectedSetIndex(exerciseIndex);
+                          const isSelected = isSessionStarted && selectedSetIndex !== undefined && selectedSetIndex === setIndex;
 
                           let variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
                           if (status === 'completed') {
@@ -1901,18 +2043,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                                 e.stopPropagation();
                                 handleSetSelection(exerciseIndex, setIndex);
                               }}
-                              disabled={!isActive}
+                              disabled={!isActive || !isSessionStarted}
                               className={`
                                 w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid 
                                 flex items-center justify-center relative
                                 transition-all duration-150
                                 ${variantClasses}
-                                ${isActive 
+                                ${isActive && isSessionStarted
                                   ? 'cursor-pointer hover:opacity-80' 
                                   : 'opacity-60 cursor-default'
                                 }
                               `}
-                              title={isActive ? `Sélectionner la série ${setIndex + 1}` : 'Sélectionnez cet exercice pour modifier les séries'}
+                              title={isActive && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
                             >
                               {status === 'completed' && (
                                 <svg 
@@ -1975,6 +2117,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             <div className="text-center py-8 text-gray-400">
               Aucun exercice trouvé
             </div>
+          )}
+          
+          {/* Bouton Commencer la séance */}
+          {!isSessionStarted && (
+            <button
+              onClick={handleStartSession}
+              className="
+                inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm 
+                transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
+                disabled:pointer-events-none disabled:opacity-50 
+                [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
+                shadow h-9 px-4 w-full py-2 rounded-lg font-light 
+                bg-[#e87c3e] hover:bg-[#d66d35] text-white
+              "
+            >
+              Commencer la séance
+            </button>
           )}
         </div>
       </div>

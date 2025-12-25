@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildApiUrl } from '../config/api';
@@ -223,9 +223,87 @@ const StudentMonthlyView = () => {
     <div 
       className="relative text-white min-h-screen pb-20 overflow-hidden"
       style={{
-        background: 'linear-gradient(180deg, #1a1a1a 0%, #050505 55%, #000000 100%)'
+        background: 'unset',
+        backgroundColor: '#0a0a0a',
+        backgroundImage: 'none'
       }}
     >
+      {/* Image de fond */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backgroundImage: 'url(/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 1,
+          backgroundColor: '#0a0a0a'
+        }}
+      />
+      
+      {/* Layer blur sur l'écran */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backdropFilter: 'blur(50px)',
+          WebkitBackdropFilter: 'blur(100px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.01)',
+          zIndex: 6,
+          pointerEvents: 'none',
+          opacity: 1
+        }}
+      />
+
+      {/* Gradient conique Figma - partie droite */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '0',
+          transform: 'translateY(-50%)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite'
+        }}
+      />
+      
+      {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '50vw',
+          transform: 'translateY(-50%) scaleX(-1)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+        }}
+      />
+
       {/* Top glow to match WorkoutSessionExecution */}
       <div
         aria-hidden
@@ -255,18 +333,7 @@ const StudentMonthlyView = () => {
       />
 
       {/* Header */}
-      <div className="px-[47px] pt-[40px] pb-5 relative z-10">
-        {/* Back button - Centered */}
-        <div className="flex items-center justify-center mb-2">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-white/60 hover:text-white transition-colors flex items-center justify-center"
-            title="Retour"
-          >
-            <ChevronUp className="h-[15px] w-[15px]" />
-          </button>
-        </div>
-
+      <div className="px-[47px] pt-[40px] pb-2 relative z-10">
         {/* Month title and navigation */}
         <div className="flex items-center justify-center gap-4 mb-1">
           <button
@@ -304,7 +371,7 @@ const StudentMonthlyView = () => {
         </div>
 
         {/* Calendar grid */}
-        <div className="flex flex-col gap-[10px] mt-4">
+        <div className="flex flex-col gap-[10px] mt-2">
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="flex gap-0">
               {week.map((day, dayIndex) => {

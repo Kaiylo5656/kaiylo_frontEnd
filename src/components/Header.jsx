@@ -32,12 +32,12 @@ const Header = () => {
           onClick={() => setIsMobileMenuOpen(true)}
           aria-label="Ouvrir le menu"
         >
-          <Menu className="h-6 w-6" />
+          <Menu className="h-6 w-6" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
         </Button>
         
         {/* Page Title - "Clients" */}
-        <h1 className="text-[32px] text-white leading-[0] not-italic whitespace-nowrap" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 200 }}>
-          <span className="leading-[normal]">{getPageTitle()}</span>
+        <h1 className="text-[32px] text-white leading-[0] not-italic whitespace-nowrap" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 200, color: 'rgba(255, 255, 255, 1)' }}>
+          <span className="leading-[normal]" style={{ color: 'rgba(255, 255, 255, 1)' }}>{getPageTitle()}</span>
         </h1>
       </div>
 
@@ -49,7 +49,7 @@ const Header = () => {
           size="icon" 
           className="text-white/75 hover:text-white hover:bg-white/10"
         >
-          <Settings className="h-5 w-5" />
+          <Settings className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
         </Button>
       </div>
     </div>
@@ -69,24 +69,20 @@ const Header = () => {
       </Button>
 
       <Button variant="ghost" size="icon" className="hidden md:flex text-muted-foreground hover:text-foreground">
-        <User className="h-6 w-6" />
+        <User className="h-6 w-6" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
       </Button>
       <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
         <Input
           type="search"
           placeholder="Search"
-          className="pl-10 bg-muted border-none placeholder:text-muted-foreground"
+          className="pl-10 border-none placeholder:text-muted-foreground rounded-[15px] font-light"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
         />
       </div>
-      <div className="flex items-center space-x-2">
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <CreditCard className="h-6 w-6" />
-        </Button>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <Settings className="h-6 w-6" />
-        </Button>
-      </div>
+      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Bell className="h-6 w-6" style={{ color: 'rgba(255, 255, 255, 0.5)' }} fill="currentColor" />
+      </Button>
     </div>
   );
 
@@ -106,10 +102,8 @@ const Header = () => {
 
   return (
     <>
-      <header className="relative bg-background border-b border-white/10 px-4 sm:px-6 py-3">
+      <header className="relative px-4 sm:px-6 py-3 z-20 border-0">
         {isStudent ? renderStudentHeader() : renderCoachHeader()}
-        {/* Separator line at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-[0.5px] bg-white/10" />
       </header>
       <MobileNavigationDrawer 
         isOpen={isMobileMenuOpen} 

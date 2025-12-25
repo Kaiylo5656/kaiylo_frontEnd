@@ -4,6 +4,8 @@ import PWAProvider from './components/PWAProvider';
 import { ModalManagerProvider } from './components/ui/modal/ModalManager';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import StudentRegisterPage from './pages/StudentRegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentInvitationPage from './pages/StudentInvitationPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
@@ -110,6 +112,8 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register/student" element={<StudentRegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/invite" element={<StudentInvitationPage />} />
             
             {/* Protected Routes */}

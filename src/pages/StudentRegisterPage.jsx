@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,15 +7,13 @@ import axios from 'axios';
 import { Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
 import Logo from '../components/Logo';
 
-const RegisterPage = () => {
+const StudentRegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [invitationData, setInvitationData] = useState(null);
+  const [invitationError, setInvitationError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isInfoExpanded, setIsInfoExpanded] = useState(false);
-  const [isPasswordAutofilled, setIsPasswordAutofilled] = useState(false);
-  const [isConfirmPasswordAutofilled, setIsConfirmPasswordAutofilled] = useState(false);
-  const passwordInputRef = useRef(null);
-  const confirmPasswordInputRef = useRef(null);
   const { login } = useAuth();
   const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
@@ -26,110 +24,94 @@ const RegisterPage = () => {
     handleSubmit,
     watch,
     formState: { errors, dirtyFields },
-    setError
+    setError,
+    setValue,
+    reset
   } = useForm();
 
   // Watch password for confirmation validation
   const password = watch('password');
 
-  // Détecter l'autofill pour le champ mot de passe
+  // Reset form when component unmounts or navigates away
   useEffect(() => {
-    const checkAutofill = (inputRef, setAutofilled) => {
-      if (inputRef.current) {
-        const input = inputRef.current;
-        const hasValue = input.value.length > 0;
-        
-        if (!hasValue) {
-          setAutofilled(false);
-          return;
-        }
-
-        const computedStyle = window.getComputedStyle(input);
-        const boxShadow = computedStyle.boxShadow;
-        const autofillColors = [
-          'rgb(250, 255, 189)',
-          'rgb(232, 240, 254)',
-          'rgb(255, 255, 221)',
-          'rgb(255, 255, 255)'
-        ];
-        
-        const hasAutofillShadow = boxShadow && boxShadow !== 'none' && 
-                                 autofillColors.some(color => boxShadow.includes(color));
-        
-        const bgColor = computedStyle.backgroundColor;
-        const hasAutofillBg = bgColor && 
-                              autofillColors.some(color => bgColor.includes(color));
-        
-        setAutofilled(hasAutofillShadow || hasAutofillBg);
-      }
-    };
-
-    const checkPasswordAutofill = () => checkAutofill(passwordInputRef, setIsPasswordAutofilled);
-    const checkConfirmPasswordAutofill = () => checkAutofill(confirmPasswordInputRef, setIsConfirmPasswordAutofilled);
-
-    // Vérifier immédiatement et après des délais
-    checkPasswordAutofill();
-    checkConfirmPasswordAutofill();
-    setTimeout(checkPasswordAutofill, 100);
-    setTimeout(checkConfirmPasswordAutofill, 100);
-    setTimeout(checkPasswordAutofill, 500);
-    setTimeout(checkConfirmPasswordAutofill, 500);
-
-    // Vérifier périodiquement
-    const interval = setInterval(() => {
-      checkPasswordAutofill();
-      checkConfirmPasswordAutofill();
-    }, 300);
-    
-    const passwordInput = passwordInputRef.current;
-    const confirmPasswordInput = confirmPasswordInputRef.current;
-    
-    if (passwordInput) {
-      passwordInput.addEventListener('animationstart', checkPasswordAutofill);
-      passwordInput.addEventListener('input', checkPasswordAutofill);
-    }
-    if (confirmPasswordInput) {
-      confirmPasswordInput.addEventListener('animationstart', checkConfirmPasswordAutofill);
-      confirmPasswordInput.addEventListener('input', checkConfirmPasswordAutofill);
-    }
-
     return () => {
-      clearInterval(interval);
-      if (passwordInput) {
-        passwordInput.removeEventListener('animationstart', checkPasswordAutofill);
-        passwordInput.removeEventListener('input', checkPasswordAutofill);
-      }
-      if (confirmPasswordInput) {
-        confirmPasswordInput.removeEventListener('animationstart', checkConfirmPasswordAutofill);
-        confirmPasswordInput.removeEventListener('input', checkConfirmPasswordAutofill);
-      }
+      reset();
+      setInvitationData(null);
+      setInvitationError(null);
     };
-  }, []);
+  }, [reset]);
+
+  // Validate invitation code
+  const validateInvitationCode = async (code) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/invitations/validate/${code}`);
+      if (response.data.success) {
+        setInvitationData(response.data.data);
+        setValue('email', response.data.data.student_email);
+        setInvitationError(null);
+      }
+    } catch (error) {
+      setInvitationError(error.response?.data?.message || 'Code d\'invitation invalide');
+      setInvitationData(null);
+    }
+  };
+
+  // Handle invitation code input
+  const handleInvitationCodeChange = async (e) => {
+    const code = e.target.value.trim();
+    if (code.length === 8) {
+      await validateInvitationCode(code);
+    } else {
+      setInvitationData(null);
+      setInvitationError(null);
+    }
+  };
 
   // Handle form submission
   const onSubmit = async (data) => {
     setIsLoading(true);
     
     try {
-      let result;
-
       // Combine firstName and lastName into name for backend
       const fullName = `${data.firstName} ${data.lastName}`.trim();
 
-      // Coach registration
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, {
+      // Check if user has an invitation code
+      const invitationCodeValue = data.invitationCode?.trim();
+      
+      if (!invitationCodeValue || invitationCodeValue.length !== 8) {
+        setError('invitationCode', {
+          type: 'manual',
+          message: 'Le code d\'invitation est requis (8 caractères)'
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!invitationData) {
+        // Validate invitation code first
+        await validateInvitationCode(invitationCodeValue);
+        if (invitationError || !invitationData) {
+          setError('root', {
+            type: 'manual',
+            message: 'Code d\'invitation invalide ou expiré'
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/invitations/accept`, {
+        invitationCode: invitationCodeValue,
         name: fullName,
-        email: data.email,
-        password: data.password,
-        role: 'coach'
+        password: data.password
       }).catch(error => {
-        console.error('Registration error:', error);
+        console.error('Student registration error:', error);
         console.error('Error response:', error.response?.data);
         const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
         throw new Error(errorMessage);
       });
       
-      result = response.data;
+      const result = response.data;
       
       if (result.success) {
         // If token is provided, set up auth and redirect
@@ -139,18 +121,15 @@ const RegisterPage = () => {
           axios.defaults.headers.common['Authorization'] = `Bearer ${result.token}`;
           
           // Use login function to properly initialize auth state
-          // This will set up the user state and Supabase session
           await login(result.user.email, data.password, navigate);
         } else {
-          // If no token (email confirmation required), just show message
-          // The user will need to confirm email before logging in
+          // If no token (email confirmation required)
           setError('root', {
             type: 'manual',
             message: result.message || 'Account created successfully. Please check your email to confirm your account before logging in.'
           });
         }
       } else {
-        // Set form error
         setError('root', {
           type: 'manual',
           message: result.error || result.message || 'Registration failed'
@@ -252,10 +231,10 @@ const RegisterPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
           <div className="w-full">
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Inscription
+              Inscription Élève
             </h1>
 
-            {/* Information section for coaches - Accordion */}
+            {/* Information section - Accordion */}
             <div 
               className="mb-6 rounded-[10px] bg-[rgba(255,255,255,0.02)] overflow-hidden transition-all duration-300"
               style={{ marginBottom: '30px' }}
@@ -273,7 +252,7 @@ const RegisterPage = () => {
                 }}
               >
                 <h2 className="text-sm font-normal text-[#d4845a]">
-                  Comment fonctionne l'inscription ?
+                  Comment fonctionne l'inscription élève ?
                 </h2>
                 <div className="flex-shrink-0 ml-4">
                   {isInfoExpanded ? (
@@ -292,13 +271,13 @@ const RegisterPage = () => {
               >
                 <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none' }}>
                   <p className="text-xs text-[rgba(255,255,255,0.8)] text-left font-extralight">
-                    Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement.
+                    Les élèves peuvent uniquement rejoindre Kaiylo via une invitation de leur coach.
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,0.8)] font-light text-left">
-                    Après l'inscription, vous pourrez inviter vos élèves par email depuis votre tableau de bord.
+                    Si vous n'avez pas de code d'invitation, contactez votre coach pour en recevoir un.
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left">
-                    <span className="text-[#d4845a]">Note :</span> Les élèves ne peuvent rejoindre que via les invitations de leur coach.
+                    <span className="text-[#d4845a]">Note :</span> Chaque code d'invitation ne peut être utilisé qu'une seule fois.
                   </p>
                 </div>
               </div>
@@ -306,6 +285,101 @@ const RegisterPage = () => {
 
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 text-left">
+              {/* Invitation Code Field */}
+              <div style={{ marginBottom: '3px' }}>
+                <input
+                  id="invitationCode"
+                  type="text"
+                  {...register('invitationCode', {
+                    required: 'Le code d\'invitation est requis',
+                    minLength: {
+                      value: 8,
+                      message: 'Le code doit contenir 8 caractères'
+                    },
+                    maxLength: {
+                      value: 8,
+                      message: 'Le code doit contenir 8 caractères'
+                    }
+                  })}
+                  onChange={handleInvitationCodeChange}
+                  className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                  style={{
+                    color: 'rgba(255, 255, 255, 1)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
+                    borderColor: (errors.invitationCode && dirtyFields.invitationCode) || invitationError 
+                      ? 'rgba(239, 68, 68, 1)' 
+                      : invitationData 
+                        ? 'rgba(212, 132, 90, 1)' 
+                        : 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '10px',
+                    fontWeight: '300',
+                    boxShadow: 'none',
+                    paddingLeft: '20px',
+                    paddingRight: '20px',
+                    paddingTop: '10px',
+                    paddingBottom: '10px'
+                  }}
+                  placeholder="Code d'invitation"
+                  maxLength={8}
+                  aria-invalid={errors.invitationCode || invitationError ? 'true' : 'false'}
+                />
+                {errors.invitationCode && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.invitationCode.message}</p>
+                )}
+                {invitationError && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {invitationError}</p>
+                )}
+                {invitationData && !invitationError && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(212, 132, 90, 1)' }}>
+                    ✅ Invitation valide pour {invitationData.student_email}
+                  </p>
+                )}
+              </div>
+
+              {/* Email Field (read-only, automatically set by invitation) */}
+              <div style={{ marginBottom: '3px' }}>
+                <input
+                  id="email"
+                  type="email"
+                  {...register('email', {
+                    required: 'Adresse mail est requise',
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Adresse mail invalide'
+                    }
+                  })}
+                  disabled={true}
+                  value={invitationData?.student_email || ''}
+                  className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                  style={{
+                    color: 'rgba(255, 255, 255, 1)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
+                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '10px',
+                    fontWeight: '300',
+                    boxShadow: 'none',
+                    paddingLeft: '20px',
+                    paddingRight: '20px',
+                    paddingTop: '10px',
+                    paddingBottom: '10px',
+                    opacity: 0.6,
+                    cursor: 'not-allowed'
+                  }}
+                  placeholder="L'email sera défini par l'invitation"
+                  aria-invalid={errors.email ? 'true' : 'false'}
+                />
+                {errors.email && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.email.message}</p>
+                )}
+                {invitationData && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                    L'email est automatiquement défini par votre invitation
+                  </p>
+                )}
+              </div>
+
               {/* First Name Field */}
               <div style={{ marginBottom: '3px' }}>
                 <input
@@ -374,45 +448,10 @@ const RegisterPage = () => {
                 )}
               </div>
 
-              {/* Email Field */}
-              <div style={{ marginBottom: '3px' }}>
-                <input
-                  id="email"
-                  type="email"
-                  {...register('email', {
-                    required: 'Adresse mail requise',
-                    pattern: {
-                      value: /^\S+@\S+$/i,
-                      message: 'Adresse mail invalide',
-                    },
-                  })}
-                  className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
-                  style={{
-                    color: 'rgba(255, 255, 255, 1)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '10px',
-                    fontWeight: '300',
-                    boxShadow: 'none',
-                    paddingLeft: '20px',
-                    paddingRight: '20px',
-                    paddingTop: '10px',
-                    paddingBottom: '10px',
-                  }}
-                  placeholder="Adresse mail"
-                  aria-invalid={errors.email ? 'true' : 'false'}
-                />
-                {errors.email && (
-                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.email.message}</p>
-                )}
-              </div>
-
               {/* Password Field */}
               <div className="relative" style={{ marginBottom: '3px' }}>
                 <input
                   id="password"
-                  ref={passwordInputRef}
                   type={showPassword ? 'text' : 'password'}
                   {...register('password', {
                     required: 'Mot de passe requis',
@@ -445,14 +484,10 @@ const RegisterPage = () => {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-primary transition-colors"
-                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px', zIndex: 10 }}
+                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px' }}
                   aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 >
-                  {showPassword ? (
-                    <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  ) : (
-                    <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  )}
+                  {showPassword ? <Eye className="h-5 w-5" strokeWidth={1} style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} /> : <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />}
                 </button>
                 {errors.password && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.password.message}</p>
@@ -463,7 +498,6 @@ const RegisterPage = () => {
               <div className="relative" style={{ marginBottom: '3px' }}>
                 <input
                   id="confirmPassword"
-                  ref={confirmPasswordInputRef}
                   type={showConfirmPassword ? 'text' : 'password'}
                   {...register('confirmPassword', {
                     required: 'Confirmation du mot de passe requise',
@@ -494,14 +528,10 @@ const RegisterPage = () => {
                   type="button"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
                   className="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-primary transition-colors"
-                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px', zIndex: 10 }}
+                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px' }}
                   aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                 >
-                  {showConfirmPassword ? (
-                    <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  ) : (
-                    <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  )}
+                  {showConfirmPassword ? <Eye className="h-5 w-5" strokeWidth={1} style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} /> : <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />}
                 </button>
                 {errors.confirmPassword && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.confirmPassword.message}</p>
@@ -527,9 +557,9 @@ const RegisterPage = () => {
                   paddingLeft: '12px',
                   paddingRight: '12px'
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !invitationData}
               >
-                {isLoading ? 'Création en cours...' : "S'inscrire"}
+                {isLoading ? 'Inscription en cours...' : 'Rejoindre le programme'}
               </button>
 
               {/* CGU Text */}
@@ -539,16 +569,16 @@ const RegisterPage = () => {
               </p>
             </form>
 
-            {/* Student invitation section */}
+            {/* Back to coach registration */}
             <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
-                Êtes-vous un élève ?
+                Vous êtes coach ?
               </h2>
               <p className="text-xs text-[rgba(255,255,255,0.8)] mb-3 text-left font-light">
-                Si vous avez un code d'invitation de votre coach, cliquez ici :
+                Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement :
               </p>
               <Link
-                to="/register/student"
+                to="/register"
                 className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors inline-block text-center"
                 style={{
                   backgroundColor: 'rgba(212, 132, 89, 1)',
@@ -559,7 +589,7 @@ const RegisterPage = () => {
                   paddingRight: '12px'
                 }}
               >
-                Rejoindre avec un code d'invitation
+                Inscrivez-vous en tant que coach
               </Link>
             </div>
             
@@ -576,4 +606,5 @@ const RegisterPage = () => {
   );
 };
 
-export default RegisterPage;
+export default StudentRegisterPage;
+

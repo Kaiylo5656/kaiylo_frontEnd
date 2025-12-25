@@ -70,7 +70,7 @@ const Navigation = () => {
   const navItems = getNavItems();
 
   return (
-    <aside className="hidden md:flex w-64 flex-shrink-0 bg-card border-r border-border flex-col">
+    <aside className="hidden md:flex w-64 flex-shrink-0 bg-card border-r border-border flex-col" style={{ backgroundColor: 'unset', background: 'unset', borderRightWidth: '0px', borderRightColor: 'rgba(0, 0, 0, 0)', borderRightStyle: 'none' }}>
       <div className="p-6">
         <Logo />
       </div>
@@ -86,13 +86,13 @@ const Navigation = () => {
           </NavLink>
         ))}
       </nav>
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border" style={{ borderTopWidth: '0px', borderTopColor: 'rgba(0, 0, 0, 0)', borderTopStyle: 'none', borderImage: 'none', borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)', borderStyle: 'none' }}>
         <div className="space-y-4">
            <NavLink to="/billing" icon={DollarSign}>
             Facturation
           </NavLink>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center" style={{ backgroundColor: 'unset', background: 'unset' }}>
               <span className="font-bold text-primary-foreground">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </span>

@@ -125,11 +125,11 @@ const VersionInfo = () => {
       {/* Floating button */}
       <button
         onClick={() => setIsVisible(!isVisible)}
-        className="fixed bottom-4 right-4 z-50 bg-[#d4845a] hover:bg-[#d4845a]/90 text-white p-2 rounded-full shadow-lg transition-all hover:scale-110"
+        className="fixed bottom-4 right-4 z-50 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full shadow-lg transition-all hover:scale-110"
         title="Afficher la version (Ctrl+Shift+V)"
         aria-label="Version info"
       >
-        <Info className="h-5 w-5" />
+        <Info className="h-5 w-5 text-[#d4845a]" />
       </button>
 
       {/* Modal */}

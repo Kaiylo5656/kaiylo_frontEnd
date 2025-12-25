@@ -1,11 +1,12 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Home, History, MessageSquare, Video } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 
 const BottomNavBar = () => {
   const { user } = useAuth();
+  const location = useLocation();
 
   const getNavItems = () => {
     if (!user) return [];
@@ -28,27 +29,48 @@ const BottomNavBar = () => {
     return null;
   }
 
-  const activeLinkStyle = 'text-primary';
-  const inactiveLinkStyle = 'text-muted-foreground';
-
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50">
+    <nav 
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-background z-50"
+      style={{
+        backgroundColor: 'rgba(13, 13, 13, 1)',
+        borderTopWidth: '0px',
+        borderTopColor: 'rgba(0, 0, 0, 0)',
+        borderTopStyle: 'none',
+        borderImage: 'none'
+      }}
+    >
       <div className="flex justify-around items-center h-16">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                "flex flex-col items-center justify-center gap-1 transition-colors",
-                isActive ? activeLinkStyle : inactiveLinkStyle
-              )
-            }
-          >
-            <item.icon className="h-6 w-6" />
-            <span className="text-xs">{item.label}</span>
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.to;
+          const activeColor = 'rgba(255, 255, 255, 1)';
+          const inactiveColor = 'rgba(134, 134, 134, 1)';
+          
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className="flex flex-col items-center justify-center gap-1 transition-colors"
+              style={{ color: isActive ? activeColor : inactiveColor }}
+            >
+              <item.icon 
+                className="h-6 w-6" 
+                style={{ 
+                  color: isActive ? activeColor : inactiveColor
+                }} 
+              />
+              <span 
+                className="text-xs"
+                style={{ 
+                  color: isActive ? activeColor : inactiveColor,
+                  fontWeight: 300
+                }}
+              >
+                {item.label}
+              </span>
+            </NavLink>
+          );
+        })}
       </div>
     </nav>
   );
