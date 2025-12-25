@@ -19,19 +19,27 @@ const MainLayout = ({ children }) => {
 
   return (
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
-      <div className="h-screen bg-background text-foreground flex overflow-hidden w-full">
+      <div className="h-screen bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: 'unset', background: 'unset' }}>
+        {/* Carré supérieur avec blur - Transition entre lumière et fond noir */}
+        <div 
+          className="absolute pointer-events-none"
+          style={{
+            width: '100vw',
+            height: '100vh',
+            left: '0',
+            top: '0',
+            backgroundColor: 'unset',
+            background: 'unset',
+            backdropFilter: 'none',
+            filter: 'none',
+            zIndex: 1
+          }}
+        />
+        
         <Navigation />
-        <main className="flex-1 flex flex-col overflow-hidden w-full relative">
+        <main className="flex-1 flex flex-col overflow-hidden w-full relative z-10" style={{ gap: 0 }}>
           {!isWorkoutSessionOpen && <Header />}
-          {/* Linear Gradient at top - creates soft light from top center */}
-          <div className="absolute top-0 left-0 right-0 h-[700px] pointer-events-none overflow-visible z-0">
-            {/* Main gradient light source from top center */}
-            <div className="absolute inset-x-0 top-0 h-[300px] bg-gradient-to-b from-white/30 via-white/15 to-transparent blur-[80px]" />
-            {/* Secondary gradient layers for depth */}
-            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-[1200px] h-[500px] bg-gradient-to-b from-white/20 via-transparent to-transparent blur-[100px]" />
-            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-[800px] h-[300px] bg-gradient-to-b from-white/25 via-transparent to-transparent blur-[60px]" />
-          </div>
-          <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'p-0 overflow-y-auto dashboard-scrollbar w-full'}`}>
+          <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'p-0 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
             {children}
           </div>
         </main>

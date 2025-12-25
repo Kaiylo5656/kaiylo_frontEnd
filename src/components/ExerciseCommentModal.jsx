@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Modal pour permettre à l'étudiant de commenter un exercice spécifique pour le coach
@@ -50,9 +51,9 @@ const ExerciseCommentModal = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[110] p-4"
+      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[120] p-4"
       onClick={handleClose}
     >
       <div 
@@ -97,7 +98,8 @@ const ExerciseCommentModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

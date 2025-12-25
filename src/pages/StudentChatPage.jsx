@@ -218,12 +218,97 @@ const StudentChatPage = () => {
 
   return (
     <>
-      <div className="h-screen flex flex-col bg-[#1a1a1a] text-white overflow-hidden">
+      <div 
+        className="h-screen flex flex-col text-white overflow-hidden relative"
+        style={{
+          background: 'unset',
+          backgroundColor: '#0a0a0a',
+          backgroundImage: 'none'
+        }}
+      >
+        {/* Image de fond */}
+        <div 
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+        
+        {/* Layer blur sur l'écran */}
+        <div 
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+
+        {/* Gradient conique Figma - partie droite */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '-175px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '600px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.25)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 0.75,
+            animation: 'organicGradient 15s ease-in-out infinite'
+          }}
+        />
+        
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '-175px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '600px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.25)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 0.75,
+            animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+          }}
+        />
+
+        {/* Content wrapper */}
+        <div className="relative z-10 flex flex-col h-full">
         {/* Show Conversation List or Chat Window based on selection (mobile view) */}
         {showConversationList && !selectedConversation ? (
           <>
             {/* Header */}
-            <div className="bg-[#1a1a1a] border-b border-[#262626] px-4 py-4 flex-shrink-0">
+            <div className="bg-[#1a1a1a] border-b border-[#262626] px-4 py-4 flex-shrink-0" style={{ backgroundColor: 'rgba(26, 26, 26, 0.7)' }}>
               <h1 className="text-white text-xl font-medium">Messages</h1>
             </div>
 
@@ -301,7 +386,8 @@ const StudentChatPage = () => {
               onBack={handleBackToList}
             />
           </div>
-        )}
+          )}
+        </div>
       </div>
       {/* Bottom Navigation Bar - Always visible for students, fixed at bottom */}
       <BottomNavBar />

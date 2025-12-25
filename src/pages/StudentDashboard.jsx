@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { format, addDays, startOfWeek, subDays, parseISO } from 'date-fns';
+import { format, addDays, startOfWeek, subDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, ChevronDown, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { buildApiUrl } from '../config/api';
@@ -37,6 +37,8 @@ const StudentDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(initializeDate());
   const [currentView, setCurrentView] = useState('planning'); // 'planning' or 'execution'
   const [executingSession, setExecutingSession] = useState(null);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const scrollContainerRef = useRef(null);
 
   // Update dates when URL parameter changes
   useEffect(() => {
@@ -66,7 +68,13 @@ const StudentDashboard = () => {
   const lastScrollTop = useRef(0);
 
   // Handle scroll to navigate to monthly view - based on forcing scroll at bottom
+  // Only active when in planning view, not in execution view
   useEffect(() => {
+    // Don't attach scroll handlers when in execution view
+    if (currentView !== 'planning') {
+      return;
+    }
+
     const handleScroll = (e) => {
       // Find the scrollable container (from MainLayout)
       const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
@@ -144,7 +152,7 @@ const StudentDashboard = () => {
         scrollContainer.removeEventListener('wheel', handleWheel);
       };
     }
-  }, [navigate]);
+  }, [navigate, currentView]);
 
   const week = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
@@ -181,6 +189,11 @@ const StudentDashboard = () => {
       format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
     );
   }, [assignments, selectedDate]);
+
+  // Reset card index when selected assignments change
+  useEffect(() => {
+    setCurrentCardIndex(0);
+  }, [selectedAssignments.length]);
 
   const selectedAssignment = selectedAssignments[0]; // Keep for backward compatibility
   
@@ -400,15 +413,93 @@ const StudentDashboard = () => {
     <div 
       className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
-        background: 'linear-gradient(180deg, #1a1a1a 0%, #050505 55%, #000000 100%)'
+        background: 'unset',
+        backgroundColor: '#0a0a0a',
+        backgroundImage: 'none'
       }}
     >
+      {/* Image de fond */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backgroundImage: 'url(/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 1,
+          backgroundColor: '#0a0a0a'
+        }}
+      />
+      
+      {/* Layer blur sur l'écran */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '0',
+          left: '0',
+          width: '100vw',
+          height: '100vh',
+          backdropFilter: 'blur(50px)',
+          WebkitBackdropFilter: 'blur(100px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.01)',
+          zIndex: 6,
+          pointerEvents: 'none',
+          opacity: 1
+        }}
+      />
+
+      {/* Gradient conique Figma - partie droite */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '0',
+          transform: 'translateY(-50%)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite'
+        }}
+      />
+      
+      {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '-175px',
+          left: '50vw',
+          transform: 'translateY(-50%) scaleX(-1)',
+          width: '50vw',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+          backdropFilter: 'blur(75px)',
+          boxShadow: 'none',
+          filter: 'brightness(1.25)',
+          zIndex: 5,
+          pointerEvents: 'none',
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+        }}
+      />
+
       {/* Top glow to match WorkoutSessionExecution */}
       <div
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
         style={{
-          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, rgba(191,191,191,0.1) 45%, rgba(0,0,0,0) 70%)',
+          background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
           opacity: 0.35
         }}
       />
@@ -431,20 +522,21 @@ const StudentDashboard = () => {
         }}
       />
       <div 
-        className="p-4 pb-20 w-full max-w-6xl mx-auto relative z-10"
+        className="px-10 pt-1 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col"
         style={{ 
           scrollBehavior: 'auto',
-          // Add resistance at the bottom to prevent accidental navigation
-          paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))'
+          minHeight: '100vh',
+          paddingBottom: 'calc(100px + env(safe-area-inset-bottom, 0px))',
+          color: 'rgba(255, 255, 255, 0)'
         }}
       >
         {/* Titre du mois */}
-        <h1 className="text-[28px] font-light text-center text-white mb-6">
+        <h1 className="text-[28px] font-light text-center text-white mb-3">
           {capitalizeMonth(displayMonth)}
         </h1>
 
         {/* Planning de la semaine - Design Figma */}
-        <div className="relative mb-6">
+        <div className="relative mb-8 -mx-10 px-5">
           <div className="flex items-center justify-between gap-2">
             {/* Flèche gauche */}
             <button
@@ -460,6 +552,7 @@ const StudentDashboard = () => {
                 const dayStr = format(day, 'yyyy-MM-dd');
                 const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
                 const isSelected = format(selectedDate, 'yyyy-MM-dd') === dayStr;
+                const isToday = isSameDay(day, new Date());
                 
                 // Determine the overall status for the day
                 const completedCount = assignmentsForDay.filter(a => a.status === 'completed').length;
@@ -479,45 +572,35 @@ const StudentDashboard = () => {
                             : 'text-white/50'
                       }`}
                     >
-                      <p className="leading-normal whitespace-nowrap uppercase">
+                      <p className={`leading-normal whitespace-nowrap uppercase font-medium ${isToday && !isSelected ? '!text-[#d4845a]' : ''}`}>
                         {format(day, 'eee', { locale: fr }).substring(0, 3)}
                       </p>
-                      <p className="leading-normal whitespace-nowrap">
+                      <p className={`leading-normal whitespace-nowrap ${isToday && !isSelected ? '!text-[#d4845a]' : ''}`}>
                         {format(day, 'd')}
                       </p>
                       
                       {/* Indicateur de statut sous chaque jour avec nombre de séances */}
                       {/* Toujours afficher un espace pour garder la même hauteur */}
-                      <div className="mt-[2px] flex items-center justify-center gap-1 h-[8px]">
+                      <div className="mt-[2px] flex items-center justify-center gap-1 h-[7px]">
                         {hasAssignments ? (
                           <>
                             {allCompleted ? (
-                              <div className="bg-[#2fa064] rounded-[10px] w-[8px] h-[8px] flex-shrink-0" />
+                              <div className="bg-[#2fa064] rounded-[10px] w-[7px] h-[7px] flex-shrink-0" />
                             ) : completedCount > 0 ? (
-                              <div className={`rounded-[10px] w-[8px] h-[8px] border-[0.5px] flex-shrink-0 ${
+                              <div className={`rounded-[10px] w-[7px] h-[7px] border-[0.5px] flex-shrink-0 ${
                                 isSelected 
                                   ? 'bg-white/20 border-white/30' 
                                   : 'bg-white/5 border-white/5'
                               }`} />
                             ) : (
-                              <div className={`rounded-[10px] w-[8px] h-[8px] flex-shrink-0 ${
-                                isSelected 
-                                  ? 'bg-white' 
-                                  : 'bg-white'
-                              }`} />
-                            )}
-                            {/* Nombre de séances à côté de la pastille */}
-                            {totalCount > 0 && (
-                              <span className={`text-[8px] font-normal leading-normal ${
-                                isSelected ? 'text-white' : 'text-white/60'
-                              }`}>
-                                {totalCount}
-                              </span>
+                              <div className={`rounded-[10px] w-[8px] h-[8px] flex-shrink-0 transition-colors ${
+                                isSelected ? 'bg-white' : 'bg-white/50'
+                              }`} style={{ color: 'rgba(255, 255, 255, 0.25)', backgroundColor: isSelected ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)' }} />
                             )}
                           </>
                         ) : (
                           // Espace réservé invisible pour les jours sans séance pour garder la même hauteur
-                          <div className="w-[8px] h-[8px] flex-shrink-0 opacity-0" />
+                          <div className="w-[7px] h-[7px] flex-shrink-0 opacity-0" />
                         )}
                       </div>
                     </button>
@@ -537,66 +620,179 @@ const StudentDashboard = () => {
         </div>
 
         {selectedAssignments.length > 0 ? (
-          <div className="space-y-4 w-full max-w-4xl mx-auto">
-            {selectedAssignments.map((assignment, index) => (
-              <Card key={assignment.id || index} className="bg-card border-border rounded-lg w-full">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-[#e87c3e] text-xl font-bold">
-                    {assignment.workout_sessions?.title || 'Workout'}
-                    {selectedAssignments.length > 1 && (
-                      <span className="text-sm text-gray-400 ml-2">({index + 1}/{selectedAssignments.length})</span>
-                    )}
-                  </CardTitle>
-                  <p className="text-sm text-gray-400">Durée estimée : 1h30</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 mb-6">
-                    {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                      <div key={exIndex} className="flex justify-between items-center">
-                        <p className="truncate text-white font-medium">{ex.name}</p>
-                        <p className="text-gray-400 whitespace-nowrap">
-                          {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a]">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
-                        </p>
+          selectedAssignments.length > 1 ? (
+            // Mode horizontal avec scroll pour plusieurs séances
+            <div className="w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
+              <div 
+                ref={scrollContainerRef}
+                className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
+                style={{ 
+                  scrollSnapType: 'x mandatory',
+                  flex: '1 1 0',
+                  minHeight: 0,
+                  width: '100%',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+                onScroll={(e) => {
+                  const container = e.target;
+                  const scrollLeft = container.scrollLeft;
+                  const containerWidth = container.clientWidth;
+                  // Calculer la largeur d'une carte (width + gap)
+                  const cardWidth = containerWidth;
+                  const gap = 16; // gap-4 = 16px
+                  const totalCardWidth = cardWidth + gap;
+                  const newIndex = Math.round(scrollLeft / totalCardWidth);
+                  setCurrentCardIndex(Math.min(Math.max(0, newIndex), selectedAssignments.length - 1));
+                }}
+              >
+                {selectedAssignments.map((assignment, index) => (
+                  <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                    borderImage: 'none', 
+                    borderColor: 'transparent',
+                    marginBottom: '10px',
+                    width: '100%',
+                    maxWidth: '100%',
+                    minWidth: '100%',
+                    height: '100%',
+                    scrollSnapAlign: 'start'
+                  }}>
+                    <CardHeader className="pb-0 px-3 space-y-0 pt-[25px] mx-5">
+                      <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0 flex items-center gap-2">
+                        <span>{assignment.workout_sessions?.title || 'Workout'}</span>
+                        {selectedAssignments.length > 1 && (
+                          <span className="text-white/40 text-[14px] font-light">
+                            {index + 1}/{selectedAssignments.length}
+                          </span>
+                        )}
+                      </CardTitle>
+                      <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                    </CardHeader>
+                    <CardContent className="px-3 mx-5 flex-1 flex flex-col">
+                      <div className="space-y-2 mb-0 pt-[20px] pb-[20px] flex-1">
+                        {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
+                          <div key={exIndex} className="flex justify-between items-center gap-6">
+                            <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
+                            <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
+                              {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-gray-400 mb-4">
-                    {assignment.workout_sessions?.exercises?.length || 0} exercices
-                  </p>
-                  <Button 
-                    className={`w-full py-3 rounded-lg font-medium ${
-                      assignment.status === 'completed'
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                      <p className="text-xs text-white/25 font-light mb-6 pt-2 border-t border-border">
+                        {assignment.workout_sessions?.exercises?.length || 0} exercices
+                      </p>
+                      <Button 
+                        className={`w-full py-2 rounded-lg font-light ${
+                          assignment.status === 'completed'
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                        }`}
+                        onClick={() => handleStartSession(assignment)}
+                        disabled={assignment.status === 'completed'}
+                      >
+                        {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {/* Dots de pagination */}
+              <div className="flex justify-center items-center gap-2 flex-shrink-0" style={{ pointerEvents: 'auto', marginTop: '0px', paddingTop: '15px', paddingBottom: '0px' }}>
+                {selectedAssignments.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (scrollContainerRef.current) {
+                        const container = scrollContainerRef.current;
+                        const containerWidth = container.clientWidth;
+                        const cardWidth = containerWidth;
+                        const gap = 16; // gap-4 = 16px
+                        const totalCardWidth = cardWidth + gap;
+                        container.scrollTo({
+                          left: index * totalCardWidth,
+                          behavior: 'smooth'
+                        });
+                      }
+                    }}
+                    className={`transition-all duration-200 rounded-full font-light ${
+                      index === currentCardIndex
+                        ? 'w-1.5 h-1.5 bg-[#e87c3e]'
+                        : 'w-1.5 h-1.5 bg-white/10'
                     }`}
-                    onClick={() => handleStartSession(assignment)}
-                    disabled={assignment.status === 'completed'}
-                  >
-                    {assignment.status === 'completed' ? 'Séance terminée' : 'Commencer la séance'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    style={{
+                      boxShadow: index === currentCardIndex ? '0 0 10px rgba(232, 124, 62, 0.6)' : '0 0 4px rgba(255, 255, 255, 0.2)',
+                      fontWeight: index === currentCardIndex ? 300 : undefined
+                    }}
+                    aria-label={`Aller à la séance ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            // Mode vertical pour une seule séance
+            <div className="space-y-4 w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col">
+              {selectedAssignments.map((assignment, index) => (
+                <Card key={assignment.id || index} className="border-border rounded-[25px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+                  <CardHeader className="pb-0 px-3 space-y-0 pt-[25px] mx-5">
+                    <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
+                      {assignment.workout_sessions?.title || 'Workout'}
+                    </CardTitle>
+                    <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                  </CardHeader>
+                  <CardContent className="px-3 mx-5 flex-1 flex flex-col">
+                    <div className="space-y-2 mb-0 pt-[20px] pb-[20px] flex-1">
+                      {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
+                        <div key={exIndex} className="flex justify-between items-center gap-6">
+                          <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
+                          <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
+                            {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-white/25 font-light mb-6 pt-2 border-t border-border">
+                      {assignment.workout_sessions?.exercises?.length || 0} exercices
+                    </p>
+                    <Button 
+                      className={`w-full py-2 rounded-lg font-light ${
+                        assignment.status === 'completed'
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                      }`}
+                      onClick={() => handleStartSession(assignment)}
+                      disabled={assignment.status === 'completed'}
+                    >
+                      {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )
         ) : (
-          <div className="text-center py-16">
-            <p className="text-gray-400">Pas de séance prévue pour aujourd'hui.</p>
+          <div className="space-y-4 w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col">
+            <Card className="border-border rounded-[25px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+              <CardHeader className="pb-0 px-3 space-y-0 mx-5">
+                <div className="h-[25px]"></div>
+                <div className="h-[20px]"></div>
+              </CardHeader>
+              <CardContent className="px-3 mx-5 flex-1 flex flex-col">
+                <div className="space-y-2 mb-0 pt-3 pb-3 flex items-center justify-center flex-1" style={{ minHeight: '80px' }}>
+                  <p className="text-white/50 font-light text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 100, fontSize: '14px' }}>
+                    Aucune séance aujourd'hui
+                  </p>
+                </div>
+                <p className="text-xs text-white/25 font-light mb-2 pt-2 border-t border-border opacity-0">
+                  &nbsp;
+                </p>
+                <div className="h-[40px]"></div>
+              </CardContent>
+            </Card>
           </div>
         )}
-
-        {/* Icon to navigate to monthly view */}
-        <div className="flex items-center justify-center mt-8 mb-4">
-          <button 
-            onClick={() => navigate('/student/monthly')}
-            className="flex items-center justify-center w-[15px] h-[15px] text-white/60 hover:text-white transition-colors"
-            title="Voir le calendrier mensuel"
-          >
-            <ChevronDown className="h-[15px] w-[15px]" />
-          </button>
-        </div>
-        
-        {/* Extra padding at bottom to add scroll resistance and prevent accidental navigation */}
-        <div className="h-[200px] w-full" aria-hidden="true" />
       </div>
     </div>
   );

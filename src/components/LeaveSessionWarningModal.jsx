@@ -1,5 +1,4 @@
 import React from 'react';
-import { X, AlertTriangle } from 'lucide-react';
 
 /**
  * Modal d'avertissement affiché quand l'étudiant tente de quitter la séance
@@ -36,39 +35,32 @@ const LeaveSessionWarningModal = ({ isOpen, onClose, onConfirm }) => {
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-[#1a1a1a] rounded-lg w-full max-w-md mx-4 overflow-hidden border border-white/10"
+        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#262626]">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-[#d4845a]" />
-            <h2 className="text-white text-lg font-semibold">Quitter la séance ?</h2>
-          </div>
-          {/* Pas de bouton X - forcer l'utilisateur à choisir */}
+        <div className="flex items-center justify-center px-4 text-center" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
+          <h2 className="text-[var(--kaiylo-primary-hex)] text-xl font-normal">Quitter la séance ?</h2>
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
-          <p className="text-gray-300 text-sm leading-relaxed">
-            Votre progression a été sauvegardée automatiquement. Vous pourrez reprendre cette séance plus tard.
-          </p>
-          <p className="text-gray-400 text-xs leading-relaxed">
-            ⚠️ Si vous quittez maintenant, vous devrez terminer tous les exercices lors de votre prochaine session.
+        <div className="px-[25px] py-0 space-y-4">
+          <p className="text-gray-400 text-xs font-light leading-relaxed text-center">
+            Votre progression est sauvegardée, mais si vous ne validez pas la séance, votre coach ne recevra pas les informations.
           </p>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-4 border-t border-[#262626]">
+        <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px]">
           <button
             onClick={onClose}
-            className="flex-1 py-3 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-medium transition-colors"
+            className="flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors"
           >
-            Annuler
+            Rester sur la page
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-3 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-medium transition-colors"
+            className="flex-1 py-2 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-light text-[13px] transition-colors"
           >
             Quitter quand même
           </button>
