@@ -303,8 +303,16 @@ const StudentDashboard = () => {
             const key = `${exerciseIndex}-${setIndex}`;
             const setData = completedSets[key];
             
-            if (setData && typeof setData === 'object' && 'status' in setData) {
-              set.validation_status = setData.status;
+            if (setData && typeof setData === 'object') {
+              // Inject validation_status
+              if ('status' in setData) {
+                set.validation_status = setData.status;
+              }
+              // Inject RPE rating if present
+              if ('rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined) {
+                set.rpe_rating = setData.rpeRating;
+                set.rpe = setData.rpeRating; // Also set rpe for compatibility
+              }
             } else if (setData && typeof setData === 'string') {
               set.validation_status = setData;
             }

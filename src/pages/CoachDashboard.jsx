@@ -50,6 +50,8 @@ const CoachDashboard = () => {
         
         socket.on('session_completed_with_videos', handleRealtimeUpdate);
         socket.on('new_message', handleRealtimeUpdate);
+        socket.on('video_uploaded', handleRealtimeUpdate);
+        socket.on('video_feedback_updated', handleRealtimeUpdate);
         console.log('WebSocket listeners for dashboard counts attached.');
       }
 
@@ -59,6 +61,8 @@ const CoachDashboard = () => {
         if (socket) {
           socket.off('session_completed_with_videos', fetchDashboardCounts);
           socket.off('new_message', fetchDashboardCounts);
+          socket.off('video_uploaded', fetchDashboardCounts);
+          socket.off('video_feedback_updated', fetchDashboardCounts);
           console.log('WebSocket listeners for dashboard counts removed.');
         }
       };
@@ -246,6 +250,9 @@ const CoachDashboard = () => {
   const handleBackToList = () => {
     setSelectedStudent(null);
     setSelectedStudentInitialTab('overview');
+    // Refresh dashboard counts when returning from student detail view
+    // This ensures the video feedback count is up to date after giving feedback
+    fetchDashboardCounts();
   };
 
 
@@ -471,7 +478,15 @@ const CoachDashboard = () => {
                       </div>
 
                       {/* Count Badge - Positionné à gauche après l'icône */}
-                      <div className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0">
+                      <div 
+                        className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 cursor-pointer hover:bg-[#d4845a]/90 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering the row click
+                          setSelectedStudent(student);
+                          setSelectedStudentInitialTab('analyse');
+                        }}
+                        title="Voir les vidéos en attente de feedback"
+                      >
                         <span className="text-[13px] text-white font-normal leading-none">
                           {(studentMessageCounts[student.id] || 0) + (studentVideoCounts[student.id] || 0)}
                         </span>

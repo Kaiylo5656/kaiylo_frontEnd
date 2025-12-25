@@ -25,6 +25,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const [sessionStatus, setSessionStatus] = useState('in_progress'); // 'in_progress', 'completed'
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false); // Video upload modal state
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false); // Session completion modal state
+  const [isValidatingSession, setIsValidatingSession] = useState(false); // Track if session validation is in progress
   const [localVideos, setLocalVideos] = useState([]); // Store videos locally until session completion
   const [isUploadingVideos, setIsUploadingVideos] = useState(false); // Track video upload state - can be reused for the new modal
   const [uploadProgress, setUploadProgress] = useState(null); // Track upload progress
@@ -1090,7 +1091,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   };
 
   const handleSessionCompletion = async (completionData) => {
-    setIsCompletionModalOpen(false); // Close completion modal
+    setIsValidatingSession(true); // Start validation, keep modal open
 
     // Filter videos that haven't been uploaded yet (via TUS)
     // Videos uploaded via TUS have status 'READY' or 'UPLOADED_RAW' and a videoId
@@ -1348,6 +1349,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         setIsUploadingVideos(false);
         setIsCompressing(false);
         setUploadProgress(null);
+        setIsValidatingSession(false); // Re-enable button on error
+        setIsCompletionModalOpen(false); // Close modal on error
         return;
       } finally {
         setIsUploadingVideos(false);
@@ -1481,6 +1484,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         }
         
         setIsVideoProcessingModalOpen(false);
+        setIsValidatingSession(false); // Re-enable button on error
+        setIsCompletionModalOpen(false); // Close modal on error
         // Don't proceed to complete session if uploads fail
         return;
       } finally {
@@ -1587,6 +1592,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     setLocalVideos([]);
     
     console.log('🧹 Cleaned localStorage and localVideos after session completion');
+    
+    // Ensure validation indicator is visible for at least 2 seconds
+    // This gives user feedback that validation is happening, even if it's very fast
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Close modal after successful completion
+    setIsCompletionModalOpen(false);
+    setIsValidatingSession(false);
     
     onCompleteSession({
       ...session,
@@ -2070,10 +2083,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       })()}
 
       {/* Session Completion Modal */}
-      <SessionCompletionModal
-        isOpen={isCompletionModalOpen}
-        onClose={() => setIsCompletionModalOpen(false)}
-        onComplete={handleSessionCompletion}
+        <SessionCompletionModal
+          isOpen={isCompletionModalOpen}
+          onClose={() => {
+            if (!isValidatingSession) {
+              setIsCompletionModalOpen(false);
+            }
+          }}
+          onComplete={handleSessionCompletion}
+          isValidating={isValidatingSession}
         isUploading={isUploadingVideos}
         uploadProgress={uploadProgress}
       />
