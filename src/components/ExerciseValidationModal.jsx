@@ -542,11 +542,15 @@ const ExerciseValidationModal = ({
               </h1>
             </div>
             <div className="flex flex-col gap-[15px] items-start w-full">
-              {/* Tempo - Affiché si défini par le coach */}
-              {exercise.tempo && (
-              <p className="text-[10px] font-light text-white/50">
-                  Tempo : {exercise.tempo}
-              </p>
+              {/* Tempo et Chaque côté - Affichés si définis par le coach */}
+              {(exercise.tempo || exercise.per_side) && (
+                <div className="flex flex-col gap-[15px] items-start">
+                  <p className="text-[10px] font-light text-white/50">
+                    {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
+                    {exercise.tempo && exercise.per_side ? ' | ' : ''}
+                    {exercise.per_side ? 'Chaque côté' : ''}
+                  </p>
+                </div>
               )}
               
               {/* Points d'avancement - représentent les exercices de la séance */}

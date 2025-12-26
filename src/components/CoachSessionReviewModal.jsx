@@ -248,7 +248,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             const firstSetVideo = firstExerciseVideos.find(v => v.set_number === 1) || firstExerciseVideos[0];
             setSelectedVideo(firstSetVideo);
             setFeedback(firstSetVideo.coach_feedback || '');
-            setCoachComment(firstSetVideo.coach_feedback || '');
+            setCoachComment('');
           }
         }
       }
@@ -338,7 +338,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     if (setVideo) {
       setSelectedVideo(setVideo);
       setFeedback(setVideo.coach_feedback || '');
-      setCoachComment(setVideo.coach_feedback || '');
+      setCoachComment('');
     } else {
       setSelectedVideo(null);
       setFeedback('');
@@ -346,7 +346,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     }
   };
 
-  const handleSaveAndQuit = async () => {
+  const handleSaveComment = async () => {
     if (selectedVideo && coachComment.trim()) {
       try {
         setSavingFeedback(true);
@@ -368,12 +368,35 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             headers: { Authorization: `Bearer ${token}` }
           }
         );
+        
+        // Update the video in sessionVideos to reflect the saved feedback
+        const updatedVideo = { ...selectedVideo, coach_feedback: coachComment.trim() };
+        setSessionVideos(prev => prev.map(video => 
+          video.id === selectedVideo.id 
+            ? updatedVideo
+            : video
+        ));
+        
+        // Update selectedVideo to reflect the saved feedback immediately
+        setSelectedVideo(updatedVideo);
+        
+        // Clear the input after successful save
+        setCoachComment('');
       } catch (error) {
         console.error('Error saving feedback:', error);
+        alert('Erreur lors de la sauvegarde du commentaire. Veuillez réessayer.');
       } finally {
         setSavingFeedback(false);
       }
     }
+  };
+
+  const handleSaveAndQuit = async () => {
+    // Save comment first if there is one
+    if (selectedVideo && coachComment.trim()) {
+      await handleSaveComment();
+    }
+    // Then close the modal
     onClose();
   };
 
@@ -645,13 +668,23 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       </div>
                     );
                   })}
+              
+              {/* Student Comment for this Exercise - Display at bottom of sets list */}
+              {selectedExercise && (
+                <div className="mt-[12px] pt-[12px] border-t border-white/10">
+                  <div className="text-[10px] font-light text-white/50 mb-[6px]">Commentaire de l'étudiant :</div>
+                  <div className="text-[12px] font-light text-white bg-[#090A0A] rounded-[5px] px-[12px] py-[8px] border-[0.5px] border-white/10 break-words">
+                    {selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || 'Aucun commentaire de l\'étudiant'}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: Video Player */}
             <div className="flex-1 flex flex-col min-w-[300px]">
               {currentSetVideo && currentSetVideo.video_url ? (
                 <div className="bg-[#1A1A1D] border-[0.5px] border-white/10 rounded-[10px] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)] relative min-h-[320px] flex flex-col pt-[14px] px-[14px] pb-[14px]">
-                  {/* Video Player Container with integrated input */}
+                  {/* Video Player Container */}
                   <div className="bg-black rounded-[10px] shadow-[0px_4px_10px_0px_rgba(0,0,0,0.5)] overflow-hidden mb-[12px] flex-shrink-0 relative flex flex-col">
                     {/* Video Player */}
                     <div className="h-[158px] w-full overflow-hidden">
@@ -661,41 +694,6 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         className="w-full h-full object-contain"
                         poster={currentSetVideo.thumbnail_url}
                       />
-                    </div>
-
-                    {/* Coach Comment Input - Inside video box at the bottom */}
-                    <div className="w-full min-h-[32px] bg-[#090A0A] border-t-[0.5px] border-white/10 px-[8px] py-[4px] flex items-end justify-between flex-shrink-0">
-                      <textarea
-                        ref={textareaRef}
-                        value={coachComment}
-                        onChange={(e) => {
-                          setCoachComment(e.target.value);
-                          setFeedback(e.target.value);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (coachComment.trim() && currentSetVideo) {
-                              handleSaveAndQuit();
-                            }
-                          }
-                        }}
-                        placeholder="Ajouter un commentaire ..."
-                        rows={1}
-                        className="flex-1 bg-transparent text-[12px] font-light text-white/50 placeholder-white/50 outline-none resize-none overflow-y-auto"
-                        style={{ minHeight: '24px', maxHeight: '100px' }}
-                      />
-                      <button 
-                        onClick={() => {
-                          if (coachComment.trim() && currentSetVideo) {
-                            handleSaveAndQuit();
-                          }
-                        }}
-                        className="flex items-center justify-center cursor-pointer p-0 w-[12px] h-[12px] ml-2 flex-shrink-0"
-                        disabled={!coachComment.trim()}
-                      >
-                        <Send className="h-3 w-3 text-[#D4845A]" />
-                      </button>
                     </div>
                   </div>
 
@@ -709,14 +707,49 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     </div>
                   )}
 
-                  {/* Comment Section - Inside main box - Scrollable */}
-                  <div className="flex flex-col gap-[8px] mb-0 flex-1 min-h-[80px] overflow-hidden mt-auto">
+                  {/* Comment Display Section - In gray container, not in black video box */}
+                  <div className="flex flex-col gap-[8px] mb-[12px] flex-shrink-0">
                     <div className="text-[10px] font-light text-white/50 flex-shrink-0">Commentaire :</div>
-                    <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[#121214] rounded-[10px] px-[12px] py-[12px] border-[0.5px] border-white/10 flex items-center min-h-[35px]">
+                    <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[#090A0A] rounded-[10px] px-[12px] py-[12px] border-[0.5px] border-white/10 flex items-center min-h-[35px]">
                       <div className="w-full">
-                        {currentSetVideo.coach_feedback || coachComment || currentSetVideo.comment || 'Aucun commentaire'}
+                        {currentSetVideo.coach_feedback || currentSetVideo.comment || 'Aucun commentaire'}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Coach Comment Input - Below video box */}
+                  <div className="w-full min-h-[48px] bg-[#121214] border-t-[0.5px] border-white/10 rounded-[10px] px-[8px] py-[8px] flex items-center justify-between flex-shrink-0 mt-auto">
+                    <textarea
+                      ref={textareaRef}
+                      value={coachComment}
+                      onChange={(e) => {
+                        setCoachComment(e.target.value);
+                        setFeedback(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (coachComment.trim() && currentSetVideo) {
+                            handleSaveComment();
+                          }
+                        }
+                      }}
+                      placeholder="Ajouter un commentaire ..."
+                      rows={1}
+                      className="flex-1 bg-transparent text-[12px] font-light text-white placeholder-white/50 outline-none resize-none overflow-y-auto"
+                      style={{ minHeight: '24px', maxHeight: '100px' }}
+                    />
+                    <button 
+                      onClick={() => {
+                        if (coachComment.trim() && currentSetVideo) {
+                          handleSaveComment();
+                        }
+                      }}
+                      className="flex items-center justify-center cursor-pointer p-0 w-[12px] h-[12px] ml-2 flex-shrink-0"
+                      disabled={!coachComment.trim() || savingFeedback}
+                    >
+                      <Send className="h-3 w-3 text-[#D4845A]" />
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -754,6 +787,26 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             onClose={() => setIsExercisesModalOpen(false)}
             session={session}
             position={exercisesPosition}
+            onExerciseSelect={(exerciseIndex) => {
+              setSelectedExerciseIndex(exerciseIndex);
+              setSelectedSetIndex(0);
+              // Update video selection for the new exercise
+              const newExercise = session.exercises[exerciseIndex];
+              if (newExercise) {
+                const exerciseVideos = getVideosForExercise(newExercise, exerciseIndex);
+                const firstSetVideo = exerciseVideos.find(v => v.set_number === 1) || exerciseVideos[0];
+                if (firstSetVideo) {
+                  setSelectedVideo(firstSetVideo);
+                  setFeedback(firstSetVideo.coach_feedback || '');
+                  setCoachComment('');
+                } else {
+                  setSelectedVideo(null);
+                  setFeedback('');
+                  setCoachComment('');
+                }
+              }
+            }}
+            selectedExerciseIndex={selectedExerciseIndex}
           />
         )}
       </DialogContent>

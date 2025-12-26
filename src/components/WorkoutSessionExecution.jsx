@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { ArrowLeft, CheckCircle, XCircle, Video, Play, VideoOff } from 'lucide-react';
 import { Button } from './ui/button';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
@@ -1701,50 +1702,91 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
     console.log('🔄 Processing upload for target:', { exerciseIndex, setIndex });
     
-    // Check if a video already exists for this set
-    setLocalVideos(prev => {
-      // Remove any existing video for this exercise and set
-      const filteredVideos = prev.filter(
-        v => !(v.exerciseIndex === exerciseIndex && v.setIndex === setIndex)
-      );
-      // Add the new video with indices for robust matching
-      return [
-        ...filteredVideos,
-        {
-          ...videoData,
-          exerciseIndex,
-          setIndex,
-        },
-      ];
-    });
+    // Use flushSync to force immediate state updates for "no-video" choice
+    // This ensures the UI updates immediately when user clicks "Pas de vidéo"
+    const isNoVideo = videoData.file === 'no-video';
     
-    // If video was uploaded successfully (has videoId and status), re-fetch from API to get signed URL
-    // This ensures the video can be displayed in the modal when reopened
-    if (videoData.videoId && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
-      const assignmentId = session?.assignment_id || session?.id;
-      if (assignmentId) {
-        // Re-fetch immediately to get the signed URL for the newly uploaded video
-        // Use a small delay to ensure backend has processed the upload confirmation
-        setTimeout(() => {
-          fetchSessionVideosFromAPI(assignmentId);
-        }, 500);
+    if (isNoVideo) {
+      // Force synchronous updates for immediate UI feedback
+      flushSync(() => {
+        // Check if a video already exists for this set
+        setLocalVideos(prev => {
+          // Remove any existing video for this exercise and set
+          const filteredVideos = prev.filter(
+            v => !(v.exerciseIndex === exerciseIndex && v.setIndex === setIndex)
+          );
+          // Add the new video with indices for robust matching
+          return [
+            ...filteredVideos,
+            {
+              ...videoData,
+              exerciseIndex,
+              setIndex,
+            },
+          ];
+        });
+        
+        // Add video status for badge rendering
+        setCompletedSets(prev => {
+          const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
+          const updatedSetData = {
+            ...currentSetData,
+            hasVideo: false,
+            videoStatus: 'no-video'
+          };
+          return {
+            ...prev,
+            [`${exerciseIndex}-${setIndex}`]: updatedSetData
+          };
+        });
+      });
+    } else {
+      // For actual video uploads, use normal async updates
+      // Check if a video already exists for this set
+      setLocalVideos(prev => {
+        // Remove any existing video for this exercise and set
+        const filteredVideos = prev.filter(
+          v => !(v.exerciseIndex === exerciseIndex && v.setIndex === setIndex)
+        );
+        // Add the new video with indices for robust matching
+        return [
+          ...filteredVideos,
+          {
+            ...videoData,
+            exerciseIndex,
+            setIndex,
+          },
+        ];
+      });
+      
+      // If video was uploaded successfully (has videoId and status), re-fetch from API to get signed URL
+      // This ensures the video can be displayed in the modal when reopened
+      if (videoData.videoId && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
+        const assignmentId = session?.assignment_id || session?.id;
+        if (assignmentId) {
+          // Re-fetch immediately to get the signed URL for the newly uploaded video
+          // Use a small delay to ensure backend has processed the upload confirmation
+          setTimeout(() => {
+            fetchSessionVideosFromAPI(assignmentId);
+          }, 500);
+        }
       }
+      
+      // Add video status for badge rendering
+      setCompletedSets(prev => {
+        const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
+        const hasNoVideo = videoData.file === 'no-video';
+        const updatedSetData = {
+          ...currentSetData,
+          hasVideo: !hasNoVideo,
+          videoStatus: hasNoVideo ? 'no-video' : 'uploaded'
+        };
+        return {
+          ...prev,
+          [`${exerciseIndex}-${setIndex}`]: updatedSetData
+        };
+      });
     }
-    
-    // Add video status for badge rendering
-    setCompletedSets(prev => {
-      const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
-      const hasNoVideo = videoData.file === 'no-video';
-      const updatedSetData = {
-        ...currentSetData,
-        hasVideo: !hasNoVideo,
-        videoStatus: hasNoVideo ? 'no-video' : 'uploaded'
-      };
-      return {
-        ...prev,
-        [`${exerciseIndex}-${setIndex}`]: updatedSetData
-      };
-    });
     
     setIsVideoModalOpen(false);
   }, [currentExerciseIndex, selectedSetForVideo]);
@@ -2139,23 +2181,28 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       </div>
 
       {/* Complete Session Button - Style Figma */}
-      <div className="pl-[47px] pr-[20px] mt-[10px] max-w-[400px] mx-auto">
-        <button
-          onClick={handleCompleteSession}
-          disabled={!isAllExercisesCompleted()}
-          className={`
-            w-full h-[30px] rounded-[5px] 
-            flex items-center justify-center 
-            text-[10px] font-normal transition-all duration-200
-            ${isAllExercisesCompleted()
-              ? 'bg-[#d4845a] hover:bg-[#c47850] text-white active:bg-[#b86d45] cursor-pointer shadow-sm'
-              : 'bg-white/3 text-white/25 cursor-not-allowed opacity-50'
-            }
-          `}
-        >
-          Valider la séance
-        </button>
-      </div>
+      {/* Always show the button when session is started, but enable it only when all exercises are completed */}
+      {isSessionStarted && (
+        <div className="relative pl-[47px] pr-[30px] max-w-[400px] mx-auto z-10">
+          <div className="mt-[10px] mb-[20px] ml-[-5px]">
+            <button
+              onClick={handleCompleteSession}
+              disabled={!isAllExercisesCompleted()}
+              className={`
+                w-full h-[30px] rounded-[5px] 
+                flex items-center justify-center 
+                text-[10px] font-normal transition-all duration-200
+                ${isAllExercisesCompleted()
+                  ? 'bg-[#d4845a] hover:bg-[#c47850] text-white active:bg-[#b86d45] cursor-pointer shadow-sm'
+                  : 'bg-white/3 text-white/25 cursor-not-allowed opacity-50'
+                }
+              `}
+            >
+              Valider la séance
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Video Upload Modal */}
       {(() => {

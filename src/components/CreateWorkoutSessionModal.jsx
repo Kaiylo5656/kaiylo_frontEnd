@@ -107,7 +107,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           sets: sets,
           notes: ex.notes || '',
           isExpanded: true,
-          tempo: ex.tempo || ''
+          tempo: ex.tempo || '',
+          per_side: ex.per_side || false
         };
       }) || [];
       
@@ -251,7 +252,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       ],
       notes: '',
       isExpanded: true,
-      tempo: ''
+      tempo: '',
+      per_side: false
     };
     
     setExercises([...exercises, newExercise]);
@@ -396,7 +398,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           video: set.video
         })),
         notes: ex.notes,
-        tempo: ex.tempo
+        tempo: ex.tempo,
+        per_side: ex.per_side || false
       })),
       scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,
@@ -814,81 +817,102 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         </table>
                       </div>
 
-                      {/* Controls Row: Tempo input, Ajouter une série */}
+                      {/* Controls Row: Chaque côté checkbox, Tempo input, Ajouter une série */}
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#262626]">
-                        {/* Left side: Tempo input */}
-                        <Input
-                          type="text"
-                          value={exercise.tempo || ''}
-                          onChange={(e) => {
-                            let value = e.target.value;
-                            const currentTempo = exercise.tempo || '';
-                            
-                            // Filtrer pour n'accepter que les chiffres (0-9) et les tirets (-)
-                            // Supprimer tous les caractères qui ne sont pas des chiffres ou des tirets
-                            value = value.replace(/[^0-9-]/g, '');
-                            
-                            // Vérifier si le format actuel est déjà complet (4 chiffres séparés par des tirets)
-                            const currentParts = currentTempo.split('-');
-                            const isCurrentComplete = currentParts.length === 4 && 
-                              currentParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
-                            
-                            // Si le format est complet et que l'utilisateur essaie d'ajouter un caractère, bloquer
-                            if (isCurrentComplete && value.length > currentTempo.length) {
-                              // Ne pas mettre à jour la valeur, garder l'ancienne
-                              return;
-                            }
-                            
-                            // Si l'utilisateur tape un chiffre et que le dernier caractère n'est pas un tiret
-                            // Ajouter automatiquement un tiret après le chiffre
-                            const lastChar = value[value.length - 1];
-                            if (lastChar && /[0-9]/.test(lastChar)) {
-                              // Vérifier si on n'est pas déjà à la fin d'un format complet (x-x-x-x)
-                              const parts = value.split('-');
-                              // Si on a moins de 4 parties et que le dernier caractère est un chiffre
-                              if (parts.length < 4 && !value.endsWith('-')) {
-                                value = value + '-';
+                        {/* Left side: Chaque côté checkbox and Tempo input */}
+                        <div className="flex items-center gap-[5px]">
+                          {/* Chaque côté checkbox */}
+                          <div className="flex items-center gap-[8px] h-[29px]">
+                            <input
+                              type="checkbox"
+                              checked={exercise.per_side || false}
+                              onChange={(e) => {
+                                const updatedExercises = [...exercises];
+                                updatedExercises[exerciseIndex].per_side = e.target.checked;
+                                setExercises(updatedExercises);
+                              }}
+                              className="bg-[rgba(255,255,255,0.02)] border-[0.5px] border-[rgba(255,255,255,0.5)] rounded-[1px] w-[12px] h-[12px] shrink-0 cursor-pointer checked:bg-[#d4845a] checked:border-[#d4845a] focus:outline-none focus:ring-1 focus:ring-[rgba(255,255,255,0.3)]"
+                              style={{ appearance: 'none', WebkitAppearance: 'none' }}
+                            />
+                            <label className="text-[10px] font-light text-white/75 cursor-pointer whitespace-nowrap leading-[29px]">
+                              Chaque côté
+                            </label>
+                          </div>
+                          
+                          {/* Tempo input */}
+                          <Input
+                            type="text"
+                            value={exercise.tempo || ''}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              const currentTempo = exercise.tempo || '';
+                              
+                              // Filtrer pour n'accepter que les chiffres (0-9) et les tirets (-)
+                              // Supprimer tous les caractères qui ne sont pas des chiffres ou des tirets
+                              value = value.replace(/[^0-9-]/g, '');
+                              
+                              // Vérifier si le format actuel est déjà complet (4 chiffres séparés par des tirets)
+                              const currentParts = currentTempo.split('-');
+                              const isCurrentComplete = currentParts.length === 4 && 
+                                currentParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
+                              
+                              // Si le format est complet et que l'utilisateur essaie d'ajouter un caractère, bloquer
+                              if (isCurrentComplete && value.length > currentTempo.length) {
+                                // Ne pas mettre à jour la valeur, garder l'ancienne
+                                return;
                               }
-                            }
-                            
-                            // Vérifier à nouveau si le nouveau format est complet
-                            const newParts = value.split('-');
-                            const isNewComplete = newParts.length === 4 && 
-                              newParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
-                            
-                            // Si le nouveau format est complet, s'assurer qu'il n'y a pas de caractères supplémentaires
-                            if (isNewComplete) {
-                              // Limiter à exactement le format x-x-x-x (sans caractères supplémentaires)
-                              const formattedValue = newParts.join('-');
-                              if (value.length > formattedValue.length) {
-                                value = formattedValue;
+                              
+                              // Si l'utilisateur tape un chiffre et que le dernier caractère n'est pas un tiret
+                              // Ajouter automatiquement un tiret après le chiffre
+                              const lastChar = value[value.length - 1];
+                              if (lastChar && /[0-9]/.test(lastChar)) {
+                                // Vérifier si on n'est pas déjà à la fin d'un format complet (x-x-x-x)
+                                const parts = value.split('-');
+                                // Si on a moins de 4 parties et que le dernier caractère est un chiffre
+                                if (parts.length < 4 && !value.endsWith('-')) {
+                                  value = value + '-';
+                                }
                               }
-                            }
-                            
-                            const updatedExercises = [...exercises];
-                            updatedExercises[exerciseIndex].tempo = value;
-                            setExercises(updatedExercises);
-                          }}
-                          onKeyPress={(e) => {
-                            // Empêcher la saisie de caractères non numériques (sauf les tirets qui sont gérés dans onChange)
-                            const char = String.fromCharCode(e.which || e.keyCode);
-                            if (!/[0-9-]/.test(char)) {
-                              e.preventDefault();
-                            }
-                          }}
-                          onFocus={(e) => {
-                            if (!e.target.value) {
-                              e.target.placeholder = 'x-x-x-x';
-                            }
-                          }}
-                          onBlur={(e) => {
-                            if (!e.target.value) {
-                              e.target.placeholder = 'Tempo';
-                            }
-                          }}
-                          placeholder="Tempo"
-                          className="bg-[rgba(255,255,255,0.05)] border-[0.5px] border-[rgba(255,255,255,0.2)] rounded-[5px] text-white text-[8px] font-light px-[11px] py-[5px] h-[29px] w-[80px] focus:outline-none focus:ring-1 focus:ring-[rgba(255,255,255,0.3)] placeholder:text-[rgba(255,255,255,0.5)]"
-                        />
+                              
+                              // Vérifier à nouveau si le nouveau format est complet
+                              const newParts = value.split('-');
+                              const isNewComplete = newParts.length === 4 && 
+                                newParts.every(part => /^[0-9]+$/.test(part) && part.length > 0);
+                              
+                              // Si le nouveau format est complet, s'assurer qu'il n'y a pas de caractères supplémentaires
+                              if (isNewComplete) {
+                                // Limiter à exactement le format x-x-x-x (sans caractères supplémentaires)
+                                const formattedValue = newParts.join('-');
+                                if (value.length > formattedValue.length) {
+                                  value = formattedValue;
+                                }
+                              }
+                              
+                              const updatedExercises = [...exercises];
+                              updatedExercises[exerciseIndex].tempo = value;
+                              setExercises(updatedExercises);
+                            }}
+                            onKeyPress={(e) => {
+                              // Empêcher la saisie de caractères non numériques (sauf les tirets qui sont gérés dans onChange)
+                              const char = String.fromCharCode(e.which || e.keyCode);
+                              if (!/[0-9-]/.test(char)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onFocus={(e) => {
+                              if (!e.target.value) {
+                                e.target.placeholder = 'x-x-x-x';
+                              }
+                            }}
+                            onBlur={(e) => {
+                              if (!e.target.value) {
+                                e.target.placeholder = 'Tempo';
+                              }
+                            }}
+                            placeholder="Tempo"
+                            className="bg-[rgba(255,255,255,0.05)] border-[0.5px] border-[rgba(255,255,255,0.2)] rounded-[5px] text-white text-[8px] font-light px-[11px] py-[5px] h-[29px] w-[80px] focus:outline-none focus:ring-1 focus:ring-[rgba(255,255,255,0.3)] placeholder:text-[rgba(255,255,255,0.5)]"
+                          />
+                        </div>
 
                         {/* Right side: Ajouter une série button */}
                         <button

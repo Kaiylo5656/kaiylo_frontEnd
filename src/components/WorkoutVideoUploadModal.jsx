@@ -7,6 +7,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [showMissingVideoModal, setShowMissingVideoModal] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const { uploadVideo, progress, status, error: uploadError, videoId, retry, reset } = useVideoUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
@@ -19,8 +20,9 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
 
   // Initialize with existing video data when modal opens
   useEffect(() => {
-    // Reset initialization flag when modal closes
+    // Reset initialization flag and submitted state when modal closes
     if (!isOpen) {
+      setIsSubmitted(false);
       initializedRef.current = false;
       lastVideoUrlRef.current = null;
       return;
@@ -171,6 +173,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       URL.revokeObjectURL(videoPreviewUrl);
     }
     setVideoPreviewUrl(null);
+    // Don't call onUploadSuccess or onClose here - wait for "Terminer" button
   };
 
   const handleSubmit = async () => {
@@ -179,23 +182,37 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
       return;
     }
 
-    // If 'no-video', just close with success (no upload needed)
+    // If 'no-video', update state but don't close modal automatically
     if (videoFile === 'no-video') {
-        onUploadSuccess({ file: 'no-video', videoId: null, status: 'SKIPPED' });
-        onClose();
+        if (onUploadSuccess) {
+          onUploadSuccess({ 
+            file: 'no-video', 
+            videoId: null, 
+            status: 'SKIPPED',
+            exerciseInfo: exerciseInfo,
+            setInfo: setInfo
+          });
+        }
+        setIsSubmitted(true);
+        // Don't close automatically - user can close manually with "Quitter" button
         return;
     }
 
-    // If video is already uploaded (from API), just close with success
+    // If video is already uploaded (from API), update state but don't close automatically
     if (videoFile === 'uploaded' && existingVideo?.isFromAPI) {
         console.log('✅ Video already uploaded, skipping re-upload');
-        onUploadSuccess({ 
-          file: 'uploaded', 
-          videoId: existingVideo.videoId, 
-          status: existingVideo.status || 'READY',
-          videoUrl: existingVideo.videoUrl
-        });
-        onClose();
+        if (onUploadSuccess) {
+          onUploadSuccess({ 
+            file: 'uploaded', 
+            videoId: existingVideo.videoId, 
+            status: existingVideo.status || 'READY',
+            videoUrl: existingVideo.videoUrl,
+            exerciseInfo: exerciseInfo,
+            setInfo: setInfo
+          });
+        }
+        setIsSubmitted(true);
+        // Don't close automatically - user can close manually with "Quitter" button
         return;
     }
 
@@ -433,7 +450,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
                 className="bg-[#d4845a] border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white disabled:opacity-50"
                 disabled={status === 'UPLOADING' || status === 'PENDING' || !videoFile}
             >
-                {status === 'UPLOADING' ? 'Envoi...' : (status === 'READY' || status === 'UPLOADED_RAW' ? 'Terminé' : 'Terminer')}
+                {status === 'UPLOADING' ? 'Envoi...' : (status === 'READY' || status === 'UPLOADED_RAW' || isSubmitted ? 'Terminé' : 'Terminer')}
             </button>
           </div>
         </DialogContent>
