@@ -1,8 +1,29 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Logo = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleClick = () => {
+    // Navigate to home based on user role
+    if (user?.role === 'coach') {
+      // Add reset parameter to ensure CoachDashboard resets selectedStudent state
+      navigate('/coach/dashboard?reset=true');
+    } else if (user?.role === 'student') {
+      navigate('/student/dashboard');
+    } else {
+      // Default to coach dashboard if role is unknown
+      navigate('/coach/dashboard?reset=true');
+    }
+  };
+
   return (
-    <div className="flex items-center space-x-2">
+    <div 
+      className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={handleClick}
+    >
       <svg
         width="24"
         height="24"

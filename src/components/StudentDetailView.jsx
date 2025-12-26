@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X, Video } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X, Video, RefreshCw } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -59,7 +59,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [blockName, setBlockName] = useState('Prépa Force');
   const [isEditingBlock, setIsEditingBlock] = useState(false);
 
-  const { socket } = useSocket();
+  const { socket, isConnected } = useSocket();
 
   const trainingWeeks = useMemo(() => {
     const start = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
@@ -951,12 +951,53 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         return;
       }
 
-      // Delete each session
+      const token = localStorage.getItem('authToken');
+      let deletedCount = 0;
+      let errorCount = 0;
+
+      // Delete each session automatically without individual confirmations
       for (const { session, date } of weekSessions) {
-        await handleDeleteSession(session.assignmentId || session.id, date);
+        try {
+          const sessionId = session.assignmentId || session.id;
+          
+          // Check if this is a draft session (no assignment) or a regular assignment
+          if (session.status === 'draft') {
+            // Delete draft session directly
+            await axios.delete(
+              `${getApiBaseUrlWithApi()}/workout-sessions/${sessionId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+          } else {
+            // Delete assignment (which contains the reference to the session)
+            const response = await axios.delete(
+              `${getApiBaseUrlWithApi()}/assignments/${sessionId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` }
+              }
+            );
+            
+            if (!response.data.success) {
+              throw new Error('Failed to delete session');
+            }
+          }
+          
+          deletedCount++;
+        } catch (error) {
+          console.error(`Error deleting session ${session.assignmentId || session.id}:`, error);
+          errorCount++;
+        }
       }
 
-      alert(`Semaine supprimée avec succès ! ${weekSessions.length} séance(s) supprimée(s).`);
+      // Refresh workout sessions after all deletions
+      await fetchWorkoutSessions();
+
+      if (errorCount > 0) {
+        alert(`Semaine partiellement supprimée : ${deletedCount} séance(s) supprimée(s), ${errorCount} erreur(s).`);
+      } else {
+        alert(`Semaine supprimée avec succès ! ${deletedCount} séance(s) supprimée(s).`);
+      }
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Erreur lors de la suppression de la semaine');
@@ -1109,11 +1150,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
         {
           headers: { Authorization: `Bearer ${token}` },
-          params: { studentId: student.id } // Filter by student ID
+          params: { 
+            studentId: student.id, // Filter by student ID
+            limit: 1000, // Increase limit to get all videos (default is 50)
+            offset: 0
+          }
         }
       );
       
       if (response.data.success) {
+        console.log(`📹 Fetched ${response.data.data.length} videos for student ${student.id}`);
+        console.log(`📹 Video status breakdown:`, {
+          pending: response.data.data.filter(v => v.status === 'pending').length,
+          completed: response.data.data.filter(v => v.status === 'completed' || v.status === 'reviewed').length,
+          total: response.data.data.length
+        });
         setStudentVideos(response.data.data);
       }
     } catch (error) {
@@ -1130,19 +1181,42 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   };
 
   // Handle feedback update
-  const handleFeedbackUpdate = (videoId, feedback, rating, deleted = false, status = 'completed') => {
+  const handleFeedbackUpdate = async (videoId, feedback, rating, deleted = false, status = 'completed') => {
+    console.log('🔄 handleFeedbackUpdate called:', { videoId, deleted, status });
+    
     if (deleted) {
       // Remove video from list if deleted
-      setStudentVideos(prev => prev.filter(v => v.id !== videoId));
+      console.log('🗑️ Removing video from list:', videoId);
+      setStudentVideos(prev => {
+        const filtered = prev.filter(v => v.id !== videoId);
+        console.log(`📊 Video count after deletion: ${filtered.length} (was ${prev.length})`);
+        return filtered;
+      });
       setIsVideoDetailModalOpen(false);
       setSelectedVideo(null);
-      } else {
-      // Update video feedback in the list
-      setStudentVideos(prev => prev.map(v => 
-        v.id === videoId 
-          ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
-          : v
-      ));
+      // Refresh from server to ensure consistency
+      setTimeout(() => {
+        console.log('🔄 Refreshing videos list after deletion');
+        fetchStudentVideos();
+      }, 300);
+    } else {
+      // Update video feedback in the list locally for immediate UI update
+      console.log('✏️ Updating video feedback locally:', videoId);
+      setStudentVideos(prev => {
+        const updated = prev.map(v => 
+          v.id === videoId 
+            ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
+            : v
+        );
+        console.log(`📊 Video count after local update: ${updated.length}`);
+        return updated;
+      });
+      // Refresh the full list from server to ensure consistency
+      // This ensures the count is accurate and includes any other changes
+      setTimeout(() => {
+        console.log('🔄 Refreshing videos list from server after feedback update');
+        fetchStudentVideos();
+      }, 500); // Small delay to allow backend to process the update
     }
   };
 
@@ -1363,9 +1437,78 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   // Fetch videos when analyse tab is active
   useEffect(() => {
     if (activeTab === 'analyse') {
+      console.log(`📹 Fetching videos for student ${student.id} (analyse tab active)`);
       fetchStudentVideos();
     }
   }, [activeTab, student.id]);
+
+
+  // Listen for WebSocket events to refresh videos
+  useEffect(() => {
+    // Always log the current state for debugging
+    console.log('🔌 WebSocket listener effect triggered:', {
+      hasSocket: !!socket,
+      isConnected,
+      socketConnected: socket?.connected,
+      activeTab,
+      studentId: student.id
+    });
+
+    // Only proceed if we're on the analyse tab
+    if (activeTab !== 'analyse') {
+      console.log('⏭️ Skipping WebSocket setup - not on analyse tab');
+      return;
+    }
+
+    // Wait for socket to be connected
+    if (!socket) {
+      console.log('⏭️ Skipping WebSocket setup - no socket');
+      return;
+    }
+
+    if (!isConnected && !socket.connected) {
+      console.log('⏭️ Skipping WebSocket setup - socket not connected');
+      return;
+    }
+
+    console.log(`🔌 Setting up WebSocket listeners for student ${student.id} in analyse tab`);
+    
+    const handleVideoUploaded = (data) => {
+      console.log('📡 WebSocket: video_uploaded received', data);
+      console.log(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
+      // Refresh videos list if it's for this student
+      if (data.studentId === student.id) {
+        console.log('✅ Refreshing videos list after video upload');
+        fetchStudentVideos();
+      } else {
+        console.log('⏭️ Skipping refresh - different student');
+      }
+    };
+
+    const handleVideoFeedbackUpdated = (data) => {
+      console.log('📡 WebSocket: video_feedback_updated received', data);
+      console.log(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
+      // Refresh videos list if it's for this student
+      if (data.studentId === student.id) {
+        console.log('✅ Refreshing videos list after feedback update');
+        fetchStudentVideos();
+      } else {
+        console.log('⏭️ Skipping refresh - different student');
+      }
+    };
+
+    socket.on('video_uploaded', handleVideoUploaded);
+    socket.on('video_feedback_updated', handleVideoFeedbackUpdated);
+    console.log('✅ WebSocket listeners registered for video_uploaded and video_feedback_updated');
+
+    return () => {
+      console.log('🔌 Cleaning up WebSocket listeners for videos');
+      if (socket) {
+        socket.off('video_uploaded', handleVideoUploaded);
+        socket.off('video_feedback_updated', handleVideoFeedbackUpdated);
+      }
+    };
+  }, [socket, isConnected, activeTab, student.id]);
 
   // Calculate progress statistics
   const calculateProgressStats = () => {
@@ -1472,9 +1615,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     }
   };
 
-  // Filter videos based on current filters
-  const getFilteredVideos = () => {
-    return studentVideos.filter(video => {
+  // Filter videos based on current filters (memoized for performance)
+  const filteredVideos = useMemo(() => {
+    const filtered = studentVideos.filter(video => {
       // Filter out videos without valid video_url (RPE-only entries should not appear in video analysis)
       if (!video.video_url || video.video_url.trim() === '') {
         return false;
@@ -1496,7 +1639,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       
       return true;
     });
-  };
+    
+    console.log(`📊 Filtered videos count: ${filtered.length} (from ${studentVideos.length} total videos)`);
+    return filtered;
+  }, [studentVideos, statusFilter, exerciseFilter, dateFilter]);
+
+  // Keep getFilteredVideos for backward compatibility
+  const getFilteredVideos = () => filteredVideos;
 
   // Group videos by workout session
   const groupedVideosBySession = useMemo(() => {
@@ -2482,37 +2631,40 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2">
-                   <button
-                    onClick={() => setTrainingFilter('assigned')}
-                    className={`text-xs px-3 py-1.5 rounded-md ${trainingFilter === 'assigned' ? 'bg-[#d4845a] text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
-                  >
-                    Assigné
-                  </button>
-                  <button
-                    onClick={() => setTrainingFilter('draft')}
-                    className={`text-xs px-3 py-1.5 rounded-md border-[0.5px] ${trainingFilter === 'draft' ? 'border-[#d4845a] bg-black/10 text-[#d4845a]' : 'border-white/20 bg-white/5 text-white/75 hover:bg-white/10'}`}
-                  >
-                    Brouillon
-                  </button>
-                </div>
+                {/* Status Filter Dropdown */}
+                <select
+                  value={trainingFilter}
+                  onChange={(e) => setTrainingFilter(e.target.value)}
+                  className="text-xs px-3 py-1.5 rounded-md select-dark text-white/75 hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    paddingRight: '28px'
+                  }}
+                >
+                  <option value="all" className="bg-[#1a1a1a] text-white">Tous</option>
+                  <option value="assigned" className="bg-[#1a1a1a] text-white">Assigné</option>
+                  <option value="draft" className="bg-[#1a1a1a] text-white">Brouillon</option>
+                </select>
 
                 <div className="h-5 w-[1px] bg-white/20 mx-2"></div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setWeekViewFilter(2)}
-                    className={`text-xs px-3 py-1.5 rounded-full ${weekViewFilter === 2 ? 'bg-white/20 text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
-                  >
-                    2 semaines
-                  </button>
-                  <button
-                    onClick={() => setWeekViewFilter(4)}
-                    className={`text-xs px-3 py-1.5 rounded-full ${weekViewFilter === 4 ? 'bg-white/20 text-white' : 'bg-white/5 text-white/75 hover:bg-white/10'}`}
-                  >
-                    4 semaines
-                  </button>
-                </div>
+                {/* Week View Filter Dropdown */}
+                <select
+                  value={weekViewFilter}
+                  onChange={(e) => setWeekViewFilter(Number(e.target.value))}
+                  className="text-xs px-3 py-1.5 rounded-full select-dark text-white/75 hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 8px center',
+                    paddingRight: '28px'
+                  }}
+                >
+                  <option value="2" className="bg-[#1a1a1a] text-white">2 semaines</option>
+                  <option value="4" className="bg-[#1a1a1a] text-white">4 semaines</option>
+                </select>
               </div>
             </div>
 
@@ -2577,6 +2729,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                               <Clipboard className="h-4 w-4" />
                             </button>
                           )}
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteWeek(weekStart);
+                            }}
+                            className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/20 shadow-lg border border-white/10 transition-transform hover:scale-110"
+                            title="Supprimer la semaine"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
 
                         {/* The Grid for this week */}
@@ -2687,9 +2850,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 + Filter
               </button>
 
+              {/* Refresh Button */}
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered');
+                  fetchStudentVideos();
+                }}
+                disabled={videosLoading}
+                className="px-3 py-2 text-gray-400 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                title="Rafraîchir la liste des vidéos"
+              >
+                <RefreshCw className={`h-4 w-4 ${videosLoading ? 'animate-spin' : ''}`} />
+              </button>
+
               {/* Video Count */}
               <div className="ml-auto text-sm text-gray-400">
-                {getFilteredVideos().length} vidéo{getFilteredVideos().length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (getFilteredVideos().length > 1 ? 's' : '')}
+                {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
               </div>
             </div>
 

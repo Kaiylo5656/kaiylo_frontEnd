@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 
-const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUploading = false, uploadProgress = null }) => {
+const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUploading = false, uploadProgress = null, isValidating = false }) => {
   const [difficulty, setDifficulty] = useState('');
   const [comment, setComment] = useState('');
 
   const handleComplete = () => {
     if (!difficulty) {
       alert('Veuillez sélectionner la difficulté de la séance');
+      return;
+    }
+
+    // Don't proceed if already validating
+    if (isUploading || isValidating) {
       return;
     }
 
@@ -19,6 +24,10 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
   };
 
   const handleClose = () => {
+    // Don't close if validation is in progress
+    if (isUploading || isValidating) {
+      return;
+    }
     setDifficulty('');
     setComment('');
     onClose();
@@ -27,14 +36,33 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a1a] rounded-lg w-full max-w-md mx-4 overflow-hidden">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => {
+        // Prevent closing modal by clicking backdrop during validation
+        if (isUploading || isValidating) {
+          e.stopPropagation();
+          return;
+        }
+        // Only close if clicking the backdrop (not the modal content)
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-[#1a1a1a] rounded-lg w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#262626]">
           <h2 className="text-[#e87c3e] text-lg font-bold">Valider la séance</h2>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            disabled={isUploading || isValidating}
+            className={`text-gray-400 hover:text-white transition-colors ${
+              (isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <X size={20} />
           </button>
@@ -105,26 +133,38 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
           </div>
         )}
 
+        {/* Validation Indicator */}
+        {isValidating && !isUploading && (
+          <div className="px-4 pb-4">
+            <div className="bg-[#262626] rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 text-[#e87c3e] animate-spin" />
+                <span className="text-white text-sm">Validation de la séance en cours...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex gap-3 p-4 border-t border-[#262626]">
           <button
             onClick={handleClose}
-            disabled={isUploading}
+            disabled={isUploading || isValidating}
             className={`flex-1 py-3 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-medium transition-colors ${
-              isUploading ? 'opacity-50 cursor-not-allowed' : ''
+              (isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             Quitter
           </button>
           <button
             onClick={handleComplete}
-            disabled={isUploading}
+            disabled={isUploading || isValidating}
             className={`flex-1 py-3 px-4 bg-[#e87c3e] hover:bg-[#d66d35] text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-              isUploading ? 'opacity-50 cursor-not-allowed' : ''
+              (isUploading || isValidating) ? 'opacity-50 cursor-not-allowed bg-gray-600 hover:bg-gray-600' : ''
             }`}
           >
-            {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Terminer
+            {(isUploading || isValidating) && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isValidating ? 'Validation...' : 'Terminer'}
           </button>
         </div>
       </div>
