@@ -1067,8 +1067,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   const getSetStatusIcon = (status) => {
     switch (status) {
-      case 'completed': return <CheckCircle className="h-4 w-4 text-white" />;
-      case 'failed': return <XCircle className="h-4 w-4 text-white" />;
+      case 'completed': return <CheckCircle className="h-4 w-4 text-white opacity-100" style={{ opacity: 1 }} />;
+      case 'failed': return <XCircle className="h-4 w-4 text-white opacity-100" style={{ opacity: 1 }} />;
       default: return null;
     }
   };
@@ -2039,7 +2039,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   onClick={() => handleExerciseSelection(exerciseIndex)}
                   className={`
                     rounded-[12px] overflow-hidden transition-all duration-200
-                    ${isCompleted ? 'bg-[#262626]' : 'bg-[rgba(255,255,255,0.05)]'}
+                    ${isCompleted ? 'bg-white/10' : 'bg-white/5'}
                     ${isSessionStarted ? 'cursor-pointer' : 'cursor-default opacity-75'}
                     w-full min-h-[64px] flex items-center justify-center
                   `}
@@ -2088,7 +2088,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                               disabled={!isActive || !isSessionStarted}
                               className={`
                                 w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid 
-                                flex items-center justify-center relative
+                                flex items-center justify-center relative p-0 box-border
                                 transition-all duration-150
                                 ${variantClasses}
                                 ${isActive && isSessionStarted
@@ -2099,52 +2099,47 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                               title={isActive && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
                             >
                               {status === 'completed' && (
-                                <svg 
-                                  width="10" 
-                                  height="7" 
-                                  viewBox="0 0 10 7" 
-                                  fill="none" 
-                                  className="flex-shrink-0"
-                                  style={{ 
-                                    shapeRendering: 'crispEdges',
-                                    imageRendering: 'crisp-edges'
-                                  }}
-                                >
-                                  <path 
-                                    d="M1 3.5L3.5 6L9 1" 
-                                    stroke="#2FA064" 
-                                    strokeWidth="1.5" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round"
-                                    vectorEffect="non-scaling-stroke"
-                                  />
-                                </svg>
+                                <div className="!opacity-100" style={{ opacity: 1 }}>
+                                  <svg 
+                                    width="12" 
+                                    height="12" 
+                                    viewBox="0 0 12 12" 
+                                    fill="none" 
+                                    className="flex-shrink-0"
+                                    style={{ display: 'block', margin: '0', opacity: 1 }}
+                                  >
+                                    <path 
+                                      d="M2 6L4.5 8.5L10 3" 
+                                      stroke="#4ADE80" 
+                                      strokeWidth="2" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                      style={{ opacity: 1 }}
+                                    />
+                                  </svg>
+                                </div>
                               )}
                               {status === 'failed' && (
-                                <svg 
-                                  width="17" 
-                                  height="17" 
-                                  viewBox="0 0 17 17" 
-                                  fill="none" 
-                                  xmlns="http://www.w3.org/2000/svg" 
-                                  className="flex-shrink-0"
-                                  style={{ 
-                                    shapeRendering: 'crispEdges',
-                                    imageRendering: 'crisp-edges'
-                                  }}
-                                >
-                                  <path 
-                                    d="M5 12L12 5M5 5L12 12" 
-                                    stroke="#DA3336" 
-                                    strokeWidth="1.5" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round"
-                                    vectorEffect="non-scaling-stroke"
-                                    style={{ 
-                                      shapeRendering: 'geometricPrecision'
-                                    }}
-                                  />
-                                </svg>
+                                <div className="!opacity-100" style={{ opacity: 1 }}>
+                                  <svg 
+                                    width="12" 
+                                    height="12" 
+                                    viewBox="0 0 12 12" 
+                                    fill="none" 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    className="flex-shrink-0"
+                                    style={{ display: 'block', margin: '0', opacity: 1 }}
+                                  >
+                                    <path 
+                                      d="M3 3L9 9M9 3L3 9" 
+                                      stroke="#DA3336" 
+                                      strokeWidth="1.5" 
+                                      strokeLinecap="round" 
+                                      strokeLinejoin="round"
+                                      style={{ opacity: 1 }}
+                                    />
+                                  </svg>
+                                </div>
                               )}
                             </button>
                           );
