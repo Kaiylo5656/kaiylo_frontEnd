@@ -488,7 +488,7 @@ const CoachDashboard = () => {
                         title="Voir les vidéos en attente de feedback"
                       >
                         <span className="text-[13px] text-white font-normal leading-none">
-                          {(studentMessageCounts[student.id] || 0) + (studentVideoCounts[student.id] || 0)}
+                          {studentVideoCounts[student.id] || 0}
                         </span>
                       </div>
                     </div>

@@ -1154,6 +1154,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             studentId: student.id, // Filter by student ID
             limit: 1000, // Increase limit to get all videos (default is 50)
             offset: 0
+            // Note: We don't pass 'status' here because we want all videos
+            // The backend now filters by coach_feedback IS NULL by default for new videos
+            // The frontend will filter by statusFilter after receiving all videos
           }
         }
       );
