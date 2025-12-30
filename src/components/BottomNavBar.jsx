@@ -1,8 +1,47 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, History, MessageSquare, Video } from 'lucide-react';
+import { History } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
+
+// Custom Message Icon Component
+const MessageIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L360 512C354.8 512 349.8 513.7 345.6 516.8L230.4 603.2C226.2 606.3 221.2 608 216 608C202.7 608 192 597.3 192 584L192 512L160 512C107 512 64 469 64 416z"/>
+  </svg>
+);
+
+// Custom Video Icon Component
+const VideoIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z"/>
+  </svg>
+);
+
+// Custom Home Icon Component
+const HomeIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M341.8 72.6C329.5 61.2 310.5 61.2 298.3 72.6L74.3 280.6C64.7 289.6 61.5 303.5 66.3 315.7C71.1 327.9 82.8 336 96 336L112 336L112 512C112 547.3 140.7 576 176 576L464 576C499.3 576 528 547.3 528 512L528 336L544 336C557.2 336 569 327.9 573.8 315.7C578.6 303.5 575.4 289.5 565.8 280.6L341.8 72.6zM304 384L336 384C362.5 384 384 405.5 384 432L384 528L256 528L256 432C256 405.5 277.5 384 304 384z"/>
+  </svg>
+);
 
 const BottomNavBar = () => {
   const { user } = useAuth();
@@ -13,10 +52,10 @@ const BottomNavBar = () => {
 
     if (user.role === 'student') {
       return [
-        { to: "/student/dashboard", icon: Home, label: "Accueil" },
+        { to: "/student/dashboard", icon: HomeIcon, label: "Accueil" },
         { to: "/student/history", icon: History, label: "Historique" },
-        { to: "/chat", icon: MessageSquare, label: "Messages" },
-        { to: "/student/videos", icon: Video, label: "Vidéothèque" },
+        { to: "/chat", icon: MessageIcon, label: "Messages" },
+        { to: "/student/videos", icon: VideoIcon, label: "Vidéothèque" },
       ];
     }
     // Add coach/admin items here if needed

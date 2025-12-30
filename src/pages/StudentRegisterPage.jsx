@@ -248,7 +248,8 @@ const StudentRegisterPage = () => {
                   paddingTop: '10px',
                   paddingBottom: '10px',
                   paddingLeft: '16px',
-                  paddingRight: '16px'
+                  paddingRight: '16px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)'
                 }}
               >
                 <h2 className="text-sm font-normal text-[#d4845a]">
@@ -284,7 +285,7 @@ const StudentRegisterPage = () => {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 text-left">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 text-left" style={{ width: '384px', maxWidth: '100%', margin: '0 auto' }}>
               {/* Invitation Code Field */}
               <div style={{ marginBottom: '3px' }}>
                 <input
@@ -304,14 +305,16 @@ const StudentRegisterPage = () => {
                   onChange={handleInvitationCodeChange}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
                     borderColor: (errors.invitationCode && dirtyFields.invitationCode) || invitationError 
                       ? 'rgba(239, 68, 68, 1)' 
                       : invitationData 
                         ? 'rgba(212, 132, 90, 1)' 
-                        : 'rgba(255, 255, 255, 0.05)',
+                        : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -353,10 +356,12 @@ const StudentRegisterPage = () => {
                   value={invitationData?.student_email || ''}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -394,10 +399,12 @@ const StudentRegisterPage = () => {
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.firstName && dirtyFields.firstName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.firstName && dirtyFields.firstName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -428,10 +435,12 @@ const StudentRegisterPage = () => {
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.lastName && dirtyFields.lastName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.lastName && dirtyFields.lastName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -466,10 +475,12 @@ const StudentRegisterPage = () => {
                   })}
                   className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -510,10 +521,12 @@ const StudentRegisterPage = () => {
                   })}
                   className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -550,6 +563,8 @@ const StudentRegisterPage = () => {
                 type="submit"
                 className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 mt-[25px]"
                 style={{
+                  width: '384px',
+                  maxWidth: '100%',
                   backgroundColor: 'rgba(212, 132, 89, 1)',
                   color: 'rgba(255, 255, 255, 1)',
                   paddingTop: '10px',
@@ -570,7 +585,7 @@ const StudentRegisterPage = () => {
             </form>
 
             {/* Back to coach registration */}
-            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)]">
+            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)] border border-[rgba(212,132,90,0.05)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
                 Vous êtes coach ?
               </h2>
@@ -581,6 +596,8 @@ const StudentRegisterPage = () => {
                 to="/register"
                 className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors inline-block text-center"
                 style={{
+                  width: '384px',
+                  maxWidth: '100%',
                   backgroundColor: 'rgba(212, 132, 89, 1)',
                   color: 'rgba(255, 255, 255, 1)',
                   paddingTop: '10px',

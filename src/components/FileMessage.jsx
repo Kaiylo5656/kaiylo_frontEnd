@@ -142,7 +142,7 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
   };
 
   return (
-    <div className={`file-message ${isOwnMessage ? 'own-message' : 'other-message'} max-w-[85%] sm:max-w-xs lg:max-w-md`}>
+    <div className={`file-message ${isOwnMessage ? 'own-message' : 'other-message'} max-w-[85%] sm:max-w-lg lg:max-w-2xl`}>
       {renderFileContent()}
       
       {/* Message content (caption) */}

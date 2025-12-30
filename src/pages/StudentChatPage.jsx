@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import ChatWindow from '../components/ChatWindow';
 import BottomNavBar from '../components/BottomNavBar';
+import Header from '../components/Header';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -193,7 +194,7 @@ const StudentChatPage = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1a1a1a]">
+      <div className="h-screen flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
@@ -201,7 +202,7 @@ const StudentChatPage = () => {
 
   if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1a1a1a]">
+      <div className="h-screen flex items-center justify-center">
         <div className="text-center px-4">
           <div className="text-red-400 text-lg font-semibold mb-2">Error</div>
           <div className="text-gray-400 mb-4">{error}</div>
@@ -219,10 +220,9 @@ const StudentChatPage = () => {
   return (
     <>
       <div 
-        className="h-screen flex flex-col text-white overflow-hidden relative"
+        className="text-foreground w-full min-h-full relative overflow-hidden flex flex-col"
         style={{
           background: 'unset',
-          backgroundColor: '#0a0a0a',
           backgroundImage: 'none'
         }}
       >
@@ -302,18 +302,51 @@ const StudentChatPage = () => {
           }}
         />
 
+        {/* Top glow to match WorkoutSessionExecution */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+            opacity: 0.35
+          }}
+        />
+        {/* Warm orange glow from timeline */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+            opacity: 0.45
+          }}
+        />
+        {/* Subtle bottom depth glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+            opacity: 0.25
+          }}
+        />
+
         {/* Content wrapper */}
         <div className="relative z-10 flex flex-col h-full">
         {/* Show Conversation List or Chat Window based on selection (mobile view) */}
         {showConversationList && !selectedConversation ? (
           <>
-            {/* Header */}
-            <div className="bg-[#1a1a1a] border-b border-[#262626] px-4 py-4 flex-shrink-0" style={{ backgroundColor: 'rgba(26, 26, 26, 0.7)' }}>
-              <h1 className="text-white text-xl font-medium">Messages</h1>
+            {/* Header Component */}
+            <Header />
+            
+            {/* Title - Same style as StudentDashboard with same spacing */}
+            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
+              <h1 className="text-[28px] font-light text-center text-white mb-6">
+                Messages
+              </h1>
             </div>
 
             {/* Search Bar */}
-            <div className="px-4 py-3 border-b border-[#262626] flex-shrink-0">
+            <div className="px-10 py-3 flex-shrink-0 w-full max-w-6xl mx-auto">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
@@ -321,13 +354,14 @@ const StudentChatPage = () => {
                   placeholder="Rechercher..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#262626] border border-[#404040] rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[15px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                  style={{ color: 'rgba(255, 255, 255, 1)' }}
                 />
               </div>
             </div>
 
             {/* Conversations List - Add padding-bottom to account for bottom nav bar */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar pb-16">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 px-10 w-full max-w-6xl mx-auto">
               {filteredConversations.length === 0 ? (
                 <div className="p-6 text-center text-gray-400">
                   <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -344,12 +378,18 @@ const StudentChatPage = () => {
                     <div
                       key={conversation.id}
                       onClick={() => handleSelectConversation(conversation)}
-                      className="px-4 py-4 bg-[#1a1a1a] border-b border-[#262626] active:bg-[#262626] touch-target cursor-pointer"
+                      className="px-4 py-4 bg-[rgba(255,255,255,0.03)] active:bg-[#262626] touch-target cursor-pointer rounded-lg mb-2"
+                      style={{
+                        borderWidth: '0.5px',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderBottomStyle: 'solid',
+                        borderRadius: '15px'
+                      }}
                     >
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
                         <div className="flex-shrink-0">
-                          <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-medium text-lg">
+                          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-medium text-lg">
                             {conversation.other_participant_name?.charAt(0).toUpperCase() || 'C'}
                           </div>
                         </div>

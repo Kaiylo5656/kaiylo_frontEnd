@@ -39,6 +39,7 @@ const StudentDashboard = () => {
   const [executingSession, setExecutingSession] = useState(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const scrollContainerRef = useRef(null);
+  const weekScrollRef = useRef(null);
 
   // Update dates when URL parameter changes
   useEffect(() => {
@@ -274,7 +275,78 @@ const StudentDashboard = () => {
     const newDate = direction === 'next' ? addDays(currentDate, 7) : subDays(currentDate, 7);
     setCurrentDate(newDate);
     setSelectedDate(newDate);
+    // Réinitialiser le scroll après changement de semaine
+    setTimeout(() => {
+      if (weekScrollRef.current) {
+        weekScrollRef.current.scrollLeft = 0;
+      }
+    }, 50);
   };
+
+  // Gestion du scroll horizontal pour changer de semaine
+  useEffect(() => {
+    const weekContainer = weekScrollRef.current;
+    if (!weekContainer) return;
+
+    let lastScrollLeft = 0;
+    let scrollTimeout;
+    let isChangingWeek = false;
+
+    const handleScroll = () => {
+      if (isChangingWeek) return;
+      
+      clearTimeout(scrollTimeout);
+      
+      const scrollLeft = weekContainer.scrollLeft;
+      const clientWidth = weekContainer.clientWidth;
+      const scrollWidth = weekContainer.scrollWidth;
+      const maxScroll = scrollWidth - clientWidth;
+      
+      // Seuil pour déclencher le changement de semaine (30% de la largeur)
+      const threshold = clientWidth * 0.3;
+
+      // Scroll vers la droite (semaine suivante)
+      if (scrollLeft > lastScrollLeft && scrollLeft > threshold && scrollLeft < maxScroll - 10) {
+        isChangingWeek = true;
+        changeWeek('next');
+        // Réinitialiser le scroll après un court délai
+        setTimeout(() => {
+          if (weekContainer) {
+            weekContainer.scrollLeft = 0;
+            isChangingWeek = false;
+          }
+        }, 100);
+      }
+      // Scroll vers la gauche (semaine précédente) - scrollLeft négatif ou très petit
+      else if (scrollLeft < lastScrollLeft && scrollLeft < -threshold) {
+        isChangingWeek = true;
+        changeWeek('prev');
+        // Réinitialiser le scroll après un court délai
+        setTimeout(() => {
+          if (weekContainer) {
+            weekContainer.scrollLeft = 0;
+            isChangingWeek = false;
+          }
+        }, 100);
+      }
+
+      lastScrollLeft = scrollLeft;
+
+      // Réinitialiser le scroll après un délai d'inactivité
+      scrollTimeout = setTimeout(() => {
+        if (weekContainer && !isChangingWeek) {
+          weekContainer.scrollLeft = 0;
+        }
+      }, 500);
+    };
+
+    weekContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      clearTimeout(scrollTimeout);
+      weekContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [currentDate]);
 
   const handleStartSession = (assignment) => {
     // Prevent starting already completed sessions
@@ -530,7 +602,7 @@ const StudentDashboard = () => {
         }}
       />
       <div 
-        className="px-10 pt-1 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col"
+        className="px-10 pt-6 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center"
         style={{ 
           scrollBehavior: 'auto',
           minHeight: '100vh',
@@ -539,23 +611,35 @@ const StudentDashboard = () => {
         }}
       >
         {/* Titre du mois */}
-        <h1 className="text-[28px] font-light text-center text-white mb-3">
+        <h1 className="text-[28px] font-light text-center text-white mb-6">
           {capitalizeMonth(displayMonth)}
         </h1>
 
         {/* Planning de la semaine - Design Figma */}
-        <div className="relative mb-8 -mx-10 px-5">
-          <div className="flex items-center justify-between gap-2">
+        <div className="relative mb-6 -mx-10 px-5">
+          <div className="flex items-center justify-center gap-0 w-full">
             {/* Flèche gauche */}
             <button
               onClick={() => changeWeek('prev')}
-              className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] w-[44px] h-[44px] flex-shrink-0 touch-target"
+              aria-label="Semaine précédente"
+              style={{ paddingLeft: '25px' }}
             >
-              <ChevronLeft className="w-[15px] h-[15px] text-white/50" />
+              <ChevronLeft className="w-5 h-5 sm:w-[17px] sm:h-[15px] text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
             
-            {/* Jours de la semaine - Tous visibles sur une ligne */}
-            <div className="flex-1 flex items-center justify-between gap-0 min-w-0">
+            {/* Jours de la semaine - 7 jours visibles, scrollable pour changer de semaine */}
+            <div 
+              ref={weekScrollRef}
+              className="flex items-center gap-0 flex-1 min-w-0 overflow-x-auto scrollbar-hide"
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+                scrollSnapType: 'x mandatory',
+                width: 'calc(100% + 2px)' // Légèrement plus large pour permettre le scroll
+              }}
+            >
               {week.map((day, index) => {
                 const dayStr = format(day, 'yyyy-MM-dd');
                 const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
@@ -569,46 +653,43 @@ const StudentDashboard = () => {
                 const hasAssignments = totalCount > 0;
                 
                 return (
-                  <div key={dayStr} className="flex-1 flex flex-col items-center min-w-0">
+                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '45px', scrollSnapAlign: 'start' }}>
                     <button
                       onClick={() => setSelectedDate(day)}
-                      className={`w-full flex flex-col items-center gap-[5px] px-0 py-[5px] rounded-[5px] text-[10px] font-normal transition-colors ${
+                      className={`flex flex-col items-center gap-1 px-1 sm:px-2 pt-2 pb-[10px] rounded-[7px] text-[10px] font-normal transition-colors ${
                         isSelected 
                           ? 'bg-[#d4845a] text-white' 
                           : hasAssignments && !allCompleted
                             ? 'text-white/75'
                             : 'text-white/50'
                       }`}
+                      style={{ width: 'calc(100% - 2px)' }}
                     >
-                      <p className={`leading-normal whitespace-nowrap uppercase font-medium ${isToday && !isSelected ? '!text-[#d4845a]' : ''}`}>
+                      <p className={`leading-normal whitespace-nowrap uppercase ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
                         {format(day, 'eee', { locale: fr }).substring(0, 3)}
                       </p>
-                      <p className={`leading-normal whitespace-nowrap ${isToday && !isSelected ? '!text-[#d4845a]' : ''}`}>
+                      <p className={`leading-normal whitespace-nowrap ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
                         {format(day, 'd')}
                       </p>
                       
-                      {/* Indicateur de statut sous chaque jour avec nombre de séances */}
-                      {/* Toujours afficher un espace pour garder la même hauteur */}
-                      <div className="mt-[2px] flex items-center justify-center gap-1 h-[7px]">
+                      {/* Indicateur de statut sous chaque jour - un point par séance */}
+                      <div className="mt-[2px] flex items-center justify-center gap-0.5 h-[7px]">
                         {hasAssignments ? (
-                          <>
-                            {allCompleted ? (
-                              <div className="bg-[#2fa064] rounded-[10px] w-[7px] h-[7px] flex-shrink-0" />
-                            ) : completedCount > 0 ? (
-                              <div className={`rounded-[10px] w-[7px] h-[7px] border-[0.5px] flex-shrink-0 ${
-                                isSelected 
-                                  ? 'bg-white/20 border-white/30' 
-                                  : 'bg-white/5 border-white/5'
-                              }`} />
-                            ) : (
-                              <div className={`rounded-[10px] w-[8px] h-[8px] flex-shrink-0 transition-colors ${
-                                isSelected ? 'bg-white' : 'bg-white/50'
-                              }`} style={{ color: 'rgba(255, 255, 255, 0.25)', backgroundColor: isSelected ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.5)' }} />
-                            )}
-                          </>
+                          assignmentsForDay.map((assignment, idx) => (
+                            <div
+                              key={assignment.id || idx}
+                              className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${
+                                assignment.status === 'completed'
+                                  ? 'bg-[#2fa064]'
+                                  : isSelected
+                                    ? 'bg-white'
+                                    : 'bg-white/60'
+                              }`}
+                            />
+                          ))
                         ) : (
                           // Espace réservé invisible pour les jours sans séance pour garder la même hauteur
-                          <div className="w-[7px] h-[7px] flex-shrink-0 opacity-0" />
+                          <div className="w-[6px] h-[6px] flex-shrink-0 opacity-0" />
                         )}
                       </div>
                     </button>
@@ -620,9 +701,11 @@ const StudentDashboard = () => {
             {/* Flèche droite */}
             <button
               onClick={() => changeWeek('next')}
-              className="flex items-center justify-center w-[15px] h-[15px] flex-shrink-0"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] w-[44px] h-[44px] flex-shrink-0 touch-target"
+              aria-label="Semaine suivante"
+              style={{ paddingRight: '25px' }}
             >
-              <ChevronRight className="w-[15px] h-[15px] text-white/50" />
+              <ChevronRight className="w-5 h-5 sm:w-[17px] sm:h-[15px] text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
           </div>
         </div>
@@ -630,7 +713,7 @@ const StudentDashboard = () => {
         {selectedAssignments.length > 0 ? (
           selectedAssignments.length > 1 ? (
             // Mode horizontal avec scroll pour plusieurs séances
-            <div className="w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
+            <div className="w-full max-w-xl mx-auto px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
               <div 
                 ref={scrollContainerRef}
                 className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
@@ -657,7 +740,7 @@ const StudentDashboard = () => {
               >
                 {selectedAssignments.map((assignment, index) => (
                   <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)', 
                     borderImage: 'none', 
                     borderColor: 'transparent',
                     marginBottom: '10px',
@@ -667,7 +750,7 @@ const StudentDashboard = () => {
                     height: '100%',
                     scrollSnapAlign: 'start'
                   }}>
-                    <CardHeader className="pb-0 px-3 space-y-0 pt-[25px] mx-5">
+                    <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
                       <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0 flex items-center gap-2">
                         <span>{assignment.workout_sessions?.title || 'Workout'}</span>
                         {selectedAssignments.length > 1 && (
@@ -678,10 +761,10 @@ const StudentDashboard = () => {
                       </CardTitle>
                       <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
                     </CardHeader>
-                    <CardContent className="px-3 mx-5 flex-1 flex flex-col">
-                      <div className="space-y-2 mb-0 pt-[20px] pb-[20px] flex-1">
+                    <CardContent className="px-4 mx-5 flex-1 flex flex-col">
+                      <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                         {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                          <div key={exIndex} className="flex justify-between items-center gap-6">
+                          <div key={exIndex} className="flex justify-between items-center gap-4">
                             <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
                             <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
                               {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
@@ -689,13 +772,13 @@ const StudentDashboard = () => {
                           </div>
                         ))}
                       </div>
-                      <p className="text-xs text-white/25 font-light mb-6 pt-2 border-t border-border">
+                      <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
                         {assignment.workout_sessions?.exercises?.length || 0} exercices
                       </p>
                       <Button 
                         className={`w-full py-2 rounded-lg font-light ${
                           assignment.status === 'completed'
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
                             : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                         }`}
                         onClick={() => handleStartSession(assignment)}
@@ -708,7 +791,7 @@ const StudentDashboard = () => {
                 ))}
               </div>
               {/* Dots de pagination */}
-              <div className="flex justify-center items-center gap-2 flex-shrink-0" style={{ pointerEvents: 'auto', marginTop: '0px', paddingTop: '15px', paddingBottom: '0px' }}>
+              <div className="flex justify-center items-center gap-2 flex-shrink-0" style={{ pointerEvents: 'auto', marginTop: '0px', paddingTop: '16px', paddingBottom: '0px' }}>
                 {selectedAssignments.map((_, index) => (
                   <button
                     key={index}
@@ -741,19 +824,19 @@ const StudentDashboard = () => {
             </div>
           ) : (
             // Mode vertical pour une seule séance
-            <div className="space-y-4 w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col">
+            <div className="space-y-4 w-full max-w-xl mx-auto px-4 flex-1 flex flex-col">
               {selectedAssignments.map((assignment, index) => (
-                <Card key={assignment.id || index} className="border-border rounded-[25px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
-                  <CardHeader className="pb-0 px-3 space-y-0 pt-[25px] mx-5">
+                <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+                  <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
                     <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
                       {assignment.workout_sessions?.title || 'Workout'}
                     </CardTitle>
                     <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
                   </CardHeader>
-                  <CardContent className="px-3 mx-5 flex-1 flex flex-col">
-                    <div className="space-y-2 mb-0 pt-[20px] pb-[20px] flex-1">
+                  <CardContent className="px-4 mx-5 flex-1 flex flex-col">
+                    <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                       {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                        <div key={exIndex} className="flex justify-between items-center gap-6">
+                        <div key={exIndex} className="flex justify-between items-center gap-4">
                           <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
                           <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
                             {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
@@ -761,13 +844,13 @@ const StudentDashboard = () => {
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-white/25 font-light mb-6 pt-2 border-t border-border">
+                    <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
                       {assignment.workout_sessions?.exercises?.length || 0} exercices
                     </p>
                     <Button 
                       className={`w-full py-2 rounded-lg font-light ${
                         assignment.status === 'completed'
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
                           : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                       }`}
                       onClick={() => handleStartSession(assignment)}
@@ -781,22 +864,12 @@ const StudentDashboard = () => {
             </div>
           )
         ) : (
-          <div className="space-y-4 w-full max-w-xl mx-auto px-[10px] flex-1 flex flex-col">
-            <Card className="border-border rounded-[25px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
-              <CardHeader className="pb-0 px-3 space-y-0 mx-5">
-                <div className="h-[25px]"></div>
-                <div className="h-[20px]"></div>
-              </CardHeader>
-              <CardContent className="px-3 mx-5 flex-1 flex flex-col">
-                <div className="space-y-2 mb-0 pt-3 pb-3 flex items-center justify-center flex-1" style={{ minHeight: '80px' }}>
-                  <p className="text-white/50 font-light text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 100, fontSize: '14px' }}>
-                    Aucune séance aujourd'hui
-                  </p>
-                </div>
-                <p className="text-xs text-white/25 font-light mb-2 pt-2 border-t border-border opacity-0">
-                  &nbsp;
+          <div className="space-y-4 w-full max-w-xl mx-auto px-4 flex-1 flex flex-col">
+            <Card className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+              <CardContent className="px-4 mx-5 flex-1 flex items-center justify-center">
+                <p className="text-white/25 font-light text-sm text-center" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 100, fontSize: '13px' }}>
+                  Aucune séance aujourd'hui
                 </p>
-                <div className="h-[40px]"></div>
               </CardContent>
             </Card>
           </div>

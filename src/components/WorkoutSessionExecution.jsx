@@ -49,6 +49,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   const isRestoringProgress = useRef(false); // Flag to prevent saving during restoration
   const lastRestoredSessionId = useRef(null); // Track which session was last restored
   const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
+  const historyEntryAdded = useRef(false); // Track if history entry was added for back button interception
 
   // Show/hide Header and BottomNavBar when component mounts/unmounts
   useEffect(() => {
@@ -134,6 +135,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
   
   // Gérer l'avertissement avant de quitter la page (fermeture d'onglet, navigation)
   useEffect(() => {
+    // Ne pas afficher l'avertissement si on est encore sur la page aperçu
+    if (!isSessionStarted) {
+      return;
+    }
+    
     const hasProgress = Object.keys(completedSets).length > 0 || 
                         currentExerciseIndex > 0 || 
                         Object.keys(exerciseComments).length > 0 ||
@@ -155,7 +161,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [completedSets, currentExerciseIndex, exerciseComments, localVideos]);
+  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
   
   // Load saved progress on mount or when session changes (only once per session)
   useEffect(() => {
@@ -762,6 +768,84 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     return false;
   };
+
+  // Vérifier si des RPE sont manquants pour toute la séance
+  const hasMissingRpeForSession = () => {
+    if (!exercises || exercises.length === 0) {
+      return false;
+    }
+
+    // Vérifier tous les exercices et leurs sets
+    for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
+      const exercise = exercises[exerciseIndex];
+      if (!exercise || !Array.isArray(exercise.sets)) {
+        continue;
+      }
+
+      for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
+        // Vérifier les RPE manquants pour les sets complétés
+        const status = getSetStatus(exerciseIndex, setIndex);
+        if (status === 'completed') {
+          const key = `${exerciseIndex}-${setIndex}`;
+          const setData = completedSets[key];
+          const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
+          
+          if (!hasRpe) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  // Compter les vidéos et RPE manquants pour toute la séance
+  const getMissingVideosAndRpeCount = () => {
+    let missingVideosCount = 0;
+    let missingRpeCount = 0;
+
+    if (!exercises || exercises.length === 0) {
+      return { missingVideosCount: 0, missingRpeCount: 0 };
+    }
+
+    exercises.forEach((exercise, exerciseIndex) => {
+      if (!exercise || !Array.isArray(exercise.sets)) {
+        return;
+      }
+
+      exercise.sets.forEach((set, setIndex) => {
+        // Compter les vidéos manquantes
+        if (set.video === true) {
+          const hasVideo = hasVideoForSet(exerciseIndex, setIndex);
+          const hasNoVideoChoice = localVideos.some(
+            (video) =>
+              video.exerciseIndex === exerciseIndex &&
+              video.setIndex === setIndex &&
+              video.file === 'no-video'
+          );
+          
+          if (!hasVideo && !hasNoVideoChoice) {
+            missingVideosCount++;
+          }
+        }
+
+        // Compter les RPE manquants pour les sets complétés
+        const status = getSetStatus(exerciseIndex, setIndex);
+        if (status === 'completed') {
+          const key = `${exerciseIndex}-${setIndex}`;
+          const setData = completedSets[key];
+          const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
+          
+          if (!hasRpe) {
+            missingRpeCount++;
+          }
+        }
+      });
+    });
+
+    return { missingVideosCount, missingRpeCount };
+  };
   
   // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
@@ -1126,6 +1210,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     // Vérifier si des vidéos sont manquantes avant de valider
     if (hasMissingVideosForSession()) {
+      setPendingSessionCompletion(true);
+      setIsMissingVideosModalOpen(true);
+      return;
+    }
+    
+    // Vérifier si des RPE sont manquants avant de valider
+    if (hasMissingRpeForSession()) {
       setPendingSessionCompletion(true);
       setIsMissingVideosModalOpen(true);
       return;
@@ -1793,14 +1884,22 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
 
   // Handle back button - show warning modal before leaving
   const handleBack = () => {
+    // Si on est encore sur la page aperçu (séance non commencée), quitter directement sans modale
+    if (!isSessionStarted) {
+      if (onBack) {
+        onBack();
+      }
+      return;
+    }
+    
     // Vérifier s'il y a une progression à sauvegarder
     const hasProgress = Object.keys(completedSets).length > 0 || 
                         currentExerciseIndex > 0 || 
                         Object.keys(exerciseComments).length > 0 ||
                         localVideos.length > 0;
     
-    // Si la séance a été commencée ou s'il y a de la progression, afficher le modal d'avertissement
-    if (isSessionStarted || hasProgress) {
+    // Si la séance a été commencée et qu'il y a de la progression, afficher le modal d'avertissement
+    if (hasProgress) {
       setIsLeaveWarningModalOpen(true);
     } else {
       // Sinon, quitter directement
@@ -1818,6 +1917,35 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       onBack();
     }
   };
+
+  // Intercepter le bouton retour arrière d'Android/iOS pour afficher la modale
+  useEffect(() => {
+    // Ne pas intercepter si la séance n'est pas commencée
+    if (!isSessionStarted) {
+      historyEntryAdded.current = false;
+      return;
+    }
+
+    // Ajouter une entrée dans l'historique une seule fois quand la séance commence
+    if (!historyEntryAdded.current) {
+      window.history.pushState({ preventBack: true }, '', window.location.href);
+      historyEntryAdded.current = true;
+    }
+
+    const handlePopState = (event) => {
+      // Empêcher la navigation par défaut en ré-ajoutant l'entrée dans l'historique
+      window.history.pushState({ preventBack: true }, '', window.location.href);
+      
+      // Utiliser handleBack qui gère déjà la logique d'affichage de la modale
+      handleBack();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos, setIsLeaveWarningModalOpen, onBack]);
 
   // Early return if no session data
   if (!session) {
@@ -1949,7 +2077,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
         }}
       />
       {/* Header - Centré comme dans Figma */}
-      <div className="pt-[64px] pb-0 relative z-10">
+      <div className="pt-[40px] pb-0 relative z-10">
         {/* Bouton retour */}
         {onBack && (
           <div className="pl-[47px] pr-[20px] max-w-[400px] mx-auto">
@@ -1963,41 +2091,59 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           </div>
         )}
         {/* Title and subtitle */}
-        <div className="pl-[47px] pr-[20px] max-w-[400px] mx-auto">
-          <div className="mb-5 text-left w-full ml-[-5px] pl-0">
+        <div className="pl-[60px] pr-[40px] max-w-[400px] mx-auto">
+          <div className="mb-5 text-left w-full ml-[-5px] pl-0 mr-[30px] pr-0">
             <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-0">
               {session.workout_sessions?.title || 'Séance'}
             </h1>
-            <p className="text-[10px] font-light text-white/50">
+            <p className="text-[10px] font-light text-white/50 mr-[30px]">
               Durée estimée : {estimatedDuration}
             </p>
+            {/* Progress bar - Barre d'avancement de la séance */}
+            {(() => {
+              const { finalized, total } = getTotalFinalizedSets();
+              const progress = total > 0 ? (finalized / total) * 100 : 0;
+              return (
+                <div className="h-[3px] w-full bg-white/10 rounded-full overflow-hidden mt-2">
+                  <div 
+                    className="h-full bg-[#d4845a] transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
 
       {/* Exercise List - Tous les exercices visibles, format compact */}
-      <div className="relative pl-[47px] pr-[30px] max-w-[400px] mx-auto z-10">
+      <div className={`relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 ${!isSessionStarted ? 'pb-5' : 'pb-0'}`}>
         {/* Ligne verticale pointillée à gauche (comme dans Figma) */}
         {exercises && exercises.length > 0 && (() => {
           // Calculer la position du premier et du dernier point
           const validPositions = Object.values(dotPositions).filter(pos => pos !== undefined);
           const firstDotPosition = validPositions.length > 0 ? Math.min(...validPositions) : 0;
           const lastDotPosition = validPositions.length > 0 ? Math.max(...validPositions) : 0;
-          const lineHeight = lastDotPosition > firstDotPosition ? lastDotPosition - firstDotPosition : 0;
+          // La ligne s'arrête exactement au centre du dernier point (pas après)
+          // On ne trace la ligne que s'il y a au moins 2 points différents
+          const hasMultiplePoints = validPositions.length > 1 && lastDotPosition > firstDotPosition;
+          const lineHeight = hasMultiplePoints ? lastDotPosition - firstDotPosition : 0;
           
           return (
-            <div className="absolute left-[27px] top-0 bottom-0" style={{ width: '5px' }}>
+            <div className="absolute left-[27px] top-0 bottom-0 pl-[10px]" style={{ width: '5px' }}>
               <div className="relative w-full h-full flex flex-col items-center">
-                {/* Ligne verticale pointillée - commence au premier point et s'arrête au dernier point */}
-                <div 
-                  className="absolute w-[1px] border-l border-dashed border-[#d4845a]/30"
-                  style={{ 
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    top: `${firstDotPosition}px`,
-                    height: lineHeight > 0 ? `${lineHeight}px` : '0px'
-                  }}
-                ></div>
+                {/* Ligne verticale pointillée - commence au premier point et s'arrête exactement au dernier point */}
+                {hasMultiplePoints && lineHeight > 0 && (
+                  <div 
+                    className="absolute w-[1px] border-l border-dashed border-[#d4845a]/30"
+                    style={{ 
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      top: `${firstDotPosition}px`,
+                      height: `${lineHeight}px`
+                    }}
+                  ></div>
+                )}
                 {/* Points d'avancement : orange si exercice fait, blanc si pas encore fait - Alignés avec le centre de chaque carte */}
                 <div className="relative w-full h-full">
                   {exercises.map((_, index) => {
@@ -2047,7 +2193,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   <div className="px-[18px] py-[10px] h-full w-full">
                     <div className="flex items-center justify-between gap-5 h-full">
                       <div className="flex flex-col gap-[3px]">
-                        <h3 className="text-[15px] font-light text-white/70 break-words leading-tight">
+                        <h3 className="text-[14px] font-light text-white/85 break-words leading-tight">
                           {exercise.name}
                         </h3>
                         {exerciseSummary && (
@@ -2078,6 +2224,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                             variantClasses = 'bg-[rgba(0,0,0,0.45)] border-[#d4845a]';
                           }
 
+                          const isButtonDimmed = !isActive || !isSessionStarted;
+                          
                           return (
                             <button
                               key={setIndex}
@@ -2085,7 +2233,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                                 e.stopPropagation();
                                 handleSetSelection(exerciseIndex, setIndex);
                               }}
-                              disabled={!isActive || !isSessionStarted}
+                              disabled={isButtonDimmed}
                               className={`
                                 w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid 
                                 flex items-center justify-center relative p-0 box-border
@@ -2093,53 +2241,51 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                                 ${variantClasses}
                                 ${isActive && isSessionStarted
                                   ? 'cursor-pointer hover:opacity-80' 
-                                  : 'opacity-60 cursor-default'
+                                  : 'cursor-default'
                                 }
                               `}
+                              style={isButtonDimmed ? {
+                                backgroundColor: 'rgba(0,0,0,0.21)',
+                                borderColor: 'rgba(255,255,255,0.048)'
+                              } : {}}
                               title={isActive && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
                             >
                               {status === 'completed' && (
-                                <div className="!opacity-100" style={{ opacity: 1 }}>
-                                  <svg 
-                                    width="12" 
-                                    height="12" 
-                                    viewBox="0 0 12 12" 
-                                    fill="none" 
-                                    className="flex-shrink-0"
-                                    style={{ display: 'block', margin: '0', opacity: 1 }}
-                                  >
-                                    <path 
-                                      d="M2 6L4.5 8.5L10 3" 
-                                      stroke="#4ADE80" 
-                                      strokeWidth="2" 
-                                      strokeLinecap="round" 
-                                      strokeLinejoin="round"
-                                      style={{ opacity: 1 }}
-                                    />
-                                  </svg>
-                                </div>
+                                <svg 
+                                  width="12" 
+                                  height="12" 
+                                  viewBox="0 0 12 12" 
+                                  fill="none" 
+                                  className="flex-shrink-0 relative z-10"
+                                  style={{ display: 'block', margin: '0' }}
+                                >
+                                  <path 
+                                    d="M2 6L4.5 8.5L10 3" 
+                                    stroke="#4ADE80" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
                               )}
                               {status === 'failed' && (
-                                <div className="!opacity-100" style={{ opacity: 1 }}>
-                                  <svg 
-                                    width="12" 
-                                    height="12" 
-                                    viewBox="0 0 12 12" 
-                                    fill="none" 
-                                    xmlns="http://www.w3.org/2000/svg" 
-                                    className="flex-shrink-0"
-                                    style={{ display: 'block', margin: '0', opacity: 1 }}
-                                  >
-                                    <path 
-                                      d="M3 3L9 9M9 3L3 9" 
-                                      stroke="#DA3336" 
-                                      strokeWidth="1.5" 
-                                      strokeLinecap="round" 
-                                      strokeLinejoin="round"
-                                      style={{ opacity: 1 }}
-                                    />
-                                  </svg>
-                                </div>
+                                <svg 
+                                  width="12" 
+                                  height="12" 
+                                  viewBox="0 0 12 12" 
+                                  fill="none" 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  className="flex-shrink-0 relative z-10"
+                                  style={{ display: 'block', margin: '0' }}
+                                >
+                                  <path 
+                                    d="M3 3L9 9M9 3L3 9" 
+                                    stroke="#DA3336" 
+                                    strokeWidth="1.5" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
                               )}
                             </button>
                           );
@@ -2156,45 +2302,75 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             </div>
           )}
           
-          {/* Bouton Commencer la séance */}
-          {!isSessionStarted && (
-            <button
-              onClick={handleStartSession}
-              className="
-                inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm 
-                transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
-                disabled:pointer-events-none disabled:opacity-50 
-                [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
-                shadow h-9 px-4 w-full py-2 rounded-lg font-light 
-                bg-[#e87c3e] hover:bg-[#d66d35] text-white
-              "
-            >
-              Commencer la séance
-            </button>
-          )}
+          {/* Bouton Commencer/Reprendre la séance */}
+          {!isSessionStarted && (() => {
+            // Vérifier s'il y a au moins une série validée (completed ou failed)
+            const hasValidatedSets = Object.keys(completedSets).some(key => {
+              const setData = completedSets[key];
+              return setData && (setData.status === 'completed' || setData.status === 'failed');
+            });
+            
+            return (
+              <button
+                onClick={handleStartSession}
+                className="
+                  inline-flex items-center justify-center gap-2 whitespace-nowrap text-[13px] 
+                  transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
+                  disabled:pointer-events-none disabled:opacity-50 
+                  [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
+                  shadow h-9 px-4 w-full py-2 rounded-lg font-light 
+                  bg-[#e87c3e] hover:bg-[#d66d35] text-white
+                "
+              >
+                {hasValidatedSets ? 'Reprendre la séance' : 'Commencer la séance'}
+              </button>
+            );
+          })()}
         </div>
       </div>
 
       {/* Complete Session Button - Style Figma */}
       {/* Always show the button when session is started, but enable it only when all exercises are completed */}
       {isSessionStarted && (
-        <div className="relative pl-[47px] pr-[30px] max-w-[400px] mx-auto z-10">
-          <div className="mt-[10px] mb-[20px] ml-[-5px]">
+        <div className="relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 pb-5">
+          <div className="mt-[10px] mb-[20px] ml-[-5px] w-full">
             <button
               onClick={handleCompleteSession}
               disabled={!isAllExercisesCompleted()}
               className={`
-                w-full h-[30px] rounded-[5px] 
-                flex items-center justify-center 
-                text-[10px] font-normal transition-all duration-200
+                inline-flex items-center justify-center gap-2 whitespace-nowrap text-[13px] 
+                transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
+                disabled:pointer-events-none disabled:opacity-50 
+                [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
+                shadow h-[36px] px-4 w-full py-2 rounded-lg font-light
                 ${isAllExercisesCompleted()
-                  ? 'bg-[#d4845a] hover:bg-[#c47850] text-white active:bg-[#b86d45] cursor-pointer shadow-sm'
-                  : 'bg-white/3 text-white/25 cursor-not-allowed opacity-50'
+                  ? 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                  : 'bg-white/3 text-white/25'
                 }
               `}
             >
               Valider la séance
             </button>
+            {(() => {
+              const { missingVideosCount, missingRpeCount } = getMissingVideosAndRpeCount();
+              const hasMissingItems = missingVideosCount > 0 || missingRpeCount > 0;
+              
+              if (!hasMissingItems) return null;
+              
+              const messages = [];
+              if (missingVideosCount > 0) {
+                messages.push(`${missingVideosCount} vidéo${missingVideosCount > 1 ? 's' : ''} manquante${missingVideosCount > 1 ? 's' : ''}`);
+              }
+              if (missingRpeCount > 0) {
+                messages.push(`${missingRpeCount} RPE manquant${missingRpeCount > 1 ? 's' : ''}`);
+              }
+              
+              return (
+                <p className="text-[#d4845a] text-[11px] font-medium text-center mt-[8px] whitespace-pre-wrap" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {messages.join(' • ')}
+                </p>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -2363,6 +2539,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       {/* Missing Videos Warning Modal */}
       <MissingVideosWarningModal
         isOpen={isMissingVideosModalOpen}
+        missingVideosCount={(() => {
+          const { missingVideosCount } = getMissingVideosAndRpeCount();
+          return missingVideosCount;
+        })()}
+        missingRpeCount={(() => {
+          const { missingRpeCount } = getMissingVideosAndRpeCount();
+          return missingRpeCount;
+        })()}
         onClose={() => {
           // "Rester sur la page" - fermer le modal et annuler l'action en attente
           setIsMissingVideosModalOpen(false);
@@ -2370,11 +2554,19 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
           setPendingSessionCompletion(false);
         }}
         onConfirm={() => {
-          // "Quitter quand même" - continuer malgré les vidéos manquantes
+          // "Quitter quand même" - continuer malgré les vidéos manquantes (pour changement d'exercice)
+          // NE PAS permettre la validation de séance si des vidéos ou RPE sont manquants
           setIsMissingVideosModalOpen(false);
           
-          // Si une validation de séance était en attente
+          // Si une validation de séance était en attente, vérifier à nouveau
           if (pendingSessionCompletion) {
+            // Re-vérifier si des vidéos ou RPE sont toujours manquants
+            if (hasMissingVideosForSession() || hasMissingRpeForSession()) {
+              // Toujours manquants, ne pas permettre la validation
+              setPendingSessionCompletion(false);
+              return;
+            }
+            // Plus de vidéos/RPE manquants, permettre la validation
             setPendingSessionCompletion(false);
             setIsCompletionModalOpen(true);
             return;
