@@ -32,57 +32,37 @@ const MissingVideosValidationErrorModal = ({ isOpen, onClose, missingVideosCount
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
       onClick={handleBackdropClick}
     >
-      {/* Modal Container - Design Figma exact */}
       <div 
-        className="bg-[#1b1b1b] rounded-[20px] w-full max-w-[253px] mx-4 overflow-clip relative"
+        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Content Container - Centré verticalement */}
-        <div className="flex flex-col items-center px-[5px] pt-[17px] pb-[17px]">
-          {/* Title and Description Container */}
-          <div className="flex flex-col items-center gap-[15px] w-full mb-[15px]">
-            {/* Title - "Impossible de valider la séance" */}
-            <div className="flex flex-col justify-center w-full">
-              <p 
-                className="text-[#d4845a] text-[17px] font-light leading-normal text-center whitespace-pre-wrap"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                Impossible de valider la séance
-              </p>
-            </div>
-            
-            {/* Description */}
-            <div className="flex flex-col justify-center w-full max-w-[233px]">
-              <p 
-                className="text-[12px] leading-normal text-center whitespace-pre-wrap"
-                style={{ 
-                  color: 'rgba(255, 255, 255, 0.75)',
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 300
-                }}
-              >
-                {missingVideosCount > 0 
-                  ? `Vous devez compléter et uploader ${missingVideosCount} ${missingVideosCount === 1 ? 'vidéo manquante' : 'vidéos manquantes'} avant de pouvoir valider la séance.`
-                  : 'Vous devez compléter et uploader toutes les vidéos requises avant de pouvoir valider la séance.'
-                }
-              </p>
-            </div>
-          </div>
+        {/* Header */}
+        <div className="flex items-center justify-center px-4 text-center" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
+          <h2 className="text-[var(--kaiylo-primary-hex)] text-xl font-normal">
+            Impossible de valider la séance
+          </h2>
+        </div>
 
-          {/* Button - "Compris" */}
+        {/* Content */}
+        <div className="px-[25px] py-0 space-y-4">
+          <p className="text-gray-400 text-xs font-light leading-relaxed text-center">
+            {missingVideosCount > 0 
+              ? `Vous devez compléter et uploader ${missingVideosCount} ${missingVideosCount === 1 ? 'vidéo manquante' : 'vidéos manquantes'} avant de pouvoir valider la séance.`
+              : 'Vous devez compléter et uploader toutes les vidéos requises avant de pouvoir valider la séance.'
+            }
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px]">
           <button
             onClick={onClose}
-            className="bg-[#d4845a] border-[0.5px] border-[rgba(255,255,255,0.1)] border-solid flex items-center justify-center h-[25px] px-[14px] py-[4px] rounded-[5px] w-[200px] transition-opacity hover:opacity-90 active:opacity-80"
+            className="flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors"
           >
-            <p 
-              className="text-white text-[10px] font-normal leading-normal text-center whitespace-nowrap"
-              style={{ fontFamily: 'Inter, sans-serif' }}
-            >
-              Compris
-            </p>
+            Compris
           </button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import StudentMonthlyView from './pages/StudentMonthlyView';
+import StudentHistoryPage from './pages/StudentHistoryPage';
 import ExerciseManagement from './pages/ExerciseManagement';
 import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
 import MainLayout from './components/MainLayout'; // Import the new layout
@@ -205,7 +206,7 @@ function App() {
               path="/student/history" 
               element={
                 <ProtectedRoute allowedRoles={['student']}>
-                  <div>Student History Page (Placeholder)</div>
+                  <StudentHistoryPage />
                 </ProtectedRoute>
               } 
             />

@@ -465,23 +465,23 @@ const VideoLibrary = () => {
           return (
             <div 
               key={session.sessionId}
-              className="border border-white/10 rounded-lg overflow-hidden"
+              className="border border-border/20 rounded-xl overflow-hidden bg-card hover:border-border/40 transition-colors"
             >
               {/* Session Header (Clickable) */}
               <div 
-                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                 onClick={() => toggleSession(session.sessionId)}
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
                   <ChevronRight 
                     size={20} 
-                    className={`text-white/50 transition-transform flex-shrink-0 ${
+                    className={`text-muted-foreground transition-transform flex-shrink-0 ${
                       isOpen ? 'rotate-90' : ''
                     }`} 
                   />
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-white font-light text-base">{sessionTitle}</h3>
-                          <p className="text-sm text-white/50 mt-1">
+                          <h3 className="text-foreground font-light text-base">{sessionTitle}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
                             {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
                           </p>
                         </div>
@@ -504,21 +504,21 @@ const VideoLibrary = () => {
               
               {/* Session Videos (Collapsible) */}
               {isOpen && (
-                <div className="border-t border-white/10">
+                <div className="border-t border-border/20 bg-muted/20">
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gradient-to-r from-[#131416] to-[#595d65]">
+                      <thead className="bg-muted/40">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
                             Vidéo
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
                             Exercice
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
                             Série
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-white/75 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
                             Statut
                           </th>
                         </tr>
@@ -527,38 +527,38 @@ const VideoLibrary = () => {
                         {session.videos.map((video) => (
                           <tr 
                             key={video.id} 
-                            className="border-t border-white/10 hover:bg-white/5 cursor-pointer transition-colors"
+                            className="border-t border-border/20 hover:bg-muted/30 cursor-pointer transition-colors"
                             onClick={() => handleVideoClick(video)}
                           >
                             <td className="px-4 py-4">
-                              <div className="relative w-28 h-20 bg-[#1a1a1a] rounded overflow-hidden group">
+                              <div className="relative w-28 h-20 bg-muted rounded-lg overflow-hidden group">
                                 <video 
                                   src={video.video_url || undefined} 
                                   className="w-full h-full object-cover"
                                   preload="metadata"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Play className="h-6 w-6 text-white" />
                                 </div>
                               </div>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-[#d4845a]/15 text-[#d4845a] border border-[#d4845a]/30">
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-primary/15 text-primary border border-primary/30">
                                 {video.exercise_name}
                               </span>
                             </td>
                             <td className="px-4 py-4">
-                              <span className="text-base text-white/75">
+                              <span className="text-sm text-foreground">
                                 Série {video.set_number}/3
                               </span>
                             </td>
                             <td className="px-4 py-4">
                               {video.status === 'pending' ? (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30">
                                   A feedback
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400 border border-green-500/30">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
                                   Complété
                                 </span>
                               )}
@@ -579,22 +579,20 @@ const VideoLibrary = () => {
 
   const renderStudentVideosCards = () => {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredVideos.map((video) => (
-          <div 
-            key={video.id} 
-            className="bg-[#1a1a1a] rounded-lg overflow-hidden group cursor-pointer hover:bg-[#262626] transition-colors"
-            onClick={() => handleVideoClick(video)}
-            style={{ border: '2px solid red' }} // Temporary debug border
-          >
+            <div 
+              key={video.id} 
+              className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:border-primary/30 hover:shadow-lg transition-all duration-200"
+              onClick={() => handleVideoClick(video)}
+            >
             {/* Video Thumbnail */}
-            <div className="relative aspect-video bg-[#262626] overflow-hidden">
+            <div className="relative aspect-video bg-muted overflow-hidden">
               <video 
                 src={video.video_url || undefined} 
                 className="w-full h-full object-cover"
                 preload="metadata"
                 onLoadedMetadata={(e) => {
-                  // Update the video duration when metadata loads
                   const duration = e.target.duration;
                   if (duration && !isNaN(duration)) {
                     const minutes = Math.floor(duration / 60);
@@ -605,19 +603,19 @@ const VideoLibrary = () => {
                 }}
               />
               {/* Duration Overlay */}
-              <div className="duration-display absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+              <div className="duration-display absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md">
                 Loading...
               </div>
               {/* Play Icon Overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                <PlayCircle size={48} className="text-white" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <PlayCircle size={48} className="text-white drop-shadow-lg" />
               </div>
             </div>
             
             {/* Card Content */}
-            <div className="p-4">
+            <div className="p-4 space-y-3">
               {/* Student Name */}
-              <div className="text-sm font-medium text-white mb-2 truncate">
+              <div className="text-sm font-medium text-foreground truncate">
                 {video.student?.raw_user_meta_data?.full_name || 
                  video.student?.raw_user_meta_data?.name || 
                  video.student?.email || 
@@ -625,30 +623,26 @@ const VideoLibrary = () => {
               </div>
               
               {/* Exercise Tag */}
-              <div className="mb-3">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-700 text-gray-200">
+              <div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-normal bg-primary/15 text-primary border border-primary/30">
                   {video.exercise_name}
                 </span>
               </div>
               
-              {/* Set Info */}
-              <div className="text-xs text-gray-400 mb-2">
-                Série {video.set_number}/3
-              </div>
-              
-              {/* Date */}
-              <div className="text-xs text-gray-400 mb-3">
-                {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
+              {/* Set Info & Date */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Série {video.set_number}/3</span>
+                <span>{video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}</span>
               </div>
               
               {/* Status Badge */}
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-1">
                 {video.status === 'pending' ? (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-500 text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
                     A feedback
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-600 text-white">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
                     Complété
                   </span>
                 )}
@@ -669,32 +663,30 @@ const VideoLibrary = () => {
     return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredResources.map(video => (
-        <div key={video.id} className="bg-[#1a1a1a] rounded-lg overflow-hidden group cursor-pointer hover:bg-[#262626] transition-colors">
+        <div key={video.id} className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:border-primary/30 hover:shadow-lg transition-all duration-200">
           <div 
             onClick={() => handleCoachResourceClick(video)}
-            className="block aspect-video bg-muted relative"
+            className="block aspect-video bg-muted relative overflow-hidden"
           >
             <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <PlayCircle size={48} className="text-white" />
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <PlayCircle size={48} className="text-white drop-shadow-lg" />
             </div>
           </div>
-          <div className="p-4">
-            <div className="flex justify-between items-center">
-              <h3 
-                className="font-semibold truncate text-white hover:text-[#e87c3e] transition-colors cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCoachResourceClick(video);
-                }}
-              >
-                {video.title || video.fileName}
-              </h3>
-            </div>
-            <p className="text-sm text-gray-400">
-              {folders.find(f => f.id === video.folderId)?.name || 'Uncategorized'}
+          <div className="p-4 space-y-2">
+            <h3 
+              className="font-medium text-base text-foreground truncate hover:text-primary transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCoachResourceClick(video);
+              }}
+            >
+              {video.title || video.fileName}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
             </p>
-            <p className="text-xs text-gray-500 mt-2">{new Date(video.createdAt).toLocaleDateString()}</p>
+            <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
           </div>
         </div>
       ))}
@@ -708,50 +700,42 @@ const VideoLibrary = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-8 py-6 border-b border-white/10">
-        <h1 className="text-[32px] font-extralight">Vidéothèque</h1>
-        <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <Clock className="h-5 w-5 text-white/75" />
-          </button>
-          <button className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-            <CheckCircle className="h-5 w-5 text-white/75" />
-          </button>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-background text-foreground">
       {/* Main Content */}
-      <div className="px-8 py-6">
-        {/* Tabs */}
-        <div className="flex gap-[60px] border-b border-white/10 mb-6">
-          <button
-            onClick={() => setActiveTab('eleves')}
-            className={`pb-3 text-base font-light transition-colors relative ${
-              activeTab === 'eleves' 
-                ? 'text-[#d4845a]' 
-                : 'text-white/75'
-            }`}
-          >
-            Vidéos élèves
-            {activeTab === 'eleves' && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#d4845a]" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('coach')}
-            className={`pb-3 text-base font-light transition-colors relative ${
-              activeTab === 'coach' 
-                ? 'text-[#d4845a]' 
-                : 'text-white/75'
-            }`}
-          >
-            Ressources coach
-            {activeTab === 'coach' && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#d4845a]" />
-            )}
-          </button>
+      <div className="px-10 pt-6 pb-20 w-full max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-[32px] font-extralight text-foreground mb-6">Vidéothèque</h1>
+          
+          {/* Tabs */}
+          <div className="flex gap-8 border-b border-border/20 mb-6">
+            <button
+              onClick={() => setActiveTab('eleves')}
+              className={`pb-3 text-base font-light transition-colors relative ${
+                activeTab === 'eleves' 
+                  ? 'text-primary' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Vidéos élèves
+              {activeTab === 'eleves' && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('coach')}
+              className={`pb-3 text-base font-light transition-colors relative ${
+                activeTab === 'coach' 
+                  ? 'text-primary' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Ressources coach
+              {activeTab === 'coach' && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
+              )}
+            </button>
+          </div>
         </div>
 
         {activeTab === 'eleves' && (
@@ -762,15 +746,15 @@ const VideoLibrary = () => {
                 {/* Status Filter Chips */}
                 <StatusFilterChips value={statusFilter} onChange={setStatus} />
                 
-                <div className="w-px h-6 bg-white/10"></div>
+                <div className="w-px h-6 bg-border/40"></div>
                 
                 {/* Elève Filter */}
                 <select
                   value={selectedStudent}
                   onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'right 8px center',
                     paddingRight: '28px'
@@ -788,9 +772,9 @@ const VideoLibrary = () => {
                 <select
                   value={selectedExercise}
                   onChange={(e) => setSelectedExercise(e.target.value)}
-                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'right 8px center',
                     paddingRight: '28px'
@@ -806,9 +790,9 @@ const VideoLibrary = () => {
                 <select
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-2 select-dark rounded-[5px] text-white/75 text-base hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
+                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'right 8px center',
                     paddingRight: '28px'
@@ -820,20 +804,20 @@ const VideoLibrary = () => {
               </div>
 
               {/* Count */}
-              <div className="text-base text-white/50">
+              <div className="text-sm text-muted-foreground">
                 {filteredVideos.length} vidéo{filteredVideos.length !== 1 ? 's' : ''}
               </div>
             </div>
 
             {loading && (
               <div className="flex items-center justify-center py-12">
-                <div className="text-gray-400">Chargement des vidéos...</div>
+                <div className="text-muted-foreground">Chargement des vidéos...</div>
               </div>
             )}
             
             {error && (
-              <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6">
-                <div className="text-red-400">Erreur: {error}</div>
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6">
+                <div className="text-destructive">Erreur: {error}</div>
               </div>
             )}
             
@@ -841,22 +825,22 @@ const VideoLibrary = () => {
               filteredVideos.length > 0 ? (
                 renderStudentVideosGrouped()
               ) : (
-                <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
-                  <PlayCircle size={48} className="mb-4 opacity-30" />
+                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-80">
+                  <Video size={48} className="mb-4 opacity-30" />
                   {statusFilter === 'pending' ? (
                     <>
-                      <p className="font-light text-base">Aucune vidéo à traiter</p>
-                      <p className="text-sm text-white/30">Toutes les vidéos ont reçu un feedback</p>
+                      <p className="font-light text-base text-foreground">Aucune vidéo à traiter</p>
+                      <p className="text-sm text-muted-foreground/70">Toutes les vidéos ont reçu un feedback</p>
                     </>
                   ) : statusFilter === 'completed' ? (
                     <>
-                      <p className="font-light text-base">Aucune vidéo complétée</p>
-                      <p className="text-sm text-white/30">Les vidéos avec feedback apparaîtront ici</p>
+                      <p className="font-light text-base text-foreground">Aucune vidéo complétée</p>
+                      <p className="text-sm text-muted-foreground/70">Les vidéos avec feedback apparaîtront ici</p>
                     </>
                   ) : (
                     <>
-                      <p className="font-light text-base">Aucune vidéo trouvée</p>
-                      <p className="text-sm text-white/30">Les vidéos de vos élèves apparaîtront ici</p>
+                      <p className="font-light text-base text-foreground">Aucune vidéo trouvée</p>
+                      <p className="text-sm text-muted-foreground/70">Les vidéos de vos élèves apparaîtront ici</p>
                     </>
                   )}
                 </div>
@@ -875,9 +859,9 @@ const VideoLibrary = () => {
                     <Button 
                       variant="outline"
                       onClick={() => handleFolderSelect(folder.id)}
-                      className={`bg-[#1a1a1a] border-[#262626] text-white hover:bg-[#262626] pr-8 ${
+                      className={`bg-card border-border/20 text-foreground hover:bg-muted pr-8 ${
                         selectedFolder === folder.id 
-                          ? 'border-[#e87c3e] bg-[#e87c3e]/10 text-[#e87c3e]' 
+                          ? 'border-primary bg-primary/10 text-primary' 
                           : ''
                       }`}
                     >
@@ -888,7 +872,7 @@ const VideoLibrary = () => {
                         e.stopPropagation();
                         handleDeleteFolder(folder.id);
                       }}
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                       title="Supprimer le dossier"
                     >
                       <X size={14} />
@@ -897,7 +881,7 @@ const VideoLibrary = () => {
                 ))}
                 <Button 
                   variant="ghost" 
-                  className="text-gray-400 hover:text-white" 
+                  className="text-muted-foreground hover:text-foreground" 
                   onClick={() => setIsFolderModalOpen(true)}
                 >
                   <FolderPlus size={16} className="mr-2"/>
@@ -905,12 +889,12 @@ const VideoLibrary = () => {
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white">
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                     <LayoutGrid size={20} />
                 </Button>
                 <Button 
                   onClick={() => setIsUploadModalOpen(true)} 
-                  className="bg-[#e87c3e] hover:bg-[#d66d35] text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   <Plus size={16} className="mr-2"/>
                   Ajouter une vidéo
@@ -918,24 +902,24 @@ const VideoLibrary = () => {
               </div>
             </div>
 
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               {selectedFolder 
                 ? coachResources.filter(video => video.folderId === selectedFolder).length 
                 : coachResources.length
               } ressources{selectedFolder ? ` dans ${folders.find(f => f.id === selectedFolder)?.name}` : ''}
             </p>
 
-            {loading && <p className="text-gray-400">Chargement...</p>}
-            {error && <p className="text-red-400">Erreur: {error}</p>}
+            {loading && <p className="text-muted-foreground">Chargement...</p>}
+            {error && <p className="text-destructive">Erreur: {error}</p>}
             {!loading && !error && (
               (selectedFolder 
                 ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
                 : coachResources.length > 0
               ) ? renderCoachResources() : (
-                <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
-                  <PlayCircle size={48} className="mb-4" />
-                  <p className="font-medium">Aucune vidéo trouvée</p>
-                  <p className="text-sm">Vos ressources téléchargées apparaîtront ici.</p>
+                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-80">
+                  <Video size={48} className="mb-4 opacity-30" />
+                  <p className="font-light text-base text-foreground">Aucune vidéo trouvée</p>
+                  <p className="text-sm text-muted-foreground/70">Vos ressources téléchargées apparaîtront ici.</p>
                 </div>
               )
             )}
@@ -951,10 +935,10 @@ const VideoLibrary = () => {
       />
 
       <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
-        <DialogContent className="bg-[#1a1a1a] border-[#262626]">
+        <DialogContent className="bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="text-white">Créer un nouveau dossier</DialogTitle>
-            <DialogDescription className="text-gray-400">
+            <DialogTitle className="text-foreground">Créer un nouveau dossier</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Entrez un nom pour votre nouveau dossier pour organiser vos ressources.
             </DialogDescription>
           </DialogHeader>
@@ -965,7 +949,7 @@ const VideoLibrary = () => {
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 autoFocus
-                className="bg-[#262626] border-[#404040] text-white"
+                className="bg-background border-border text-foreground"
               />
             </div>
             <DialogFooter>
@@ -973,13 +957,13 @@ const VideoLibrary = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => setIsFolderModalOpen(false)}
-                className="bg-[#262626] border-[#404040] text-white hover:bg-[#404040]"
+                className="border-border"
               >
                 Annuler
               </Button>
               <Button 
                 type="submit"
-                className="bg-[#e87c3e] hover:bg-[#d66d35] text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Créer le dossier
               </Button>

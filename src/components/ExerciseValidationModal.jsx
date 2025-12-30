@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, MessageCircle, Info } from 'lucide-react';
+import { X, MessageCircle, Info } from 'lucide-react';
 import ExerciseCommentModal from './ExerciseCommentModal';
 import ExerciseInfoModal from './ExerciseInfoModal';
 
@@ -39,6 +39,20 @@ const ExerciseValidationModal = ({
     setStudentComment(initialStudentComment);
   }, [initialStudentComment]);
 
+  // Empêcher la fermeture de la modale RPE par ESC
+  useEffect(() => {
+    if (isRpeModalOpen) {
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isRpeModalOpen]);
+
   // Empêcher la fermeture automatique de la modal d'erreur
   useEffect(() => {
     if (showMissingVideoModal) {
@@ -61,6 +75,32 @@ const ExerciseValidationModal = ({
 
   // Minimum swipe distance (in pixels)
   const minSwipeDistance = 50;
+
+  // Vérifier si l'exercice a des informations disponibles (instructions ou vidéo)
+  const hasExerciseInfo = () => {
+    if (!exercise) return false;
+    
+    // Vérifier si l'exercice a des instructions (non vides)
+    const hasInstructions = exercise.instructions && 
+      exercise.instructions.trim().length > 0;
+    
+    // Vérifier si l'exercice a une vidéo
+    const hasVideo = exercise.demoVideoURL && 
+      exercise.demoVideoURL.trim().length > 0;
+    
+    // Vérifier si l'exercice a un exerciseId (l'API pourrait avoir des informations)
+    // Si l'exercice a un exerciseId, on permet l'ouverture car l'API pourrait avoir des infos
+    const hasExerciseId = exercise.exerciseId && 
+      exercise.exerciseId.trim().length > 0;
+    
+    // L'exercice a des informations si :
+    // - Il a des instructions OU
+    // - Il a une vidéo OU
+    // - Il a un exerciseId (l'API pourrait avoir des informations à récupérer)
+    return hasInstructions || hasVideo || hasExerciseId;
+  };
+
+  const exerciseHasInfo = hasExerciseInfo();
 
   if (!isOpen || !exercise) return null;
 
@@ -501,6 +541,87 @@ const ExerciseValidationModal = ({
     onClose();
   };
 
+  // Compter les vidéos manquantes pour l'exercice actuel
+  const countMissingVideos = () => {
+    if (!sets || !Array.isArray(sets)) return 0;
+    
+    let missingCount = 0;
+    for (let setIndex = 0; setIndex < sets.length; setIndex++) {
+      const set = sets[setIndex];
+      // Si la série nécessite une vidéo
+      if (set.video === true || set.video === 1 || set.video === 'true') {
+        const key = `${exerciseIndex}-${setIndex}`;
+        const setData = completedSets[key];
+        
+        // Vérifier si une vidéo a été uploadée ou si "pas de vidéo" a été choisi
+        const hasVideoOrNoVideo = localVideos.some((video) => {
+          let isMatchingSet = false;
+          
+          if (video.exerciseIndex === exerciseIndex && video.setIndex === setIndex) {
+            isMatchingSet = true;
+          } else if (video.exerciseInfo && video.setInfo) {
+            const videoExerciseIndex = video.exerciseInfo.exerciseIndex;
+            const videoSetIndex = video.setInfo.setIndex;
+            if (videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex) {
+              isMatchingSet = true;
+            }
+          } else if (video.exerciseIndex === exerciseIndex && video.setInfo) {
+            const videoSetIndex = video.setInfo.setIndex;
+            if (videoSetIndex === setIndex) {
+              isMatchingSet = true;
+            }
+          }
+          
+          if (isMatchingSet) {
+            return video.file !== null && video.file !== undefined;
+          }
+          
+          return false;
+        });
+        
+        const hasVideoInSetData = setData && (
+          setData.hasVideo === true || 
+          setData.videoStatus === 'no-video'
+        );
+        
+        // Si aucune vidéo n'a été uploadée/choisie
+        if (!hasVideoOrNoVideo && !hasVideoInSetData) {
+          missingCount++;
+        }
+      }
+    }
+    return missingCount;
+  };
+
+  // Compter les RPE manquants pour l'exercice actuel uniquement
+  // Principe : si le bouton RPE est vide (pas de valeur affichée), c'est un RPE manquant
+  const countMissingRpe = () => {
+    if (!sets || !Array.isArray(sets)) return 0;
+    
+    let missingCount = 0;
+    // Parcourir toutes les séries de l'exercice actuel
+    for (let setIndex = 0; setIndex < sets.length; setIndex++) {
+      const key = `${exerciseIndex}-${setIndex}`;
+      const setData = completedSets[key];
+      
+      // Obtenir le statut de la série
+      const status = getSetStatus(setIndex);
+      
+      // Seulement les séries validées (completed) doivent avoir un RPE
+      if (status === 'completed') {
+        // Obtenir le RPE de la série - même logique que dans getRpeForSet
+        const rpeRating = getRpeForSet(setIndex);
+        
+        // Si le bouton RPE serait vide (pas de valeur), c'est un RPE manquant
+        // Le bouton affiche {rpeRating || ''}, donc si rpeRating est null/undefined, le bouton est vide
+        if (!rpeRating || rpeRating === null || rpeRating === undefined) {
+          missingCount++;
+        }
+      }
+    }
+    return missingCount;
+  };
+
   return (
     <>
       <MissingVideoErrorModal />
@@ -522,20 +643,6 @@ const ExerciseValidationModal = ({
           <div className="mb-6">
             {/* Navigation et titre */}
             <div className="flex items-center justify-start gap-4 mb-[7px]">
-              {/* Bouton précédent */}
-              {exerciseIndex > 0 && allExercises.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleExerciseChange(exerciseIndex - 1);
-                  }}
-                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors"
-                  title="Exercice précédent (swipe droit)"
-                >
-                  <ChevronLeft className="w-5 h-5 text-white/60" />
-                </button>
-              )}
-              
               {/* Titre aligné à gauche */}
               <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-left flex-1">
                 {exercise.name}
@@ -586,13 +693,28 @@ const ExerciseValidationModal = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsInfoModalOpen(true);
+                    if (exerciseHasInfo) {
+                      setIsInfoModalOpen(true);
+                    }
                   }}
-                  className="w-5 h-5 flex items-center justify-center rounded-full hover:opacity-80 transition-opacity cursor-pointer"
-                  title="Voir les instructions et la vidéo de l'exercice"
+                  disabled={!exerciseHasInfo}
+                  className={`w-5 h-5 flex items-center justify-center rounded-full transition-opacity ${
+                    exerciseHasInfo 
+                      ? 'hover:opacity-80 cursor-pointer' 
+                      : 'cursor-not-allowed opacity-30'
+                  }`}
+                  title={exerciseHasInfo 
+                    ? "Voir les instructions et la vidéo de l'exercice" 
+                    : "Aucune information disponible pour cet exercice"}
                 >
                   <Info 
-                    className={`w-5 h-5 ${coachFeedback ? 'text-[#d4845a]' : 'text-white/25'}`} 
+                    className={`w-5 h-5 ${
+                      !exerciseHasInfo 
+                        ? 'text-white/10' 
+                        : coachFeedback 
+                          ? 'text-[#d4845a]' 
+                          : 'text-white/25'
+                    }`} 
                     strokeWidth={1.5} 
                   />
                 </button>
@@ -617,7 +739,7 @@ const ExerciseValidationModal = ({
         {/* Commentaire coach */}
         <div className="px-12 mb-6">
           <div className="flex flex-col gap-[7px] items-start w-full">
-            <p className="text-[10px] font-normal text-white/25 leading-normal">
+            <p className="text-[10px] font-normal text-white/35 leading-normal">
               Commentaire coach :
             </p>
             {coachFeedback ? (
@@ -625,7 +747,7 @@ const ExerciseValidationModal = ({
                 {coachFeedback}
               </p>
             ) : (
-              <p className="text-[12px] text-white/25 leading-normal italic">
+              <p className="text-[10px] text-white/25 leading-normal italic">
                 Aucun commentaire pour le moment
               </p>
             )}
@@ -636,25 +758,25 @@ const ExerciseValidationModal = ({
         <div className="pl-6 pr-12 space-y-3 pb-6">
           {/* Headers - Positionnés au-dessus des séries */}
           <div className="flex items-center mb-2">
-            <div className="w-[20px]" />
-            <div className="w-[265px] px-[15px] pr-[30px]">
-              <div className="flex items-center">
-                <div className="w-[50px] flex justify-center items-center">
+            <div className="w-[20px] flex-shrink-0 mr-1" />
+            <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
+              <div className="flex items-center w-full gap-3">
+                <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none">Charge (kg)</p>
                 </div>
-                <div className="w-[40px] flex justify-center items-center ml-[20px]">
+                <div className="w-[40px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>
                 </div>
                 <div className="flex-1 flex justify-center items-center gap-[15px]">
                   <div className="w-[17px] h-[17px]" />
                   <div className="w-[17px] h-[17px]" />
                 </div>
-                <div className="w-[24px] flex justify-center items-center">
+                <div className="w-[24px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">RPE</p>
                 </div>
               </div>
             </div>
-            <div className="w-[18px]" />
+            <div className="w-[24px] flex-shrink-0 ml-[10px]" />
           </div>
 
           {/* Séries */}
@@ -676,15 +798,16 @@ const ExerciseValidationModal = ({
                 {/* Numéro de série - À l'extérieur de la box */}
                 <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
                 <div 
-                  className="bg-white/5 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] w-[265px] min-w-[265px] max-w-[265px] hover:bg-white/5 transition-colors"
+                  className="bg-white/10 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                 >
-                  <div className="flex items-center w-full">
+                  <div className="flex items-center w-full gap-3">
                     {/* Colonne Charge - Centrée */}
-                    <div className="w-[50px] flex justify-center items-center">
+                    <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                       <span className="text-[15px] text-[#d4845a] leading-none">{weight}</span>
                     </div>
                     {/* Colonne Rep - Centrée */}
-                    <div className="w-[40px] flex justify-center items-center ml-[20px]">
+                    <div className="w-[40px] flex justify-center items-center flex-shrink-0">
                       <span className="text-[15px] text-white leading-none">{reps}</span>
                     </div>
                     {/* Boutons de validation - Centrés */}
@@ -738,12 +861,19 @@ const ExerciseValidationModal = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRpeClick(setIndex);
+                            if (!isFailed) {
+                              handleRpeClick(setIndex);
+                            }
                           }}
-                          className="bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[14px] h-[14px] flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors"
-                          title="Évaluer l'effort (RPE)"
+                          disabled={isFailed}
+                          className={`bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${
+                            isFailed 
+                              ? 'opacity-50 cursor-not-allowed' 
+                              : 'cursor-pointer hover:bg-white/10'
+                          }`}
+                          title={isFailed ? "RPE non disponible pour une série en échec" : "Évaluer l'effort (RPE)"}
                         >
-                          <span className={`text-[8px] font-normal leading-none ${
+                          <span className={`text-[9px] font-medium leading-none ${
                             rpeRating ? 'text-[#d4845a]' : 'text-white/50'
                           }`}>
                             {rpeRating || ''}
@@ -755,7 +885,7 @@ const ExerciseValidationModal = ({
                 </div>
 
                 {/* Icône vidéo - À l'extérieur de la box - 4 états */}
-                <div className="relative flex-shrink-0 ml-2">
+                <div className="relative flex-shrink-0 ml-[10px]">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -851,10 +981,30 @@ const ExerciseValidationModal = ({
         <div className="px-12 pb-8">
           <button
             onClick={handleClose}
-            className="w-full h-[30px] rounded-[10px] bg-white/3 hover:bg-white/5 text-[10px] font-normal text-white/40 hover:text-white/60 transition-colors flex items-center justify-center border border-white/20 hover:border-white/30"
+            className="w-full h-[30px] rounded-[10px] bg-white/3 hover:bg-white/5 text-[10px] font-normal text-white/40 hover:text-white/75 transition-colors flex items-center justify-center border border-white/20 hover:border-white/30"
           >
             Fermer
           </button>
+          
+          {/* Messages informatifs */}
+          {(countMissingVideos() > 0 || countMissingRpe() > 0) && (
+            <div className="mt-3 flex flex-col gap-1 items-center">
+              {countMissingVideos() > 0 && (
+                <p className="text-[9px] font-medium leading-normal text-center" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  {countMissingVideos() === 1 
+                    ? '1 vidéo manquante' 
+                    : `${countMissingVideos()} vidéos manquantes`}
+                </p>
+              )}
+              {countMissingRpe() > 0 && (
+                <p className="text-[9px] font-medium leading-normal text-center" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  {countMissingRpe() === 1 
+                    ? '1 RPE manquant' 
+                    : `${countMissingRpe()} RPE manquants`}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -884,44 +1034,53 @@ const ExerciseValidationModal = ({
       {/* RPE Selection Modal */}
       {isRpeModalOpen && selectedSetForRpe !== null && (() => {
         const currentRpe = getRpeForSet(selectedSetForRpe);
+        
+        // Empêcher la fermeture par clic sur le backdrop
+        const handleBackdropClick = (e) => {
+          if (e.target === e.currentTarget) {
+            // Ne rien faire - forcer l'utilisateur à choisir
+            return;
+          }
+        };
+        
         return createPortal(
           <div 
-            className="fixed inset-0 z-[111] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={() => {
-              setIsRpeModalOpen(false);
-              setSelectedSetForRpe(null);
-            }}
+            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[111] p-4"
+            onClick={handleBackdropClick}
           >
             <div 
-              className="bg-[#1b1b1b] rounded-[20px] w-[220px] flex flex-col overflow-hidden"
+              className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="rpe-title"
             >
-              {/* Content */}
-              <div className="px-[10px] py-[17px] flex flex-col gap-[20px] items-center">
-                <h2 id="rpe-title" className="text-[17px] font-normal text-[#d4845a] leading-normal text-center">
+              {/* Header */}
+              <div className="flex items-center justify-center px-4 text-center" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
+                <h2 id="rpe-title" className="text-[var(--kaiylo-primary-hex)] text-xl font-normal">
                   RPE
                 </h2>
-                
+              </div>
+
+              {/* Content */}
+              <div className="px-[25px] py-0 space-y-4">
                 {/* Grille de boutons RPE - 2 lignes de 5 */}
-                <div className="flex flex-col gap-[8px] items-start w-[199px]">
+                <div className="flex flex-col gap-[10px] items-center w-full">
                   {/* Première ligne : 1-5 */}
-                  <div className="flex gap-[6px] items-center w-full">
+                  <div className="flex gap-[8px] items-center justify-center w-full">
                     {[1, 2, 3, 4, 5].map((rating) => (
                       <button
                         key={rating}
                         type="button"
                         onClick={() => handleRpeSelect(rating)}
-                        className={`border rounded-[50px] w-[35px] h-[35px] flex items-center justify-center transition-colors ${
+                        className={`border rounded-full w-[36px] h-[36px] flex items-center justify-center transition-all duration-200 ${
                           currentRpe === rating 
-                            ? 'bg-[#d4845a] border-[#d4845a]' 
-                            : 'bg-[#1e1e1e] border-white/25 hover:bg-[#2a2a2a]'
+                            ? 'bg-[#d4845a] border-[#d4845a] shadow-sm' 
+                            : 'bg-white/5 border-white/20 hover:bg-white/10 hover:border-white/30'
                         }`}
                       >
-                        <span className={`text-[15px] font-normal leading-normal ${
-                          currentRpe === rating ? 'text-white' : 'text-[#d4845a]'
+                        <span className={`text-[15px] font-normal leading-none ${
+                          currentRpe === rating ? 'text-white' : 'text-white/75'
                         }`}>
                           {rating}
                         </span>
@@ -930,20 +1089,20 @@ const ExerciseValidationModal = ({
                   </div>
                   
                   {/* Deuxième ligne : 6-10 */}
-                  <div className="flex gap-[6px] items-center w-full">
+                  <div className="flex gap-[8px] items-center justify-center w-full">
                     {[6, 7, 8, 9, 10].map((rating) => (
                       <button
                         key={rating}
                         type="button"
                         onClick={() => handleRpeSelect(rating)}
-                        className={`border rounded-[50px] w-[35px] h-[35px] flex items-center justify-center transition-colors ${
+                        className={`border rounded-full w-[36px] h-[36px] flex items-center justify-center transition-all duration-200 ${
                           currentRpe === rating 
-                            ? 'bg-[#d4845a] border-[#d4845a]' 
-                            : 'bg-[#1e1e1e] border-white/25 hover:bg-[#2a2a2a]'
+                            ? 'bg-[#d4845a] border-[#d4845a] shadow-sm' 
+                            : 'bg-white/5 border-white/20 hover:bg-white/10 hover:border-white/30'
                         }`}
                       >
-                        <span className={`text-[15px] font-normal leading-normal ${
-                          currentRpe === rating ? 'text-white' : 'text-[#d4845a]'
+                        <span className={`text-[15px] font-normal leading-none ${
+                          currentRpe === rating ? 'text-white' : 'text-white/75'
                         }`}>
                           {rating}
                         </span>
@@ -951,19 +1110,19 @@ const ExerciseValidationModal = ({
                     ))}
                   </div>
                 </div>
-                
-                {/* Bouton Quitter */}
+              </div>
+
+              {/* Footer */}
+              <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px]">
                 <button
                   type="button"
                   onClick={() => {
                     setIsRpeModalOpen(false);
                     setSelectedSetForRpe(null);
                   }}
-                  className="bg-white/2 border-[0.5px] border-white/10 h-[20px] rounded-[5px] w-[70px] flex items-center justify-center transition-colors hover:bg-white/5"
+                  className="flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors"
                 >
-                  <span className="text-[10px] font-normal text-white leading-normal text-center">
-                    Quitter
-                  </span>
+                  Fermer
                 </button>
               </div>
             </div>

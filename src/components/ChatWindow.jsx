@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, Send, ChevronLeft } from 'lucide-react';
+import { Paperclip, Send, ChevronLeft, Check, CheckCheck } from 'lucide-react';
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack }) => {
   const { getAuthToken } = useAuth();
@@ -620,14 +620,22 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }
 
   return (
-    <div className="flex flex-col bg-background h-full md:h-full">
+    <div className="flex flex-col h-full md:h-full">
       {/* Chat Header */}
-      <div className="p-4 border-b border-border bg-card flex-shrink-0">
+      <div 
+        className="p-4 flex-shrink-0"
+        style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.03)',
+          borderBottomWidth: '0.5px',
+          borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+          borderBottomStyle: 'solid'
+        }}
+      >
         <div className="flex items-center space-x-3">
           {/* Back button for mobile */}
           <button
             onClick={onBack}
-            className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground"
+            className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -636,10 +644,10 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             {getUserDisplayName(conversation.other_participant_id).charAt(0).toUpperCase()}
           </div>
           <div>
-            <div className="font-medium text-foreground">
+            <div className="font-medium text-white">
               {getUserDisplayName(conversation.other_participant_id)}
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-gray-400">
               {isConnected ? (
                 <span className="flex items-center space-x-1">
                   <span>🟢 Online</span>
@@ -661,12 +669,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
-        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4 bg-background"
+        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4"
         onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'auto',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          background: 'unset',
+          backgroundColor: 'unset'
         }}
       >
         {/* Load more messages indicator/button at the TOP (where older messages load) */}
@@ -737,6 +747,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               return null;
             }
             
+            // Determine if this is the current user's message - all user messages are aligned to the right
+            const isOwnMessage = message.sender_id === currentUser?.id;
+            
+            // Determine message status (sent/read) for own messages
+            const isSent = isOwnMessage && !message.id?.startsWith('temp_');
+            // Check if message is read - consider it read if it's not the last message in the conversation
+            // (meaning there are newer messages, so it's likely been seen)
+            const isRead = isSent && index < messages.length - 1;
+            
             return (
             <div
               key={message.id}
@@ -756,7 +775,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   }
                 }
               }}
-              className={`message-container flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} ${
+              className={`message-container flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'} ${
                 highlightedMessageId === message.id ? 'message-highlighted' : ''
               }`}
             >
@@ -765,7 +784,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 {message.replyTo && (
                   <ReplyMessage 
                     replyTo={message.replyTo} 
-                    isOwnMessage={message.sender_id === currentUser?.id}
+                    isOwnMessage={isOwnMessage}
                     onReplyClick={handleReplyClick}
                   />
                 )}
@@ -773,33 +792,40 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 {message.message_type === 'file' ? (
                   <FileMessage 
                     message={message} 
-                    isOwnMessage={message.sender_id === currentUser?.id}
+                    isOwnMessage={isOwnMessage}
                   />
                 ) : (
                   <Card
-                    className={`max-w-[85%] sm:max-w-xs lg:max-w-md ${
-                      message.sender_id === currentUser?.id
+                    className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
+                      isOwnMessage
                         ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-card text-card-foreground'
+                        : 'bg-white/15 text-card-foreground border-0'
                     }`}
                   >
-                    <CardContent className="p-3">
-                      <div className="text-sm">{message.content}</div>
-                      <div
-                        className={`text-xs mt-1 ${
-                          message.sender_id === currentUser?.id
-                            ? 'text-primary-foreground/70'
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        {formatMessageTime(message.created_at)}
+                    <CardContent className="p-3" style={{ padding: "10px" }}>
+                      <div className="text-xs font-light break-words whitespace-pre-wrap">{message.content}</div>
+                      <div className={`text-xs mt-1 flex items-center gap-1 ${
+                        isOwnMessage
+                          ? 'text-primary-foreground/70'
+                          : 'text-muted-foreground'
+                      }`}>
+                        <span style={{ fontSize: "11px" }}>{formatMessageTime(message.created_at)}</span>
+                        {isOwnMessage && isSent && (
+                          <span className="ml-1">
+                            {isRead ? (
+                              <CheckCheck className="w-3 h-3 inline-block" />
+                            ) : (
+                              <Check className="w-3 h-3 inline-block" />
+                            )}
+                          </span>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
                 )}
                 
                 {/* Reply button - only show for other users' messages */}
-                {message.sender_id !== currentUser?.id && (
+                {!isOwnMessage && (
                   <button
                     className="reply-button"
                     onClick={() => handleReplyToMessage(message)}
@@ -817,7 +843,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       {/* File Upload */}
       {showFileUpload && (
-        <div className="p-4 border-t border-border bg-card">
+        <div className="p-4">
           <FileUpload
             onFileSelect={(file) => console.log('File selected:', file)}
             onUpload={handleFileUpload}
@@ -852,8 +878,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       )}
 
       {/* Message Input */}
-      <div className="p-2 md:p-4 border-t border-border bg-card">
-        <div className="bg-muted rounded-full flex items-center p-2">
+      <div className="p-2 md:p-4">
+        <div className="bg-muted rounded-full flex items-center p-1.5 md:p-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
           <Button
             type="button"
             variant="ghost"
@@ -861,9 +887,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             onClick={() => setShowFileUpload(!showFileUpload)}
             disabled={sending || uploadingFile}
             title="Attach file"
-            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
           >
-            <Paperclip className="h-5 w-5" />
+            <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
           <form onSubmit={sendMessage} className="flex-1 flex items-center">
             <Input
@@ -871,16 +897,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               value={newMessage}
               onChange={handleInputChange}
               placeholder="Type a message here..."
-              className="flex-1 text-sm md:text-base bg-transparent border-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground"
+              className="flex-1 text-xs md:text-base bg-white/5 border-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground rounded-[20px] ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-[25px] md:pr-[25px] font-light text-white/50"
+              style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}
               disabled={sending || uploadingFile}
             />
             <Button
               type="submit"
               disabled={!newMessage.trim() || sending || uploadingFile}
               size="icon"
-              className="px-3 md:px-4 text-sm md:text-base flex-shrink-0 bg-primary rounded-full w-10 h-10 hover:bg-primary/90"
+              className="flex-shrink-0 bg-primary rounded-full w-8 h-8 md:w-10 md:h-10 hover:bg-primary/90 disabled:bg-[rgba(255,255,255,0.05)] disabled:opacity-100 disabled:text-[var(--kaiylo-primary-hex)]"
             >
-              <Send className="h-5 w-5" />
+              <Send className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
           </form>
         </div>

@@ -313,27 +313,28 @@ const StudentVideoLibrary = () => {
         </div>
 
         {/* Results Count */}
-        <div className="mt-3 text-sm text-gray-400">
+        <div className="mt-3 text-xs text-[#D4845A]/90 font-normal">
           {getFilteredVideos().length} vidéo{getFilteredVideos().length > 1 ? 's' : ''} trouvée{getFilteredVideos().length > 1 ? 's' : ''}
         </div>
       </div>
 
       {/* Tab Navigation - Centered Pill Buttons */}
       <div className="flex justify-center mb-6">
-        <div className="flex bg-[#1a1a1a] border border-[#262626] rounded-full p-1">
+        <div className="flex bg-white/10 border border-white/20 rounded-full p-1">
           <button
             onClick={() => setActiveTab('mes-videos')}
-            className={`px-6 py-3 text-sm font-medium rounded-full transition-all duration-200 ${
+            className={`px-6 py-3 text-sm font-light rounded-full transition-all duration-200 ${
               activeTab === 'mes-videos' 
                 ? 'bg-[#e87c3e] text-white shadow-lg' 
                 : 'text-gray-400 hover:text-white'
             }`}
+            style={activeTab === 'mes-videos' ? { backgroundColor: 'rgba(212, 132, 90, 1)' } : {}}
           >
             Mes vidéos
           </button>
           <button
             onClick={() => setActiveTab('ressource')}
-            className={`px-6 py-3 text-sm font-medium rounded-full transition-all duration-200 ${
+            className={`px-6 py-3 text-sm font-light rounded-full transition-all duration-200 ${
               activeTab === 'ressource' 
                 ? 'bg-[#e87c3e] text-white shadow-lg' 
                 : 'text-gray-400 hover:text-white'
@@ -356,11 +357,11 @@ const StudentVideoLibrary = () => {
                 return (
                   <div 
                     key={session.sessionId}
-                    className="border border-white/10 rounded-lg overflow-hidden"
+                    className="border border-white/10 rounded-[20px] overflow-hidden bg-white/5"
                   >
                     {/* Session Header (Clickable) */}
                     <div 
-                      className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                      className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors bg-transparent"
                       onClick={() => toggleSession(session.sessionId)}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
@@ -372,7 +373,7 @@ const StudentVideoLibrary = () => {
                         />
                         <div className="min-w-0 flex-1">
                           <h3 className="text-white font-light text-base">{sessionTitle}</h3>
-                          <p className="text-sm text-white/50 mt-1">
+                          <p className="mt-1" style={{ fontSize: '13px', fontWeight: 300, color: 'var(--kaiylo-primary-hex)' }}>
                             {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
                           </p>
                         </div>

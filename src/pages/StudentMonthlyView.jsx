@@ -221,7 +221,7 @@ const StudentMonthlyView = () => {
 
   return (
     <div 
-      className="relative text-white min-h-screen pb-20 overflow-hidden"
+      className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
         background: 'unset',
         backgroundColor: '#0a0a0a',
@@ -309,7 +309,7 @@ const StudentMonthlyView = () => {
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
         style={{
-          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, rgba(191,191,191,0.1) 45%, rgba(0,0,0,0) 70%)',
+          background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
           opacity: 0.35
         }}
       />
@@ -385,22 +385,11 @@ const StudentMonthlyView = () => {
                   );
                 }
 
-                const dayHasAssignments = hasAssignments(day);
-                const dayIsCompleted = isCompleted(day);
-                const dayHasFailed = hasFailed(day);
-                const dayHasPending = hasPending(day);
+                const dayStr = format(day, 'yyyy-MM-dd');
+                const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
+                const dayHasAssignments = assignmentsForDay.length > 0;
                 const isToday = isSameDay(day, new Date());
                 const isSelected = isSameDay(day, selectedDate);
-
-                // Determine dot color based on status priority: failed > completed > pending
-                let dotColor = null;
-                if (dayHasFailed) {
-                  dotColor = 'bg-[#da3336]'; // Red for skipped/failed
-                } else if (dayIsCompleted) {
-                  dotColor = 'bg-[#2fa064]'; // Green for completed
-                } else if (dayHasPending) {
-                  dotColor = 'bg-[#d4845a]'; // Orange for pending
-                }
 
                 return (
                   <button
@@ -421,11 +410,23 @@ const StudentMonthlyView = () => {
                         {format(day, 'd')}
                       </p>
                     </div>
-                    {dayHasAssignments && dotColor && (
-                      <div
-                        className={`rounded-[10px] w-[6px] h-[6px] ${dotColor}`}
-                      />
-                    )}
+                    {/* Indicateur de statut - un point par séance */}
+                    <div className="flex items-center justify-center gap-0.5">
+                      {dayHasAssignments ? (
+                        assignmentsForDay.map((assignment, idx) => (
+                          <div
+                            key={assignment.id || idx}
+                            className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${
+                              assignment.status === 'completed'
+                                ? 'bg-[#2fa064]'
+                                : isSelected
+                                  ? 'bg-white'
+                                  : 'bg-white/60'
+                            }`}
+                          />
+                        ))
+                      ) : null}
+                    </div>
                   </button>
                 );
               })}

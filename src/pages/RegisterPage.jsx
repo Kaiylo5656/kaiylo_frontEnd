@@ -257,7 +257,7 @@ const RegisterPage = () => {
 
             {/* Information section for coaches - Accordion */}
             <div 
-              className="mb-6 rounded-[10px] bg-[rgba(255,255,255,0.02)] overflow-hidden transition-all duration-300"
+              className="mb-6 rounded-[10px] bg-[rgba(255,255,255,0.05)] overflow-hidden transition-all duration-300"
               style={{ marginBottom: '30px' }}
             >
               {/* Header - Clickable */}
@@ -305,7 +305,7 @@ const RegisterPage = () => {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 text-left">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 text-left" style={{ width: '384px', maxWidth: '100%', margin: '0 auto' }}>
               {/* First Name Field */}
               <div style={{ marginBottom: '3px' }}>
                 <input
@@ -320,10 +320,12 @@ const RegisterPage = () => {
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.firstName && dirtyFields.firstName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.firstName && dirtyFields.firstName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -354,10 +356,12 @@ const RegisterPage = () => {
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.lastName && dirtyFields.lastName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.lastName && dirtyFields.lastName ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -388,10 +392,12 @@ const RegisterPage = () => {
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.email && dirtyFields.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -427,10 +433,12 @@ const RegisterPage = () => {
                   })}
                   className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -476,10 +484,12 @@ const RegisterPage = () => {
                   })}
                   className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
+                    width: '384px',
+                    maxWidth: '100%',
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                    borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
                     boxShadow: 'none',
@@ -520,6 +530,8 @@ const RegisterPage = () => {
                 type="submit"
                 className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 mt-[25px]"
                 style={{
+                  width: '384px',
+                  maxWidth: '100%',
                   backgroundColor: 'rgba(212, 132, 89, 1)',
                   color: 'rgba(255, 255, 255, 1)',
                   paddingTop: '10px',
@@ -540,7 +552,7 @@ const RegisterPage = () => {
             </form>
 
             {/* Student invitation section */}
-            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)]">
+            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.05)] border border-[rgba(212,132,90,0.05)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
                 Êtes-vous un élève ?
               </h2>
@@ -551,6 +563,8 @@ const RegisterPage = () => {
                 to="/register/student"
                 className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors inline-block text-center"
                 style={{
+                  width: '384px',
+                  maxWidth: '100%',
                   backgroundColor: 'rgba(212, 132, 89, 1)',
                   color: 'rgba(255, 255, 255, 1)',
                   paddingTop: '10px',
