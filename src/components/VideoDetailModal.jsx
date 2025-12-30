@@ -350,71 +350,123 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         </div>
 
         {/* Video Container */}
-        <div className="flex-shrink-0 p-4">
+        <div className="flex-shrink-0 p-4 relative">
           {video?.video_url && video.video_url.trim() !== '' ? (
-            <VideoPlayer
-              ref={videoRef}
-              src={video.video_url}
-              onLoadedMetadata={() => {
-                const videoElement = videoRef.current;
-                if (videoElement) {
-                  setDuration(videoElement.duration);
-                  setCurrentTime(0);
-                  setIsPlaying(false);
+            <>
+              <VideoPlayer
+                ref={videoRef}
+                src={video.video_url}
+                onLoadedMetadata={() => {
+                  const videoElement = videoRef.current;
+                  if (videoElement) {
+                    setDuration(videoElement.duration);
+                    setCurrentTime(0);
+                    setIsPlaying(false);
+                    setIsVideoLoading(false);
+                    setVideoError(null); // Clear any previous errors
+                  }
+                }}
+                onPlay={() => {
+                  setIsPlaying(true);
                   setIsVideoLoading(false);
-                }
-              }}
-              onPlay={() => {
-                setIsPlaying(true);
-                setIsVideoLoading(false);
-              }}
-              onPause={() => {
-                setIsPlaying(false);
-              }}
-              onTimeUpdate={() => {
-                const videoElement = videoRef.current;
-                if (videoElement) {
-                  setCurrentTime(videoElement.currentTime);
-                }
-              }}
-              onError={(error) => {
-                console.error('Video error:', error);
-                setVideoError('Erreur lors du chargement de la vidéo');
-                setIsVideoLoading(false);
-              }}
-              tabIndex={-1}
-              onKeyDown={(e) => {
-                if (e.code === 'Space') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
-            />
+                  setVideoError(null); // Clear errors on successful play
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                }}
+                onTimeUpdate={() => {
+                  const videoElement = videoRef.current;
+                  if (videoElement) {
+                    setCurrentTime(videoElement.currentTime);
+                  }
+                }}
+                onError={(error) => {
+                  const videoElement = error?.target || error?.nativeEvent?.target;
+                  const mediaError = videoElement?.error;
+                  
+                  let errorMessage = 'Erreur lors du chargement de la vidéo';
+                  
+                  if (mediaError) {
+                    const errorMsg = mediaError.message || '';
+                    
+                    // Check for specific error messages
+                    if (errorMsg.includes('Format error') || errorMsg.includes('MEDIA_ELEMENT_ERROR')) {
+                      errorMessage = 'Cette vidéo semble avoir été supprimée ou est corrompue. Elle n\'est plus disponible.';
+                    } else {
+                      // Extract detailed error information based on error code
+                      switch (mediaError.code) {
+                        case mediaError.MEDIA_ERR_ABORTED:
+                          errorMessage = 'Le chargement de la vidéo a été annulé';
+                          break;
+                        case mediaError.MEDIA_ERR_NETWORK:
+                          errorMessage = 'Erreur réseau lors du chargement de la vidéo. Vérifiez votre connexion.';
+                          break;
+                        case mediaError.MEDIA_ERR_DECODE:
+                          errorMessage = 'Erreur de décodage de la vidéo. Le fichier peut être corrompu.';
+                          break;
+                        case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                          errorMessage = 'Cette vidéo n\'est plus disponible. Elle a peut-être été supprimée.';
+                          break;
+                        default:
+                          errorMessage = errorMsg || 'Erreur lors du chargement de la vidéo';
+                      }
+                    }
+                  }
+                  
+                  // Only log error details in development or for debugging
+                  if (process.env.NODE_ENV === 'development') {
+                    console.error('Video error:', {
+                      error,
+                      mediaError,
+                      code: mediaError?.code,
+                      message: mediaError?.message,
+                      videoUrl: video?.video_url
+                    });
+                  }
+                  
+                  setVideoError(errorMessage);
+                  setIsVideoLoading(false);
+                }}
+                tabIndex={-1}
+                onKeyDown={(e) => {
+                  if (e.code === 'Space') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+              />
+              
+              {/* Loading Overlay */}
+              {isVideoLoading && (
+                <div className="absolute inset-4 bg-black/80 rounded-md flex items-center justify-center z-10">
+                  <div className="text-white">Chargement de la vidéo...</div>
+                </div>
+              )}
+
+              {/* Error Overlay */}
+              {videoError && (
+                <div className="absolute inset-4 bg-black/90 rounded-md flex items-center justify-center z-10 border border-red-500/50">
+                  <div className="text-center p-6 max-w-md">
+                    <p className="text-red-400 mb-4">{videoError}</p>
+                    <button
+                      onClick={() => {
+                        setVideoError(null);
+                        // Try to reload the video
+                        if (videoRef.current) {
+                          videoRef.current.load();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    >
+                      Réessayer
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="flex items-center justify-center h-64 text-gray-400 bg-black/90 rounded-md border border-white/10">
               <p>Aucune vidéo disponible</p>
-            </div>
-          )}
-
-          {/* Loading Overlay */}
-          {isVideoLoading && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="text-white">Chargement de la vidéo...</div>
-            </div>
-          )}
-
-          {/* Error Overlay */}
-          {videoError && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="text-red-400 text-center">
-                <p>{videoError}</p>
-                <button
-                  onClick={() => setVideoError(null)}
-                  className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  Réessayer
-                </button>
-              </div>
             </div>
           )}
         </div>

@@ -451,46 +451,50 @@ const CoachDashboard = () => {
                   {(studentMessageCounts[student.id] > 0 || studentVideoCounts[student.id] > 0) ? (
                     <div className="flex items-center gap-[300px]">
                       {/* Message Icon - Positionné à gauche */}
-                      <div 
-                        className="relative cursor-pointer group/icon shrink-0"
-                        onClick={(e) => handleMessageClick(student, e)}
-                      >
-                        <svg 
-                          width="28" 
-                          height="28" 
-                          viewBox="0 0 37 37" 
-                          fill="none" 
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="text-white/75"
+                      {studentMessageCounts[student.id] > 0 && (
+                        <div 
+                          className="relative cursor-pointer group/icon shrink-0"
+                          onClick={(e) => handleMessageClick(student, e)}
                         >
-                          {/* Speech bubble shape */}
-                          <path 
-                            d="M18.5 3C9.387 3 2 9.387 2 18.5C2 23.5 4.5 27.8 8.2 30.5L6.5 34.5L11.2 32.2C13.5 32.7 15.9 33 18.5 33C27.613 33 35 26.613 35 18.5C35 9.387 27.613 3 18.5 3Z" 
-                            fill="currentColor"
-                            fillOpacity="0.75"
-                          />
-                          {/* Three dots */}
-                          <circle cx="12" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                          <circle cx="18.5" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                          <circle cx="25" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                        </svg>
-                        <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
-                      </div>
+                          <svg 
+                            width="28" 
+                            height="28" 
+                            viewBox="0 0 37 37" 
+                            fill="none" 
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="text-white/75"
+                          >
+                            {/* Speech bubble shape */}
+                            <path 
+                              d="M18.5 3C9.387 3 2 9.387 2 18.5C2 23.5 4.5 27.8 8.2 30.5L6.5 34.5L11.2 32.2C13.5 32.7 15.9 33 18.5 33C27.613 33 35 26.613 35 18.5C35 9.387 27.613 3 18.5 3Z" 
+                              fill="currentColor"
+                              fillOpacity="0.75"
+                            />
+                            {/* Three dots */}
+                            <circle cx="12" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
+                            <circle cx="18.5" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
+                            <circle cx="25" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
+                          </svg>
+                          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
+                        </div>
+                      )}
 
-                      {/* Count Badge - Positionné à gauche après l'icône */}
-                      <div 
-                        className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 cursor-pointer hover:bg-[#d4845a]/90 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent triggering the row click
-                          setSelectedStudent(student);
-                          setSelectedStudentInitialTab('analyse');
-                        }}
-                        title="Voir les vidéos en attente de feedback"
-                      >
-                        <span className="text-[13px] text-white font-normal leading-none">
-                          {studentVideoCounts[student.id] || 0}
-                        </span>
-                      </div>
+                      {/* Count Badge - Only show if there are pending videos */}
+                      {studentVideoCounts[student.id] > 0 && (
+                        <div 
+                          className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 cursor-pointer hover:bg-[#d4845a]/90 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent triggering the row click
+                            setSelectedStudent(student);
+                            setSelectedStudentInitialTab('analyse');
+                          }}
+                          title="Voir les vidéos en attente de feedback"
+                        >
+                          <span className="text-[13px] text-white font-normal leading-none">
+                            {studentVideoCounts[student.id]}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : null}
                 </div>
