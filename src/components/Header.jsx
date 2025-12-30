@@ -1,15 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Settings, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
+import NotificationSidebar from './NotificationSidebar';
 import { useLocation } from 'react-router-dom';
+import useSocket from '../hooks/useSocket';
 
 const Header = () => {
   const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const location = useLocation();
+  const { onVideoUpload } = useSocket();
+
+  // Listen for video upload events (coach side)
+  useEffect(() => {
+    if (user?.role !== 'coach' || !onVideoUpload) return;
+
+    const unsubscribe = onVideoUpload((payload) => {
+      setNotifications((prev) => {
+        const next = [
+          {
+            id: payload?.id || `${Date.now()}-${Math.random()}`,
+            studentName: payload?.studentName || payload?.student?.name || payload?.studentEmail,
+            exerciseName: payload?.exerciseName || payload?.exercise?.name,
+            setInfo: payload?.setInfo,
+            sessionName: payload?.sessionName,
+            timestamp: payload?.timestamp || new Date().toISOString(),
+          },
+          ...prev,
+        ].slice(0, 50); // cap to 50
+        return next;
+      });
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.role, onVideoUpload]);
 
   // Determine page title based on current route
   const getPageTitle = () => {
@@ -43,6 +74,19 @@ const Header = () => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-4">
+        {/* Notification icon */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative text-white/75 hover:text-white hover:bg-white/10"
+          onClick={() => setIsNotificationOpen(true)}
+        >
+          <Bell className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
+          {notifications.length > 0 && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#d4845a]" />
+          )}
+        </Button>
+
         {/* Settings icon */}
         <Button 
           variant="ghost" 
@@ -108,6 +152,11 @@ const Header = () => {
       <MobileNavigationDrawer 
         isOpen={isMobileMenuOpen} 
         onClose={() => setIsMobileMenuOpen(false)} 
+      />
+      <NotificationSidebar 
+        isOpen={isNotificationOpen} 
+        onClose={() => setIsNotificationOpen(false)} 
+        notifications={notifications}
       />
     </>
   );

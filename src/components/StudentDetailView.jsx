@@ -7,7 +7,8 @@ import WorkoutSessionDetailsModal from './WorkoutSessionDetailsModal';
 import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
 import OneRmModal, { DEFAULT_ONE_RM_DATA } from './OneRmModal';
-import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths } from 'date-fns';
+import StudentProfileModal from './StudentProfileModal';
+import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
 
@@ -19,6 +20,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isOneRmModalOpen, setIsOneRmModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [draggedSession, setDraggedSession] = useState(null); // Session currently being dragged
@@ -1404,7 +1406,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     }
   };
 
-  // Function to handle session cleanup when sessions are not found
+
   const handleSessionNotFound = async (sessionId, operation = 'update') => {
     console.log(`🧹 Cleaning up stale session reference: ${sessionId} (${operation})`);
     
@@ -2514,19 +2516,61 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               <div className="bg-[#1a1a1a] rounded-lg p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium">Profile</h3>
-                  <button className="px-2 py-1 text-xs bg-[#262626] rounded">Open</button>
+                  <button 
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="px-2 py-1 text-xs bg-[#262626] rounded hover:bg-[#333333] transition-colors"
+                  >
+                    Open
+                  </button>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs">
-                      {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
+                <div className="space-y-2">
+                  {/* Name and Gender */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium">
+                      {studentData?.full_name || studentData?.name || student?.name || 'Étudiant'}
                     </span>
-                    <span className="text-[10px] text-[#d4845a]">♂</span>
+                    {studentData?.gender && (
+                      <span className="text-xs text-[#d4845a]">
+                        {studentData.gender === 'Homme' ? '♂' : studentData.gender === 'Femme' ? '♀' : ''}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs text-gray-400">Discipline : Street Lifting</div>
-                  <div className="text-xs text-gray-400">23 ans</div>
-                  <div className="text-xs text-gray-400">61 kg</div>
-                  <div className="text-xs text-gray-400">1m56</div>
+                  
+                  {/* Profile Information Grid */}
+                  {(studentData?.discipline || studentData?.birth_date || studentData?.weight || studentData?.height) ? (
+                    <div className="space-y-1.5 pt-1">
+                      {studentData?.discipline && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Discipline</span>
+                          <span className="text-xs font-medium">{studentData.discipline}</span>
+                        </div>
+                      )}
+                      {studentData?.birth_date && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Âge</span>
+                          <span className="text-xs font-medium">
+                            {differenceInYears(new Date(), new Date(studentData.birth_date))} ans
+                          </span>
+                        </div>
+                      )}
+                      {studentData?.weight && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Poids</span>
+                          <span className="text-xs font-medium">{studentData.weight} kg</span>
+                        </div>
+                      )}
+                      {studentData?.height && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Taille</span>
+                          <span className="text-xs font-medium">
+                            {studentData.height >= 100 ? `${(studentData.height / 100).toFixed(2)}m` : `${studentData.height} cm`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500 italic pt-1">Aucune information de profil</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2907,6 +2951,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         onClose={() => setIsDetailsModalOpen(false)}
         session={selectedSession}
         selectedDate={selectedDate}
+      />
+
+      <StudentProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        studentData={studentData}
+        onUpdate={async (updatedData) => {
+          // Update local state immediately for better UX
+          setStudentData(prev => ({ ...prev, ...updatedData }));
+          // Refresh full student details to ensure consistency
+          await fetchStudentDetails();
+        }}
       />
 
       <OneRmModal
