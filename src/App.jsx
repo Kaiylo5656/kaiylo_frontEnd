@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import StudentRegisterPage from './pages/StudentRegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentInvitationPage from './pages/StudentInvitationPage';
+import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import StudentDashboard from './pages/StudentDashboard';
@@ -116,6 +117,11 @@ function App() {
             <Route path="/register/student" element={<StudentRegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/invite" element={<StudentInvitationPage />} />
+            <Route path="/onboarding" element={
+              <ProtectedRoute allowedRoles={['student']} excludeLayout={true}>
+                <OnboardingPage />
+              </ProtectedRoute>
+            } />
             
             {/* Protected Routes */}
             <Route 

@@ -121,7 +121,7 @@ const StudentRegisterPage = () => {
           axios.defaults.headers.common['Authorization'] = `Bearer ${result.token}`;
           
           // Use login function to properly initialize auth state
-          await login(result.user.email, data.password, navigate);
+          await login(result.user.email, data.password, navigate, '/onboarding');
         } else {
           // If no token (email confirmation required)
           setError('root', {
@@ -181,7 +181,7 @@ const StudentRegisterPage = () => {
         }}
       />
       
-      <header className="absolute top-0 left-0 w-full p-4 md:p-6 z-10">
+      <header className="absolute top-0 left-0 w-full p-4 md:p-6 z-50">
         <Logo />
       </header>
 

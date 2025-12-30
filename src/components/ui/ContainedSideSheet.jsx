@@ -13,10 +13,10 @@ const ContainedSideSheet = ({
   contained = true,
   sideBySide = false,
   preventClose = false,
+  modalId = 'exercise-library-sheet',
 }) => {
   const panelRef = useRef(null);
   const { registerModal, unregisterModal, isTopMost } = useModalManager();
-  const modalId = 'exercise-library-sheet';
 
   // Register/unregister modal with modal manager
   useEffect(() => {
@@ -60,7 +60,7 @@ const ContainedSideSheet = ({
   const zPanel = zIndex;
   
   // For side-by-side mode, position the panel to the right of the main content
-  const sideBySideClasses = sideBySide ? 'right-0 top-0 h-full w-1/2' : '';
+  const sideBySideClasses = sideBySide ? 'right-0 top-0 h-full w-1/2' : 'right-0 top-0';
 
   if (!open) return null;
 

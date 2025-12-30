@@ -14,14 +14,14 @@ const Logo = () => {
     } else if (user?.role === 'student') {
       navigate('/student/dashboard');
     } else {
-      // Default to coach dashboard if role is unknown
-      navigate('/coach/dashboard?reset=true');
+      // Default to login page if no user role (not logged in or unknown)
+      navigate('/login');
     }
   };
 
   return (
     <div 
-      className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+      className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity relative z-50"
       onClick={handleClick}
     >
       <svg

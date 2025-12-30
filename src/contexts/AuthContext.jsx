@@ -2,65 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
-import { createClient } from '@supabase/supabase-js';
-import { safeGetItem, safeSetItem, safeRemoveItem, getSafeStorage } from '../utils/storage';
-
-// Initialize Supabase client with singleton pattern to avoid multiple instances
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Supabase environment variables are not defined!');
-  console.error('Please create a .env file in the frontend directory with:');
-  console.error('VITE_SUPABASE_URL=your-supabase-url');
-  console.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
-}
-
-// Singleton pattern: s'assurer qu'il n'y a qu'une seule instance Supabase
-// Cela évite les problèmes de "Multiple GoTrueClient instances" en mode développement
-let supabaseInstance = null;
-
-const getSupabaseClient = () => {
-  // Si une instance existe déjà dans window, la réutiliser (évite les re-créations en HMR)
-  if (typeof window !== 'undefined' && window.__SUPABASE_CLIENT__) {
-    return window.__SUPABASE_CLIENT__;
-  }
-  
-  // Si une instance existe déjà en mémoire, la réutiliser
-  if (supabaseInstance) {
-    return supabaseInstance;
-  }
-  
-  // Créer une nouvelle instance
-  supabaseInstance = createClient(
-    supabaseUrl || 'https://placeholder.supabase.co',
-    supabaseAnonKey || 'placeholder-key',
-    {
-      auth: {
-        persistSession: true,              // ✅ Persiste la session automatiquement
-        autoRefreshToken: true,            // ✅ Refresh automatique des tokens
-        detectSessionInUrl: false,         // ✅ Pas de détection d'URL (on utilise le backend)
-        storage: getSafeStorage(),         // ✅ Utilise storage sécurisé
-        storageKey: 'sb-auth-token',       // ✅ Clé personnalisée pour éviter les conflits
-        flowType: 'pkce'                   // ✅ Utilise PKCE flow (plus sécurisé)
-      },
-      global: {
-        headers: {
-          'x-client-info': 'kaiylo-app'
-        }
-      }
-    }
-  );
-  
-  // Stocker dans window pour éviter les re-créations en HMR
-  if (typeof window !== 'undefined') {
-    window.__SUPABASE_CLIENT__ = supabaseInstance;
-  }
-  
-  return supabaseInstance;
-};
-
-const supabase = getSupabaseClient();
+import { supabase } from '../lib/supabase';
+import { safeGetItem, safeSetItem, safeRemoveItem } from '../utils/storage';
 
 // Helper to read persisted Supabase session
 const getStoredSupabaseSession = () => {
@@ -200,10 +143,6 @@ export const AuthProvider = ({ children }) => {
 
     try {
       console.log('🔄 Attempting to refresh auth token...');
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.error('❌ Supabase not configured, cannot refresh token');
-        throw new Error('Supabase not configured');
-      }
 
       // 1) Tenter de récupérer la session active via Supabase
       let {
@@ -544,7 +483,7 @@ export const AuthProvider = ({ children }) => {
   }, [refreshAuthToken]);
 
   // Login function (optimized - synchronise avec Supabase)
-  const login = async (email, password, navigate) => {
+  const login = async (email, password, navigate, redirectPath = null) => {
     // Timeout de sécurité pour forcer le loading à false après 30 secondes
     const loadingTimeout = setTimeout(() => {
       console.warn('⚠️ Login timeout - forcing loading to false');
@@ -607,10 +546,16 @@ export const AuthProvider = ({ children }) => {
       console.log('🔐 User state updated:', user?.email);
       
       // Navigate based on user role
-      const targetPath = user.role === 'admin' ? '/admin/dashboard' 
+      let targetPath;
+      
+      if (redirectPath) {
+        targetPath = redirectPath;
+      } else {
+        targetPath = user.role === 'admin' ? '/admin/dashboard' 
         : user.role === 'coach' ? '/coach/dashboard'
         : user.role === 'student' ? '/student/dashboard'
         : '/dashboard';
+      }
       
       console.log('🔐 Navigating to:', targetPath);
       navigate(targetPath);
@@ -702,7 +647,7 @@ export const AuthProvider = ({ children }) => {
             navigate('/coach/dashboard');
             break;
           case 'student':
-            navigate('/student/dashboard');
+            navigate('/onboarding');
             break;
           default:
             navigate('/dashboard');
