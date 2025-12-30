@@ -39,7 +39,6 @@ const StudentDashboard = () => {
   const [executingSession, setExecutingSession] = useState(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const scrollContainerRef = useRef(null);
-  const weekScrollRef = useRef(null);
 
   // Update dates when URL parameter changes
   useEffect(() => {
@@ -275,78 +274,8 @@ const StudentDashboard = () => {
     const newDate = direction === 'next' ? addDays(currentDate, 7) : subDays(currentDate, 7);
     setCurrentDate(newDate);
     setSelectedDate(newDate);
-    // Réinitialiser le scroll après changement de semaine
-    setTimeout(() => {
-      if (weekScrollRef.current) {
-        weekScrollRef.current.scrollLeft = 0;
-      }
-    }, 50);
   };
 
-  // Gestion du scroll horizontal pour changer de semaine
-  useEffect(() => {
-    const weekContainer = weekScrollRef.current;
-    if (!weekContainer) return;
-
-    let lastScrollLeft = 0;
-    let scrollTimeout;
-    let isChangingWeek = false;
-
-    const handleScroll = () => {
-      if (isChangingWeek) return;
-      
-      clearTimeout(scrollTimeout);
-      
-      const scrollLeft = weekContainer.scrollLeft;
-      const clientWidth = weekContainer.clientWidth;
-      const scrollWidth = weekContainer.scrollWidth;
-      const maxScroll = scrollWidth - clientWidth;
-      
-      // Seuil pour déclencher le changement de semaine (30% de la largeur)
-      const threshold = clientWidth * 0.3;
-
-      // Scroll vers la droite (semaine suivante)
-      if (scrollLeft > lastScrollLeft && scrollLeft > threshold && scrollLeft < maxScroll - 10) {
-        isChangingWeek = true;
-        changeWeek('next');
-        // Réinitialiser le scroll après un court délai
-        setTimeout(() => {
-          if (weekContainer) {
-            weekContainer.scrollLeft = 0;
-            isChangingWeek = false;
-          }
-        }, 100);
-      }
-      // Scroll vers la gauche (semaine précédente) - scrollLeft négatif ou très petit
-      else if (scrollLeft < lastScrollLeft && scrollLeft < -threshold) {
-        isChangingWeek = true;
-        changeWeek('prev');
-        // Réinitialiser le scroll après un court délai
-        setTimeout(() => {
-          if (weekContainer) {
-            weekContainer.scrollLeft = 0;
-            isChangingWeek = false;
-          }
-        }, 100);
-      }
-
-      lastScrollLeft = scrollLeft;
-
-      // Réinitialiser le scroll après un délai d'inactivité
-      scrollTimeout = setTimeout(() => {
-        if (weekContainer && !isChangingWeek) {
-          weekContainer.scrollLeft = 0;
-        }
-      }, 500);
-    };
-
-    weekContainer.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      clearTimeout(scrollTimeout);
-      weekContainer.removeEventListener('scroll', handleScroll);
-    };
-  }, [currentDate]);
 
   const handleStartSession = (assignment) => {
     // Prevent starting already completed sessions
@@ -628,17 +557,9 @@ const StudentDashboard = () => {
               <ChevronLeft className="w-5 h-5 sm:w-[17px] sm:h-[15px] text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
             
-            {/* Jours de la semaine - 7 jours visibles, scrollable pour changer de semaine */}
+            {/* Jours de la semaine - 7 jours visibles */}
             <div 
-              ref={weekScrollRef}
-              className="flex items-center gap-0 flex-1 min-w-0 overflow-x-auto scrollbar-hide"
-              style={{
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-                WebkitOverflowScrolling: 'touch',
-                scrollSnapType: 'x mandatory',
-                width: 'calc(100% + 2px)' // Légèrement plus large pour permettre le scroll
-              }}
+              className="flex items-center gap-0 flex-1 min-w-0"
             >
               {week.map((day, index) => {
                 const dayStr = format(day, 'yyyy-MM-dd');
@@ -653,7 +574,7 @@ const StudentDashboard = () => {
                 const hasAssignments = totalCount > 0;
                 
                 return (
-                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '45px', scrollSnapAlign: 'start' }}>
+                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '45px' }}>
                     <button
                       onClick={() => setSelectedDate(day)}
                       className={`flex flex-col items-center gap-1 px-1 sm:px-2 pt-2 pb-[10px] rounded-[7px] text-[10px] font-normal transition-colors ${

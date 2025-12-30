@@ -250,7 +250,7 @@ const RegisterPage = () => {
 
       <main className="flex-grow flex items-start justify-center p-4 relative z-10 overflow-y-auto">
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
-          <div className="w-full">
+          <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
               Inscription
             </h1>
