@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
+import { Bell, Settings, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
