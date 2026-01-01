@@ -13,6 +13,7 @@ import ExerciseLibraryModal from './ExerciseLibraryModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import { getApiBaseUrlWithApi } from '../config/api';
+import { getTagColor } from '../utils/tagColors';
 
 const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession }) => {
   const [sessionName, setSessionName] = useState('');
@@ -697,16 +698,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       <div className="w-2 h-2 rounded-full bg-gray-500"></div>
                       <span className="text-white font-medium">{exercise.name}</span>
                       <div className="flex gap-1 flex-wrap">
-                        {exercise.tags && exercise.tags.map((tag, tagIndex) => (
-                          <span key={tagIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${
-                            tag.toLowerCase() === 'pull' ? 'bg-orange-500' :
-                            tag.toLowerCase() === 'push' ? 'bg-green-500' :
-                            tag.toLowerCase() === 'legs' ? 'bg-purple-500' :
-                            'bg-gray-500'
-                          }`}>
-                            {tag}
-                          </span>
-                        ))}
+                        {exercise.tags && exercise.tags.map((tag, tagIndex) => {
+                          const tagStyle = getTagColor(tag);
+                          return (
+                            <span 
+                              key={tagIndex} 
+                              className="px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={tagStyle}
+                            >
+                              {tag}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1089,6 +1092,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       isOpen={isAddExerciseModalOpen}
       onClose={() => setIsAddExerciseModalOpen(false)}
       onExerciseCreated={handleExerciseCreated}
+      existingExercises={availableExercises}
     />
 
     </>

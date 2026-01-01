@@ -167,8 +167,8 @@ const ForgotPasswordPage = () => {
                       style={{
                         color: 'rgba(255, 255, 255, 1)',
                         backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                        border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                        borderColor: errors.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.05)',
+                        border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                        borderColor: errors.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                         borderRadius: '10px',
                         fontWeight: '300',
                         boxShadow: 'none',

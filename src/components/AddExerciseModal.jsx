@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Video, Trash2 } from 'lucide-react';
+import { X, Video, Trash2 } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import ExerciseTagTypeahead from './ui/ExerciseTagTypeahead';
 import axios from 'axios';
 
-const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise, onExerciseUpdated }) => {
+const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise, onExerciseUpdated, existingExercises = [] }) => {
   const [formData, setFormData] = useState({
     title: '',
     instructions: '',
@@ -17,6 +17,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoError, setVideoError] = useState('');
+  const [duplicateNameError, setDuplicateNameError] = useState(false);
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -32,6 +33,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
           instructions: editingExercise.instructions || '',
           tags: editingExercise.tags || []
         });
+        setDuplicateNameError(false); // Reset duplicate error when editing
         // Set video preview if editing exercise has a demo video
         console.log('Editing exercise:', editingExercise);
         console.log('Demo video URL:', editingExercise.demoVideoURL);
@@ -52,9 +54,32 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         setVideoFile(null);
         setVideoPreview(null);
         setVideoError('');
+        setDuplicateNameError(false); // Reset duplicate error when creating new
       }
+    } else {
+      // Reset duplicate error when modal closes
+      setDuplicateNameError(false);
     }
   }, [isOpen, editingExercise]);
+
+  // Check if exercise name already exists
+  const checkDuplicateName = (title) => {
+    if (!title || !title.trim()) {
+      setDuplicateNameError(false);
+      return;
+    }
+
+    const normalizedTitle = title.trim().toLowerCase();
+    const duplicateExists = existingExercises.some(exercise => {
+      // When editing, exclude the current exercise from the check
+      if (editingExercise && editingExercise.id === exercise.id) {
+        return false;
+      }
+      return exercise.title && exercise.title.trim().toLowerCase() === normalizedTitle;
+    });
+
+    setDuplicateNameError(duplicateExists);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -62,6 +87,11 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       ...prev,
       [name]: value
     }));
+    
+    // Check for duplicate name when title changes
+    if (name === 'title') {
+      checkDuplicateName(value);
+    }
   };
 
   const handleTagsChange = (newTags) => {
@@ -256,16 +286,17 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       zIndex={80}
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
-      size="lg"
-      title={editingExercise ? 'Edit Exercise' : 'Add New Exercise'}
+      size="md"
+      title={editingExercise ? 'Modifier l\'exercice' : 'Nouvel exercice'}
+      titleClassName="text-xl font-normal text-white"
     >
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Exercise Name */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Exercise Name *
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+              Nom de l'exercice *
             </label>
             <input
               type="text"
@@ -273,14 +304,19 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.title}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="e.g., Push-ups"
+              className="w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+              placeholder="ex: Pompes"
             />
+            {duplicateNameError && (
+              <p className="text-xs font-extralight text-[#d4845a] mt-1">
+                Un exercice avec un nom similaire existe déjà
+              </p>
+            )}
           </div>
 
           {/* Instructions */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
               Instructions
             </label>
             <textarea
@@ -288,32 +324,32 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.instructions}
               onChange={handleInputChange}
               rows={4}
-              className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Step-by-step instructions for performing the exercise..."
+              className="w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
+              placeholder="Instructions étape par étape pour effectuer l'exercice..."
             />
           </div>
 
           {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
               Tags
             </label>
             <ExerciseTagTypeahead
               selectedTags={formData.tags}
               onTagsChange={handleTagsChange}
-              placeholder="Press Enter to add tags..."
+              placeholder="Appuyez sur Entrée pour ajouter des tags..."
               canCreate={true}
             />
           </div>
 
           {/* Video Upload */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
               Vidéo (optionnelle)
             </label>
             {console.log('Video preview state:', videoPreview)}
             {!videoPreview || videoPreview === null ? (
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+              <div className="border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] p-6 text-center hover:border-[rgba(255,255,255,0.1)] transition-colors bg-[rgba(0,0,0,0.5)]">
                 <input
                   type="file"
                   accept="video/mp4,video/mov,video/quicktime"
@@ -325,25 +361,24 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
                   htmlFor="video-upload"
                   className="cursor-pointer flex flex-col items-center space-y-2"
                 >
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">
-                    Sélectionner une fichier vidéo
+                  <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    Sélectionner un fichier vidéo
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    (formats. mp4, mov - max 300 Mo)
+                  <span className="text-xs font-extralight text-[rgba(255,255,255,0.5)]">
+                    (formats: mp4, mov - max 300 Mo)
                   </span>
                 </label>
               </div>
             ) : (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3 max-w-full">
+              <div className="rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.5)] p-3 max-w-full">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden mb-3">
                   {/* Video icon */}
-                  <Video className="h-4 w-4 shrink-0 text-[#e87c3e]" />
+                  <Video className="h-4 w-4 shrink-0 text-[#d4845a]" />
                   
                   {/* Filename with proper truncation */}
                   <div className="min-w-0 flex-1">
                     <p
-                      className="truncate text-xs text-white/80"
+                      className="truncate text-sm font-extralight text-white/80"
                       title={videoFile ? videoFile.name : 'Video Preview'}
                       data-testid="video-file-name"
                     >
@@ -355,41 +390,41 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
                   <button
                     type="button"
                     onClick={removeVideo}
-                    className="shrink-0 rounded-md px-2 py-1 text-xs text-white/70 hover:bg-white/10 transition-colors"
+                    className="shrink-0 rounded-[6px] px-3 py-1.5 text-xs font-extralight text-white/70 hover:bg-[rgba(255,255,255,0.1)] transition-colors"
                   >
-                    Remove
+                    Supprimer
                   </button>
                 </div>
                 
                 <video
                   src={videoPreview}
                   controls
-                  className="w-full max-h-64 rounded-lg bg-black"
+                  className="w-full max-h-64 rounded-[8px] bg-black"
                 >
-                  Your browser does not support the video tag.
+                  Votre navigateur ne supporte pas la balise vidéo.
                 </video>
               </div>
             )}
             {videoError && (
-              <p className="text-sm text-destructive mt-2">{videoError}</p>
+              <p className="text-sm font-extralight text-red-400 mt-2">{videoError}</p>
             )}
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-4 pt-4 border-t border-border">
+          <div className="flex justify-end gap-3 pt-0">
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 text-muted-foreground bg-secondary rounded-md hover:bg-secondary/80 transition-colors"
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
             >
-              Cancel
+              Annuler
             </button>
             <button
               type="submit"
-              disabled={loading || uploadingVideo}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise)}
+              className="px-5 py-2.5 text-sm font-extralight bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {uploadingVideo ? 'Uploading Video...' : loading ? 'Saving...' : (editingExercise ? 'Update Exercise' : 'Create Exercise')}
+              {uploadingVideo ? 'Téléchargement...' : loading ? 'Enregistrement...' : (editingExercise ? 'Mettre à jour & fermer' : 'Créer & fermer')}
             </button>
           </div>
         </form>

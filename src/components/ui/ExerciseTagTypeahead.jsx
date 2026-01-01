@@ -10,6 +10,7 @@ import {
   removeDuplicateTags, 
   isTagSelected 
 } from '../../utils/tagNormalization';
+import { getTagColor, getTagColorMap } from '../../utils/tagColors';
 
 const ExerciseTagTypeahead = ({ 
   selectedTags = [], 
@@ -59,12 +60,17 @@ const ExerciseTagTypeahead = ({
     }
   };
 
-  // Debounced filtering
+  // Debounced filtering - exclude already selected tags
   const filteredSuggestions = useMemo(() => {
-    if (!inputValue.trim()) return allTags.slice(0, 8);
+    // Filter out tags that are already selected
+    const availableTags = allTags.filter(tag => 
+      !isTagSelected(tag.name, selectedTags)
+    );
+    
+    if (!inputValue.trim()) return availableTags.slice(0, 8);
     
     const normalizedInput = normalizeTagName(inputValue);
-    const filtered = allTags.filter(tag => 
+    const filtered = availableTags.filter(tag => 
       normalizeTagName(tag.name).includes(normalizedInput)
     );
     
@@ -96,7 +102,7 @@ const ExerciseTagTypeahead = ({
     }
     
     return suggestions;
-  }, [inputValue, allTags, canCreate]);
+  }, [inputValue, allTags, canCreate, selectedTags]);
 
   // Handle input changes with debouncing
   const handleInputChange = useCallback((e) => {
@@ -152,15 +158,13 @@ const ExerciseTagTypeahead = ({
       onTagsChange([...selectedTags, normalizedTag]);
     }
     
-    // Clear input and close/collapse everything
+    // Clear input but keep dropdown open
     setInputValue('');
-    setIsOpen(false);
-    setIsCollapsed(true);
     setActiveIndex(-1);
     
-    // Blur the input to prevent immediate reopen
+    // Keep focus on input to continue selecting tags
     if (inputRef.current) {
-      inputRef.current.blur();
+      inputRef.current.focus();
     }
   };
 
@@ -269,53 +273,94 @@ const ExerciseTagTypeahead = ({
     };
   }, []);
 
+  // Create a color map for tags
+  const tagColorMap = useMemo(() => {
+    const tagNames = allTags.map(tag => tag.name).filter(Boolean);
+    return getTagColorMap(tagNames);
+  }, [allTags]);
+
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      {/* Selected Tags */}
-      {selectedTags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {selectedTags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-primary/20 border border-primary/30 rounded-full text-sm text-primary cursor-pointer hover:bg-primary/30 transition-colors group"
-              onClick={() => handleTagRemove(tag)}
-              title="Click to remove this tag"
-            >
-              {tag}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTagRemove(tag);
-                }}
-                className="ml-1 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
-                type="button"
-                title="Remove this tag"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Collapsed State - Show "+ Tag" affordance */}
+      {/* Collapsed State - Show "+ Tag" affordance or selected tags */}
       {isCollapsed && (
         <button
           onClick={handleCollapsedClick}
           disabled={disabled}
-          className="flex items-center gap-2 rounded-md bg-input border border-border px-3 py-2 hover:bg-input/80 transition-colors w-full text-left"
+          className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-3 py-2.5 hover:bg-[rgba(255,255,255,0.08)] transition-colors w-full text-left min-h-[40px]"
           type="button"
         >
-          <Plus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">+ Tag</span>
+          {selectedTags.length > 0 ? (
+            selectedTags.map((tag) => {
+              const tagStyle = getTagColor(tag, tagColorMap);
+              
+              return (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light"
+                  style={tagStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTagRemove(tag);
+                  }}
+                  title="Cliquez pour supprimer ce tag"
+                >
+                  {tag}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTagRemove(tag);
+                    }}
+                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
+                    type="button"
+                    title="Supprimer ce tag"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })
+          ) : (
+            <span className="text-sm text-[rgba(255,255,255,0.25)] font-extralight">+ Tag</span>
+          )}
         </button>
       )}
 
       {/* Expanded State - Show input and dropdown */}
       {!isCollapsed && (
         <div className="relative">
-          <div className="flex items-center gap-2 rounded-md bg-input border border-border px-3 py-2">
-            <Tag className="h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-3 py-2.5 transition-all min-h-[40px]">
+            {/* Selected Tags - Show inside the input container */}
+            {selectedTags.map((tag) => {
+              const tagStyle = getTagColor(tag, tagColorMap);
+              
+              return (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light"
+                  style={tagStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTagRemove(tag);
+                  }}
+                  title="Cliquez pour supprimer ce tag"
+                >
+                  {tag}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTagRemove(tag);
+                    }}
+                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
+                    type="button"
+                    title="Supprimer ce tag"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })}
+            
             <input
               ref={inputRef}
               type="text"
@@ -325,12 +370,12 @@ const ExerciseTagTypeahead = ({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={disabled}
-              className="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
+              className="flex-1 min-w-[120px] bg-transparent outline-none text-sm text-white placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight"
               role="combobox"
               aria-expanded={isOpen}
               aria-haspopup="listbox"
             />
-            {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {loading && <Loader2 className="h-4 w-4 animate-spin text-[rgba(255,255,255,0.5)]" />}
           </div>
 
           {/* Error State */}
@@ -351,7 +396,12 @@ const ExerciseTagTypeahead = ({
           {isOpen && filteredSuggestions.length > 0 && (
             <div
               ref={dropdownRef}
-              className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-56 overflow-y-auto"
+              className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto pt-2 pb-2"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)'
+              }}
               role="listbox"
               aria-label="Tag suggestions"
             >
@@ -360,19 +410,26 @@ const ExerciseTagTypeahead = ({
                   key={tag.id}
                   type="button"
                   onClick={() => handleTagSelect(tag)}
-                  className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${
+                  className={`w-full px-5 py-2 text-left text-sm font-light transition-colors flex items-center justify-between ${
                     index === activeIndex 
                       ? 'bg-primary/20 text-primary' 
                       : 'text-foreground hover:bg-muted'
                   }`}
+                  style={
+                    index === activeIndex
+                      ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                      : {}
+                  }
                   role="option"
                   aria-selected={index === activeIndex}
                 >
                   <div className="flex items-center gap-2">
                     {tag.isNew ? (
-                      <Plus className="h-3 w-3 text-primary" />
+                      <Plus className="h-4 w-4 text-primary" />
                     ) : (
-                      <Tag className="h-3 w-3 text-muted-foreground" />
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 text-muted-foreground" fill="currentColor" aria-hidden="true">
+                        <path d="M96.5 160L96.5 309.5C96.5 326.5 103.2 342.8 115.2 354.8L307.2 546.8C332.2 571.8 372.7 571.8 397.7 546.8L547.2 397.3C572.2 372.3 572.2 331.8 547.2 306.8L355.2 114.8C343.2 102.7 327 96 310 96L160.5 96C125.2 96 96.5 124.7 96.5 160zM208.5 176C226.2 176 240.5 190.3 240.5 208C240.5 225.7 226.2 240 208.5 240C190.8 240 176.5 225.7 176.5 208C176.5 190.3 190.8 176 208.5 176z"/>
+                      </svg>
                     )}
                     <span className="truncate">
                       {tag.isNew ? `Créer "${tag.name}"` : normalizeTagName(tag.name)}
@@ -390,9 +447,16 @@ const ExerciseTagTypeahead = ({
 
           {/* Empty State */}
           {isOpen && filteredSuggestions.length === 0 && inputValue.trim() && !loading && (
-            <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-md shadow-lg p-3">
+            <div 
+              className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg p-3"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)'
+              }}
+            >
               <div className="text-sm text-muted-foreground text-center">
-                No tags found for "{inputValue}"
+                Aucun tag trouvé pour "{inputValue}"
               </div>
             </div>
           )}

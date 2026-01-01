@@ -1,14 +1,33 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AddExerciseModal from '../components/AddExerciseModal';
 import ExerciseDetailModal from '../components/ExerciseDetailModal';
 import SortControl from '../components/SortControl';
-import TagTypeahead from '../components/ui/TagTypeahead';
+import TagFilterDropdown from '../components/ui/TagFilterDropdown';
 import useSortParams from '../hooks/useSortParams';
 import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
-import { Search, Filter, Edit, Trash2, Check } from 'lucide-react';
+import { getTagColor, getTagColorMap } from '../utils/tagColors';
+import { Search, Check } from 'lucide-react';
+
+// Helper function to determine primary tag based on exercise data
+const getPrimaryTag = (exercise) => {
+  // Determine primary tag based on muscle groups or title
+  const title = exercise.title?.toLowerCase() || '';
+  const muscleGroups = exercise.muscleGroups || [];
+  
+  if (title.includes('traction') || title.includes('pull') || muscleGroups.includes('Back')) {
+    return 'Pull';
+  }
+  if (title.includes('dips') || title.includes('push') || muscleGroups.includes('Chest')) {
+    return 'Push';
+  }
+  if (title.includes('squat') || title.includes('leg') || muscleGroups.includes('Legs')) {
+    return 'Legs';
+  }
+  return 'Other';
+};
 
 const ExerciseManagement = () => {
   const { user } = useAuth();
@@ -18,10 +37,12 @@ const ExerciseManagement = () => {
   const [editingExercise, setEditingExercise] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExercises, setSelectedExercises] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
   const [selectedTagFilters, setSelectedTagFilters] = useState([]);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
+  const [hoveredExerciseId, setHoveredExerciseId] = useState(null);
+  const scrollContainerRef = useRef(null);
+  const scrollbarTimeoutRef = useRef(null);
   
   // Sort state from URL
   const { sort, dir, updateSort } = useSortParams();
@@ -37,16 +58,6 @@ const ExerciseManagement = () => {
     // Clear announcement after a delay
     setTimeout(() => setSortAnnouncement(''), 1000);
   };
-
-  // Available tag colors for display
-  const tagColors = [
-    'bg-blue-100 text-blue-800',
-    'bg-green-100 text-green-800', 
-    'bg-purple-100 text-purple-800',
-    'bg-orange-100 text-orange-800',
-    'bg-pink-100 text-pink-800',
-    'bg-indigo-100 text-indigo-800'
-  ];
 
   // Helper functions
   const handleSelectExercise = (exerciseId) => {
@@ -65,44 +76,7 @@ const ExerciseManagement = () => {
     }
   };
 
-  const getTagColor = (tag) => {
-    switch (tag.toLowerCase()) {
-      case 'pull':
-        return 'bg-orange-500 text-white';
-      case 'push':
-        return 'bg-green-500 text-white';
-      case 'legs':
-        return 'bg-purple-500 text-white';
-      default:
-        return 'bg-gray-500 text-white';
-    }
-  };
-
-  const getPrimaryTag = (exercise) => {
-    // Determine primary tag based on muscle groups or title
-    const title = exercise.title?.toLowerCase() || '';
-    const muscleGroups = exercise.muscleGroups || [];
-    
-    if (title.includes('traction') || title.includes('pull') || muscleGroups.includes('Back')) {
-      return 'Pull';
-    }
-    if (title.includes('dips') || title.includes('push') || muscleGroups.includes('Chest')) {
-      return 'Push';
-    }
-    if (title.includes('squat') || title.includes('leg') || muscleGroups.includes('Legs')) {
-      return 'Legs';
-    }
-    return 'Other';
-  };
-
-
-
-  // Clear all tag filters
-  const clearTagFilters = () => {
-    setSelectedTagFilters([]);
-  };
-
-  // Handle tag selection from TagTypeahead
+  // Handle tag selection from TagFilterDropdown
   const handleTagSelection = (selectedTags) => {
     setSelectedTagFilters(selectedTags);
   };
@@ -112,6 +86,17 @@ const ExerciseManagement = () => {
     const allTags = exercises.flatMap(exercise => exercise.tags || []);
     console.log('🏷️ All tags (with duplicates for counting):', allTags);
     return allTags.filter(tag => tag && tag.trim() !== '');
+  }, [exercises]);
+
+  // Create a color map for all unique tags to ensure no duplicate colors
+  const tagColorMap = useMemo(() => {
+    const allTags = exercises.flatMap(exercise => exercise.tags || []);
+    // Also include primary tags for exercises without tags
+    const primaryTags = exercises
+      .filter(exercise => !exercise.tags || exercise.tags.length === 0)
+      .map(exercise => getPrimaryTag(exercise));
+    const allTagsWithPrimaries = [...allTags, ...primaryTags];
+    return getTagColorMap(allTagsWithPrimaries);
   }, [exercises]);
 
   // Filter exercises based on search term and tag filter
@@ -160,6 +145,44 @@ const ExerciseManagement = () => {
   // Fetch exercises from backend
   useEffect(() => {
     fetchExercises();
+  }, []);
+
+  // Handle scrollbar auto-hide after inactivity
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const showScrollbar = () => {
+      scrollContainer.classList.add('scrollbar-visible');
+      scrollContainer.classList.remove('scrollbar-hidden');
+      
+      // Clear existing timeout
+      if (scrollbarTimeoutRef.current) {
+        clearTimeout(scrollbarTimeoutRef.current);
+      }
+      
+      // Hide scrollbar after 1 second of inactivity
+      scrollbarTimeoutRef.current = setTimeout(() => {
+        scrollContainer.classList.remove('scrollbar-visible');
+        scrollContainer.classList.add('scrollbar-hidden');
+      }, 1000);
+    };
+
+    const handleScroll = () => {
+      showScrollbar();
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+    // Initial state: hidden
+    scrollContainer.classList.add('scrollbar-hidden');
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      if (scrollbarTimeoutRef.current) {
+        clearTimeout(scrollbarTimeoutRef.current);
+      }
+    };
   }, []);
 
   const fetchExercises = async () => {
@@ -395,52 +418,56 @@ const ExerciseManagement = () => {
   }
 
   return (
-    <div className="h-full bg-background text-foreground flex flex-col">
-      <div className="flex-shrink-0 p-6 pb-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Exercices</h1>
-        </div>
-
+    <div className="h-full text-foreground flex flex-col">
+      <div className="flex-shrink-0 pt-6 px-6 pb-0">
         {/* Search and Filter Bar */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-4">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search exercice"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col gap-3 flex-1">
+            <div className="flex items-center space-x-4">
+              {/* Search Input */}
+              <div className="relative font-light">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un exercice"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
+                />
+              </div>
+              
+              {/* Filters Button */}
+              <TagFilterDropdown
+                tags={availableTags}
+                selectedTags={selectedTagFilters}
+                onTagsChange={handleTagSelection}
+                placeholder="Rechercher un tag..."
               />
-            </div>
-            
-            {/* Filters Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center space-x-2 px-4 py-2 border rounded-lg transition-colors ${
-                selectedTagFilters.length > 0
-                  ? 'bg-primary/10 border-primary text-primary' 
-                  : 'bg-input border-border text-foreground hover:bg-accent'
-              }`}
-            >
-              <Filter className="h-4 w-4" />
-              <span>Filters</span>
-              {selectedTagFilters.length > 0 && (
-                <span className="ml-1 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
-                  {selectedTagFilters.length}
-                </span>
-              )}
-            </button>
 
-            {/* Sort Control */}
-            <SortControl 
-              sort={sort} 
-              dir={dir} 
-              onChange={handleSortChange}
-            />
+              {/* Sort Control */}
+              <SortControl 
+                sort={sort} 
+                dir={dir} 
+                onChange={handleSortChange}
+              />
+
+              {/* Delete Button - appears when exercises are selected */}
+              {selectedExercises.length > 0 && (
+                <button
+                  onClick={handleDeleteMultiple}
+                  className="flex items-center gap-[10px] bg-white/[0.03] border-[0.5px] border-white/0 px-[15px] py-[8px] rounded-[25px] hover:bg-white/[0.05] transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-[16px] w-[16px] text-[#d4845a]">
+                    <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                  </svg>
+                  <span className="text-[16px] text-[#d4845a] font-normal">Supprimer</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* New Button */}
@@ -449,115 +476,79 @@ const ExerciseManagement = () => {
               setEditingExercise(null); // Clear any editing state
               setShowModal(true);
             }}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2 px-4 rounded-lg transition-colors"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-extralight pt-[7px] pb-[7px] px-5 rounded-[10px] transition-colors"
           >
-            + New
+            + Nouveau
           </button>
         </div>
 
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="bg-card rounded-lg border border-border p-4 mb-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-foreground">Filter by Tags</h3>
-                <button
-                  onClick={() => {
-                    clearTagFilters();
-                    setShowFilters(false);
-                  }}
-                  className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Clear All
-                </button>
-              </div>
-              
-              {/* Tag Typeahead Field */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Add Tag Filter
-                </label>
-                <TagTypeahead
-                  tags={availableTags}
-                  selectedTags={selectedTagFilters}
-                  onTagsChange={handleTagSelection}
-                  placeholder="Type a tag and press Enter to add it"
-                  className="w-full"
-                  alwaysExpanded={true}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Type a tag name and press Enter to add it to the filter
-                </p>
-              </div>
-              
-              {/* Filter Info */}
-              {selectedTagFilters.length > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  Showing exercises that have <strong>all</strong> selected tags: {selectedTagFilters.join(', ')}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Exercise List Container - Scrollable */}
       <div className="flex-1 min-h-0 px-6 pb-6">
-        <div className="bg-card rounded-lg border border-border flex flex-col overflow-hidden h-full">
+        <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 py-4 border-b border-border shrink-0">
+          <div className="px-6 py-4 shrink-0" style={{ borderBottom: 'none' }}>
             <div className="flex items-center">
-              <div className="flex items-center space-x-4 flex-1">
+              <div className="flex items-center space-x-6 flex-1">
                 {/* Select All Checkbox */}
                 <button
                   onClick={handleSelectAll}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                     selectedExercises.length === filteredExercises.length && filteredExercises.length > 0
                       ? 'bg-primary border-primary text-primary-foreground'
                       : 'border-border hover:border-primary'
                   }`}
                 >
                   {selectedExercises.length === filteredExercises.length && filteredExercises.length > 0 && (
-                    <Check className="h-3 w-3" />
+                    <Check className="h-3.5 w-3.5 stroke-[3]" />
                   )}
                 </button>
-                <h3 className="text-lg font-semibold text-foreground">
+                <h3 className="text-xs font-light text-foreground" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                   Exercices ({filteredExercises.length})
                 </h3>
-                {/* Selection Info and Delete Button */}
+                {/* Selection Info */}
                 {selectedExercises.length > 0 && (
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedExercises.length} selected
-                    </span>
-                    <button
-                      onClick={handleDeleteMultiple}
-                      className="flex items-center space-x-1 px-3 py-1 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors text-sm"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
+                  <span className="text-xs" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    {selectedExercises.length} sélectionné{selectedExercises.length > 1 ? 's' : ''}
+                  </span>
                 )}
               </div>
-              <div className="flex-1 text-center">
-                <span className="text-sm text-muted-foreground">Tags</span>
+              <div className="flex-1 flex justify-center">
+                <span className="text-xs font-extralight text-muted-foreground pr-[20px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
               </div>
               <div className="flex-1"></div>
             </div>
           </div>
 
           {/* Exercise List - Scrollable */}
-          <div className="divide-y divide-border overflow-y-auto flex-1 min-h-0">
+          <div ref={scrollContainerRef} className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar">
             {filteredExercises.length === 0 && !loading ? (
               <div className="px-6 py-8 text-center text-muted-foreground">
                 No exercises found. Create your first exercise to get started!
               </div>
             ) : (
-              filteredExercises.map(exercise => (
+              <div className="flex flex-col gap-[7px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+              {filteredExercises.map(exercise => {
+                const isSelected = selectedExercises.includes(exercise.id);
+                const isHovered = hoveredExerciseId === exercise.id;
+                const backgroundColor = isSelected || isHovered 
+                  ? 'rgba(255, 255, 255, 0.16)' 
+                  : 'rgba(255, 255, 255, 0.04)';
+                
+                return (
                 <div 
                   key={exercise.id} 
-                  className="px-6 py-4 hover:bg-accent/50 transition-colors cursor-pointer"
+                  className="px-6 py-2 transition-colors cursor-pointer rounded-2xl"
+                  style={{ 
+                    backgroundColor: backgroundColor,
+                    borderWidth: '0px',
+                    borderColor: 'rgba(0, 0, 0, 0)',
+                    borderStyle: 'none',
+                    borderImage: 'none'
+                  }}
+                  onMouseEnter={() => setHoveredExerciseId(exercise.id)}
+                  onMouseLeave={() => setHoveredExerciseId(null)}
                   onClick={(e) => {
                     // Don't open modal if clicking on checkbox or action buttons
                     if (e.target.closest('button')) return;
@@ -574,29 +565,63 @@ const ExerciseManagement = () => {
                   aria-label={`View details for ${exercise.title}`}
                 >
                   <div className="flex items-center">
-                    <div className="flex items-center space-x-4 flex-1">
+                    <div className="flex items-center space-x-6 flex-1">
                       {/* Checkbox */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSelectExercise(exercise.id);
                         }}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                           selectedExercises.includes(exercise.id)
                             ? 'bg-primary border-primary text-primary-foreground'
-                            : 'border-border hover:border-primary'
+                            : ''
                         }`}
+                        style={{
+                          borderWidth: '1px',
+                          borderColor: isSelected ? undefined : 'rgba(255, 255, 255, 0.1)'
+                        }}
                       >
                         {selectedExercises.includes(exercise.id) && (
-                          <Check className="h-3 w-3" />
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
                         )}
                       </button>
 
-                      {/* Exercise Name */}
-                      <div className="flex-1">
-                        <h4 className="text-foreground font-medium">
+                      {/* Exercise Name with Indicators */}
+                      <div className="flex-1 flex items-center gap-2">
+                        <h4 className="text-foreground font-light">
                           {exercise.title}
                         </h4>
+                        {/* Instructions Indicator */}
+                        <div className="flex items-center" title={exercise.instructions && exercise.instructions.trim() ? "Instructions renseignées" : "Aucune instruction"}>
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 640 640" 
+                            className="h-4 w-4"
+                            style={{ 
+                              fill: exercise.instructions && exercise.instructions.trim() 
+                                ? 'rgba(212, 132, 89, 0.8)' 
+                                : 'rgba(255, 255, 255, 0.2)' 
+                            }}
+                          >
+                            <path d="M192 112L304 112L304 200C304 239.8 336.2 272 376 272L464 272L464 512C464 520.8 456.8 528 448 528L192 528C183.2 528 176 520.8 176 512L176 128C176 119.2 183.2 112 192 112zM352 131.9L444.1 224L376 224C362.7 224 352 213.3 352 200L352 131.9zM192 64C156.7 64 128 92.7 128 128L128 512C128 547.3 156.7 576 192 576L448 576C483.3 576 512 547.3 512 512L512 250.5C512 233.5 505.3 217.2 493.3 205.2L370.7 82.7C358.7 70.7 342.5 64 325.5 64L192 64zM248 320C234.7 320 224 330.7 224 344C224 357.3 234.7 368 248 368L392 368C405.3 368 416 357.3 416 344C416 330.7 405.3 320 392 320L248 320zM248 416C234.7 416 224 426.7 224 440C224 453.3 234.7 464 248 464L392 464C405.3 464 416 453.3 416 440C416 426.7 405.3 416 392 416L248 416z"/>
+                          </svg>
+                        </div>
+                        {/* Video Indicator */}
+                        <div className="flex items-center" title={exercise.demoVideoURL ? "Vidéo renseignée" : "Aucune vidéo"}>
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 640 640" 
+                            className="h-4 w-4"
+                            style={{ 
+                              fill: exercise.demoVideoURL 
+                                ? 'rgba(212, 132, 89, 0.8)' 
+                                : 'rgba(255, 255, 255, 0.2)' 
+                            }}
+                          >
+                            <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z"/>
+                          </svg>
+                        </div>
                       </div>
                     </div>
 
@@ -604,14 +629,24 @@ const ExerciseManagement = () => {
                     <div className="flex-1 flex justify-center">
                       {exercise.tags && exercise.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 justify-center">
-                          {exercise.tags.map(tag => (
-                            <span key={tag} className={`px-2 py-1 rounded-full text-xs font-medium ${getTagColor(tag)}`}>
-                              {tag}
-                            </span>
-                          ))}
+                          {exercise.tags.map(tag => {
+                            const tagStyle = getTagColor(tag, tagColorMap);
+                            return (
+                              <span 
+                                key={tag} 
+                                className="px-3 py-1 rounded-full text-xs font-light"
+                                style={tagStyle}
+                              >
+                                {tag}
+                              </span>
+                            );
+                          })}
                         </div>
                       ) : (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTagColor(getPrimaryTag(exercise))}`}>
+                        <span 
+                          className="px-3 py-1 rounded-full text-xs font-light"
+                          style={getTagColor(getPrimaryTag(exercise), tagColorMap)}
+                        >
                           {getPrimaryTag(exercise)}
                         </span>
                       )}
@@ -625,26 +660,46 @@ const ExerciseManagement = () => {
                             e.stopPropagation();
                             handleEdit(exercise);
                           }}
-                          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                          className="p-1 transition-colors group"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                          }}
                           title="Edit exercise"
                         >
-                          <Edit className="h-4 w-4" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                            <path fill="currentColor" d="M535.6 85.7C513.7 63.8 478.3 63.8 456.4 85.7L432 110.1L529.9 208L554.3 183.6C576.2 161.7 576.2 126.3 554.3 104.4L535.6 85.7zM236.4 305.7C230.3 311.8 225.6 319.3 222.9 327.6L193.3 416.4C190.4 425 192.7 434.5 199.1 441C205.5 447.5 215 449.7 223.7 446.8L312.5 417.2C320.7 414.5 328.2 409.8 334.4 403.7L496 241.9L398.1 144L236.4 305.7zM160 128C107 128 64 171 64 224L64 480C64 533 107 576 160 576L416 576C469 576 512 533 512 480L512 384C512 366.3 497.7 352 480 352C462.3 352 448 366.3 448 384L448 480C448 497.7 433.7 512 416 512L160 512C142.3 512 128 497.7 128 480L128 224C128 206.3 142.3 192 160 192L256 192C273.7 192 288 177.7 288 160C288 142.3 273.7 128 256 128L160 128z"/>
+                          </svg>
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(exercise.id);
                           }}
-                          className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                          className="p-1 transition-colors group"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                          }}
                           title="Delete exercise"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                            <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                          </svg>
                         </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })}
+              </div>
             )}
           </div>
         </div>
@@ -657,6 +712,7 @@ const ExerciseManagement = () => {
         onExerciseCreated={handleSubmit}
         editingExercise={editingExercise}
         onExerciseUpdated={handleUpdate}
+        existingExercises={exercises}
       />
 
       {/* Exercise Detail Modal */}

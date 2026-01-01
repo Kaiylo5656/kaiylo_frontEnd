@@ -1,5 +1,4 @@
 import React from 'react';
-import { ChevronDown, ArrowUpDown } from 'lucide-react';
 
 const SortControl = ({ sort, dir, onChange }) => {
   const sortOptions = [
@@ -9,34 +8,26 @@ const SortControl = ({ sort, dir, onChange }) => {
     { value: 'name', dir: 'desc', label: 'Name (Z–A)' }
   ];
 
-  const currentOption = sortOptions.find(option => 
-    option.value === sort && option.dir === dir
-  ) || sortOptions[0]; // Default to newest first
-
-  const handleChange = (e) => {
-    const selectedValue = e.target.value;
-    const [newSort, newDir] = selectedValue.split('|');
-    onChange(newSort, newDir);
+  const handleClick = () => {
+    const currentIndex = sortOptions.findIndex(option => 
+      option.value === sort && option.dir === dir
+    );
+    const nextIndex = (currentIndex + 1) % sortOptions.length;
+    const nextOption = sortOptions[nextIndex];
+    onChange(nextOption.value, nextOption.dir);
   };
 
   return (
-    <div className="relative">
-      <select
-        value={`${sort}|${dir}`}
-        onChange={handleChange}
-        className="appearance-none bg-input border border-border rounded-lg px-4 py-2 pr-8 text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer min-w-[180px]"
-        aria-label="Sort exercises"
-      >
-        {sortOptions.map((option, index) => (
-          <option key={index} value={`${option.value}|${option.dir}`}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-      </div>
-    </div>
+    <button
+      onClick={handleClick}
+      className="transition-colors text-foreground/50 hover:text-primary"
+      title="Sort exercises"
+      aria-label="Sort exercises"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+        <path fill="currentColor" d="M470.6 566.6L566.6 470.6C575.8 461.4 578.5 447.7 573.5 435.7C568.5 423.7 556.9 416 544 416L480 416L480 96C480 78.3 465.7 64 448 64C430.3 64 416 78.3 416 96L416 416L352 416C339.1 416 327.4 423.8 322.4 435.8C317.4 447.8 320.2 461.5 329.3 470.7L425.3 566.7C437.8 579.2 458.1 579.2 470.6 566.7zM214.6 73.4C202.1 60.9 181.8 60.9 169.3 73.4L73.3 169.4C64.1 178.6 61.4 192.3 66.4 204.3C71.4 216.3 83.1 224 96 224L160 224L160 544C160 561.7 174.3 576 192 576C209.7 576 224 561.7 224 544L224 224L288 224C300.9 224 312.6 216.2 317.6 204.2C322.6 192.2 319.8 178.5 310.7 169.3L214.7 73.3z"/>
+      </svg>
+    </button>
   );
 };
 
