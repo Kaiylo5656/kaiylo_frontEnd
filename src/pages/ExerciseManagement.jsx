@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AddExerciseModal from '../components/AddExerciseModal';
+import DeleteExerciseModal from '../components/DeleteExerciseModal';
 import ExerciseDetailModal from '../components/ExerciseDetailModal';
 import SortControl from '../components/SortControl';
 import TagFilterDropdown from '../components/ui/TagFilterDropdown';
@@ -41,6 +42,10 @@ const ExerciseManagement = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
   const [hoveredExerciseId, setHoveredExerciseId] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [exerciseToDelete, setExerciseToDelete] = useState(null);
+  const [exercisesToDelete, setExercisesToDelete] = useState([]);
+  const [deleting, setDeleting] = useState(false);
   const scrollContainerRef = useRef(null);
   const scrollbarTimeoutRef = useRef(null);
   
@@ -327,15 +332,22 @@ const ExerciseManagement = () => {
     setShowModal(true);
   };
 
-  // Delete exercise
-  const handleDelete = async (exerciseId) => {
-    if (!window.confirm('Are you sure you want to delete this exercise?')) {
-      return;
-    }
+  // Delete exercise - opens confirmation modal
+  const handleDelete = (exerciseId) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    setExerciseToDelete(exercise);
+    setExercisesToDelete([]);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete single exercise
+  const handleConfirmDelete = async () => {
+    if (!exerciseToDelete) return;
 
     try {
+      setDeleting(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${getApiBaseUrlWithApi()}/exercises/${exerciseId}`, {
+      const response = await fetch(`${getApiBaseUrlWithApi()}/exercises/${exerciseToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -344,33 +356,40 @@ const ExerciseManagement = () => {
       });
 
       if (response.ok) {
+        setShowDeleteModal(false);
+        setExerciseToDelete(null);
         fetchExercises();
       } else {
         console.error('Failed to delete exercise');
       }
     } catch (error) {
       console.error('Error deleting exercise:', error);
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // Delete multiple exercises
-  const handleDeleteMultiple = async () => {
+  // Delete multiple exercises - opens confirmation modal
+  const handleDeleteMultiple = () => {
     if (selectedExercises.length === 0) {
       return;
     }
 
-    const exerciseCount = selectedExercises.length;
-    const exerciseText = exerciseCount === 1 ? 'exercise' : 'exercises';
-    
-    if (!window.confirm(`Are you sure you want to delete ${exerciseCount} ${exerciseText}?`)) {
-      return;
-    }
+    setExerciseToDelete(null);
+    setExercisesToDelete(selectedExercises);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete multiple exercises
+  const handleConfirmDeleteMultiple = async () => {
+    if (exercisesToDelete.length === 0) return;
 
     try {
+      setDeleting(true);
       const token = localStorage.getItem('authToken');
       
       // Delete exercises one by one
-      const deletePromises = selectedExercises.map(exerciseId => 
+      const deletePromises = exercisesToDelete.map(exerciseId => 
         fetch(`${getApiBaseUrlWithApi()}/exercises/${exerciseId}`, {
           method: 'DELETE',
           headers: {
@@ -384,6 +403,8 @@ const ExerciseManagement = () => {
       const allSuccessful = responses.every(response => response.ok);
 
       if (allSuccessful) {
+        setShowDeleteModal(false);
+        setExercisesToDelete([]);
         setSelectedExercises([]); // Clear selection
         fetchExercises();
       } else {
@@ -393,6 +414,8 @@ const ExerciseManagement = () => {
       }
     } catch (error) {
       console.error('Error deleting exercises:', error);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -720,6 +743,20 @@ const ExerciseManagement = () => {
         isOpen={showDetailModal}
         onClose={handleDetailModalClose}
         exerciseId={selectedExerciseId}
+      />
+
+      {/* Delete Exercise Modal */}
+      <DeleteExerciseModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setExerciseToDelete(null);
+          setExercisesToDelete([]);
+        }}
+        onConfirm={exerciseToDelete ? handleConfirmDelete : handleConfirmDeleteMultiple}
+        exerciseTitle={exerciseToDelete?.title}
+        exerciseCount={exerciseToDelete ? 1 : exercisesToDelete.length}
+        loading={deleting}
       />
 
       {/* Accessibility announcement for sort changes */}

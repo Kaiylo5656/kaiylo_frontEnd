@@ -304,7 +304,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.title}
               onChange={handleInputChange}
               required
-              className="w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
               placeholder="ex: Pompes"
             />
             {duplicateNameError && (
@@ -324,7 +324,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.instructions}
               onChange={handleInputChange}
               rows={4}
-              className="w-full p-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
               placeholder="Instructions étape par étape pour effectuer l'exercice..."
             />
           </div>
@@ -423,6 +423,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               type="submit"
               disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise)}
               className="px-5 py-2.5 text-sm font-extralight bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
             >
               {uploadingVideo ? 'Téléchargement...' : loading ? 'Enregistrement...' : (editingExercise ? 'Mettre à jour & fermer' : 'Créer & fermer')}
             </button>

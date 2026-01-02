@@ -287,7 +287,7 @@ const ExerciseTagTypeahead = ({
         <button
           onClick={handleCollapsedClick}
           disabled={disabled}
-          className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-3 py-2.5 hover:bg-[rgba(255,255,255,0.08)] transition-colors w-full text-left min-h-[40px]"
+          className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 hover:bg-[rgba(255,255,255,0.08)] transition-colors w-full text-left min-h-[40px]"
           type="button"
         >
           {selectedTags.length > 0 ? (
@@ -329,7 +329,7 @@ const ExerciseTagTypeahead = ({
       {/* Expanded State - Show input and dropdown */}
       {!isCollapsed && (
         <div className="relative">
-          <div className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-3 py-2.5 transition-all min-h-[40px]">
+          <div className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-4 py-2.5 transition-all min-h-[40px]">
             {/* Selected Tags - Show inside the input container */}
             {selectedTags.map((tag) => {
               const tagStyle = getTagColor(tag, tagColorMap);

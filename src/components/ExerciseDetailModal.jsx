@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Play, Tag, FileText } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
 import axios from 'axios';
 import VideoPlayer from './VideoPlayer';
-import HumanDetails from './HumanDetails';
 import ExerciseHistory from './ExerciseHistory';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import { formatRelative } from '../utils/formatting';
+import { getTagColor } from '../utils/tagColors';
 
 const ExerciseDetailModal = ({ 
   isOpen, 
@@ -143,12 +143,9 @@ const ExerciseDetailModal = ({
           ) : exercise ? (
             <>
               {/* Custom Header matching BaseModal style */}
-              <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+              <div className="shrink-0 px-6 pt-6 pb-0 flex items-center justify-between">
                 <div className="flex-1 flex items-center gap-2">
                   <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                      <path d="M96 176C96 149.5 117.5 128 144 128C170.5 128 192 149.5 192 176L192 288L448 288L448 176C448 149.5 469.5 128 496 128C522.5 128 544 149.5 544 176L544 192L560 192C586.5 192 608 213.5 608 240L608 288C625.7 288 640 302.3 640 320C640 337.7 625.7 352 608 352L608 400C608 426.5 586.5 448 560 448L544 448L544 464C544 490.5 522.5 512 496 512C469.5 512 448 490.5 448 464L448 352L192 352L192 464C192 490.5 170.5 512 144 512C117.5 512 96 490.5 96 464L96 448L80 448C53.5 448 32 426.5 32 400L32 352C14.3 352 0 337.7 0 320C0 302.3 14.3 288 32 288L32 240C32 213.5 53.5 192 80 192L96 192L96 176z"/>
-                    </svg>
                     {exercise.title}
                   </h2>
                   {/* Instructions Icon */}
@@ -159,7 +156,7 @@ const ExerciseDetailModal = ({
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       viewBox="0 0 640 640" 
-                      className="h-4 w-4"
+                      className="h-5 w-5"
                       style={{ 
                         fill: exercise.instructions && exercise.instructions.trim() 
                           ? 'rgba(212, 132, 89, 0.8)' 
@@ -177,7 +174,7 @@ const ExerciseDetailModal = ({
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       viewBox="0 0 640 640" 
-                      className="h-4 w-4"
+                      className="h-5 w-5"
                       style={{ 
                         fill: exercise.demoVideoURL 
                           ? 'rgba(212, 132, 89, 0.8)' 
@@ -198,30 +195,39 @@ const ExerciseDetailModal = ({
                   </svg>
                 </button>
               </div>
-              {/* Border line */}
-              <div className="border-b border-white/10 mx-6"></div>
               {/* Created Date */}
               {exercise.created_at && (
-                <div className="text-sm text-white/60 px-6 pt-2 pb-4">
+                <div className="text-xs font-light text-white/50 px-6 pt-1 pb-3">
                   Créé {formatRelative(exercise.created_at)}
                 </div>
               )}
+              {/* Border line */}
+              <div className="border-b border-white/10 mx-6"></div>
               
               <div className="px-6 py-6 space-y-6">
               
               {/* Instructions */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <FileText className="h-4 w-4 text-white/60" />
-                  <h3 className="text-lg font-medium text-white">Instructions</h3>
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 640 640" 
+                    className="h-5 w-5"
+                    style={{ 
+                      fill: 'rgba(255, 255, 255, 0.2)' 
+                    }}
+                  >
+                    <path d="M192 112L304 112L304 200C304 239.8 336.2 272 376 272L464 272L464 512C464 520.8 456.8 528 448 528L192 528C183.2 528 176 520.8 176 512L176 128C176 119.2 183.2 112 192 112zM352 131.9L444.1 224L376 224C362.7 224 352 213.3 352 200L352 131.9zM192 64C156.7 64 128 92.7 128 128L128 512C128 547.3 156.7 576 192 576L448 576C483.3 576 512 547.3 512 512L512 250.5C512 233.5 505.3 217.2 493.3 205.2L370.7 82.7C358.7 70.7 342.5 64 325.5 64L192 64zM248 320C234.7 320 224 330.7 224 344C224 357.3 234.7 368 248 368L392 368C405.3 368 416 357.3 416 344C416 330.7 405.3 320 392 320L248 320zM248 416C234.7 416 224 426.7 224 440C224 453.3 234.7 464 248 464L392 464C405.3 464 416 453.3 416 440C416 426.7 405.3 416 392 416L248 416z"/>
+                  </svg>
+                  <h3 className="text-[14px] font-[200] text-[rgba(255,255,255,0.5)]">Instructions</h3>
                 </div>
-                <div className="bg-white/5 rounded-lg p-4">
+                <div className="w-full px-4 py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)]">
                   {exercise.instructions ? (
                     <div className="text-white/80 whitespace-pre-wrap break-words">
                       {exercise.instructions}
                     </div>
                   ) : (
-                    <div className="text-white/40 italic">No instructions provided</div>
+                    <div className="text-white/40 font-extralight text-xs">Aucune instruction fournie</div>
                   )}
                 </div>
               </div>
@@ -229,19 +235,32 @@ const ExerciseDetailModal = ({
               {/* Tags */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Tag className="h-4 w-4 text-white/60" />
-                  <h3 className="text-lg font-medium text-white">Tags</h3>
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24" 
+                    className="h-5 w-5"
+                    style={{ 
+                      fill: 'rgba(255, 255, 255, 0.2)' 
+                    }}
+                  >
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                  </svg>
+                  <h3 className="text-[14px] font-[200] text-[rgba(255,255,255,0.5)]">Tags</h3>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1">
                   {exercise.tags && exercise.tags.length > 0 ? (
-                    exercise.tags.map(tag => (
-                      <span
-                        key={tag}
-                        className="px-3 py-1 bg-white/10 text-white text-sm rounded-full border border-white/20"
-                      >
-                        {tag.toLowerCase()}
-                      </span>
-                    ))
+                    exercise.tags.map(tag => {
+                      const tagStyle = getTagColor(tag);
+                      return (
+                        <span
+                          key={tag}
+                          className="px-3 py-1 rounded-full text-xs font-light"
+                          style={tagStyle}
+                        >
+                          {tag}
+                        </span>
+                      );
+                    })
                   ) : (
                     <div className="text-white/40 italic">No tags assigned</div>
                   )}
@@ -263,15 +282,6 @@ const ExerciseDetailModal = ({
                   </div>
                 </div>
               )}
-
-              {/* Human Details */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="h-4 w-4 text-white/60" />
-                  <h3 className="text-lg font-medium text-white">Details</h3>
-                </div>
-                <HumanDetails exercise={exercise} />
-              </div>
 
               {/* Exercise History */}
               <ExerciseHistory exerciseId={exerciseId} />
