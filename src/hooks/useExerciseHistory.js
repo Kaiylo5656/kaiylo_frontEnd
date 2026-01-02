@@ -54,10 +54,13 @@ export const useExerciseHistory = (exerciseId, options = {}) => {
       if (response.data.success) {
         const { items, nextCursor: newNextCursor, hasMore: newHasMore } = response.data.data;
         
+        // Filtrer pour ne garder que les séances terminées (exclure les séances assignées non réalisées)
+        const completedItems = items.filter(item => !item.isScheduled);
+        
         if (append) {
-          setData(prev => [...prev, ...items]);
+          setData(prev => [...prev, ...completedItems]);
         } else {
-          setData(items);
+          setData(completedItems);
         }
         
         setNextCursor(newNextCursor);

@@ -19,20 +19,80 @@ const MainLayout = ({ children }) => {
 
   return (
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
-      <div className="h-screen bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: 'unset', background: 'unset' }}>
-        {/* Carré supérieur avec blur - Transition entre lumière et fond noir */}
+      <div className="h-screen bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: '#0a0a0a' }}>
+        {/* Image de fond */}
         <div 
-          className="absolute pointer-events-none"
           style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
             width: '100vw',
             height: '100vh',
-            left: '0',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+        
+        {/* Layer blur sur l'écran */}
+        <div 
+          style={{
+            position: 'fixed',
             top: '0',
-            backgroundColor: 'unset',
-            background: 'unset',
-            backdropFilter: 'none',
-            filter: 'none',
-            zIndex: 1
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+        
+        {/* Gradient conique Figma - partie droite */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '-175px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '600px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.25)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 0.75,
+            animation: 'organicGradient 15s ease-in-out infinite'
+          }}
+        />
+        
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '-175px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '600px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.25)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 0.75,
+            animation: 'organicGradient 15s ease-in-out infinite 1.5s'
           }}
         />
         

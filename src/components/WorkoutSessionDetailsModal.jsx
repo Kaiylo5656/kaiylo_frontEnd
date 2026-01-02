@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, PlayCircle, CheckCircle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { getTagColor } from '../utils/tagColors';
 
 const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) => {
   if (!session) return null;
@@ -105,16 +106,18 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                       <div className="w-2 h-2 rounded-full bg-gray-500"></div>
                       <span className="text-white font-medium text-lg">{exercise.name}</span>
                       <div className="flex gap-1 flex-wrap">
-                        {exercise.tags && exercise.tags.map((tag, tagIndex) => (
-                          <span key={tagIndex} className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${
-                            tag.toLowerCase() === 'pull' ? 'bg-orange-500' :
-                            tag.toLowerCase() === 'push' ? 'bg-green-500' :
-                            tag.toLowerCase() === 'legs' ? 'bg-purple-500' :
-                            'bg-gray-500'
-                          }`}>
-                            {tag}
-                          </span>
-                        ))}
+                        {exercise.tags && exercise.tags.map((tag, tagIndex) => {
+                          const tagStyle = getTagColor(tag);
+                          return (
+                            <span 
+                              key={tagIndex} 
+                              className="px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={tagStyle}
+                            >
+                              {tag}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

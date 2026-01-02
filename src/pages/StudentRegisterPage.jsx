@@ -270,11 +270,11 @@ const StudentRegisterPage = () => {
                   isInfoExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
                 }`}
               >
-                <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none' }}>
+                <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                   <p className="text-xs text-[rgba(255,255,255,0.8)] text-left font-extralight">
                     Les élèves peuvent uniquement rejoindre Kaiylo via une invitation de leur coach.
                   </p>
-                  <p className="text-xs text-[rgba(255,255,255,0.8)] font-light text-left">
+                  <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
                     Si vous n'avez pas de code d'invitation, contactez votre coach pour en recevoir un.
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left">
@@ -585,7 +585,7 @@ const StudentRegisterPage = () => {
             </form>
 
             {/* Back to coach registration */}
-            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)] border border-[rgba(212,132,90,0.05)]">
+            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
                 Vous êtes coach ?
               </h2>

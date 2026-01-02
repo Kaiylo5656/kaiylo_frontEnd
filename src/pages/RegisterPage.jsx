@@ -269,7 +269,8 @@ const RegisterPage = () => {
                   paddingTop: '10px',
                   paddingBottom: '10px',
                   paddingLeft: '16px',
-                  paddingRight: '16px'
+                  paddingRight: '16px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)'
                 }}
               >
                 <h2 className="text-sm font-normal text-[#d4845a]">
@@ -290,11 +291,11 @@ const RegisterPage = () => {
                   isInfoExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
                 }`}
               >
-                <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none' }}>
-                  <p className="text-xs text-[rgba(255,255,255,0.8)] text-left font-extralight">
+                <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                  <p className="text-xs text-[rgba(255,255,255,1)] text-left font-extralight">
                     Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement.
                   </p>
-                  <p className="text-xs text-[rgba(255,255,255,0.8)] font-light text-left">
+                  <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
                     Après l'inscription, vous pourrez inviter vos élèves par email depuis votre tableau de bord.
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left">
@@ -552,7 +553,7 @@ const RegisterPage = () => {
             </form>
 
             {/* Student invitation section */}
-            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.05)] border border-[rgba(212,132,90,0.05)]">
+            <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
                 Êtes-vous un élève ?
               </h2>
