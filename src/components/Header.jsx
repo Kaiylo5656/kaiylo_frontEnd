@@ -7,6 +7,10 @@ import MobileNavigationDrawer from './MobileNavigationDrawer';
 import NotificationSidebar from './NotificationSidebar';
 import { useLocation } from 'react-router-dom';
 import useSocket from '../hooks/useSocket';
+import axios from 'axios';
+import { getApiBaseUrlWithApi } from '../config/api';
+import VideoDetailModal from './VideoDetailModal';
+import StudentVideoDetailModal from './StudentVideoDetailModal';
 
 // Custom Notification Icon Component
 const NotificationIcon = ({ className, style }) => (
@@ -26,8 +30,79 @@ const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const location = useLocation();
-  const { onVideoUpload } = useSocket();
+  const { onVideoUpload, onFeedback } = useSocket();
+
+  // Load notifications from server on mount (for both coaches and students)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const apiUrl = `${getApiBaseUrlWithApi()}/notifications`;
+        const response = await axios.get(
+          apiUrl,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            params: {
+              limit: 50
+            }
+          }
+        );
+
+        if (response.data.success && Array.isArray(response.data.data)) {
+          // Transform database notifications to the format expected by the UI
+          const transformedNotifications = response.data.data.map((notif) => {
+            // Different format for coaches (video_upload) vs students (video_feedback)
+            if (notif.type === 'video_upload') {
+              // Coach notification (student uploaded a video)
+              return {
+                id: notif.id,
+                type: 'video_upload',
+                studentName: notif.data?.studentName || 'Élève',
+                exerciseName: notif.data?.exerciseName || '',
+                setInfo: notif.data?.setInfo || null,
+                sessionName: notif.data?.sessionName || null,
+                timestamp: notif.created_at || notif.data?.timestamp || new Date().toISOString(),
+                read: notif.read || false,
+                videoId: notif.data?.videoId
+              };
+            } else if (notif.type === 'video_feedback') {
+              // Student notification (coach sent feedback)
+              return {
+                id: notif.id,
+                type: 'video_feedback',
+                coachName: notif.data?.coachName || 'Coach',
+                exerciseName: notif.data?.exerciseName || '',
+                sessionName: notif.data?.sessionName || null,
+                setInfo: notif.data?.setInfo || null,
+                feedback: notif.data?.feedback || '',
+                rating: notif.data?.rating || null,
+                timestamp: notif.created_at || notif.data?.timestamp || new Date().toISOString(),
+                read: notif.read || false,
+                videoId: notif.data?.videoId
+              };
+            }
+            return null;
+          }).filter(Boolean);
+
+          setNotifications(transformedNotifications);
+        }
+      } catch (error) {
+        console.error('❌ Error loading notifications:', error.message);
+      }
+    };
+
+    fetchNotifications();
+  }, [user?.role, user?.id]);
 
   // Listen for video upload events (coach side)
   useEffect(() => {
@@ -35,18 +110,25 @@ const Header = () => {
 
     const unsubscribe = onVideoUpload((payload) => {
       setNotifications((prev) => {
-        const next = [
-          {
-            id: payload?.id || `${Date.now()}-${Math.random()}`,
-            studentName: payload?.studentName || payload?.student?.name || payload?.studentEmail,
-            exerciseName: payload?.exerciseName || payload?.exercise?.name,
-            setInfo: payload?.setInfo,
-            sessionName: payload?.sessionName,
-            timestamp: payload?.timestamp || new Date().toISOString(),
-          },
-          ...prev,
-        ].slice(0, 50); // cap to 50
-        return next;
+        const newNotification = {
+          id: payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
+          type: 'video_upload',
+          studentName: payload?.studentName || payload?.student?.name || payload?.studentEmail,
+          exerciseName: payload?.exerciseName || payload?.exercise?.name,
+          setInfo: payload?.setInfo,
+          sessionName: payload?.sessionName,
+          timestamp: payload?.timestamp || new Date().toISOString(),
+          read: false,
+          videoId: payload?.videoId
+        };
+
+        // Check if this notification already exists (avoid duplicates)
+        const exists = prev.some(n => n.videoId === newNotification.videoId && n.type === 'video_upload');
+        if (exists) {
+          return prev;
+        }
+
+        return [newNotification, ...prev].slice(0, 50); // cap to 50
       });
     });
 
@@ -55,6 +137,41 @@ const Header = () => {
     };
   }, [user?.role, onVideoUpload]);
 
+  // Listen for feedback events (student side)
+  useEffect(() => {
+    if (user?.role !== 'student' || !onFeedback) return;
+
+    const unsubscribe = onFeedback((payload) => {
+      setNotifications((prev) => {
+        const newNotification = {
+          id: payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
+          type: 'video_feedback',
+          coachName: payload?.coachName || 'Coach',
+          exerciseName: payload?.exerciseName || '',
+          sessionName: payload?.sessionName || null,
+          setInfo: payload?.setInfo,
+          feedback: payload?.feedback || '',
+          rating: payload?.rating || null,
+          timestamp: payload?.timestamp || new Date().toISOString(),
+          read: false,
+          videoId: payload?.videoId
+        };
+
+        // Check if this notification already exists (avoid duplicates)
+        const exists = prev.some(n => n.videoId === newNotification.videoId && n.type === 'video_feedback');
+        if (exists) {
+          return prev;
+        }
+
+        return [newNotification, ...prev].slice(0, 50); // cap to 50
+      });
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.role, onFeedback]);
+
   // Determine page title based on current route
   const getPageTitle = () => {
     if (location.pathname.includes('/coach/dashboard') || location.pathname === '/dashboard') {
@@ -62,6 +179,71 @@ const Header = () => {
     }
     // Add more route-based titles as needed
     return 'Clients';
+  };
+
+  const handleNotificationClick = async (notif) => {
+    // Close notification sidebar
+    setIsNotificationOpen(false);
+
+    // Mark as read only if the notification has a valid database ID
+    // WebSocket notifications might have a different ID structure
+    if (!notif.read && notif.id && typeof notif.id === 'string' && notif.id.length === 36) {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/notifications/${notif.id}/read`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        // Update local state
+        setNotifications(prev => 
+          prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
+        );
+      } catch (error) {
+        // Only log if it's not a 404 (404 means notification doesn't exist in DB, which is OK for WebSocket notifications)
+        if (error.response?.status !== 404) {
+          console.error('Error marking notification as read:', error);
+        }
+        // Still update local state to mark as read visually
+        setNotifications(prev => 
+          prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
+        );
+      }
+    } else if (!notif.read) {
+      // For WebSocket notifications without DB ID, just mark as read locally
+      setNotifications(prev => 
+        prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
+      );
+    }
+
+    // Open video if it's a video notification
+    if (notif.videoId) { 
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        // Fetch video details
+        const response = await axios.get(
+          `${getApiBaseUrlWithApi()}/videos/${notif.videoId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data.success && response.data.video) {
+          setSelectedVideo(response.data.video);
+          setIsVideoModalOpen(true);
+        }
+      } catch (error) {
+        console.error('Error opening video:', error);
+        if (error.response?.status === 404) {
+          alert('La vidéo associée à cette notification n\'existe plus ou n\'est pas accessible.');
+        } else {
+          alert('Erreur lors du chargement de la vidéo. Veuillez réessayer.');
+        }
+      }
+    }
   };
 
   const renderCoachHeader = () => (
@@ -95,7 +277,7 @@ const Header = () => {
           onClick={() => setIsNotificationOpen(true)}
         >
           <Bell className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
-          {notifications.length > 0 && (
+          {notifications.filter(n => !n.read).length > 0 && (
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#d4845a]" />
           )}
         </Button>
@@ -137,8 +319,17 @@ const Header = () => {
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
         />
       </div>
-      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground h-9 w-9">
-        <NotificationIcon style={{ color: 'rgba(255, 255, 255, 0.5)', width: '18px', height: '18px' }} />
+      {/* Notification icon */}
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="relative text-white/75 hover:text-white hover:bg-white/10"
+        onClick={() => setIsNotificationOpen(true)}
+      >
+        <Bell className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
+        {notifications.filter(n => !n.read).length > 0 && (
+          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#d4845a]" />
+        )}
       </Button>
     </div>
   );
@@ -169,8 +360,38 @@ const Header = () => {
       <NotificationSidebar 
         isOpen={isNotificationOpen} 
         onClose={() => setIsNotificationOpen(false)} 
+        onNotificationClick={handleNotificationClick}
         notifications={notifications}
       />
+      {isStudent ? (
+        <StudentVideoDetailModal
+          isOpen={isVideoModalOpen}
+          onClose={() => {
+            setIsVideoModalOpen(false);
+            setSelectedVideo(null);
+          }}
+          video={selectedVideo}
+          onFeedbackUpdate={() => {
+            // Refresh notifications if needed
+            // For now, no action needed here as Header doesn't manage the list
+          }}
+        />
+      ) : (
+        <VideoDetailModal
+          isOpen={isVideoModalOpen}
+          onClose={() => {
+            setIsVideoModalOpen(false);
+            setSelectedVideo(null);
+          }}
+          video={selectedVideo}
+          videoType="student"
+          isCoachView={true}
+          onFeedbackUpdate={() => {
+            // Ideally, refresh notifications or list if needed
+            // For now, no action needed here as Header doesn't manage the list
+          }}
+        />
+      )}
     </>
   );
 };

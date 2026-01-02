@@ -142,18 +142,20 @@ const useSocket = () => {
       });
 
       newSocket.on('connect_error', (error) => {
-        console.error('❌ Socket connection error:', error);
-        console.error('❌ Error details:', {
-          message: error.message,
-          type: error.type,
-          description: error.description,
-          context: error.context,
-          transport: error.transport,
-          stack: error.stack
-        });
+        // Timeout errors are normal - Socket.IO will automatically retry
+        if (error.message === 'timeout') {
+          console.log('⏳ Socket connection timeout (will retry automatically)');
+          return;
+        }
+        
+        // HTTP 400 errors during connection are common - Socket.IO will retry
+        if (error.type === 'TransportError' || error.message.includes('Bad Request') || error.message.includes('400')) {
+          console.log('⏳ Socket connection attempt failed (will retry automatically)');
+          return;
+        }
         
         // Only handle authentication errors specifically
-        if (error.message.includes('Authentication error') || error.message.includes('Invalid token')) {
+        if (error.message.includes('Authentication error') || error.message.includes('Invalid token') || error.message.includes('NO_TOKEN') || error.message.includes('INVALID_TOKEN')) {
           console.error('❌ Authentication failed - token might be invalid or expired');
           setConnectionError(`Authentication failed: ${error.message}`);
         } else if (error.message.includes('WebSocket is closed before the connection is established')) {
@@ -161,9 +163,8 @@ const useSocket = () => {
           // Socket.IO will automatically fallback to polling, don't trigger re-initialization
           // Just log and let the reconnection logic handle it
         } else {
-          // For other errors, just log them but don't set connection error
-          // Let the reconnection logic handle it
-          console.log('⚠️ Connection error (will attempt reconnection):', error.message);
+          // For other errors, log as info (not warning/error) since Socket.IO will retry
+          console.log('⏳ Socket connection error (will attempt reconnection):', error.message);
         }
         // Don't set isConnected to false here - let reconnection handle it
       });
@@ -175,8 +176,17 @@ const useSocket = () => {
       });
 
       newSocket.on('reconnect_error', (error) => {
-        console.error('❌ WebSocket reconnection error:', error);
+        // Timeout errors during reconnection are normal
+        if (error.message === 'timeout') {
+          console.log('⏳ Socket reconnection timeout (will retry)');
+          return;
+        }
+        // Only log non-timeout reconnection errors
+        console.warn('⚠️ Socket reconnection error:', error.message);
+        // Only set connection error for non-timeout errors
+        if (error.message !== 'timeout') {
         setConnectionError(error.message);
+        }
       });
 
       newSocket.on('reconnect_failed', () => {
@@ -407,6 +417,43 @@ const useSocket = () => {
     };
   }, [isConnected]);
 
+  // Function to listen for feedback notifications (for students)
+  const onFeedback = useCallback((callback) => {
+    let connectHandler = null;
+    
+    const setupListener = () => {
+      if (socketRef.current && isConnected) {
+        socketRef.current.on('new_feedback', callback);
+        return true;
+      }
+      return false;
+    };
+
+    // Try to set up listener immediately
+    if (!setupListener()) {
+      // If socket is not ready, set up a one-time listener for when it connects
+      connectHandler = () => {
+        setupListener();
+        if (socketRef.current && connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      };
+      
+      if (socketRef.current) {
+        socketRef.current.on('connect', connectHandler);
+      }
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('new_feedback', callback);
+        if (connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      }
+    };
+  }, [isConnected]);
+
   const disconnect = useCallback(() => {
     if (socketRef.current) {
       console.log('🔌 Manually disconnecting WebSocket...');
@@ -450,6 +497,7 @@ const useSocket = () => {
     stopTyping,
     markMessagesAsRead,
     onVideoUpload,
+    onFeedback,
     disconnect,
     checkConnection,
     reconnect

@@ -353,34 +353,34 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         <div className="flex-shrink-0 p-4 relative">
           {video?.video_url && video.video_url.trim() !== '' ? (
             <>
-              <VideoPlayer
-                ref={videoRef}
-                src={video.video_url}
-                onLoadedMetadata={() => {
-                  const videoElement = videoRef.current;
-                  if (videoElement) {
-                    setDuration(videoElement.duration);
-                    setCurrentTime(0);
-                    setIsPlaying(false);
-                    setIsVideoLoading(false);
-                    setVideoError(null); // Clear any previous errors
-                  }
-                }}
-                onPlay={() => {
-                  setIsPlaying(true);
-                  setIsVideoLoading(false);
-                  setVideoError(null); // Clear errors on successful play
-                }}
-                onPause={() => {
+            <VideoPlayer
+              ref={videoRef}
+              src={video.video_url}
+              onLoadedMetadata={() => {
+                const videoElement = videoRef.current;
+                if (videoElement) {
+                  setDuration(videoElement.duration);
+                  setCurrentTime(0);
                   setIsPlaying(false);
-                }}
-                onTimeUpdate={() => {
-                  const videoElement = videoRef.current;
-                  if (videoElement) {
-                    setCurrentTime(videoElement.currentTime);
-                  }
-                }}
-                onError={(error) => {
+                  setIsVideoLoading(false);
+                    setVideoError(null); // Clear any previous errors
+                }
+              }}
+              onPlay={() => {
+                setIsPlaying(true);
+                setIsVideoLoading(false);
+                  setVideoError(null); // Clear errors on successful play
+              }}
+              onPause={() => {
+                setIsPlaying(false);
+              }}
+              onTimeUpdate={() => {
+                const videoElement = videoRef.current;
+                if (videoElement) {
+                  setCurrentTime(videoElement.currentTime);
+                }
+              }}
+              onError={(error) => {
                   const videoElement = error?.target || error?.nativeEvent?.target;
                   const mediaError = videoElement?.error;
                   
@@ -425,30 +425,30 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   }
                   
                   setVideoError(errorMessage);
-                  setIsVideoLoading(false);
-                }}
-                tabIndex={-1}
-                onKeyDown={(e) => {
-                  if (e.code === 'Space') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }
-                }}
-              />
-              
-              {/* Loading Overlay */}
-              {isVideoLoading && (
-                <div className="absolute inset-4 bg-black/80 rounded-md flex items-center justify-center z-10">
-                  <div className="text-white">Chargement de la vidéo...</div>
-                </div>
-              )}
+                setIsVideoLoading(false);
+              }}
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.code === 'Space') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+            />
 
-              {/* Error Overlay */}
-              {videoError && (
+          {/* Loading Overlay */}
+          {isVideoLoading && (
+                <div className="absolute inset-4 bg-black/80 rounded-md flex items-center justify-center z-10">
+              <div className="text-white">Chargement de la vidéo...</div>
+            </div>
+          )}
+
+          {/* Error Overlay */}
+          {videoError && (
                 <div className="absolute inset-4 bg-black/90 rounded-md flex items-center justify-center z-10 border border-red-500/50">
                   <div className="text-center p-6 max-w-md">
                     <p className="text-red-400 mb-4">{videoError}</p>
-                    <button
+                <button
                       onClick={() => {
                         setVideoError(null);
                         // Try to reload the video
@@ -457,10 +457,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                         }
                       }}
                       className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                    >
-                      Réessayer
-                    </button>
-                  </div>
+                >
+                  Réessayer
+                </button>
+              </div>
                 </div>
               )}
             </>

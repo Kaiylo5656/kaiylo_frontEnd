@@ -346,48 +346,66 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     }
   };
 
-  const handleSaveComment = async () => {
-    if (selectedVideo && coachComment.trim()) {
-      try {
-        setSavingFeedback(true);
-        const token = await getAuthToken();
-        
-        if (!token) {
-          alert('Erreur d\'authentification. Veuillez vous reconnecter.');
-          return;
-        }
-        
-        await axios.patch(
-          `${getApiBaseUrlWithApi()}/workout-sessions/videos/${selectedVideo.id}/feedback`,
-          {
-            feedback: coachComment.trim(),
-            rating: 5,
-            status: 'completed'
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-        
-        // Update the video in sessionVideos to reflect the saved feedback
-        const updatedVideo = { ...selectedVideo, coach_feedback: coachComment.trim() };
-        setSessionVideos(prev => prev.map(video => 
-          video.id === selectedVideo.id 
-            ? updatedVideo
-            : video
-        ));
-        
-        // Update selectedVideo to reflect the saved feedback immediately
-        setSelectedVideo(updatedVideo);
-        
-        // Clear the input after successful save
-        setCoachComment('');
-      } catch (error) {
-        console.error('Error saving feedback:', error);
-        alert('Erreur lors de la sauvegarde du commentaire. Veuillez réessayer.');
-      } finally {
-        setSavingFeedback(false);
+  const handleSaveComment = async (videoToSave = null) => {
+    // Use the provided video, or fallback to selectedVideo
+    const video = videoToSave || selectedVideo;
+    
+    if (!video || !video.id) {
+      console.warn('No video selected for saving feedback');
+      return;
+    }
+    
+    if (!coachComment.trim()) {
+      console.warn('No comment to save');
+      return;
+    }
+    
+    try {
+      setSavingFeedback(true);
+      const token = await getAuthToken();
+      
+      if (!token) {
+        alert('Erreur d\'authentification. Veuillez vous reconnecter.');
+        return;
       }
+      
+      await axios.patch(
+        `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+        {
+          feedback: coachComment.trim(),
+          rating: 5,
+          status: 'completed'
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      // Update the video in sessionVideos to reflect the saved feedback
+      const updatedVideo = { ...video, coach_feedback: coachComment.trim() };
+      setSessionVideos(prev => prev.map(v => 
+        v.id === video.id 
+          ? updatedVideo
+          : v
+      ));
+      
+      // Update selectedVideo to reflect the saved feedback immediately
+      if (selectedVideo && selectedVideo.id === video.id) {
+        setSelectedVideo(updatedVideo);
+      }
+      
+      // Clear the input after successful save
+      setCoachComment('');
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      alert('Erreur lors de la sauvegarde du commentaire. Veuillez réessayer.');
+    } finally {
+      setSavingFeedback(false);
     }
   };
 
@@ -730,7 +748,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           if (coachComment.trim() && currentSetVideo) {
-                            handleSaveComment();
+                            handleSaveComment(currentSetVideo);
                           }
                         }
                       }}
@@ -740,13 +758,16 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       style={{ minHeight: '24px', maxHeight: '100px' }}
                     />
                     <button 
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         if (coachComment.trim() && currentSetVideo) {
-                          handleSaveComment();
+                          handleSaveComment(currentSetVideo);
                         }
                       }}
-                      className="flex items-center justify-center cursor-pointer p-0 w-[12px] h-[12px] ml-2 flex-shrink-0"
-                      disabled={!coachComment.trim() || savingFeedback}
+                      className="flex items-center justify-center cursor-pointer p-0 w-[12px] h-[12px] ml-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!coachComment.trim() || savingFeedback || !currentSetVideo}
+                      type="button"
                     >
                       <Send className="h-3 w-3 text-[#D4845A]" />
                     </button>
