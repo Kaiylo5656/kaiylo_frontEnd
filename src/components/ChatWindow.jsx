@@ -1,14 +1,40 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
-import FileUpload from './FileUpload';
 import FileMessage from './FileMessage';
 import ReplyMessage from './ReplyMessage';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, Send, ChevronLeft, Check, CheckCheck } from 'lucide-react';
+import { Paperclip, Send, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
+import DeleteMessageModal from './DeleteMessageModal';
+
+// Custom MessageSquare Icon Component (Font Awesome)
+const MessageSquareIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M267.7 576.9C267.7 576.9 267.7 576.9 267.7 576.9L229.9 603.6C222.6 608.8 213 609.4 205 605.3C197 601.2 192 593 192 584L192 512L160 512C107 512 64 469 64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L359.6 512L267.7 576.9zM332 472.8C340.1 467.1 349.8 464 359.7 464L480 464C506.5 464 528 442.5 528 416L528 192C528 165.5 506.5 144 480 144L160 144C133.5 144 112 165.5 112 192L112 416C112 442.5 133.5 464 160 464L216 464C226.4 464 235.3 470.6 238.6 479.9C239.5 482.4 240 485.1 240 488L240 537.7C272.7 514.6 303.3 493 331.9 472.8z"/>
+  </svg>
+);
+
+// Custom Reply Icon Component (Font Awesome)
+const ReplyIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 512 512"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M204.2 18.4c12 5 19.8 16.6 19.8 29.6l0 80 112 0c97.2 0 176 78.8 176 176 0 113.3-81.5 163.9-100.2 174.1-2.5 1.4-5.3 1.9-8.1 1.9-10.9 0-19.7-8.9-19.7-19.7 0-7.5 4.3-14.4 9.8-19.5 9.4-8.8 22.2-26.4 22.2-56.7 0-53-43-96-96-96l-96 0 0 80c0 12.9-7.8 24.6-19.8 29.6s-25.7 2.2-34.9-6.9l-160-160c-12.5-12.5-12.5-32.8 0-45.3l160-160c9.2-9.2 22.9-11.9 34.9-6.9z"/>
+  </svg>
+);
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack }) => {
   const { getAuthToken } = useAuth();
@@ -20,7 +46,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
@@ -28,11 +53,19 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [nextCursor, setNextCursor] = useState(null); // New state for pagination cursor
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [participantInfo, setParticipantInfo] = useState({ name: null, email: null });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
   const messagesContainerRef = useRef(null);
   const processedMessageIdsRef = useRef(new Set()); // Persist processed message IDs across renders
+  const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
 
 
   const fetchMessages = useCallback(async (cursor = null) => {
@@ -136,7 +169,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     if (!conversation?.id || uploadingFile) return;
 
     setUploadingFile(true);
-    setShowFileUpload(false);
 
     try {
       const formData = new FormData();
@@ -169,6 +201,113 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setUploadingFile(false);
     }
   }, [conversation?.id, uploadingFile, getAuthToken]);
+
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/webm'
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+      alert('Type de fichier non supporté. Types autorisés: Images (JPEG, PNG, GIF, WebP) et Vidéos (MP4, MOV, AVI, WebM)');
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+    
+    // Validate file size (50MB)
+    const maxFileSize = 50 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+      alert('Fichier trop volumineux. Taille maximale: 50MB.');
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+    
+    // Store file and create preview instead of uploading immediately
+    setSelectedFile(file);
+    
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => setFilePreview(e.target.result);
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+  
+  const handleConfirmFileUpload = useCallback(() => {
+    if (selectedFile) {
+      handleFileUpload(selectedFile);
+      setSelectedFile(null);
+      setFilePreview(null);
+    }
+  }, [selectedFile, handleFileUpload]);
+  
+  const handleCancelFileUpload = useCallback(() => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  const handleDeleteMessage = useCallback((messageId) => {
+    if (!conversation?.id || !messageId) return;
+    
+    // Find the message to get its content for display
+    const message = messages.find(msg => msg.id === messageId);
+    setMessageToDelete({ id: messageId, content: message?.content || '' });
+    setShowDeleteModal(true);
+  }, [conversation?.id, messages]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!messageToDelete || !conversation?.id) return;
+
+    try {
+      setDeleting(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl(`/api/chat/messages/${messageToDelete.id}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Remove message from local state
+      setMessages(prev => prev.filter(msg => msg.id !== messageToDelete.id));
+      
+      // Close modal and reset state
+      setShowDeleteModal(false);
+      setMessageToDelete(null);
+      
+      console.log('✅ Message deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting message:', error);
+      alert('Erreur lors de la suppression du message. Veuillez réessayer.');
+    } finally {
+      setDeleting(false);
+    }
+  }, [messageToDelete, conversation?.id, getAuthToken]);
 
   const sendMessage = useCallback(async (e) => {
     e.preventDefault();
@@ -295,6 +434,57 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       }
     }; // Only re-run this effect if the conversation, socket, or connection status changes
   }, [conversation?.id, socket, isConnected]);
+
+  // Fetch participant information (name and email)
+  useEffect(() => {
+    const fetchParticipantInfo = async () => {
+      if (!conversation?.other_participant_id || !currentUser) return;
+      
+      try {
+        const token = await getAuthToken();
+        const endpoint = currentUser?.role === 'coach' 
+          ? '/api/coach/students' 
+          : '/api/coach';
+        
+        const response = await fetch(buildApiUrl(endpoint), {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const users = data.data || [];
+          
+          // Find the user matching the participant ID
+          const participant = users.find(user => user.id === conversation.other_participant_id);
+          
+          if (participant) {
+            setParticipantInfo({
+              name: participant.name || conversation.other_participant_name || 'Unknown User',
+              email: participant.email || conversation.other_participant_name || ''
+            });
+          } else {
+            // Fallback to conversation data
+            setParticipantInfo({
+              name: conversation.other_participant_name || 'Unknown User',
+              email: conversation.other_participant_name || ''
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching participant info:', error);
+        // Fallback to conversation data
+        setParticipantInfo({
+          name: conversation.other_participant_name || 'Unknown User',
+          email: conversation.other_participant_name || ''
+        });
+      }
+    };
+
+    fetchParticipantInfo();
+  }, [conversation?.other_participant_id, conversation?.other_participant_name, currentUser, getAuthToken]);
 
   useEffect(() => {
     if (socket) {
@@ -567,11 +757,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   // Handle reply to message
   const handleReplyToMessage = (message) => {
     setReplyingTo(message);
-    // Focus on the input field
-    const inputElement = document.querySelector('input[type="text"]');
-    if (inputElement) {
-      inputElement.focus();
-    }
+    // Focus on the message input field using ref
+    setTimeout(() => {
+      if (messageInputRef.current) {
+        messageInputRef.current.focus();
+      }
+    }, 0);
   };
 
   // Cancel reply
@@ -623,45 +814,52 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     <div className="flex flex-col h-full md:h-full">
       {/* Chat Header */}
       <div 
-        className="p-4 flex-shrink-0"
+        className="pt-3 pb-1 flex-shrink-0"
         style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          borderBottomWidth: '0.5px',
-          borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-          borderBottomStyle: 'solid'
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          background: 'unset'
         }}
       >
-        <div className="flex items-center space-x-3">
+        <div 
+          className="flex items-center space-x-2"
+          style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            paddingLeft: '4px',
+            paddingRight: '24px',
+            paddingTop: '7px',
+            paddingBottom: '7px',
+            borderRadius: '50px'
+          }}
+        >
           {/* Back button for mobile */}
           <button
             onClick={onBack}
-            className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white"
+            className="md:hidden p-2 text-gray-400 hover:text-white"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
           
-          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
-            {getUserDisplayName(conversation.other_participant_id).charAt(0).toUpperCase()}
+          <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
+            {(participantInfo.name || getUserDisplayName(conversation.other_participant_id)).charAt(0).toUpperCase()}
           </div>
-          <div>
-            <div className="font-medium text-white">
-              {getUserDisplayName(conversation.other_participant_id)}
-            </div>
-            <div className="text-sm text-gray-400">
-              {isConnected ? (
-                <span className="flex items-center space-x-1">
-                  <span>🟢 Online</span>
-                  <span className={`text-xs ${
-                    connectionQuality === 'good' ? 'text-green-500' : 
-                    connectionQuality === 'slow' ? 'text-yellow-500' : 'text-red-500'
-                  }`}>
-                    ({connectionQuality})
-                  </span>
-                </span>
-              ) : (
-                '🔴 Offline'
+          <div className="flex-1 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="font-normal text-white">
+                {participantInfo.name || getUserDisplayName(conversation.other_participant_id)}
+              </div>
+              {participantInfo.email && (
+                <div className="text-sm text-gray-400" style={{ fontWeight: 200 }}>
+                  ({participantInfo.email})
+                </div>
               )}
             </div>
+            <div 
+              className={`w-1.5 h-1.5 rounded-full ${
+                isConnected 
+                  ? 'bg-green-500' 
+                  : 'bg-gray-500/40'
+              }`}
+            />
           </div>
         </div>
       </div>
@@ -669,7 +867,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
-        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4"
+        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-2"
         onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'auto',
@@ -681,8 +879,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       >
         {/* Load more messages indicator/button at the TOP (where older messages load) */}
         {loadingMore && (
-          <div className="text-center text-muted-foreground py-2">
-            <div className="text-sm">Loading more messages...</div>
+          <div className="text-center text-muted-foreground py-4 flex flex-col items-center gap-2">
+            <div 
+              className="rounded-full border-2 border-transparent animate-spin"
+              style={{
+                borderTopColor: '#d4845a',
+                borderRightColor: '#d4845a',
+                width: '24px',
+                height: '24px'
+              }}
+            />
+            <div className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
           </div>
         )}
         
@@ -722,12 +929,25 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         )}
         
         {loading ? (
-          <div className="text-center text-muted-foreground">Loading messages...</div>
+          <div className="text-center text-muted-foreground flex flex-col items-center gap-3 py-8">
+            <div 
+              className="rounded-full border-2 border-transparent animate-spin"
+              style={{
+                borderTopColor: '#d4845a',
+                borderRightColor: '#d4845a',
+                width: '32px',
+                height: '32px'
+              }}
+            />
+            <div className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
+          </div>
         ) : messages.length === 0 ? (
           <div className="text-center text-muted-foreground">
-            <div className="text-2xl mb-2">💬</div>
-            <div className="text-sm">No messages yet</div>
-            <div className="text-xs mt-1">Start the conversation!</div>
+            <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+              <MessageSquareIcon className="w-8 h-8" style={{ color: 'rgba(255, 255, 255, 0.25)' }} />
+            </div>
+            <div className="text-sm font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Aucun message pour le moment</div>
+            <div className="text-xs mt-1 font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}>Démarrez la conversation !</div>
           </div>
         ) : (
           messages.map((message, index) => {
@@ -779,61 +999,113 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 highlightedMessageId === message.id ? 'message-highlighted' : ''
               }`}
             >
-              <div className="relative group">
-                {/* Reply indicator */}
+              <div className={`relative group flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                {/* Reply indicator - au-dessus du message */}
                 {message.replyTo && (
-                  <ReplyMessage 
-                    replyTo={message.replyTo} 
-                    isOwnMessage={isOwnMessage}
-                    onReplyClick={handleReplyClick}
-                  />
+                  <div className="mb-1.5" style={{ 
+                    maxWidth: '75vw',
+                    width: 'fit-content'
+                  }}>
+                    <ReplyMessage 
+                      replyTo={message.replyTo} 
+                      isOwnMessage={isOwnMessage}
+                      onReplyClick={handleReplyClick}
+                    />
+                  </div>
                 )}
                 
-                {message.message_type === 'file' ? (
-                  <FileMessage 
-                    message={message} 
-                    isOwnMessage={isOwnMessage}
-                  />
-                ) : (
-                  <Card
-                    className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
-                      isOwnMessage
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-white/15 text-card-foreground border-0'
+                {/* Message container avec bouton reply */}
+                <div className={`flex items-center gap-2 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
+                  {/* Timestamp - visible au hover, à gauche pour nos messages, à droite pour les autres */}
+                  <div 
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 flex items-center gap-1 pointer-events-none ${
+                      isOwnMessage ? 'order-2' : 'order-3'
                     }`}
+                    style={{ 
+                      fontSize: "11px",
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      whiteSpace: 'nowrap'
+                    }}
                   >
-                    <CardContent className="p-3" style={{ padding: "10px" }}>
-                      <div className="text-xs font-light break-words whitespace-pre-wrap">{message.content}</div>
-                      <div className={`text-xs mt-1 flex items-center gap-1 ${
-                        isOwnMessage
-                          ? 'text-primary-foreground/70'
-                          : 'text-muted-foreground'
-                      }`}>
-                        <span style={{ fontSize: "11px" }}>{formatMessageTime(message.created_at)}</span>
-                        {isOwnMessage && isSent && (
-                          <span className="ml-1">
-                            {isRead ? (
-                              <CheckCheck className="w-3 h-3 inline-block" />
-                            ) : (
-                              <Check className="w-3 h-3 inline-block" />
+                    <span>{formatMessageTime(message.created_at)}</span>
+                  </div>
+                  
+                  <div className="relative">
+                    {message.message_type === 'file' ? (
+                      <FileMessage 
+                        message={message} 
+                        isOwnMessage={isOwnMessage}
+                      />
+                    ) : (
+                      <Card
+                        className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
+                          isOwnMessage
+                            ? 'bg-primary text-primary-foreground border-primary rounded-full pl-1 pr-1'
+                            : 'bg-white/15 text-card-foreground border-0 rounded-full pl-1 pr-1'
+                        }`}
+                      >
+                        <CardContent className="p-3" style={{ padding: "10px" }}>
+                          <div className="flex items-end gap-1.5">
+                            <div className="text-xs font-light break-words whitespace-pre-wrap flex-1">{message.content}</div>
+                            {isOwnMessage && isSent && (
+                              <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
+                                {isRead ? (
+                                  <CheckCheck className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                                ) : (
+                                  <Check className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                                )}
+                              </span>
                             )}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-                
-                {/* Reply button - only show for other users' messages */}
-                {!isOwnMessage && (
-                  <button
-                    className="reply-button"
-                    onClick={() => handleReplyToMessage(message)}
-                    title="Reply to this message"
-                  >
-                    ↩️ Reply
-                  </button>
-                )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                  
+                  {/* Delete button - only show for own messages, appears on hover */}
+                  {isOwnMessage && (
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                      onClick={() => handleDeleteMessage(message.id)}
+                      title="Supprimer le message"
+                      style={{ 
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        backgroundColor: 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                        <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                      </svg>
+                    </button>
+                  )}
+                  
+                  {/* Reply button - only show for other users' messages, appears on hover on the right side */}
+                  {!isOwnMessage && (
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                      onClick={() => handleReplyToMessage(message)}
+                      title="Reply to this message"
+                      style={{ 
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        backgroundColor: 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                      }}
+                    >
+                      <ReplyIcon className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             );
@@ -841,50 +1113,151 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         )}
       </div>
 
-      {/* File Upload */}
-      {showFileUpload && (
-        <div className="p-4">
-          <FileUpload
-            onFileSelect={(file) => console.log('File selected:', file)}
-            onUpload={handleFileUpload}
-            isUploading={uploadingFile}
-            disabled={sending || uploadingFile}
-          />
-        </div>
-      )}
-
-      {/* Reply Indicator */}
+      {/* Reply Indicator - Modern style */}
       {replyingTo && (
-        <div className="p-2 md:p-4 border-t border-border bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-primary">↩️ Replying to:</span>
-              <div className="text-sm text-foreground max-w-xs truncate">
-                {replyingTo.message_type === 'file' 
-                  ? `📎 ${replyingTo.file_name || 'File'}`
-                  : replyingTo.content
-                }
-              </div>
+        <div 
+          className="mx-2 md:mx-4 mb-2 relative overflow-hidden transition-opacity duration-200"
+          style={{ 
+            background: 'linear-gradient(90deg, rgba(212, 132, 90, 0.2) 0%, rgba(212, 132, 90, 0.15) 50%, rgba(212, 132, 90, 0.05) 100%)',
+            borderRadius: '8px',
+            padding: '8px 12px 8px 28px',
+            animation: 'slideDown 0.2s ease-out'
+          }}
+        >
+          {/* Vertical line with spacing */}
+          <div
+            className="absolute left-2 top-2 bottom-2 transition-opacity duration-200"
+            style={{
+              width: '2px',
+              backgroundColor: 'var(--kaiylo-primary-hex)',
+              borderRadius: '5px'
+            }}
+          />
+          
+          {/* Reply content with cancel button */}
+          <div className="flex items-start justify-between gap-2">
+            <div 
+              className="text-sm leading-relaxed break-words flex-1 min-w-0"
+              style={{ 
+                color: 'rgba(255, 255, 255, 0.9)',
+                fontSize: '13px',
+                lineHeight: '1.4'
+              }}
+            >
+              {replyingTo.message_type === 'file' 
+                ? `📎 ${replyingTo.file_name || 'Fichier'}`
+                : replyingTo.content
+              }
             </div>
+            
+            {/* Cancel button */}
             <button
               type="button"
               onClick={cancelReply}
-              className="text-primary hover:text-primary/80 text-sm"
+              className="flex-shrink-0 rounded-full transition-all duration-200 flex items-center justify-center group"
+              title="Annuler la réponse"
+              style={{ 
+                color: 'rgba(255, 255, 255, 0.5)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#d4845a';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+              }}
             >
-              ✕ Cancel
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
         </div>
       )}
 
+      {/* File Preview */}
+      {selectedFile && (
+        <div className="px-2 pb-2 md:px-4 md:pb-2">
+          <div className="bg-muted rounded-lg p-3 flex items-center gap-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+            {/* Preview */}
+            {filePreview ? (
+              <div className="flex-shrink-0 w-16 h-16 rounded overflow-hidden">
+                <img 
+                  src={filePreview} 
+                  alt="Preview" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : selectedFile.type.startsWith('video/') ? (
+              <div className="flex-shrink-0 w-16 h-16 rounded bg-white/10 flex items-center justify-center">
+                <Video className="w-8 h-8 text-white/70" />
+              </div>
+            ) : (
+              <div className="flex-shrink-0 w-16 h-16 rounded bg-white/10 flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-white/70" />
+              </div>
+            )}
+            
+            {/* File Info */}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-light text-white truncate">
+                {selectedFile.name}
+              </div>
+              <div className="text-xs font-extralight text-white/60">
+                {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleCancelFileUpload}
+                className="px-4 py-1.5 rounded-full text-sm font-light text-white/70 bg-[rgba(0,0,0,0.5)] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                title="Annuler"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmFileUpload}
+                disabled={uploadingFile}
+                className="px-4 py-1.5 rounded-full text-sm font-light text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+                title="Envoyer"
+              >
+                {uploadingFile ? 'Envoi...' : 'Envoyer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
-      <div className="p-2 md:p-4">
-        <div className="bg-muted rounded-full flex items-center p-1.5 md:p-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+      <div className="pt-0 px-2 pb-2 md:px-4 md:pb-4">
+        <div className="bg-muted rounded-full flex items-center p-1.5 md:px-2 md:py-[5px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/mov,video/avi,video/quicktime,video/webm"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+            disabled={sending || uploadingFile}
+          />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => setShowFileUpload(!showFileUpload)}
+            onClick={() => fileInputRef.current?.click()}
             disabled={sending || uploadingFile}
             title="Attach file"
             className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
@@ -893,25 +1266,48 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           </Button>
           <form onSubmit={sendMessage} className="flex-1 flex items-center">
             <Input
+              ref={messageInputRef}
               type="text"
               value={newMessage}
               onChange={handleInputChange}
-              placeholder="Type a message here..."
-              className="flex-1 text-xs md:text-base bg-white/5 border-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground rounded-[20px] ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-[25px] md:pr-[25px] font-light text-white/50"
-              style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}
+              placeholder="Tapez un message ici..."
+              className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-light text-white"
+              style={{ 
+                borderStyle: 'none',
+                borderWidth: '0px',
+                borderColor: 'rgba(0, 0, 0, 0)',
+                borderImage: 'none',
+                backgroundColor: 'unset',
+                background: 'unset'
+              }}
               disabled={sending || uploadingFile}
             />
             <Button
               type="submit"
               disabled={!newMessage.trim() || sending || uploadingFile}
               size="icon"
-              className="flex-shrink-0 bg-primary rounded-full w-8 h-8 md:w-10 md:h-10 hover:bg-primary/90 disabled:bg-[rgba(255,255,255,0.05)] disabled:opacity-100 disabled:text-[var(--kaiylo-primary-hex)]"
+              className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 text-[var(--kaiylo-primary-hex)] disabled:text-white/50"
+              style={{
+                backgroundColor: 'unset',
+                background: 'unset'
+              }}
             >
               <Send className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
           </form>
         </div>
       </div>
+
+      {/* Delete Message Modal */}
+      <DeleteMessageModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setMessageToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        loading={deleting}
+      />
     </div>
   );
 };

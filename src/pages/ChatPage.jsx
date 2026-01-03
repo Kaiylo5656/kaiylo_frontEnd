@@ -6,11 +6,24 @@ import ChatWindow from '../components/ChatWindow';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video, MessageSquare, FileText } from 'lucide-react';
+import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video, FileText } from 'lucide-react';
+
+// Custom MessageSquare Icon Component (Font Awesome)
+const MessageSquareIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M267.7 576.9C267.7 576.9 267.7 576.9 267.7 576.9L229.9 603.6C222.6 608.8 213 609.4 205 605.3C197 601.2 192 593 192 584L192 512L160 512C107 512 64 469 64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L359.6 512L267.7 576.9zM332 472.8C340.1 467.1 349.8 464 359.7 464L480 464C506.5 464 528 442.5 528 416L528 192C528 165.5 506.5 144 480 144L160 144C133.5 144 112 165.5 112 192L112 416C112 442.5 133.5 464 160 464L216 464C226.4 464 235.3 470.6 238.6 479.9C239.5 482.4 240 485.1 240 488L240 537.7C272.7 514.6 303.3 493 331.9 472.8z"/>
+  </svg>
+);
 
 const ChatPage = () => {
   const { getAuthToken, user } = useAuth();
-  const { isConnected, connectionError } = useSocket();
+  const { socket, isConnected, connectionError, markMessagesAsRead } = useSocket();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -63,7 +76,55 @@ const ChatPage = () => {
 
   useEffect(() => {
     fetchConversations();
+    
+    // Refresh conversations when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchConversations();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
+
+  // Listen for messages_read events to update last_read_at
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleMessagesRead = (data) => {
+      console.log('🔌 Messages marked as read:', data);
+      // Update last_read_at for the conversation
+      // The server may send conversationId or conversation_id
+      const conversationId = data?.conversationId || data?.conversation_id;
+      if (conversationId) {
+        // Use server's last_read_at if provided, otherwise use current time
+        const readAt = data?.last_read_at || new Date().toISOString();
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === conversationId
+              ? { ...conv, last_read_at: readAt }
+              : conv
+          )
+        );
+        
+        // Refresh conversations after a delay to ensure server has persisted the update
+        // This ensures that when the page is refreshed, the badge won't reappear
+        setTimeout(() => {
+          fetchConversations();
+        }, 1000);
+      }
+    };
+
+    socket.on('messages_read', handleMessagesRead);
+
+    return () => {
+      socket.off('messages_read', handleMessagesRead);
+    };
+  }, [socket, isConnected]);
 
   // Auto-open conversation with specific student if studentId is provided
   useEffect(() => {
@@ -120,6 +181,36 @@ const ChatPage = () => {
   // Handle conversation selection
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
+    
+    // Mark messages as read when conversation is selected
+    if (conversation?.last_message) {
+      const lastMessage = conversation.last_message;
+      const isSentByOtherUser = lastMessage.sender_id !== user?.id;
+      
+      if (isSentByOtherUser) {
+        // Check if there are unread messages
+        const hasUnread = !conversation.last_read_at || 
+          (lastMessage.created_at && new Date(conversation.last_read_at) < new Date(lastMessage.created_at));
+        
+        if (hasUnread) {
+          // Update locally for immediate UI feedback
+          const now = new Date().toISOString();
+          setConversations(prev => 
+            prev.map(conv => 
+              conv.id === conversation.id
+                ? { ...conv, last_read_at: now }
+                : conv
+            )
+          );
+          
+          // Mark as read on server via WebSocket
+          // The server will send a messages_read event when it's done
+          if (isConnected && markMessagesAsRead) {
+            markMessagesAsRead(conversation.id);
+          }
+        }
+      }
+    }
   };
 
   // Handle new message
@@ -200,10 +291,10 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background text-foreground">
+    <div className="h-full text-foreground flex flex-col">
       <div className="flex-1 flex overflow-hidden">
         {/* Contact List - Desktop: Always visible, fixed width */}
-        <div className="w-80 lg:w-96 bg-card border-r border-border flex flex-col flex-shrink-0">
+        <div className="w-80 lg:w-96 flex flex-col flex-shrink-0">
           <ChatList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -215,7 +306,7 @@ const ChatPage = () => {
         </div>
 
         {/* Chat Window - Desktop: Takes remaining space */}
-        <div className="flex-1 flex flex-col bg-background min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 pr-6">
           {selectedConversation ? (
             <ChatWindow
               conversation={selectedConversation}
@@ -227,11 +318,10 @@ const ChatPage = () => {
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                  <MessageSquare className="w-8 h-8 text-muted-foreground" />
+                <div className="w-20 h-20 mx-auto mb-2 rounded-full flex items-center justify-center">
+                  <MessageSquareIcon className="w-10 h-10" style={{ color: 'rgba(255, 255, 255, 0.25)' }} />
                 </div>
-                <h3 className="text-lg font-medium text-foreground mb-2">Select a conversation</h3>
-                <p className="text-muted-foreground">Choose a conversation from the list to start messaging</p>
+                <h3 className="text-base font-extralight mb-3" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Sélectionner une conversation</h3>
               </div>
             </div>
           )}

@@ -141,9 +141,9 @@ const FileUpload = ({ onFileSelect, onUpload, isUploading = false, disabled = fa
       />
 
       {!selectedFile ? (
-        // WhatsApp-style drop zone - compact and clean
+        // WhatsApp-style drop zone - compact and direct
         <div
-          className={`relative rounded-xl transition-all duration-200 ${
+          className={`relative rounded-lg transition-all duration-200 ${
             dragActive
               ? 'border-2 border-primary bg-primary/10'
               : 'border border-white/10 bg-white/5 hover:bg-white/10'
@@ -154,22 +154,12 @@ const FileUpload = ({ onFileSelect, onUpload, isUploading = false, disabled = fa
           onDrop={handleDrop}
           onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
         >
-          <div className="flex items-center justify-center p-3 md:p-8">
-            <div className="flex flex-col items-center gap-2 md:gap-3 text-center">
-              <div className="p-2 md:p-3 rounded-full bg-primary/10">
-                <Upload className="h-5 w-5 md:h-7 md:w-7 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm md:text-base font-medium text-white mb-1">
-                  {dragActive ? 'Déposer le fichier ici' : 'Cliquez ou glissez-déposez pour téléverser'}
-                </p>
-                <p className="text-xs md:text-sm text-muted-foreground font-light" style={{ color: 'rgba(175, 175, 182, 1)', fontSize: '11px' }}>
-                  Images: JPEG, PNG, GIF, WebP • Vidéos: MP4, MOV, AVI, WebM
-                </p>
-                <p className="text-xs text-muted-foreground mt-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                  Taille max: 50MB
-                </p>
-              </div>
+          <div className="flex items-center justify-center p-4">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Upload className="h-6 w-6 text-primary" />
+              <p className="text-sm font-normal text-white/80">
+                {dragActive ? 'Déposer ici' : 'Ajouter une photo ou une vidéo'}
+              </p>
             </div>
           </div>
         </div>

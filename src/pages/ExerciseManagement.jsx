@@ -442,7 +442,7 @@ const ExerciseManagement = () => {
 
   return (
     <div className="h-full text-foreground flex flex-col">
-      <div className="flex-shrink-0 pt-6 px-6 pb-0">
+      <div className="flex-shrink-0 pt-3 px-6 pb-0">
         {/* Search and Filter Bar */}
           <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col gap-3 flex-1">
@@ -511,7 +511,7 @@ const ExerciseManagement = () => {
       <div className="flex-1 min-h-0 px-6 pb-6">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 py-4 shrink-0" style={{ borderBottom: 'none' }}>
+          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none' }}>
             <div className="flex items-center">
               <div className="flex items-center space-x-6 flex-1">
                 {/* Select All Checkbox */}

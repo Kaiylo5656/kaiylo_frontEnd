@@ -8,10 +8,10 @@
   background: unset;
 }
 
-/* Global scrollbar styles for a clean, consistent look */
+/* Global scrollbar styles - minimal and subtle like exercise page */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #404040 #1a1a1a;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 /* Webkit scrollbar styles (Chrome, Safari, Edge) */
@@ -21,22 +21,22 @@
 }
 
 *::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: none;
   border-radius: 4px;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #404040;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
-  border: 1px solid #262626;
+  transition: opacity 0.3s ease, background 0.3s ease;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #505050;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 *::-webkit-scrollbar-corner {
-  background: #1a1a1a;
+  background: none;
 }
 
 /* Custom styles can be added here if needed */
@@ -608,25 +608,45 @@ input[type="number"] {
   font-weight: 500;
 }
 
-/* Message highlighting for navigation */
+/* Message highlighting for navigation - Kaiylo style */
 .message-highlighted {
-  animation: messageHighlight 3s ease-in-out;
-  border-radius: 0.5rem;
-  padding: 0.25rem;
+  position: relative;
+  animation: messageHighlightKaiylo 2.5s ease-out;
 }
 
-@keyframes messageHighlight {
+@keyframes messageHighlightKaiylo {
   0% {
-    background-color: #fef3c7;
-    box-shadow: 0 0 0 2px #f59e0b;
+    background-color: rgba(212, 132, 90, 0.08);
   }
-  50% {
-    background-color: #fef3c7;
-    box-shadow: 0 0 0 2px #f59e0b;
+  25% {
+    background-color: rgba(212, 132, 90, 0.04);
   }
   100% {
     background-color: transparent;
-    box-shadow: none;
+  }
+}
+
+@keyframes borderPulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+/* Reply indicator animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -751,22 +771,28 @@ input[type="number"] {
   overflow: hidden;
 }
 
-/* Custom scrollbar for chat window */
+/* Custom scrollbar for chat window - minimal and subtle like exercise page */
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
 .chat-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: none;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
-  background: #404040;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
+  transition: opacity 0.3s ease, background 0.3s ease;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #505050;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* Week action buttons positioning */
