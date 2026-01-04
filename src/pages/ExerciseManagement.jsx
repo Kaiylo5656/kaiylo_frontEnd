@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -46,8 +46,6 @@ const ExerciseManagement = () => {
   const [exerciseToDelete, setExerciseToDelete] = useState(null);
   const [exercisesToDelete, setExercisesToDelete] = useState([]);
   const [deleting, setDeleting] = useState(false);
-  const scrollContainerRef = useRef(null);
-  const scrollbarTimeoutRef = useRef(null);
   
   // Sort state from URL
   const { sort, dir, updateSort } = useSortParams();
@@ -150,44 +148,6 @@ const ExerciseManagement = () => {
   // Fetch exercises from backend
   useEffect(() => {
     fetchExercises();
-  }, []);
-
-  // Handle scrollbar auto-hide after inactivity
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    const showScrollbar = () => {
-      scrollContainer.classList.add('scrollbar-visible');
-      scrollContainer.classList.remove('scrollbar-hidden');
-      
-      // Clear existing timeout
-      if (scrollbarTimeoutRef.current) {
-        clearTimeout(scrollbarTimeoutRef.current);
-      }
-      
-      // Hide scrollbar after 1 second of inactivity
-      scrollbarTimeoutRef.current = setTimeout(() => {
-        scrollContainer.classList.remove('scrollbar-visible');
-        scrollContainer.classList.add('scrollbar-hidden');
-      }, 1000);
-    };
-
-    const handleScroll = () => {
-      showScrollbar();
-    };
-
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-
-    // Initial state: hidden
-    scrollContainer.classList.add('scrollbar-hidden');
-
-    return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll);
-      if (scrollbarTimeoutRef.current) {
-        clearTimeout(scrollbarTimeoutRef.current);
-      }
-    };
   }, []);
 
   const fetchExercises = async () => {
@@ -436,17 +396,26 @@ const ExerciseManagement = () => {
     resetForm();
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   return (
-    <div className="h-full text-foreground flex flex-col">
+    <div className="h-full text-foreground flex flex-col relative">
+      {loading && (
+        <div className="absolute inset-0 flex justify-center items-center z-10">
+          <div 
+            className="rounded-full border-2 border-transparent animate-spin"
+            style={{
+              borderTopColor: '#d4845a',
+              borderRightColor: '#d4845a',
+              width: '40px',
+              height: '40px'
+            }}
+          />
+        </div>
+      )}
       <div className="flex-shrink-0 pt-3 px-6 pb-0">
         {/* Search and Filter Bar */}
           <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col gap-3 flex-1">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {/* Search Input */}
               <div className="relative font-light">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
@@ -499,9 +468,12 @@ const ExerciseManagement = () => {
               setEditingExercise(null); // Clear any editing state
               setShowModal(true);
             }}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-extralight pt-[7px] pb-[7px] px-5 rounded-[10px] transition-colors"
+            className="group bg-primary hover:bg-primary/90 text-primary-foreground font-extralight pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
           >
-            + Nouveau
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
+              <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+            </svg>
+            Nouveau
           </button>
         </div>
 
@@ -511,9 +483,9 @@ const ExerciseManagement = () => {
       <div className="flex-1 min-h-0 px-6 pb-6">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none' }}>
+          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none', maxWidth: '899px' }}>
             <div className="flex items-center">
-              <div className="flex items-center space-x-6 flex-1">
+              <div className="flex items-center space-x-6 w-[282px]">
                 {/* Select All Checkbox */}
                 <button
                   onClick={handleSelectAll}
@@ -537,18 +509,54 @@ const ExerciseManagement = () => {
                   </span>
                 )}
               </div>
-              <div className="flex-1 flex justify-center">
-                <span className="text-xs font-extralight text-muted-foreground pr-[20px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
+              <div className="w-[287px] flex justify-center">
+                <span className="text-xs font-extralight text-muted-foreground pr-0 text-center" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
               </div>
               <div className="flex-1"></div>
             </div>
           </div>
 
           {/* Exercise List - Scrollable */}
-          <div ref={scrollContainerRef} className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar">
+          <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar">
             {filteredExercises.length === 0 && !loading ? (
-              <div className="px-6 py-8 text-center text-muted-foreground">
-                No exercises found. Create your first exercise to get started!
+              <div className="h-full flex items-center justify-center">
+                <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                  {exercises.length === 0 ? (
+                    <>
+                      <span><span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucun exercice trouvé.</span><br /><span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Créez votre premier exercice pour commencer !</span></span>
+                      <button 
+                        onClick={() => {
+                          setEditingExercise(null);
+                          setShowModal(true);
+                        }}
+                        className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                        style={{
+                          backgroundColor: 'var(--kaiylo-primary-hex)',
+                          color: 'var(--tw-ring-offset-color)'
+                        }}
+                      >
+                        Ajoute ton premier exercice
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span><span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucun exercice trouvé.</span><br /><span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Aucun exercice ne correspond à vos critères de recherche</span></span>
+                      <button 
+                        onClick={() => {
+                          setSearchTerm('');
+                          setSelectedTagFilters([]);
+                        }}
+                        className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                        style={{
+                          backgroundColor: 'var(--kaiylo-primary-hex)',
+                          color: 'var(--tw-ring-offset-color)'
+                        }}
+                      >
+                        Effacer la recherche
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-[7px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
@@ -649,7 +657,7 @@ const ExerciseManagement = () => {
                     </div>
 
                     {/* Tag Column - Centered */}
-                    <div className="flex-1 flex justify-center">
+                    <div className="w-[287px] flex justify-center">
                       {exercise.tags && exercise.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 justify-center">
                           {exercise.tags.map(tag => {

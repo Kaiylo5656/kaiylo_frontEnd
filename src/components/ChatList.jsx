@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Search, MoreHorizontal, Plus, X, Check, CheckCheck } from 'lucide-react';
+import { Search, MoreHorizontal, Check, CheckCheck } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -415,16 +415,24 @@ const ChatList = ({
                   title={showUserList ? 'Annuler' : 'Nouveau chat'}
                 >
                   <div className="relative w-5 h-5">
-                    <X 
-                      className={`h-5 w-5 absolute inset-0 transition-all duration-300 ${
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className={`h-5 w-5 absolute inset-0 transition-all duration-300 fill-current ${
                         showUserList ? 'rotate-0 opacity-100' : 'rotate-90 opacity-0'
                       }`}
-                    />
-                    <Plus 
-                      className={`h-5 w-5 absolute inset-0 transition-all duration-300 ${
+                    >
+                      <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/>
+                    </svg>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 448 512"
+                      className={`h-5 w-5 absolute inset-0 transition-all duration-300 fill-current ${
                         showUserList ? 'rotate-90 opacity-0' : 'rotate-0 opacity-100'
                       }`}
-                    />
+                    >
+                      <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+                    </svg>
                   </div>
                 </button>
 

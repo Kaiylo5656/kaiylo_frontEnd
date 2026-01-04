@@ -107,11 +107,11 @@ const Navigation = () => {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : false; // Default to not collapsed
   });
   const [isPinned, setIsPinned] = useState(() => {
     const saved = localStorage.getItem('sidebarPinned');
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : true; // Default to pinned (true) so menu stays open
   });
 
   useEffect(() => {
@@ -122,6 +122,15 @@ const Navigation = () => {
     localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
   }, [isPinned]);
 
+  // Keep menu open when navigating - don't collapse on route change
+  const location = useLocation();
+  useEffect(() => {
+    // When route changes, ensure menu stays open if pinned
+    if (isPinned && isCollapsed) {
+      setIsCollapsed(false);
+    }
+  }, [location.pathname, isPinned]);
+
   const handleMouseEnter = () => {
     if (!isPinned && isCollapsed) {
       setIsCollapsed(false);
@@ -129,6 +138,7 @@ const Navigation = () => {
   };
 
   const handleMouseLeave = () => {
+    // Only collapse if not pinned - but since we default to pinned, menu will stay open
     if (!isPinned && !isCollapsed) {
       setIsCollapsed(true);
     }
@@ -240,9 +250,6 @@ const Navigation = () => {
       </nav>
       <div className="px-4 py-5 border-t border-border" style={{ borderTopWidth: '0px', borderTopColor: 'rgba(0, 0, 0, 0)', borderTopStyle: 'none', borderImage: 'none', borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)', borderStyle: 'none' }}>
         <div className="space-y-1">
-          <NavLink to="/billing" icon={DollarSignIcon} isCollapsed={isCollapsed}>
-            Facturation
-          </NavLink>
           {!isCollapsed ? (
             <div className="flex items-center justify-start space-x-3 pl-2 pr-4 py-2.5 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', background: 'rgba(255, 255, 255, 0.1)' }}>

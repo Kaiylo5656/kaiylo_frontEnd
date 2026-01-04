@@ -3,11 +3,18 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
-import { Search, SlidersHorizontal, Send, Plus, Bell, Settings, MessageSquare, MessageCircle, CheckSquare, RefreshCw, Users, Trash2 } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import StudentDetailView from '../components/StudentDetailView';
+import SortControl from '../components/SortControl';
+import useSortParams from '../hooks/useSortParams';
 import useSocket from '../hooks/useSocket';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 
 const CoachDashboard = () => {
   const { user } = useAuth();
@@ -25,12 +32,32 @@ const CoachDashboard = () => {
   const [selectedStudentInitialTab, setSelectedStudentInitialTab] = useState('overview');
   const [studentVideoCounts, setStudentVideoCounts] = useState({}); // Track pending videos per student
   const [studentMessageCounts, setStudentMessageCounts] = useState({}); // Track unread messages per student
+  const [studentNextSessions, setStudentNextSessions] = useState({}); // Track next planned session per student
   const [error, setError] = useState('');
+  const [filterPendingFeedback, setFilterPendingFeedback] = useState(false);
+  const [filterPendingMessages, setFilterPendingMessages] = useState(false);
+  const [filterNoUpcomingSessions, setFilterNoUpcomingSessions] = useState(false);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const { socket } = useSocket();
+  
+  // Sort state from URL
+  const { sort, dir, updateSort } = useSortParams();
+  
+  // Wrapper for updateSort
+  const handleSortChange = (newSort, newDir) => {
+    updateSort(newSort, newDir);
+  };
 
   useEffect(() => {
     fetchCoachData();
   }, []);
+
+  // Fetch next sessions when students are loaded
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchNextSessions(students);
+    }
+  }, [students]);
 
   // Effect for polling and WebSocket updates
   useEffect(() => {
@@ -82,18 +109,92 @@ const CoachDashboard = () => {
     }
   }, [location.search, navigate]);
 
-  // Filter students based on search term
+
+  // Sort students function
+  const sortStudents = (studentsList, sortBy, direction) => {
+    if (!studentsList || studentsList.length === 0) return studentsList;
+
+    return [...studentsList].sort((a, b) => {
+      // First, sort by pending feedback count (descending) - students with more feedback first
+      const feedbackCountA = studentVideoCounts[a.id] ? Number(studentVideoCounts[a.id]) : 0;
+      const feedbackCountB = studentVideoCounts[b.id] ? Number(studentVideoCounts[b.id]) : 0;
+      
+      if (feedbackCountA !== feedbackCountB) {
+        return feedbackCountB - feedbackCountA; // Descending order
+      }
+
+      // If feedback counts are equal, sort by the selected criteria
+      let comparison = 0;
+
+      if (sortBy === 'createdAt' || sortBy === 'joinedAt') {
+        // Sort by joined date
+        const dateA = a.joinedAt ? new Date(a.joinedAt).getTime() : 0;
+        const dateB = b.joinedAt ? new Date(b.joinedAt).getTime() : 0;
+        
+        // Push items with missing dates to bottom
+        if (!a.joinedAt && !b.joinedAt) return 0;
+        if (!a.joinedAt) return 1;
+        if (!b.joinedAt) return -1;
+        
+        comparison = dateA - dateB;
+      } else if (sortBy === 'name') {
+        // Handle name sorting with locale-aware comparison
+        const nameA = (a.name || '').trim();
+        const nameB = (b.name || '').trim();
+        
+        // Push items with missing names to bottom
+        if (!nameA && !nameB) return 0;
+        if (!nameA) return 1;
+        if (!nameB) return -1;
+        
+        comparison = nameA.localeCompare(nameB, undefined, {
+          sensitivity: 'base',
+          numeric: true
+        });
+      }
+
+      // Apply direction
+      return direction === 'desc' ? -comparison : comparison;
+    });
+  };
+
+  // Filter and sort students based on search term, filters and sort params
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredStudents(students);
-    } else {
-      const filtered = students.filter(student => 
+    let filtered = students;
+    
+    // Apply search filter
+    if (searchTerm.trim()) {
+      filtered = students.filter(student => 
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      setFilteredStudents(filtered);
     }
-  }, [searchTerm, students]);
+    
+    // Apply pending feedback filter
+    if (filterPendingFeedback) {
+      filtered = filtered.filter(student => 
+        studentVideoCounts[student.id] && Number(studentVideoCounts[student.id]) > 0
+      );
+    }
+    
+    // Apply pending messages filter
+    if (filterPendingMessages) {
+      filtered = filtered.filter(student => 
+        studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0
+      );
+    }
+    
+    // Apply no upcoming sessions filter
+    if (filterNoUpcomingSessions) {
+      filtered = filtered.filter(student => 
+        !studentNextSessions[student.id]
+      );
+    }
+    
+    // Apply sorting
+    const sorted = sortStudents(filtered, sort || 'name', dir || 'asc');
+    setFilteredStudents(sorted);
+  }, [searchTerm, students, sort, dir, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
   const fetchCoachData = async () => {
     setLoading(true);
@@ -148,11 +249,80 @@ const CoachDashboard = () => {
 
       if (response.data.success) {
         console.log('Fetched counts:', response.data.data);
-        setStudentVideoCounts(response.data.data.videoCounts || {});
-        setStudentMessageCounts(response.data.data.messageCounts || {});
+        // Normalize counts to ensure they are numbers
+        const videoCounts = response.data.data.videoCounts || {};
+        const messageCounts = response.data.data.messageCounts || {};
+        
+        // Convert to numbers and filter out 0 or undefined values
+        const normalizedVideoCounts = {};
+        const normalizedMessageCounts = {};
+        
+        Object.keys(videoCounts).forEach(studentId => {
+          const count = Number(videoCounts[studentId]) || 0;
+          if (count > 0) {
+            normalizedVideoCounts[studentId] = count;
+          }
+        });
+        
+        Object.keys(messageCounts).forEach(studentId => {
+          const count = Number(messageCounts[studentId]) || 0;
+          if (count > 0) {
+            normalizedMessageCounts[studentId] = count;
+          }
+        });
+        
+        setStudentVideoCounts(normalizedVideoCounts);
+        setStudentMessageCounts(normalizedMessageCounts);
       }
     } catch (error) {
       console.error('Error fetching dashboard counts:', error);
+    }
+  };
+
+  const fetchNextSessions = async (studentsList) => {
+    try {
+      const nextSessions = {};
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Fetch next sessions for each student
+      await Promise.all(
+        studentsList.map(async (student) => {
+          try {
+            const response = await axios.get(
+              `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
+              {
+                params: {
+                  startDate: new Date().toISOString().split('T')[0],
+                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year ahead
+                  limit: 100
+                }
+              }
+            );
+
+            if (response.data && response.data.data) {
+              // Find the first non-completed session
+              const upcomingSession = response.data.data.find(assignment => {
+                const sessionDate = assignment.scheduled_date || assignment.due_date;
+                if (!sessionDate) return false;
+                const date = new Date(sessionDate);
+                date.setHours(0, 0, 0, 0);
+                return date >= today && assignment.status !== 'completed';
+              });
+
+              if (upcomingSession) {
+                nextSessions[student.id] = upcomingSession.scheduled_date || upcomingSession.due_date;
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching sessions for student ${student.id}:`, error);
+          }
+        })
+      );
+
+      setStudentNextSessions(nextSessions);
+    } catch (error) {
+      console.error('Error fetching next sessions:', error);
     }
   };
 
@@ -269,126 +439,309 @@ const CoachDashboard = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto dashboard-scrollbar p-6">
-        {/* Client List Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-              <input
-                type="text"
-                placeholder="Search client"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 w-64 text-white focus:ring-2 focus:ring-primary focus:outline-none placeholder:text-white/20"
+    <div className="h-full text-foreground flex flex-col">
+      <div className="flex-shrink-0 pt-3 px-6 pb-0">
+        {/* Search and Filter Bar */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col gap-3 flex-1">
+            <div className="flex items-center space-x-3">
+              {/* Search Input */}
+              <div className="relative font-light">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un client"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
+                />
+              </div>
+              
+              {/* Filters Button with Dropdown */}
+              <DropdownMenu open={isFilterDropdownOpen} onOpenChange={setIsFilterDropdownOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
+                      isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
+                    }`}
+                    style={{
+                      backgroundColor: isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
+                    }}
+                    title="Filtres"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                      <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
+                    </svg>
+                    <span>Filtres</span>
+                    {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
+                      <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                        {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
+                      </span>
+                    )}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  alignOffset={-15}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  <div 
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                      filterPendingFeedback 
+                        ? 'bg-primary/20 text-primary font-normal' 
+                        : 'font-light'
+                    }`}
+                    onClick={() => setFilterPendingFeedback(!filterPendingFeedback)}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      filterPendingFeedback 
+                        ? 'bg-[#d4845a] border-[#d4845a]' 
+                        : 'bg-transparent border-white/20'
+                    }`}>
+                      {filterPendingFeedback && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>Feedback en attente</span>
+                  </div>
+                  
+                  <div 
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                      filterPendingMessages 
+                        ? 'bg-primary/20 text-primary font-normal' 
+                        : 'font-light'
+                    }`}
+                    onClick={() => setFilterPendingMessages(!filterPendingMessages)}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      filterPendingMessages 
+                        ? 'bg-[#d4845a] border-[#d4845a]' 
+                        : 'bg-transparent border-white/20'
+                    }`}>
+                      {filterPendingMessages && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>Messages en attente</span>
+                  </div>
+                  
+                  <div 
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                      filterNoUpcomingSessions 
+                        ? 'bg-primary/20 text-primary font-normal' 
+                        : 'font-light'
+                    }`}
+                    onClick={() => setFilterNoUpcomingSessions(!filterNoUpcomingSessions)}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      filterNoUpcomingSessions 
+                        ? 'bg-[#d4845a] border-[#d4845a]' 
+                        : 'bg-transparent border-white/20'
+                    }`}>
+                      {filterNoUpcomingSessions && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>Aucune séance à venir</span>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Sort Control */}
+              <SortControl 
+                sort={sort} 
+                dir={dir} 
+                onChange={handleSortChange}
+                sortOptions={[
+                  { value: 'joinedAt', dir: 'asc', label: 'Arrivée (Plus ancien)' },
+                  { value: 'joinedAt', dir: 'desc', label: 'Arrivée (Plus récent)' },
+                  { value: 'name', dir: 'asc', label: 'Nom (A–Z)' },
+                  { value: 'name', dir: 'desc', label: 'Nom (Z–A)' }
+                ]}
               />
+
+              {/* Delete Button - appears when students are selected */}
+              {selectedStudents.size > 0 && (
+                <button 
+                  onClick={handleDeleteSelected}
+                  className="flex items-center gap-[10px] bg-white/[0.03] border-[0.5px] border-white/0 px-[15px] py-[8px] rounded-[25px] hover:bg-white/[0.05] transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-[16px] w-[16px] text-[#d4845a]">
+                    <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                  </svg>
+                  <span className="text-[16px] text-[#d4845a] font-normal">Supprimer</span>
+                </button>
+              )}
             </div>
-            <button className="flex items-center space-x-2 bg-[#d9d9d9]/20 border border-white/20 px-4 py-2.5 rounded-[25px] hover:bg-[#d9d9d9]/30 text-white transition-colors backdrop-blur-sm">
-              <SlidersHorizontal size={16} className="text-white" />
-              <span className="text-white font-normal">Filters</span>
-            </button>
-            {selectedStudents.size > 0 && (
-              <button 
-                onClick={handleDeleteSelected}
-                className="flex items-center gap-[10px] bg-white/[0.03] border-[0.5px] border-white/0 px-[15px] py-[12px] rounded-[25px] hover:bg-white/[0.05] transition-colors"
-              >
-                <Trash2 size={14} className="text-[#d4845a]/80" />
-                <span className="text-[13px] text-[#d4845a]/80 font-normal">Supprimer</span>
-              </button>
-            )}
           </div>
+
+          {/* Action Buttons */}
           <div className="flex items-center space-x-3">
             <button 
-              onClick={fetchCoachData}
-              className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white transition-colors"
-              title="Refresh students list"
-            >
-              <RefreshCw size={20} />
-            </button>
-            <button 
               onClick={handleOpenPendingInvitationsModal}
-              className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-white transition-colors"
+              className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"
               title="View pending invitations"
             >
-              <Send size={20} />
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 576 512" fill="currentColor" aria-hidden="true">
+                <path d="M536.4-26.3c9.8-3.5 20.6-1 28 6.3s9.8 18.2 6.3 28l-178 496.9c-5 13.9-18.1 23.1-32.8 23.1-14.2 0-27-8.6-32.3-21.7l-64.2-158c-4.5-11-2.5-23.6 5.2-32.6l94.5-112.4c5.1-6.1 4.7-15-.9-20.6s-14.6-6-20.6-.9L229.2 276.1c-9.1 7.6-21.6 9.6-32.6 5.2L38.1 216.8c-13.1-5.3-21.7-18.1-21.7-32.3 0-14.7 9.2-27.8 23.1-32.8l496.9-178z"/>
+              </svg>
             </button>
             <button 
               onClick={handleOpenInviteModal}
-              className="flex items-center space-x-2 bg-[#d4845a] text-white px-5 py-2.5 rounded-[10px] hover:bg-[#d4845a]/90 transition-colors font-normal text-[16px]"
+              className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-extralight pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
             >
-              <Plus size={20} />
-              <span>New</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
+                <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+              </svg>
+              Nouveau
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Column Headers */}
-        {!loading && filteredStudents.length > 0 && (
-          <div className="w-full flex items-center px-9 mb-2">
-            {/* Name Column Header */}
-            <div className="flex items-center gap-[30px] flex-1">
-              <div className="w-5 h-5 shrink-0"></div>
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-[46px] shrink-0"></div>
-                <div className="flex flex-col justify-center text-[13px] text-white/50 font-extralight text-center whitespace-nowrap">
-                  <p className="leading-normal">Name</p>
+      {/* Client List Container - Scrollable */}
+      <div className="flex-1 min-h-0 px-6 pb-6">
+        <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
+
+          {/* Client List - Scrollable */}
+          <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar" style={{ paddingRight: '0px' }}>
+            <div className="flex flex-col gap-[7px]">
+          {/* Header */}
+          {!loading && filteredStudents.length > 0 && (
+            <div className="w-full h-[40px] rounded-[16px] grid grid-cols-[1fr_auto] items-center px-9 gap-8">
+              {/* Checkbox & Name Group */}
+              <div className="flex items-center gap-6 min-w-0">
+                {/* Select All Checkbox */}
+                <div 
+                  className="shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelectAll();
+                  }}
+                >
+                  <div 
+                    className={`w-[16px] h-[16px] rounded-[4px] flex items-center justify-center transition-colors cursor-pointer ${
+                      selectedStudents.size === filteredStudents.length && filteredStudents.length > 0
+                        ? 'bg-[#d4845a] border-[#d4845a]' 
+                        : 'bg-transparent border border-white/20 hover:border-white/40'
+                    }`}
+                  >
+                    {selectedStudents.size === filteredStudents.length && filteredStudents.length > 0 && (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
                 </div>
+
+                {/* Avatar placeholder (transparent) to match student row */}
+                <div className="w-[42px] h-[42px] shrink-0 opacity-0"></div>
+                
+                {/* Clients text */}
+                <span className="text-[12px] text-white/50 font-light">
+                  Clients ({filteredStudents.length})
+                </span>
+                {/* Selection Info */}
+                {selectedStudents.size > 0 && (
+                  <span className="text-[12px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    {selectedStudents.size} sélectionné{selectedStudents.size > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
-            </div>
 
-            {/* Feedback en attente Column Header */}
-            <div className="flex items-center justify-start flex-1 mr-16 ml-8">
-              <div className="flex items-center gap-[300px]">
-                <div className="shrink-0"></div>
-                <div className="flex flex-col justify-center text-[13px] text-white/50 font-extralight text-center shrink-0">
-                  <p className="leading-normal whitespace-pre-wrap">Feedback en attente</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Programme jusqu'au Column Header */}
-            <div className="text-[13px] text-white/50 font-extralight w-[166px] text-center mr-12 whitespace-nowrap">
-              <p className="leading-normal">Programmé jusqu'au</p>
-            </div>
-
-            {/* Status Column Header - Empty space for alignment */}
-            <div className="w-[10px] shrink-0"></div>
-          </div>
-        )}
-
-        {/* Client List */}
-        <div className="space-y-3">
-          {loading ? (
-            <div className="text-center p-12 text-muted-foreground">Loading clients...</div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                <MessageSquare size={24} className="text-muted-foreground" />
-              </div>
-              <div className="text-center">
-                <h3 className="text-lg font-medium text-white mb-2">
-                  {students.length === 0 ? 'No students yet' : 'No students found'}
-                </h3>
-                <p className="text-muted-foreground mb-6">
-                  {students.length === 0 
-                    ? 'Start by inviting students to join your coaching program'
-                    : 'No students match your search criteria'}
+              {/* Activity / Messages Center Section Header */}
+              <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-24 2xl:!gap-32 3xl:!gap-64">
+                {/* Feedback en attente Text */}
+                <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
+                  Feedback en attente
                 </p>
+                
+                {/* Messages en attente Text */}
+                <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
+                  Messages en attente
+                </p>
+
+                {/* Next Session Date Header */}
+                <p className="w-[150px] text-[12px] text-white/50 font-light text-center whitespace-nowrap">
+                  Programmé jusqu'au
+                </p>
+                
+                {/* Status dot placeholder (transparent) */}
+                <div className="w-1.5 h-1.5 shrink-0 opacity-0"></div>
+              </div>
+            </div>
+          )}
+          {loading ? (
+            <div className="text-center p-12 flex flex-col items-center justify-center gap-3">
+              <div 
+                className="rounded-full border-2 border-transparent animate-spin"
+                style={{
+                  borderTopColor: '#d4845a',
+                  borderRightColor: '#d4845a',
+                  width: '40px',
+                  height: '40px'
+                }}
+              />
+            </div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                <span>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>
+                    {students.length === 0 ? 'Aucun étudiant pour le moment' : 'Aucun étudiant trouvé'}
+                  </span>
+                  <br />
+                  <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>
+                    {students.length === 0 
+                      ? 'Commencez par inviter des étudiants à rejoindre votre programme de coaching'
+                      : 'Aucun étudiant ne correspond à vos critères de recherche'}
+                  </span>
+                </span>
                 {students.length === 0 ? (
                   <button 
                     onClick={handleOpenInviteModal}
-                    className="bg-white text-black px-6 py-2.5 rounded-xl hover:bg-white/90 transition-colors font-medium"
+                    className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                    style={{
+                      backgroundColor: 'var(--kaiylo-primary-hex)',
+                      color: 'var(--tw-ring-offset-color)'
+                    }}
                   >
-                    Invite Your First Student
+                    Inviter votre premier étudiant
                   </button>
                 ) : (
                   <button 
-                    onClick={() => setSearchTerm('')}
-                    className="bg-white/10 text-white px-6 py-2.5 rounded-xl hover:bg-white/20 transition-colors"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilterPendingFeedback(false);
+                      setFilterPendingMessages(false);
+                    }}
+                    className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                    style={{
+                      backgroundColor: 'var(--kaiylo-primary-hex)',
+                      color: 'var(--tw-ring-offset-color)'
+                    }}
                   >
-                    Clear Search
+                    Effacer la recherche
                   </button>
                 )}
               </div>
@@ -397,15 +750,15 @@ const CoachDashboard = () => {
             filteredStudents.map((student) => (
               <div 
                 key={student.id} 
-                className={`group relative w-full h-[72px] rounded-[20px] flex items-center px-9 cursor-pointer transition-all duration-200 ${
+                className={`group relative w-full h-[60px] rounded-[16px] grid grid-cols-[1fr_auto] items-center px-9 gap-8 cursor-pointer transition-all duration-200 ${
                   selectedStudents.has(student.id) 
                     ? 'bg-white/10' 
-                    : 'bg-white/5 hover:bg-white/10'
+                    : 'bg-white/[0.04] hover:bg-white/10'
                 }`}
                 onClick={() => handleStudentClick(student)}
               >
                 {/* Checkbox & Name Group */}
-                <div className="flex items-center gap-[30px] flex-1">
+                <div className="flex items-center gap-6 min-w-0">
                   {/* Checkbox */}
                   <div 
                     className="shrink-0"
@@ -415,14 +768,14 @@ const CoachDashboard = () => {
                     }}
                   >
                     <div 
-                      className={`w-5 h-5 rounded-[2px] flex items-center justify-center transition-colors ${
+                      className={`w-[16px] h-[16px] rounded-[4px] flex items-center justify-center transition-colors ${
                         selectedStudents.has(student.id) 
                           ? 'bg-[#d4845a]' 
                           : 'bg-transparent border border-white/20 group-hover:border-white/40'
                       }`}
                     >
                       {selectedStudents.has(student.id) && (
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       )}
@@ -431,86 +784,93 @@ const CoachDashboard = () => {
 
                   {/* Avatar & Name */}
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-[46px] h-[46px] rounded-full bg-white/10 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                    <div className="w-[42px] h-[42px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
                       <svg 
-                        className="w-full h-full text-white/80 p-2.5" 
-                        viewBox="0 0 24 24" 
+                        className="w-[18px] h-[18px] text-white/80" 
+                        viewBox="0 0 448 512" 
                         fill="currentColor"
+                        xmlns="http://www.w3.org/2000/svg"
                       >
-                        <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" />
-                        <path d="M12 14C7.58172 14 4 17.5817 4 22H20C20 17.5817 16.4183 14 12 14Z" />
+                        <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
                       </svg>
                     </div>
-                    <span className="text-[20px] text-white/75 font-light truncate">{student.name}</span>
+                    <span className="text-[18px] text-white font-light truncate">{student.name}</span>
                   </div>
                 </div>
 
                 {/* Activity / Messages Center Section */}
-                <div className="flex items-center justify-start flex-1 mr-16 ml-8">
-                  {/* Messages / Notifications */}
-                  {(studentMessageCounts[student.id] > 0 || studentVideoCounts[student.id] > 0) ? (
-                    <div className="flex items-center gap-[300px]">
-                      {/* Message Icon - Positionné à gauche */}
-                      {studentMessageCounts[student.id] > 0 && (
-                        <div 
-                          className="relative cursor-pointer group/icon shrink-0"
-                          onClick={(e) => handleMessageClick(student, e)}
-                        >
-                          <svg 
-                            width="28" 
-                            height="28" 
-                            viewBox="0 0 37 37" 
-                            fill="none" 
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="text-white/75"
-                          >
-                            {/* Speech bubble shape */}
-                            <path 
-                              d="M18.5 3C9.387 3 2 9.387 2 18.5C2 23.5 4.5 27.8 8.2 30.5L6.5 34.5L11.2 32.2C13.5 32.7 15.9 33 18.5 33C27.613 33 35 26.613 35 18.5C35 9.387 27.613 3 18.5 3Z" 
-                              fill="currentColor"
-                              fillOpacity="0.75"
-                            />
-                            {/* Three dots */}
-                            <circle cx="12" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                            <circle cx="18.5" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                            <circle cx="25" cy="18.5" r="2" fill="white" fillOpacity="0.9"/>
-                          </svg>
-                          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
-                        </div>
-                      )}
+                <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-24 2xl:!gap-32 3xl:!gap-64">
+                  {/* Count Badge - Always displayed */}
+                  <div className="w-[111px] flex items-center justify-center">
+                    <div 
+                      className={`h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 transition-all duration-200 ${
+                        (studentVideoCounts[student.id] || 0) === 0 
+                          ? 'opacity-0 cursor-default pointer-events-none' 
+                          : 'cursor-pointer hover:bg-[#d4845a]/90 hover:scale-110'
+                      }`}
+                      onClick={(studentVideoCounts[student.id] || 0) > 0 ? (e) => {
+                        e.stopPropagation(); // Prevent triggering the row click
+                        setSelectedStudent(student);
+                        setSelectedStudentInitialTab('analyse');
+                      } : undefined}
+                      title="Voir les vidéos en attente de feedback"
+                    >
+                      <span className="text-[13px] text-white font-normal leading-none">
+                        {studentVideoCounts[student.id] || 0}
+                      </span>
+                    </div>
+                  </div>
 
-                      {/* Count Badge - Only show if there are pending videos */}
-                      {studentVideoCounts[student.id] > 0 && (
-                        <div 
-                          className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 cursor-pointer hover:bg-[#d4845a]/90 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent triggering the row click
-                            setSelectedStudent(student);
-                            setSelectedStudentInitialTab('analyse');
-                          }}
-                          title="Voir les vidéos en attente de feedback"
-                        >
-                          <span className="text-[13px] text-white font-normal leading-none">
-                            {studentVideoCounts[student.id]}
-                          </span>
-                        </div>
+                  {/* Message Icon - Always displayed */}
+                  <div className="w-[114px] flex items-center justify-center">
+                    <div 
+                      className="relative cursor-pointer group/icon shrink-0 transition-transform duration-200 hover:scale-110 flex items-center justify-center"
+                      onClick={(e) => handleMessageClick(student, e)}
+                    >
+                      <svg 
+                        width="24" 
+                        height="24" 
+                        viewBox="0 0 640 640" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`transition-colors duration-200 ${
+                          studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0
+                            ? 'text-white/75 group-hover/icon:text-white'
+                            : 'text-white/30 group-hover/icon:text-white/50'
+                        }`}
+                      >
+                        <path 
+                          d="M64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L360 512C354.8 512 349.8 513.7 345.6 516.8L230.4 603.2C226.2 606.3 221.2 608 216 608C202.7 608 192 597.3 192 584L192 512L160 512C107 512 64 469 64 416z" 
+                          fill="currentColor"
+                          fillOpacity="0.75"
+                        />
+                      </svg>
+                      {/* Notification dot - Only show if there are unread messages */}
+                      {studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0 && (
+                        <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
                       )}
                     </div>
-                  ) : null}
-                </div>
+                  </div>
 
-                {/* Date */}
-                <div className="text-[16px] text-white/50 font-light w-[166px] text-center mr-12 whitespace-nowrap">
-                   {student.joinedAt ? new Date(student.joinedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\w+) (\d{4})/, '$1 .$2') : '21 sep .2025'}
-                </div>
-
-                {/* Status Dot */}
-                <div className="w-[10px] flex justify-center shrink-0">
-                  <div className={`w-[10px] h-[10px] rounded-full ${student.status === 'Actif' ? 'bg-[#00FF00]' : 'bg-white/20'}`}></div>
+                  {/* Next Session Date */}
+                  <div className={`w-[150px] whitespace-nowrap text-center ${
+                    studentNextSessions[student.id] 
+                      ? 'text-[12px] font-normal text-white/75' 
+                      : 'text-[14px] font-medium text-[#d4845a]'
+                  }`}>
+                    {studentNextSessions[student.id] ? (
+                      new Date(studentNextSessions[student.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\w+) (\d{4})/, '$1 .$2')
+                    ) : (
+                      'aucune séance à venir'
+                    )}
+                  </div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div>
                 </div>
               </div>
             ))
           )}
+            </div>
+          </div>
         </div>
       </div>
 

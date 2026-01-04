@@ -78,7 +78,22 @@ const ChatRouteWrapper = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner />;
+    // Show loading within MainLayout for coaches, or full screen for students
+    return user?.role === 'coach' ? (
+      <MainLayout>
+        <div className="h-full flex items-center justify-center">
+          <div 
+            className="rounded-full border-2 border-transparent animate-spin"
+            style={{
+              borderTopColor: '#d4845a',
+              borderRightColor: '#d4845a',
+              width: '40px',
+              height: '40px'
+            }}
+          />
+        </div>
+      </MainLayout>
+    ) : <LoadingSpinner />;
   }
 
   if (!user) {

@@ -919,11 +919,16 @@ html {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
-/* Exercise list scrollbar - minimal and subtle with auto-hide */
+/* Exercise list scrollbar - minimal and subtle, hidden by default */
 .exercise-list-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
   padding-right: 12px;
+}
+
+.exercise-list-scrollbar:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar {
@@ -935,9 +940,13 @@ html {
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: transparent;
   border-radius: 3px;
   transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.exercise-list-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -948,34 +957,4 @@ html {
   display: none;
   width: 0;
   height: 0;
-}
-
-/* Hide scrollbar when not in use */
-.exercise-list-scrollbar.scrollbar-hidden {
-  scrollbar-width: none;
-  scrollbar-color: transparent transparent;
-}
-
-.exercise-list-scrollbar.scrollbar-hidden::-webkit-scrollbar {
-  width: 0;
-}
-
-.exercise-list-scrollbar.scrollbar-hidden::-webkit-scrollbar-thumb {
-  opacity: 0;
-  background: transparent;
-}
-
-/* Show scrollbar when active */
-.exercise-list-scrollbar.scrollbar-visible {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
-
-.exercise-list-scrollbar.scrollbar-visible::-webkit-scrollbar {
-  width: 6px;
-}
-
-.exercise-list-scrollbar.scrollbar-visible::-webkit-scrollbar-thumb {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
 }

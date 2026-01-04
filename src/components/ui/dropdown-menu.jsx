@@ -46,8 +46,8 @@ const DropdownMenuSubContent = React.forwardRef(({ className, ...props }, ref) =
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName
 
-const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
+const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, disablePortal = false, ...props }, ref) => {
+  const content = (
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
@@ -56,8 +56,10 @@ const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, ...pr
         className
       )}
       {...props} />
-  </DropdownMenuPrimitive.Portal>
-))
+  );
+  
+  return disablePortal ? content : <DropdownMenuPrimitive.Portal>{content}</DropdownMenuPrimitive.Portal>;
+})
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
 const DropdownMenuItem = React.forwardRef(({ className, inset, ...props }, ref) => (

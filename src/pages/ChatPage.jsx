@@ -265,33 +265,39 @@ const ChatPage = () => {
     conv.other_participant_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="text-destructive text-lg font-semibold mb-2">Error</div>
-          <div className="text-muted-foreground mb-4">{error}</div>
-          <button 
-            onClick={fetchConversations}
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full text-foreground flex flex-col">
+    <div className="h-full text-foreground flex flex-col relative">
+      {loading && (
+        <div className="absolute inset-0 flex justify-center items-center z-10">
+          <div 
+            className="rounded-full border-2 border-transparent animate-spin"
+            style={{
+              borderTopColor: '#d4845a',
+              borderRightColor: '#d4845a',
+              width: '40px',
+              height: '40px'
+            }}
+          />
+        </div>
+      )}
+      
+      {error && !loading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="text-center">
+            <div className="text-destructive text-lg font-semibold mb-2">Error</div>
+            <div className="text-muted-foreground mb-4">{error}</div>
+            <button 
+              onClick={fetchConversations}
+              className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {!loading && !error && (
+        <>
       <div className="flex-1 flex overflow-hidden">
         {/* Contact List - Desktop: Always visible, fixed width */}
         <div className="w-80 lg:w-96 flex flex-col flex-shrink-0">
@@ -327,6 +333,8 @@ const ChatPage = () => {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };
