@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { X, Send, Clock, CheckCircle, XCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
@@ -66,6 +66,35 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
       await fetchInvitations();
     } catch (err) {
       console.error('Error resending invitation:', err);
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette invitation ?')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(
+        `${getApiBaseUrlWithApi()}/invitations/cancel/${invitationId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data.success) {
+        // Refresh the list
+        await fetchInvitations();
+      } else {
+        console.error('Failed to cancel invitation:', response.data.message);
+        setError(response.data.message || 'Erreur lors de la suppression de l\'invitation');
+      }
+    } catch (err) {
+      console.error('Error canceling invitation:', err);
+      setError('Erreur lors de la suppression de l\'invitation');
     }
   };
 
@@ -202,12 +231,24 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
                     <div className="flex items-center space-x-2">
                       {(invitation.status === 'sent' || invitation.status === 'envoyée' || 
                         invitation.status === 'pending' || invitation.status === 'en attente de validation') && (
-                        <button
-                          onClick={() => handleResendInvitation(invitation.id)}
-                          className="px-3 py-1 bg-primary/20 text-primary text-sm rounded-md hover:bg-primary/30 transition-colors"
-                        >
-                          Renvoyer l'invitation
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleResendInvitation(invitation.id)}
+                            className="px-3 py-1 bg-primary/20 text-primary text-sm rounded-md hover:bg-primary/30 transition-colors flex items-center gap-1"
+                            title="Renvoyer l'invitation"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span className="hidden sm:inline">Renvoyer</span>
+                          </button>
+                          <button
+                            onClick={() => handleCancelInvitation(invitation.id)}
+                            className="px-3 py-1 bg-destructive/20 text-destructive text-sm rounded-md hover:bg-destructive/30 transition-colors flex items-center gap-1"
+                            title="Supprimer l'invitation"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span className="hidden sm:inline">Supprimer</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
