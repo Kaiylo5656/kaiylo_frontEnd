@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { History } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
+import useSocket from '../hooks/useSocket';
+import { buildApiUrl } from '../config/api';
 
 // Custom Message Icon Component
 const MessageIcon = ({ className, style }) => (
@@ -44,8 +46,57 @@ const HomeIcon = ({ className, style }) => (
 );
 
 const BottomNavBar = () => {
-  const { user } = useAuth();
+  const { user, getAuthToken } = useAuth();
   const location = useLocation();
+  const { socket } = useSocket();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = async () => {
+    if (!user) return;
+    
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const conversations = data.data || [];
+        const totalUnread = conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0);
+        setUnreadCount(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+
+    if (socket) {
+      const handleNewMessage = () => {
+        // Refresh count on new message
+        fetchUnreadCount();
+      };
+
+      const handleMessagesRead = () => {
+        // Refresh count when messages are read
+        fetchUnreadCount();
+      };
+
+      socket.on('new_message', handleNewMessage);
+      socket.on('messages_read', handleMessagesRead);
+
+      return () => {
+        socket.off('new_message', handleNewMessage);
+        socket.off('messages_read', handleMessagesRead);
+      };
+    }
+  }, [user, socket, getAuthToken]);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -89,15 +140,22 @@ const BottomNavBar = () => {
             <NavLink
               key={item.to}
               to={item.to}
-              className="flex flex-col items-center justify-center gap-1 transition-colors"
+              className="flex flex-col items-center justify-center gap-1 transition-colors relative"
               style={{ color: isActive ? activeColor : inactiveColor }}
             >
-              <item.icon 
-                className="h-6 w-6" 
-                style={{ 
-                  color: isActive ? activeColor : inactiveColor
-                }} 
-              />
+              <div className="relative">
+                <item.icon 
+                  className="h-6 w-6" 
+                  style={{ 
+                    color: isActive ? activeColor : inactiveColor
+                  }} 
+                />
+                {item.label === "Messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--kaiylo-primary-hex)] text-[9px] font-bold text-white shadow-sm ring-1 ring-background">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </div>
               <span 
                 className="text-xs"
                 style={{ 

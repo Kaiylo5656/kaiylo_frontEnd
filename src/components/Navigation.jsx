@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import useSocket from '../hooks/useSocket';
+import { buildApiUrl } from '../config/api';
 
 // Custom Users Icon Component (Font Awesome)
 const UsersIcon = ({ className, style }) => (
@@ -74,7 +76,7 @@ const DollarSignIcon = ({ className, style }) => (
   </svg>
 );
 
-const NavLink = ({ to, icon: Icon, children, onClick, isCollapsed }) => {
+const NavLink = ({ to, icon: Icon, children, onClick, isCollapsed, badge }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
 
@@ -89,22 +91,40 @@ const NavLink = ({ to, icon: Icon, children, onClick, isCollapsed }) => {
     <Link
       to={to}
       onClick={handleClick}
-      className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start space-x-3'} px-4 py-2.5 rounded-lg transition-colors ${
+      className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start space-x-3'} px-4 py-2.5 rounded-lg transition-colors relative ${
         isActive
           ? 'bg-[rgba(255,255,255,0.1)] text-primary-foreground'
           : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
       }`}
       title={isCollapsed ? children : undefined}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" style={{ minWidth: '20px' }} />
-      {!isCollapsed && <span className="font-light text-base leading-none">{children}</span>}
+      <div className="relative flex items-center justify-center">
+        <Icon className="h-5 w-5 flex-shrink-0" style={{ minWidth: '20px' }} />
+        {isCollapsed && badge > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-[var(--kaiylo-primary-hex)] text-[8px] font-bold text-white shadow-sm ring-1 ring-background">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </div>
+      {!isCollapsed && (
+        <span className="font-light text-base leading-none flex-1 flex items-center justify-between">
+          {children}
+          {badge > 0 && (
+            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--kaiylo-primary-hex)] px-1.5 text-xs font-medium text-white">
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
+        </span>
+      )}
     </Link>
   );
 };
 
 const Navigation = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getAuthToken } = useAuth();
   const navigate = useNavigate();
+  const { socket } = useSocket();
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
@@ -113,6 +133,53 @@ const Navigation = () => {
     const saved = localStorage.getItem('sidebarPinned');
     return saved ? JSON.parse(saved) : false;
   });
+
+  const fetchUnreadCount = async () => {
+    if (!user) return;
+    
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const conversations = data.data || [];
+        const totalUnread = conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0);
+        setUnreadCount(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+
+    if (socket) {
+      const handleNewMessage = () => {
+        // Refresh count on new message
+        fetchUnreadCount();
+      };
+
+      const handleMessagesRead = () => {
+        // Refresh count when messages are read
+        fetchUnreadCount();
+      };
+
+      socket.on('new_message', handleNewMessage);
+      socket.on('messages_read', handleMessagesRead);
+
+      return () => {
+        socket.off('new_message', handleNewMessage);
+        socket.off('messages_read', handleMessagesRead);
+      };
+    }
+  }, [user, socket, getAuthToken]);
 
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed));
@@ -165,7 +232,7 @@ const Navigation = () => {
         { name: 'Clients', path: '/coach/dashboard', icon: UsersIcon, onClick: handleClientsClick },
         { name: 'Exercices', path: '/coach/exercises', icon: DumbbellIcon },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: VideoIcon },
-        { name: 'Messages', path: '/chat', icon: MessageSquareIcon },
+        { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
       ];
     }
     // Add other roles here later if needed
@@ -233,6 +300,7 @@ const Navigation = () => {
             icon={item.icon}
             onClick={item.onClick}
             isCollapsed={isCollapsed}
+            badge={item.badge}
           >
             {item.name}
           </NavLink>

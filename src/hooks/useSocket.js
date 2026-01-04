@@ -30,7 +30,9 @@ const useSocket = () => {
     if (socketRef.current) {
       console.log('🔌 Cleaning up existing socket connection...');
       socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
+      if (socketRef.current.connected) {
+        socketRef.current.disconnect();
+      }
       socketRef.current = null;
     }
 
@@ -88,10 +90,10 @@ const useSocket = () => {
         timeout: 20000,
         pingTimeout: 60000,
         pingInterval: 25000,
-        // Use polling only to avoid WebSocket CORS issues - polling works perfectly for real-time chat
-        transports: ['polling'], // Polling only - reliable and avoids CORS WebSocket errors
-        upgrade: false, // Disable automatic upgrade to prevent WebSocket connection errors
-        rememberUpgrade: false, // Don't remember upgrades
+        // Use WebSocket first, fallback to polling if needed
+        transports: ['websocket', 'polling'], 
+        upgrade: true, // Allow upgrading from polling to websocket
+        rememberUpgrade: true,
         // Force initial connection attempt
         forceNew: true,
         // Add some debugging
@@ -246,14 +248,6 @@ const useSocket = () => {
         clearInterval(connectionMonitor);
       }, 10000);
       
-      // Give it a moment to establish connection
-      setTimeout(() => {
-        if (!newSocket.connected && !newSocket.connecting) {
-          console.log('🔌 Socket failed to connect, attempting manual connection...');
-          newSocket.connect();
-        }
-      }, 100);
-
       // Reset initialization flag on success
       initializingRef.current = false;
 
@@ -332,7 +326,10 @@ const useSocket = () => {
       if (socketRef.current) {
         console.log('🔌 Disconnecting WebSocket on component unmount...');
         socketRef.current.removeAllListeners();
-        socketRef.current.disconnect();
+        // Check if socket is already disconnected or closed to avoid "WebSocket is closed" errors
+        if (socketRef.current.connected) {
+          socketRef.current.disconnect();
+        }
         socketRef.current = null;
       }
       connectionManager.removeListener(handleConnectionChange);
@@ -458,7 +455,9 @@ const useSocket = () => {
     if (socketRef.current) {
       console.log('🔌 Manually disconnecting WebSocket...');
       socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
+      if (socketRef.current.connected) {
+        socketRef.current.disconnect();
+      }
       socketRef.current = null;
       setIsConnected(false);
       setConnectionError(null);
@@ -480,7 +479,9 @@ const useSocket = () => {
     console.log('🔄 Manually reconnecting WebSocket...');
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
+      if (socketRef.current.connected) {
+        socketRef.current.disconnect();
+      }
       socketRef.current = null;
     }
     initializeSocket();

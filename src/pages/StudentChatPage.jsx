@@ -15,7 +15,7 @@ import { ChevronLeft, MessageSquare, Search } from 'lucide-react';
  */
 const StudentChatPage = () => {
   const { getAuthToken, user } = useAuth();
-  const { isConnected, connectionError } = useSocket();
+  const { isConnected, connectionError, markMessagesAsRead, socket } = useSocket();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
@@ -72,6 +72,88 @@ const StudentChatPage = () => {
     fetchConversations();
   }, []);
 
+  // Listen for socket events (new_message, messages_read)
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewMessageSocket = (data) => {
+      const conversationId = data.conversationId || data.conversation_id;
+      const senderId = data.sender_id;
+      
+      setConversations(prev => {
+        // Check if conversation exists
+        const exists = prev.some(c => c.id === conversationId);
+        if (!exists) {
+            // If we don't have the conversation, we might want to fetch it or ignore
+            // For now, we'll ignore to avoid complexity, or trigger a refetch
+            fetchConversations(); 
+            return prev;
+        }
+
+        return prev.map(conv => {
+          if (conv.id === conversationId) {
+            const isMyMessage = senderId === user?.id;
+            
+            // If message is from other user AND we are not currently viewing this conversation, increment unread_count
+            // Note: If selectedConversation is this conversation, we might want to mark as read immediately?
+            // But usually we rely on the ChatWindow to call markMessagesAsRead.
+            // However, ChatWindow logic runs inside ChatWindow. 
+            // Here we are updating the list state. 
+            // If the user is IN the conversation (selectedConversation?.id === conversationId), 
+            // the unread count in the list should ideally stay 0 or be reset.
+            
+            let newUnreadCount = conv.unread_count || 0;
+            if (!isMyMessage && selectedConversation?.id !== conversationId) {
+              newUnreadCount += 1;
+            }
+            
+            return {
+              ...conv,
+              last_message: data,
+              last_message_at: data.created_at,
+              unread_count: newUnreadCount
+            };
+          }
+          return conv;
+        });
+      });
+    };
+
+    const handleMessagesReadSocket = (data) => {
+      const { conversationId, userId, readAt } = data;
+      const convId = conversationId || data.conversation_id;
+      
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === convId) {
+          // If I read the messages, reset unread count
+          if (userId === user?.id) {
+            return {
+              ...conv,
+              unread_count: 0,
+              last_read_at: readAt
+            };
+          }
+          // If other user read messages, update other_participant_last_read_at
+          else {
+            return {
+              ...conv,
+              other_participant_last_read_at: readAt
+            };
+          }
+        }
+        return conv;
+      }));
+    };
+
+    socket.on('new_message', handleNewMessageSocket);
+    socket.on('messages_read', handleMessagesReadSocket);
+
+    return () => {
+      socket.off('new_message', handleNewMessageSocket);
+      socket.off('messages_read', handleMessagesReadSocket);
+    };
+  }, [socket, isConnected, user, selectedConversation?.id]);
+
   // Auto-open conversation with specific student if studentId is provided
   useEffect(() => {
     if (studentId && conversations.length > 0) {
@@ -126,9 +208,34 @@ const StudentChatPage = () => {
   };
 
   // Handle conversation selection - on mobile, hide list and show chat
-  const handleSelectConversation = (conversation) => {
+  const handleSelectConversation = async (conversation) => {
     setSelectedConversation(conversation);
     setShowConversationList(false); // Hide conversation list on mobile
+    
+    // Mark as read locally and via socket/HTTP
+    if (conversation.unread_count > 0) {
+        setConversations(prev => prev.map(c => 
+            c.id === conversation.id ? { ...c, unread_count: 0, last_read_at: new Date().toISOString() } : c
+        ));
+        
+        // Mark as read on server via HTTP for reliability
+        try {
+          const token = await getAuthToken();
+          await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/read`), {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error marking messages as read via HTTP:', error);
+          // Fallback to socket
+          if (isConnected && markMessagesAsRead) {
+              markMessagesAsRead(conversation.id);
+          }
+        }
+    }
   };
 
   // Handle back from chat window - show conversation list
@@ -388,10 +495,15 @@ const StudentChatPage = () => {
                     >
                       <div className="flex items-center gap-3">
                         {/* Avatar */}
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 relative">
                           <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-medium text-lg">
                             {conversation.other_participant_name?.charAt(0).toUpperCase() || 'C'}
                           </div>
+                          {conversation.unread_count > 0 && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#d4845a] rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#0a0a0a]">
+                              {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
+                            </div>
+                          )}
                         </div>
 
                         {/* Content */}

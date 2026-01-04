@@ -100,15 +100,26 @@ const ChatPage = () => {
       // Update last_read_at for the conversation
       // The server may send conversationId or conversation_id
       const conversationId = data?.conversationId || data?.conversation_id;
+      const userId = data?.userId;
+      
       if (conversationId) {
         // Use server's last_read_at if provided, otherwise use current time
         const readAt = data?.last_read_at || new Date().toISOString();
+        
         setConversations(prev => 
-          prev.map(conv => 
-            conv.id === conversationId
-              ? { ...conv, last_read_at: readAt }
-              : conv
-          )
+          prev.map(conv => {
+            if (conv.id === conversationId) {
+              // If I read the messages, reset unread count
+              if (userId === user?.id) {
+                return { ...conv, last_read_at: readAt, unread_count: 0 };
+              }
+              // If other user read messages, update other_participant_last_read_at
+              else {
+                return { ...conv, other_participant_last_read_at: readAt };
+              }
+            }
+            return conv;
+          })
         );
         
         // Refresh conversations after a delay to ensure server has persisted the update
@@ -179,35 +190,60 @@ const ChatPage = () => {
   };
 
   // Handle conversation selection
-  const handleSelectConversation = (conversation) => {
+  const handleSelectConversation = async (conversation) => {
     setSelectedConversation(conversation);
     
     // Mark messages as read when conversation is selected
-    if (conversation?.last_message) {
+    // Check if there are unread messages (either via count or timestamp check)
+    let shouldMarkAsRead = false;
+
+    if (conversation.unread_count > 0) {
+      shouldMarkAsRead = true;
+    } else if (conversation?.last_message) {
+      // Fallback check if unread_count is missing or 0 but timestamps mismatch
+      // (e.g. real-time update didn't increment count properly)
       const lastMessage = conversation.last_message;
       const isSentByOtherUser = lastMessage.sender_id !== user?.id;
       
       if (isSentByOtherUser) {
-        // Check if there are unread messages
         const hasUnread = !conversation.last_read_at || 
           (lastMessage.created_at && new Date(conversation.last_read_at) < new Date(lastMessage.created_at));
-        
-        if (hasUnread) {
-          // Update locally for immediate UI feedback
-          const now = new Date().toISOString();
-          setConversations(prev => 
-            prev.map(conv => 
-              conv.id === conversation.id
-                ? { ...conv, last_read_at: now }
-                : conv
-            )
-          );
-          
-          // Mark as read on server via WebSocket
-          // The server will send a messages_read event when it's done
-          if (isConnected && markMessagesAsRead) {
-            markMessagesAsRead(conversation.id);
+        if (hasUnread) shouldMarkAsRead = true;
+      }
+    }
+
+    if (shouldMarkAsRead) {
+      // Update locally for immediate UI feedback
+      const now = new Date().toISOString();
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === conversation.id
+            ? { ...conv, last_read_at: now, unread_count: 0 }
+            : conv
+        )
+      );
+      
+      // Mark as read on server via HTTP for reliability
+      // The server will verify persistence and emit the socket event
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/read`), {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to mark as read via HTTP');
+        }
+      } catch (error) {
+        console.error('❌ Error marking messages as read via HTTP:', error);
+        // Fallback to socket if HTTP fails
+        if (isConnected && markMessagesAsRead) {
+          console.log('🔄 Falling back to socket for read status...');
+          markMessagesAsRead(conversation.id);
         }
       }
     }
