@@ -59,6 +59,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [deleting, setDeleting] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [otherParticipantReadAt, setOtherParticipantReadAt] = useState(null);
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
@@ -101,7 +102,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       }
 
       const data = await response.json();
-      const { messages: newMessages, nextCursor: newNextCursor } = data.data || { messages: [], nextCursor: null };
+      const { messages: newMessages, nextCursor: newNextCursor, other_participant_last_read_at } = data.data || { messages: [], nextCursor: null };
+      
+      // Update other participant's read time from API
+      if (other_participant_last_read_at) {
+        setOtherParticipantReadAt(other_participant_last_read_at);
+      } else if (isInitialLoad && conversation?.other_participant_last_read_at) {
+        // Fallback to conversation prop on initial load
+        setOtherParticipantReadAt(conversation.other_participant_last_read_at);
+      }
       
       if (cursor) {
         // When loading more, prepend older messages to the beginning of the array
@@ -647,6 +656,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       // Listen for messages read events
       const handleMessagesRead = (data) => {
         console.log('🔌 Messages marked as read by:', data);
+        if (data.userId !== currentUser?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
+          setOtherParticipantReadAt(data.readAt || data.last_read_at);
+        }
       };
 
       // Register event listeners - ensure we only register once
@@ -972,9 +984,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             
             // Determine message status (sent/read) for own messages
             const isSent = isOwnMessage && !message.id?.startsWith('temp_');
-            // Check if message is read - consider it read if it's not the last message in the conversation
-            // (meaning there are newer messages, so it's likely been seen)
-            const isRead = isSent && index < messages.length - 1;
+            
+            // Check if message is read based on timestamp
+            let isRead = false;
+            if (isSent) {
+              if (otherParticipantReadAt && new Date(message.created_at) <= new Date(otherParticipantReadAt)) {
+                isRead = true;
+              }
+            }
             
             return (
             <div

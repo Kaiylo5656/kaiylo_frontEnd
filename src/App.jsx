@@ -25,7 +25,6 @@ import StudentChatPage from './pages/StudentChatPage';
 import VideoLibrary from './pages/VideoLibrary';
 import StudentVideoLibrary from './pages/StudentVideoLibrary';
 import FinancialTracking from './pages/FinancialTracking';
-import VersionInfo from './components/VersionInfo';
 
 import './App.css';
 
@@ -283,7 +282,6 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
-        <VersionInfo />
       </>
         </ModalManagerProvider>
       </PWAProvider>

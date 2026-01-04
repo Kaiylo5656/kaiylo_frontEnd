@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -17,7 +17,8 @@ const StudentRegisterPage = () => {
   const { login } = useAuth();
   const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
-
+  const [searchParams] = useSearchParams();
+  
   // Form handling with react-hook-form
   const {
     register,
@@ -55,6 +56,15 @@ const StudentRegisterPage = () => {
       setInvitationData(null);
     }
   };
+
+  // Handle URL query parameters for invitation code
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl) {
+      setValue('invitationCode', codeFromUrl);
+      validateInvitationCode(codeFromUrl);
+    }
+  }, [searchParams, setValue]);
 
   // Handle invitation code input
   const handleInvitationCodeChange = async (e) => {
@@ -124,10 +134,16 @@ const StudentRegisterPage = () => {
           await login(result.user.email, data.password, navigate, '/onboarding');
         } else {
           // If no token (email confirmation required)
+          // Also handle cases where backend explicitly tells us confirmation is required
+          const message = result.message || 'Account created successfully. Please check your email to confirm your account before logging in.';
+          
           setError('root', {
             type: 'manual',
-            message: result.message || 'Account created successfully. Please check your email to confirm your account before logging in.'
+            message: message
           });
+          
+          // Optionally show a success UI state instead of an error field
+          // For now, sticking to the existing pattern but ensuring the message is clear
         }
       } else {
         setError('root', {

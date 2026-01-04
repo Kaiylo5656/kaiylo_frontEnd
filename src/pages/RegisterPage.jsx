@@ -387,7 +387,7 @@ const RegisterPage = () => {
                   {...register('email', {
                     required: 'Adresse mail requise',
                     pattern: {
-                      value: /^\S+@\S+$/i,
+                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                       message: 'Adresse mail invalide',
                     },
                   })}

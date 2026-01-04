@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import useSocket from '../hooks/useSocket';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
@@ -20,6 +21,8 @@ const ChatList = ({
   onDeleteConversation // New prop for handling deletion
 }) => {
   const { getAuthToken } = useAuth();
+  const { socket, isConnected } = useSocket();
+  const [localConversations, setLocalConversations] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [showUserList, setShowUserList] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,6 +32,83 @@ const ChatList = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [userNamesMap, setUserNamesMap] = useState({});
   const dropdownContainerRef = useRef(null);
+
+  // Sync prop to local state
+  useEffect(() => {
+    setLocalConversations(conversations);
+  }, [conversations]);
+
+  // Socket listeners for real-time updates
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewMessage = (data) => {
+      const conversationId = data.conversationId || data.conversation_id;
+      const senderId = data.sender_id;
+      
+      setLocalConversations(prev => {
+        // Check if conversation exists
+        const exists = prev.some(c => c.id === conversationId);
+        if (!exists) return prev; // If conversation doesn't exist in list, don't try to update it (it might be added by parent via props)
+
+        return prev.map(conv => {
+          if (conv.id === conversationId) {
+            const isMyMessage = senderId === currentUser?.id;
+            
+            // If message is from other user, increment unread_count
+            let newUnreadCount = conv.unread_count || 0;
+            if (!isMyMessage) {
+              // If this is the selected conversation, we might assume it's read immediately?
+              // But safer to let the explicit markMessagesAsRead handle the reset
+              newUnreadCount += 1;
+            }
+            
+            return {
+              ...conv,
+              last_message: data,
+              last_message_at: data.created_at,
+              unread_count: newUnreadCount
+            };
+          }
+          return conv;
+        });
+      });
+    };
+
+    const handleMessagesRead = (data) => {
+      const { conversationId, userId, readAt } = data;
+      const convId = conversationId || data.conversation_id;
+      
+      setLocalConversations(prev => prev.map(conv => {
+        if (conv.id === convId) {
+          // If I read the messages, reset unread count
+          if (userId === currentUser?.id) {
+            return {
+              ...conv,
+              unread_count: 0,
+              last_read_at: readAt
+            };
+          }
+          // If other user read messages, update other_participant_last_read_at
+          else {
+            return {
+              ...conv,
+              other_participant_last_read_at: readAt
+            };
+          }
+        }
+        return conv;
+      }));
+    };
+
+    socket.on('new_message', handleNewMessage);
+    socket.on('messages_read', handleMessagesRead);
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('messages_read', handleMessagesRead);
+    };
+  }, [socket, isConnected, currentUser]);
 
   // Fetch available users to chat with
   const fetchAvailableUsers = async () => {
@@ -116,6 +196,9 @@ const ChatList = ({
           onDeleteConversation(conversationToDelete.id);
         }
         
+        // Update local state
+        setLocalConversations(prev => prev.filter(c => c.id !== conversationToDelete.id));
+
         // Close modal and reset state
         setShowDeleteModal(false);
         setConversationToDelete(null);
@@ -173,7 +256,7 @@ const ChatList = ({
   // Fetch user names for conversations
   useEffect(() => {
     const fetchUserNames = async () => {
-      if (!conversations.length || !currentUser) return;
+      if (!localConversations.length || !currentUser) return;
       
       try {
         const token = await getAuthToken();
@@ -208,7 +291,7 @@ const ChatList = ({
     };
 
     fetchUserNames();
-  }, [conversations, currentUser]);
+  }, [localConversations, currentUser]);
 
   // Get user name for display
   const getUserDisplayName = (conversation) => {
@@ -242,7 +325,7 @@ const ChatList = ({
       return conversation.unread_count;
     }
 
-    // Otherwise, calculate based on last_message and last_read_at
+    // Fallback: Calculate based on last_message and last_read_at (legacy logic)
     if (!conversation.last_message) {
       return 0;
     }
@@ -261,11 +344,8 @@ const ChatList = ({
       const messageAt = new Date(lastMessage.created_at);
       
       if (readAt < messageAt) {
-        // There are unread messages, but we don't have the exact count
-        // Return 1+ to indicate there are unread messages
-        return 1;
+        return 1; // At least one unread message
       } else {
-        // Last message has been read, no unread messages
         return 0;
       }
     } else if (lastMessage.created_at) {
@@ -290,22 +370,21 @@ const ChatList = ({
       return null; // Message received, no status indicator
     }
 
-    // Check if message has been read
-    if (conversation.last_read_at && lastMessage.created_at) {
-      const readAt = new Date(conversation.last_read_at);
-      const messageAt = new Date(lastMessage.created_at);
-      
-      if (readAt >= messageAt) {
-        // Message has been read - double check (blue)
-        return 'read';
-      } else {
-        // Message sent but not read - double check (gray)
-        return 'sent';
-      }
+    // Check against other_participant_last_read_at
+    if (conversation.other_participant_last_read_at && lastMessage.created_at) {
+        const otherReadAt = new Date(conversation.other_participant_last_read_at);
+        const messageAt = new Date(lastMessage.created_at);
+        
+        if (otherReadAt >= messageAt) {
+            return 'read'; // Double check (blue)
+        }
     }
 
-    // Message sent but read status unknown - single check
-    return 'pending';
+    // Check if message has been read (fallback to legacy check using own last_read_at? No, that's for me reading)
+    // Legacy logic used conversation.last_read_at which is usually MY last read time.
+    // If we want to know if *other* read it, we must rely on other_participant_last_read_at.
+    
+    return 'sent'; // Single check (gray)
   };
 
   useEffect(() => {
@@ -353,7 +432,7 @@ const ChatList = ({
   }, [showDeleteModal, deleting]);
 
   // Filter and sort conversations - unread messages first, then by last_message_at
-  const filteredConversations = conversations
+  const filteredConversations = localConversations
     .filter(conv => {
       // Exclude conversations without any messages
       if (!conv.last_message) {
