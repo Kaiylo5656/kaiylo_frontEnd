@@ -326,7 +326,7 @@ const Navigation = () => {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-foreground truncate leading-tight">{user?.name || user?.email}</p>
+                <p className="font-light text-sm text-foreground truncate leading-tight">{user?.name || user?.email}</p>
               </div>
               <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground flex-shrink-0 p-1 rounded transition-colors hover:bg-muted/50" title="Logout">
                 <LogOut className="h-5 w-5" />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { X, User } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
@@ -64,23 +64,26 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+      style={{ zIndex: 100 }}
       onClick={handleBackdropClick}
     >
       <div 
         className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
         style={{
-          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(89, 93, 101, 0.5) 100%)',
+          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
           opacity: 0.95
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <User className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} />
+          <div className="flex items-center justify-end gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+              <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
+            </svg>
             <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-              Ajouter un nouvel élève
+              Ajouter un nouveau client
             </h2>
           </div>
           <button
@@ -104,8 +107,8 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-light text-white/80 mb-2">
-              Email élève
+            <label htmlFor="email" className="block text-sm font-extralight text-white/50 mb-2">
+              Email client
             </label>
             <input
               {...register('email', {
@@ -117,12 +120,8 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
               })}
               type="email"
               id="email"
-              placeholder="Adresse email de l'élève"
-              className="w-full px-4 py-3 bg-[rgba(0,0,0,0.5)] text-white rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] focus:outline-none focus:ring-1 focus:ring-[#d4845a] focus:border-[#d4845a] placeholder:text-white/30"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}
+              placeholder="Adresse email du client"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
               aria-invalid={errors.email ? 'true' : 'false'}
             />
             {errors.email && (
@@ -131,7 +130,7 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
           </div>
 
           <div>
-            <label htmlFor="message" className="block text-sm font-light text-white/80 mb-2">
+            <label htmlFor="message" className="block text-sm font-extralight text-white/50 mb-2">
               Message (optionnel)
             </label>
             <textarea
@@ -139,27 +138,24 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
               id="message"
               rows={3}
               placeholder="Message personnalisé pour l'invitation..."
-              className="w-full px-4 py-3 bg-[rgba(0,0,0,0.5)] text-white rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] focus:outline-none focus:ring-1 focus:ring-[#d4845a] focus:border-[#d4845a] resize-none placeholder:text-white/30"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
             />
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex justify-end gap-3 pt-0">
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-normal"
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-4 py-2 bg-[#d4845a] text-white rounded-lg hover:bg-[#d66d35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-normal"
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
             >
               {isLoading ? 'Envoi en cours...' : 'Envoyer l\'invitation'}
             </button>

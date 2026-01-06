@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, Clock, CheckCircle, XCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { X, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
@@ -70,10 +70,6 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
   };
 
   const handleCancelInvitation = async (invitationId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette invitation ?')) {
-      return;
-    }
-
     try {
       const response = await axios.delete(
         `${getApiBaseUrlWithApi()}/invitations/cancel/${invitationId}`,
@@ -136,13 +132,42 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const formatDate = (dateString) => {
+  const getTimeAgo = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Envoyé il y a moins d\'une minute';
+    }
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return diffInMinutes === 1 ? 'Envoyé il y a 1 minute' : `Envoyé il y a ${diffInMinutes} minutes`;
+    }
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return diffInHours === 1 ? 'Envoyé il y a 1 heure' : `Envoyé il y a ${diffInHours} heures`;
+    }
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return diffInDays === 1 ? 'Envoyé il y a 1 jour' : `Envoyé il y a ${diffInDays} jours`;
+    }
+    
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) {
+      return diffInWeeks === 1 ? 'Envoyé il y a 1 semaine' : `Envoyé il y a ${diffInWeeks} semaines`;
+    }
+    
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) {
+      return diffInMonths === 1 ? 'Envoyé il y a 1 mois' : `Envoyé il y a ${diffInMonths} mois`;
+    }
+    
+    const diffInYears = Math.floor(diffInDays / 365);
+    return diffInYears === 1 ? 'Envoyé il y a 1 an' : `Envoyé il y a ${diffInYears} ans`;
   };
 
   if (!isOpen) return null;
@@ -161,29 +186,22 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
       <div 
         className="relative mx-auto w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
         style={{
-          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(89, 93, 101, 0.5) 100%)',
+          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
           opacity: 0.95
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Send className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} />
+          <div className="flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+              <path d="M536.4-26.3c9.8-3.5 20.6-1 28 6.3s9.8 18.2 6.3 28l-178 496.9c-5 13.9-18.1 23.1-32.8 23.1-14.2 0-27-8.6-32.3-21.7l-64.2-158c-4.5-11-2.5-23.6 5.2-32.6l94.5-112.4c5.1-6.1 4.7-15-.9-20.6s-14.6-6-20.6-.9L229.2 276.1c-9.1 7.6-21.6 9.6-32.6 5.2L38.1 216.8c-13.1-5.3-21.7-18.1-21.7-32.3 0-14.7 9.2-27.8 23.1-32.8l496.9-178z"/>
+            </svg>
             <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
               Demandes en attente
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            {/* Bouton de rafraîchissement manuel */}
-            <button
-              onClick={fetchInvitations}
-              disabled={loading}
-              className="text-white/50 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
-              title="Rafraîchir la liste"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
             <button
               onClick={onClose}
               className="text-white/50 hover:text-white transition-colors"
@@ -198,80 +216,82 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
         <div className="border-b border-white/10 mx-6"></div>
 
         {/* Content */}
-        <div 
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-4"
-          style={{ 
-            scrollbarGutter: 'stable',
-            WebkitOverflowScrolling: 'touch',
-            maxHeight: 'calc(92vh - 73px - 80px)'
-          }}
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-white/50">Chargement...</div>
+              <div 
+                className="rounded-full border-2 border-transparent animate-spin"
+                style={{
+                  borderTopColor: '#d4845a',
+                  borderRightColor: '#d4845a',
+                  width: '24px',
+                  height: '24px'
+                }}
+              />
             </div>
           ) : error ? (
             <div className="bg-red-500/20 text-red-400 p-4 rounded-lg text-center border border-red-500/30">
               {error}
             </div>
           ) : invitations.length === 0 ? (
-            <div className="text-center py-8 text-white/50">
-              <div className="mb-2">✅ Toutes les invitations ont été acceptées</div>
-              <div className="text-sm">Aucune invitation en attente</div>
+            <div className="text-center py-8 text-white/50 font-light text-sm">
+              Aucune invitation en attente
             </div>
           ) : (
             <div className="space-y-4">
               {invitations.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="bg-[rgba(0,0,0,0.5)] rounded-[10px] p-4 border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                  className="bg-[rgba(0,0,0,0.5)] rounded-[16px] py-4 px-6 border-[0.5px] border-[rgba(255,255,255,0.05)]"
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-none max-w-xs min-w-0">
                       <div className="flex items-center gap-4 mb-2 flex-wrap">
                         <div className="font-normal text-white truncate">
                           {invitation.student_email}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {getStatusIcon(invitation.status)}
-                          <span className="text-sm text-white/50">
-                            {getStatusText(invitation.status)}
-                          </span>
-                        </div>
                       </div>
-                      <div className="text-sm text-white/50">
-                        Date d'envoi: {formatDate(invitation.created_at)}
+                      <div className="text-sm text-white/50 font-light">
+                        {getTimeAgo(invitation.created_at)}
                       </div>
-                      {invitation.invitation_code && (
-                        <div className="text-sm text-white/50 mt-1">
-                          Code d'invitation: <span className="font-mono bg-[rgba(212,132,89,0.15)] px-2 py-1 rounded text-[#d4845a]">{invitation.invitation_code}</span>
-                        </div>
-                      )}
                       {invitation.message && (
                         <div className="text-sm text-white/50 mt-1">
                           Message: {invitation.message}
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    {invitation.invitation_code && (
+                      <div className="text-sm text-white/50 font-light shrink-0">
+                        Code d'invitation: <span className="font-mono bg-[rgba(212,132,89,0.15)] px-2 py-1 rounded text-[#d4845a]">{invitation.invitation_code}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-4 shrink-0">
                       {(invitation.status === 'sent' || invitation.status === 'envoyée' || 
                         invitation.status === 'pending' || invitation.status === 'en attente de validation') && (
                         <>
                           <button
                             onClick={() => handleResendInvitation(invitation.id)}
-                            className="px-3 py-1.5 bg-[#d4845a]/20 text-[#d4845a] text-sm rounded-lg hover:bg-[#d4845a]/30 transition-colors font-normal whitespace-nowrap flex items-center gap-1"
+                            className="text-sm transition-colors font-normal whitespace-nowrap"
+                            style={{ color: 'var(--kaiylo-primary-hex)' }}
                             title="Renvoyer l'invitation"
                           >
-                            <Send className="w-3 h-3" />
-                            <span className="hidden sm:inline">Renvoyer</span>
+                            Renvoyer
                           </button>
                           <button
                             onClick={() => handleCancelInvitation(invitation.id)}
-                            className="px-3 py-1 bg-destructive/20 text-destructive text-sm rounded-md hover:bg-destructive/30 transition-colors flex items-center gap-1"
+                            className="p-1 transition-colors group"
+                            style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                            }}
                             title="Supprimer l'invitation"
                           >
-                            <Trash2 className="w-3 h-3" />
-                            <span className="hidden sm:inline">Supprimer</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                              <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                            </svg>
                           </button>
                         </>
                       )}
@@ -281,14 +301,12 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
               ))}
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="shrink-0 px-6 py-4 border-t border-white/10 bg-[#0f0f10]/95 backdrop-blur">
-          <div className="flex justify-end">
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-0">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-normal"
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
             >
               Fermer
             </button>

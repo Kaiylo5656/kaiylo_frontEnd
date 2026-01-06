@@ -422,7 +422,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             <button
               type="submit"
               disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise)}
-              className="px-5 py-2.5 text-sm font-extralight bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
             >
               {uploadingVideo ? 'Téléchargement...' : loading ? 'Enregistrement...' : (editingExercise ? 'Mettre à jour & fermer' : 'Créer & fermer')}

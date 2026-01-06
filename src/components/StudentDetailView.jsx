@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, User, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Edit2, Save, X, Video, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
 import WorkoutSessionDetailsModal from './WorkoutSessionDetailsModal';
 import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
-import OneRmModal, { DEFAULT_ONE_RM_DATA } from './OneRmModal';
+import OneRmModal, { DEFAULT_ONE_RM_DATA, calculateRIS } from './OneRmModal';
 import StudentProfileModal from './StudentProfileModal';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
+import StudentSidebar from './StudentSidebar';
 
-const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
+const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +39,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'draft', 'all'
   const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Sidebar collapse state
   const [filterMenuOpen, setFilterMenuOpen] = useState(false); // Track if filter dropdown is open
   const [durationMenuOpen, setDurationMenuOpen] = useState(false); // Track if duration dropdown is open
   const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
@@ -60,6 +64,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const [totalBlocks, setTotalBlocks] = useState(3);
   const [blockName, setBlockName] = useState('Prépa Force');
   const [isEditingBlock, setIsEditingBlock] = useState(false);
+  const [isBlockEditModalOpen, setIsBlockEditModalOpen] = useState(false);
+  const [isSavingBlock, setIsSavingBlock] = useState(false);
+
+  // Sidebar filter states
+  const [studentVideoCounts, setStudentVideoCounts] = useState({});
+  const [studentMessageCounts, setStudentMessageCounts] = useState({});
+  const [studentNextSessions, setStudentNextSessions] = useState({});
 
   const { socket, isConnected } = useSocket();
 
@@ -1380,8 +1391,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
           }
         );
         
-        if (oneRmResponse.data.success && oneRmResponse.data.data) {
+        if (oneRmResponse.data.success && oneRmResponse.data.data && Array.isArray(oneRmResponse.data.data) && oneRmResponse.data.data.length > 0) {
           data.oneRepMaxes = oneRmResponse.data.data;
+        } else {
+          // Initialize empty array for new students
+          data.oneRepMaxes = [];
         }
       } catch (oneRmError) {
         console.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmError);
@@ -1394,11 +1408,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             data.oneRepMaxes = parsedOneRm;
           } catch (e) {
             console.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
+            // Initialize empty array if localStorage parsing fails
+            data.oneRepMaxes = [];
           }
+        } else {
+          // Initialize empty array for new students with no localStorage data
+          data.oneRepMaxes = [];
         }
       }
       
       setStudentData(data);
+      
+      // Load block information from student data (use defaults if not set)
+      setBlockNumber(data.block_number !== undefined && data.block_number !== null ? data.block_number : 3);
+      setTotalBlocks(data.total_blocks !== undefined && data.total_blocks !== null ? data.total_blocks : 3);
+      setBlockName(data.block_name || 'Prépa Force');
     } catch (error) {
       console.error('Error fetching student details:', error);
     } finally {
@@ -1425,6 +1449,209 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     alert(`Cette séance n'existe plus dans la base de données. Les données ont été actualisées.`);
   };
 
+  // Fetch dashboard counts for sidebar filters
+  const fetchDashboardCounts = async () => {
+    try {
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/coach/dashboard-counts`
+      );
+
+      if (response.data.success) {
+        const videoCounts = response.data.data.videoCounts || {};
+        const messageCounts = response.data.data.messageCounts || {};
+        
+        const normalizedVideoCounts = {};
+        const normalizedMessageCounts = {};
+        
+        Object.keys(videoCounts).forEach(studentId => {
+          const count = Number(videoCounts[studentId]) || 0;
+          if (count > 0) {
+            normalizedVideoCounts[studentId] = count;
+          }
+        });
+        
+        Object.keys(messageCounts).forEach(studentId => {
+          const count = Number(messageCounts[studentId]) || 0;
+          if (count > 0) {
+            normalizedMessageCounts[studentId] = count;
+          }
+        });
+        
+        setStudentVideoCounts(normalizedVideoCounts);
+        setStudentMessageCounts(normalizedMessageCounts);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard counts:', error);
+    }
+  };
+
+  // Save block information for the current student
+  const saveBlockInformation = async (e) => {
+    // Prevent event propagation to avoid closing modal
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (isSavingBlock) return; // Prevent double submission
+    
+    try {
+      setIsSavingBlock(true);
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Token d\'authentification manquant');
+      }
+      
+      // Validate and prepare values
+      const blockNum = parseInt(blockNumber);
+      const totalBlks = parseInt(totalBlocks);
+      const blockNm = blockName?.trim() || '';
+      
+      // Validation
+      if (isNaN(blockNum) || blockNum < 1) {
+        throw new Error('Le numéro de bloc doit être un nombre supérieur à 0');
+      }
+      
+      if (isNaN(totalBlks) || totalBlks < 1) {
+        throw new Error('Le nombre total de blocs doit être un nombre supérieur à 0');
+      }
+      
+      if (blockNum > totalBlks) {
+        throw new Error('Le numéro de bloc ne peut pas être supérieur au nombre total de blocs');
+      }
+      
+      console.log('💾 Saving block information:', {
+        studentId: student.id,
+        block_number: blockNum,
+        total_blocks: totalBlks,
+        block_name: blockNm
+      });
+      
+      // Use PUT to update block information via profile endpoint
+      // The backend should accept partial updates
+      const response = await fetch(
+        `${getApiBaseUrlWithApi()}/coach/student/${student.id}/profile`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            block_number: blockNum,
+            total_blocks: totalBlks,
+            block_name: blockNm
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Erreur inconnue' }));
+        throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      console.log('📥 API Response:', result);
+      
+      // Update studentData to reflect the saved changes
+      // Use result.data if available, otherwise use the values we sent
+      const updatedData = result.data || {
+        block_number: blockNum,
+        total_blocks: totalBlks,
+        block_name: blockNm
+      };
+      
+      setStudentData(prev => {
+        const updated = {
+          ...prev,
+          block_number: updatedData.block_number ?? blockNum,
+          total_blocks: updatedData.total_blocks ?? totalBlks,
+          block_name: updatedData.block_name ?? blockNm
+        };
+        console.log('✅ Updated studentData:', updated);
+        return updated;
+      });
+      
+      // Also update local state to keep them in sync
+      setBlockNumber(blockNum);
+      setTotalBlocks(totalBlks);
+      setBlockName(blockNm);
+      
+      setIsBlockEditModalOpen(false);
+      console.log('✅ Block information saved successfully');
+    } catch (error) {
+      console.error('❌ Error saving block information:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      
+      let errorMessage = 'Erreur lors de l\'enregistrement des informations du bloc';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsSavingBlock(false);
+    }
+  };
+
+  // Fetch next sessions for all students
+  const fetchNextSessions = async (studentsList) => {
+    try {
+      const nextSessions = {};
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      await Promise.all(
+        studentsList.map(async (student) => {
+          try {
+            const response = await axios.get(
+              `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
+              {
+                params: {
+                  startDate: new Date().toISOString().split('T')[0],
+                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  limit: 100
+                }
+              }
+            );
+
+            if (response.data && response.data.data) {
+              const upcomingSession = response.data.data.find(assignment => {
+                const sessionDate = assignment.scheduled_date || assignment.due_date;
+                if (!sessionDate) return false;
+                const date = new Date(sessionDate);
+                date.setHours(0, 0, 0, 0);
+                return date >= today && assignment.status !== 'completed';
+              });
+
+              if (upcomingSession) {
+                nextSessions[student.id] = upcomingSession.scheduled_date || upcomingSession.due_date;
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching sessions for student ${student.id}:`, error);
+          }
+        })
+      );
+
+      setStudentNextSessions(nextSessions);
+    } catch (error) {
+      console.error('Error fetching next sessions:', error);
+    }
+  };
+
   useEffect(() => {
     fetchStudentDetails();
     fetchWorkoutSessions();
@@ -1433,6 +1660,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   useEffect(() => {
     fetchWorkoutSessions();
   }, [overviewWeekDate, trainingWeekDate, activeTab, weekViewFilter]);
+
+  // Fetch dashboard counts and next sessions when students list changes
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchDashboardCounts();
+      fetchNextSessions(students);
+    }
+  }, [students]);
 
   // Update activeTab when initialTab prop changes
   useEffect(() => {
@@ -1600,20 +1835,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     switch (status) {
       case 'pending':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-500 text-white">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-light bg-orange-500 text-white">
             A feedback
           </span>
         );
       case 'reviewed':
       case 'completed':
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-600 text-white">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-light bg-green-600 text-white">
             Complété
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-600 text-gray-200">
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-light bg-gray-600 text-gray-200">
             {status}
           </span>
         );
@@ -1703,9 +1938,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
   const renderStudentVideosGrouped = () => {
     if (groupedVideosBySession.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
+        <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
           <Video size={48} className="mb-4 opacity-30" />
-          <p className="font-medium">Aucune vidéo trouvée</p>
+          <p className="font-light">Aucune vidéo trouvée</p>
           <p className="text-sm">Aucune vidéo ne correspond aux filtres sélectionnés.</p>
         </div>
       );
@@ -1745,12 +1980,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 {/* Status indicator */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-orange-500/20 text-orange-400 border border-orange-500/30">
                       {session.videos.filter(v => v.status === 'pending').length} à feedback
                     </span>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-green-500/20 text-green-400 border border-green-500/30">
                       Complété
                     </span>
                   )}
@@ -1792,32 +2027,28 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               <div className="flex-1 min-w-0">
                 {/* Exercise Tag */}
                 <div className="mb-2">
-                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-medium">
+                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-light">
                     {video.exercise_name}
                   </span>
                 </div>
                 
                 {/* Series and Date */}
-                <div className="text-gray-400 text-sm">
+                <div className="text-white/50 text-sm">
                   Série {video.set_number || 1}/3
                 </div>
-                <div className="text-gray-400 text-sm">
+                <div className="text-white/50 text-sm">
                   {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
                 </div>
               </div>
               
-              {/* Status Tag */}
-              <div className="flex-shrink-0">
-                {video.status === 'pending' ? (
-                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-medium">
+              {/* Status Tag - Only show for videos needing feedback */}
+              {video.status === 'pending' && (
+                <div className="flex-shrink-0 flex items-center">
+                  <span className="inline-flex items-center justify-center bg-orange-500/20 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-full text-xs font-light">
                     A feedback
                   </span>
-                ) : (
-                  <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                    Complété
-                  </span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -1852,6 +2083,66 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     // Define custom order for exercises: Muscle-up, Traction (Pull-up), Dips, Squat
     const exerciseOrder = ['Muscle-up', 'Traction', 'Pull-up', 'Dips', 'Squat'];
 
+    // Create empty template with the 4 default exercises for new students
+    const emptyTemplate = [
+      {
+        id: 'muscle-up',
+        name: 'Muscle-up',
+        color: '#d4845a',
+        current: 0,
+        best: 0,
+        unit: 'kg',
+        delta: 0,
+        goal: '',
+        weeklyVolume: '',
+        totalReps: '',
+        lastSession: '',
+        history: [],
+      },
+      {
+        id: 'pull-up',
+        name: 'Traction',
+        color: '#3b82f6',
+        current: 0,
+        best: 0,
+        unit: 'kg',
+        delta: 0,
+        goal: '',
+        weeklyVolume: '',
+        totalReps: '',
+        lastSession: '',
+        history: [],
+      },
+      {
+        id: 'dips',
+        name: 'Dips',
+        color: '#22c55e',
+        current: 0,
+        best: 0,
+        unit: 'kg',
+        delta: 0,
+        goal: '',
+        weeklyVolume: '',
+        totalReps: '',
+        lastSession: '',
+        history: [],
+      },
+      {
+        id: 'squat',
+        name: 'Squat',
+        color: '#a855f7',
+        current: 0,
+        best: 0,
+        unit: 'kg',
+        delta: 0,
+        goal: '',
+        weeklyVolume: '',
+        totalReps: '',
+        lastSession: '',
+        history: [],
+      }
+    ];
+
     if (studentData?.oneRepMaxes && Array.isArray(studentData.oneRepMaxes) && studentData.oneRepMaxes.length > 0) {
       // Map records with fallback data
       const mappedRecords = studentData.oneRepMaxes.map((record, index) => ({
@@ -1862,10 +2153,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         best: Number(record.best) || Number(record.personalBest) || Number(record.current) || 0,
         unit: record.unit || 'kg',
         delta: Number(record.delta) || 0,
-        goal: record.goal || fallback[index % fallback.length]?.goal,
-        weeklyVolume: record.weeklyVolume || fallback[index % fallback.length]?.weeklyVolume,
-        totalReps: record.totalReps || fallback[index % fallback.length]?.totalReps,
-        lastSession: record.lastSession || fallback[index % fallback.length]?.lastSession,
+        goal: record.goal || fallback[index % fallback.length]?.goal || '',
+        weeklyVolume: record.weeklyVolume || fallback[index % fallback.length]?.weeklyVolume || '',
+        totalReps: record.totalReps || fallback[index % fallback.length]?.totalReps || '',
+        lastSession: record.lastSession || fallback[index % fallback.length]?.lastSession || '',
         history: record.history || fallback[index % fallback.length]?.history || [],
       }));
       
@@ -1895,13 +2186,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       return mappedRecords;
     }
 
-    return fallback;
+    // Return empty template with 4 exercises showing 0 or empty values for new students
+    return emptyTemplate;
   }, [studentData]);
 
   const totalOneRmCurrent = useMemo(
     () => oneRmRecords.reduce((sum, record) => sum + (Number(record.current) || 0), 0),
     [oneRmRecords]
   );
+
+  // Calculer le RIS en utilisant la même fonction que dans OneRmModal
+  const calculatedRIS = useMemo(() => {
+    const bodyWeight = studentData?.weight ? Number(studentData.weight) : null;
+    const gender = studentData?.gender || null;
+    return calculateRIS(totalOneRmCurrent, bodyWeight, gender);
+  }, [totalOneRmCurrent, studentData?.weight, studentData?.gender]);
 
   const formatWeight = (value, unit = 'kg') => {
     if (value === undefined || value === null || Number.isNaN(Number(value))) {
@@ -1940,11 +2239,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               <div className="p-2 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <span className="truncate text-[11px] font-medium">{session.title || 'Séance'}</span>
+                    <span className="truncate text-[11px] font-light">{session.title || 'Séance'}</span>
                     <div className="flex items-center gap-0.5 flex-shrink-0">
                       {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#d4845a]" />}
                       {session.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#22c55e]" />}
-                      {session.status === 'draft' && <EyeOff className="h-3 w-3 text-gray-400" />}
+                      {session.status === 'draft' && <EyeOff className="h-3 w-3 text-white/50" />}
                       {session.status === 'assigned' && <Clock className="h-3 w-3 text-[#3b82f6]" />}
                     </div>
                   </div>
@@ -1956,7 +2255,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                           e.stopPropagation();
                           toggleDropdown(session.id || session.assignmentId, dayKey, e);
                         }}
-                        className="text-gray-400 hover:text-white transition-colors"
+                        className="text-white/50 hover:text-white transition-colors"
                         title="Options de la séance"
                       >
                         <MoreHorizontal className="h-3 w-3" />
@@ -2050,19 +2349,19 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
                 <div className="space-y-1">
                   {exercises.slice(0, 3).map((exercise, index) => (
-                    <div key={index} className="text-[11px] text-gray-300 truncate">
+                    <div key={index} className="text-[11px] text-white/75 truncate">
                       {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} {exercise.name}{' '}
                       {exercise.sets?.[0]?.weight ? `@${exercise.sets[0].weight}kg` : ''}
                     </div>
                   ))}
                   {exercises.length > 3 && (
-                    <div className="text-[10px] text-gray-500">+ {exercises.length - 3} exercices</div>
+                    <div className="text-[10px] text-white/50">+ {exercises.length - 3} exercices</div>
                   )}
                 </div>
 
                 <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[11px]">
                   <span
-                    className={`px-2 py-0.5 rounded-full font-medium ${
+                    className={`px-2 py-0.5 rounded-full font-light ${
                       session.status === 'completed'
                         ? 'bg-[#22c55e] text-white'
                         : session.status === 'in_progress'
@@ -2150,7 +2449,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             >
               <div className={`flex items-center justify-between ${weekViewFilter === 2 ? 'mb-2' : 'mb-1'}`}>
                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                  <div className={`font-medium truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
+                  <div className={`font-light truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     {session.status === 'in_progress' && (
                       <PlayCircle className={`text-[#d4845a] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
@@ -2159,7 +2458,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'draft' && (
-                      <EyeOff className={`text-gray-400 ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <EyeOff className={`text-white/50 ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'assigned' && (
                       <Clock className={`text-[#3b82f6] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
@@ -2173,7 +2472,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                         e.stopPropagation();
                         toggleDropdown(session.id || session.assignmentId, dateKey, e);
                       }}
-                      className="text-gray-400 hover:text-white transition-colors"
+                      className="text-white/50 hover:text-white transition-colors"
                       title="Options de la séance"
                     >
                       <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
@@ -2243,7 +2542,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   </div>
                 )}
               </div>
-              <div className={`text-gray-400 ${weekViewFilter === 2 ? 'text-[10px]' : 'text-[8px]'}`}>
+              <div className={`text-white/50 ${weekViewFilter === 2 ? 'text-[10px]' : 'text-[8px]'}`}>
                 + {session.exercises.length} exercises en plus
               </div>
             </div>
@@ -2275,62 +2574,109 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
     );
   };
 
-  if (loading) {
-    return <div className="p-6">Loading...</div>;
-  }
-
-  if (!studentData) {
-    return <div className="p-6">Student data not found</div>;
-  }
+  const handleStudentSelect = (newStudent) => {
+    if (onStudentChange) {
+      onStudentChange(newStudent);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-transparent text-white">
-      {/* Header */}
-      <div className="flex items-center gap-2 p-4">
-        <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center">
-          <User className="w-4 h-4 text-gray-400" />
+    <div className="min-h-screen bg-transparent text-white flex">
+      {/* Sidebar */}
+      {students.length > 0 && (
+        <div className="ml-6 self-stretch flex items-stretch">
+          <StudentSidebar
+            students={students}
+            currentStudentId={student?.id}
+            onStudentSelect={handleStudentSelect}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            studentVideoCounts={studentVideoCounts}
+            studentMessageCounts={studentMessageCounts}
+            studentNextSessions={studentNextSessions}
+          />
         </div>
-        <h1 className="text-xl font-medium">
-          {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
-        </h1>
-      </div>
+      )}
 
-      {/* Navigation Tabs */}
-      <div className="relative">
-        <div className="flex gap-6 px-4">
-          <button 
-            className={`py-3 text-sm font-medium ${activeTab === 'overview' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('overview')}
-          >
-            Overview
-          </button>
-          <button 
-            className={`py-3 text-sm font-medium ${activeTab === 'training' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('training')}
-          >
-            Training
-          </button>
-          <button 
-            className={`py-3 text-sm font-medium ${activeTab === 'analyse' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('analyse')}
-          >
-            Analyse vidéo
-          </button>
-          <button 
-            className={`py-3 text-sm font-medium ${activeTab === 'suivi' ? 'text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('suivi')}
-          >
-            Suivi Financier
-          </button>
-        </div>
-        {/* Separator line at bottom - Figma design */}
-        <div className="absolute bottom-0 left-4 right-4 h-[1px]">
-          <div className="absolute inset-[-0.5px_0_0_0]">
-            <img 
-              alt="" 
-              className="block max-w-none w-full h-full object-cover" 
-              src="https://www.figma.com/api/mcp/asset/9fa52d82-d8b7-44d9-a21b-f89ba65e4a7f" 
-            />
+      {/* Main Content */}
+      <div className="flex-1 min-w-0">
+        {loading ? (
+          <div className="flex items-center justify-center h-screen">
+            <Loader2 className="h-8 w-8 text-[#d4845a] animate-spin" />
+          </div>
+        ) : !studentData ? (
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-white/50">Student data not found</div>
+          </div>
+        ) : (
+          <>
+        {/* Header */}
+        <div className="relative">
+        <div className="p-4 relative">
+          {/* Toggle Sidebar Button */}
+          {students.length > 0 && (
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="absolute top-0 left-4 z-50 w-5 h-5 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
+            </button>
+          )}
+          <div className="flex items-start gap-6 border-b border-b-[rgba(255,255,255,0.1)] ml-0 mt-3">
+            <div className="w-[60px] h-[60px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
+              <svg 
+                className="w-[28px] h-[28px] text-white/80" 
+                viewBox="0 0 448 512" 
+                fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-light" style={{ fontWeight: 200 }}>
+                {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
+              </h1>
+              <div className="flex gap-6 mt-1" style={{ paddingLeft: '24px' }}>
+                <button 
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  data-text="Tableau de bord"
+                  style={activeTab !== 'overview' ? { fontWeight: 200 } : {}}
+                  onClick={() => setActiveTab('overview')}
+                >
+                  Tableau de bord
+                </button>
+                <button 
+                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'training' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  data-text="Entraînement"
+                  style={activeTab !== 'training' ? { fontWeight: 200 } : {}}
+                  onClick={() => setActiveTab('training')}
+                >
+                  Entraînement
+                </button>
+                <button 
+                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  data-text="Analyse vidéo"
+                  style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
+                  onClick={() => setActiveTab('analyse')}
+                >
+                  Analyse vidéo
+                </button>
+                <button 
+                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  data-text="Suivi Financier"
+                  style={activeTab !== 'suivi' ? { fontWeight: 200 } : {}}
+                  onClick={() => setActiveTab('suivi')}
+                >
+                  Suivi Financier
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2339,269 +2685,272 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
       <div className="p-4">
         {activeTab === 'overview' && (
           <>
-            <div className="grid grid-cols-[250px,1fr,250px] gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3 mb-3">
               {/* Current Block Card */}
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                {!isEditingBlock ? (
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-medium">
-                      Bloc {blockNumber}/{totalBlocks} - {blockName}
-                    </h2>
-                    <button
-                      onClick={() => setIsEditingBlock(true)}
-                      className="text-gray-400 hover:text-white transition-colors"
-                      title="Edit block information"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mb-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={blockNumber}
-                        onChange={(e) => setBlockNumber(parseInt(e.target.value) || 1)}
-                        className="bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm w-12"
-                        min="1"
+              <div 
+                className="bg-white/5 rounded-2xl px-2 py-3 cursor-pointer hover:bg-white/10 transition-colors border border-white/10"
+                onClick={() => {
+                  // Charger les valeurs actuelles depuis studentData pour qu'elles correspondent exactement à l'affichage
+                  if (studentData) {
+                    setBlockNumber(studentData.block_number !== undefined && studentData.block_number !== null ? studentData.block_number : 3);
+                    setTotalBlocks(studentData.total_blocks !== undefined && studentData.total_blocks !== null ? studentData.total_blocks : 3);
+                    setBlockName(studentData.block_name || 'Prépa Force');
+                  } else {
+                    // Valeurs par défaut si studentData n'est pas encore chargé
+                    setBlockNumber(3);
+                    setTotalBlocks(3);
+                    setBlockName('Prépa Force');
+                  }
+                  setIsBlockEditModalOpen(true);
+                }}
+              >
+                <h2 
+                  className="text-base font-normal mb-4 text-center"
+                  style={{ color: 'var(--kaiylo-primary-hover)' }}
+                >
+                  {(() => {
+                    const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
+                    // Use studentData directly to ensure consistency
+                    const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
+                    const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
+                    const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
+                    return `Bloc ${displayBlockNumber}/${displayTotalBlocks}${displayBlockName ? ` - ${displayBlockName}` : ''}`;
+                  })()}
+                </h2>
+                <div className="flex items-center justify-center gap-3">
+                  <div 
+                    className="relative w-20 h-20 cursor-help"
+                    title="Progression cette semaine"
+                  >
+                    <svg className="w-20 h-20 transform -rotate-90">
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        stroke="#262626"
+                        strokeWidth="4"
+                        fill="transparent"
                       />
-                      <span className="text-gray-400 text-sm">/</span>
-                      <input
-                        type="number"
-                        value={totalBlocks}
-                        onChange={(e) => setTotalBlocks(parseInt(e.target.value) || 1)}
-                        className="bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm w-12"
-                        min="1"
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        stroke="#d4845a"
+                        strokeWidth="3.5"
+                        fill="none"
+                        strokeDasharray="226"
+                        strokeDashoffset={226 - (progressStats.week.progress / 100) * 226}
+                        strokeLinecap="round"
                       />
-                    </div>
-                    <input
-                      type="text"
-                      value={blockName}
-                      onChange={(e) => setBlockName(e.target.value)}
-                      className="w-full bg-[#262626] border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                      placeholder="Block name"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setIsEditingBlock(false)}
-                        className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
-                      >
-                        <Save className="h-3 w-3" />
-                        Save
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingBlock(false);
-                          // Reset to original values if needed
-                          setBlockNumber(3);
-                          setTotalBlocks(3);
-                          setBlockName('Prépa Force');
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors"
-                      >
-                        <X className="h-3 w-3" />
-                        Cancel
-                      </button>
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-normal text-white">
+                        {progressStats.week.completed}/{progressStats.week.total}
+                      </span>
                     </div>
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-14 h-14">
-                      <svg className="w-14 h-14 transform -rotate-90">
-                        <circle
-                          cx="28"
-                          cy="28"
-                          r="26"
-                          stroke="#262626"
-                          strokeWidth="4"
-                          fill="#1a1a1a"
-                        />
-                        <circle
-                          cx="28"
-                          cy="28"
-                          r="26"
-                          stroke="#d4845a"
-                          strokeWidth="3"
-                          fill="none"
-                          strokeDasharray="163"
-                          strokeDashoffset={163 - (progressStats.week.progress / 100) * 163}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-medium text-white">
-                          {progressStats.week.completed}/{progressStats.week.total}
-                        </span>
-                      </div>
+                  <div 
+                    className="relative w-20 h-20 cursor-help"
+                    title="Progression ce mois"
+                  >
+                    <svg className="w-20 h-20 transform -rotate-90">
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        stroke="#262626"
+                        strokeWidth="4"
+                        fill="transparent"
+                      />
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        stroke="#d4845a"
+                        strokeWidth="3.5"
+                        fill="none"
+                        strokeDasharray="226"
+                        strokeDashoffset={226 - (progressStats.trainingWeek.progress / 100) * 226}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-medium text-white">
+                        {progressStats.trainingWeek.completed}/{progressStats.trainingWeek.total}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-gray-400 mt-1">This Week</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-14 h-14">
-                      <svg className="w-14 h-14 transform -rotate-90">
-                        <circle
-                          cx="28"
-                          cy="28"
-                          r="26"
-                          stroke="#262626"
-                          strokeWidth="4"
-                          fill="#1a1a1a"
-                        />
-                        <circle
-                          cx="28"
-                          cy="28"
-                          r="26"
-                          stroke="#d4845a"
-                          strokeWidth="3"
-                          fill="none"
-                          strokeDasharray="163"
-                          strokeDashoffset={163 - (progressStats.trainingWeek.progress / 100) * 163}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-medium text-white">
-                          {progressStats.trainingWeek.completed}/{progressStats.trainingWeek.total}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-gray-400 mt-1">This Month</span>
                   </div>
                 </div>
               </div>
 
               {/* 1RM Stats Card */}
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium">1 RM actuel</h3>
-                  <button
-                    type="button"
-                    onClick={() => setIsOneRmModalOpen(true)}
-                    className="px-2 py-1 text-xs bg-[#262626] rounded hover:bg-[#333333] transition-colors"
-                  >
-                    Voir
-                  </button>
+              <div 
+                className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
+                onClick={() => setIsOneRmModalOpen(true)}
+              >
+                <div className="mb-2 border-b border-white/10">
+                  <h3 className="text-sm font-light pb-[8px] flex items-center gap-[10px] text-white/75">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 opacity-75" fill="currentColor">
+                      <path d="M144.3 0l224 0c26.5 0 48.1 21.8 47.1 48.2-.2 5.3-.4 10.6-.7 15.8l49.6 0c26.1 0 49.1 21.6 47.1 49.8-7.5 103.7-60.5 160.7-118 190.5-15.8 8.2-31.9 14.3-47.2 18.8-20.2 28.6-41.2 43.7-57.9 51.8l0 73.1 64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-192 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0 0-73.1c-16-7.7-35.9-22-55.3-48.3-18.4-4.8-38.4-12.1-57.9-23.1-54.1-30.3-102.9-87.4-109.9-189.9-1.9-28.1 21-49.7 47.1-49.7l49.6 0c-.3-5.2-.5-10.4-.7-15.8-1-26.5 20.6-48.2 47.1-48.2zM101.5 112l-52.4 0c6.2 84.7 45.1 127.1 85.2 149.6-14.4-37.3-26.3-86-32.8-149.6zM380 256.8c40.5-23.8 77.1-66.1 83.3-144.8L411 112c-6.2 60.9-17.4 108.2-31 144.8z"/>
+                    </svg>
+                    1 RM actuel
+                  </h3>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="flex flex-nowrap gap-2 pt-2 overflow-x-auto -mx-4 px-4 onerm-scrollbar">
                   {oneRmRecords.map((record) => (
-                    <div key={record.id}>
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: record.color || '#d4845a' }}
-                          aria-hidden="true"
-                        />
-                        <span className="text-xs text-gray-400">{record.name}</span>
+                    <div key={record.id} className="w-[84px] flex-shrink-0 p-3 bg-[rgba(0,0,0,0.35)] rounded-lg text-white">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[12px] text-white font-extralight">{record.name}</span>
                       </div>
-                      <p className="text-sm font-medium mt-1">{formatWeight(record.current, record.unit)}</p>
+                      <p className="text-[18px] font-light mt-0.5">
+                        <span style={{ color: '#d4845a' }} className="font-normal">
+                          {record.current !== undefined && record.current !== null && !Number.isNaN(Number(record.current))
+                            ? Number(record.current).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+                            : '0'}
+                        </span>
+                        <span className="text-[14px] text-white/75"> {record.unit || 'kg'}</span>
+                      </p>
                     </div>
                   ))}
-                </div>
-                <div className="flex justify-between mt-3 pt-3 border-t border-[#262626]">
-                  <div>
-                    <span className="text-xs text-gray-400">Total</span>
-                    <p className="text-sm font-medium">{formatWeight(totalOneRmCurrent)}</p>
+                  <div className="w-auto min-w-[84px] flex-shrink-0 p-3 bg-[rgba(255,255,255,0.05)] rounded-lg text-white md:ml-auto">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[12px] text-white font-extralight">Total</span>
+                    </div>
+                    <p className="text-[18px] font-light mt-0.5 whitespace-nowrap">
+                      <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">
+                        {totalOneRmCurrent !== undefined && totalOneRmCurrent !== null && !Number.isNaN(Number(totalOneRmCurrent))
+                          ? Number(totalOneRmCurrent).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+                          : '—'}
+                      </span>
+                      {totalOneRmCurrent !== undefined && totalOneRmCurrent !== null && !Number.isNaN(Number(totalOneRmCurrent)) && (
+                        <span className="text-[14px] text-white/75"> kg</span>
+                      )}
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-gray-400">RIS Score</span>
-                    <p className="text-sm font-medium">
-                      {studentData?.oneRmRisScore?.toLocaleString?.('fr-FR', { maximumFractionDigits: 2 }) || '95,99'}
+                  <div className="w-auto min-w-[84px] flex-shrink-0 p-3 bg-[rgba(255,255,255,0.05)] rounded-lg text-white">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[12px] text-white font-extralight">RIS Score</span>
+                    </div>
+                    <p className="text-[18px] font-light mt-0.5 whitespace-nowrap">
+                      <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">
+                        {calculatedRIS > 0
+                          ? Number(calculatedRIS).toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+                          : studentData?.oneRmRisScore?.toLocaleString?.('fr-FR', { maximumFractionDigits: 2 }) || '—'}
+                      </span>
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Profile Card */}
-              <div className="bg-[#1a1a1a] rounded-lg p-3">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium">Profile</h3>
-                  <button 
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="px-2 py-1 text-xs bg-[#262626] rounded hover:bg-[#333333] transition-colors"
-                  >
-                    Open
-                  </button>
+              <div 
+                className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
+                onClick={() => setIsProfileModalOpen(true)}
+              >
+                <div className="mb-2 border-b border-white/10">
+                  <h3 className="text-sm font-light pb-[8px] flex items-center justify-between text-white/75">
+                    <div className="flex items-center gap-[10px]">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 opacity-75" fill="currentColor">
+                        <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512H418.3c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304H178.3z"/>
+                      </svg>
+                      Profile
+                    </div>
+                    <div 
+                      className="relative cursor-pointer group/icon shrink-0 transition-transform duration-200 hover:scale-110 flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/chat?studentId=${student.id}`);
+                      }}
+                    >
+                      <svg 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 640 640" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`transition-colors duration-200 ${
+                          studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0
+                            ? 'text-white/75 group-hover/icon:text-white'
+                            : 'text-white/30 group-hover/icon:text-white/50'
+                        }`}
+                      >
+                        <path 
+                          d="M64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L360 512C354.8 512 349.8 513.7 345.6 516.8L230.4 603.2C226.2 606.3 221.2 608 216 608C202.7 608 192 597.3 192 584L192 512L160 512C107 512 64 469 64 416z" 
+                          fill="currentColor"
+                          fillOpacity="0.75"
+                        />
+                      </svg>
+                      {/* Notification dot - Only show if there are unread messages */}
+                      {studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0 && (
+                        <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#d4845a] rounded-full border border-[#2A2A2A]"></div>
+                      )}
+                    </div>
+                  </h3>
                 </div>
-                <div className="space-y-2">
-                  {/* Name and Gender */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">
-                      {studentData?.full_name || studentData?.name || student?.name || 'Étudiant'}
-                    </span>
-                    {studentData?.gender && (
-                      <span className="text-xs text-[#d4845a]">
-                        {studentData.gender === 'Homme' ? '♂' : studentData.gender === 'Femme' ? '♀' : ''}
-                      </span>
-                    )}
-                  </div>
-                  
+                <div className="space-y-1 pt-2">
                   {/* Profile Information Grid */}
-                  {(studentData?.discipline || studentData?.birth_date || studentData?.weight || studentData?.height) ? (
-                    <div className="space-y-1.5 pt-1">
+                  {(studentData?.discipline || studentData?.gender || studentData?.weight || studentData?.height) ? (
+                    <div className="space-y-1 pt-0.5">
                       {studentData?.discipline && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400">Discipline</span>
-                          <span className="text-xs font-medium">{studentData.discipline}</span>
+                          <span className="text-xs text-white/50 font-extralight">Discipline</span>
+                          <span className="text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{studentData.discipline}</span>
                         </div>
                       )}
-                      {studentData?.birth_date && (
+                      {studentData?.gender && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400">Âge</span>
-                          <span className="text-xs font-medium">
-                            {differenceInYears(new Date(), new Date(studentData.birth_date))} ans
-                          </span>
+                          <span className="text-xs text-white/50 font-extralight">Sexe</span>
+                          <span className="text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{studentData.gender}</span>
                         </div>
                       )}
                       {studentData?.weight && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400">Poids</span>
-                          <span className="text-xs font-medium">{studentData.weight} kg</span>
+                          <span className="text-xs text-white/50 font-extralight">Poids</span>
+                          <span className="text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{studentData.weight} kg</span>
                         </div>
                       )}
                       {studentData?.height && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400">Taille</span>
-                          <span className="text-xs font-medium">
+                          <span className="text-xs text-white/50 font-extralight">Taille</span>
+                          <span className="text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                             {studentData.height >= 100 ? `${(studentData.height / 100).toFixed(2)}m` : `${studentData.height} cm`}
                           </span>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500 italic pt-1">Aucune information de profil</div>
+                    <div className="text-[10px] text-white/50 font-extralight pt-0.5">Aucune information de profil</div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Week Navigation */}
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => changeOverviewWeek('prev')}
-                className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] rounded-lg hover:bg-[#262626] transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Semaine précédente</span>
-              </button>
-              <button
-                onClick={() => setOverviewWeekDate(new Date())}
-                className="flex items-center gap-2 px-4 py-2 bg-[#d4845a] text-white rounded-lg hover:bg-[#bf7348] transition-colors"
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Aujourd'hui</span>
-              </button>
-              <button
-                onClick={() => changeOverviewWeek('next')}
-                className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] rounded-lg hover:bg-[#262626] transition-colors"
-              >
-                <span>Semaine suivante</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+            <div>
+              {/* Week Navigation with Day Labels */}
+              <div className="flex items-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+                <button
+                  onClick={() => changeOverviewWeek('prev')}
+                  className="flex items-center transition-colors text-white/75 hover:text-white mr-auto"
+                >
+                  <ChevronLeft className="h-[18px] w-[18px]" />
+                </button>
+                <div className="grid grid-cols-7 gap-3 flex-1">
+                  {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((dayLabel) => (
+                    <div key={dayLabel} className="text-center">
+                      <span className="text-[12px] text-white/75 font-extralight">{dayLabel}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => changeOverviewWeek('next')}
+                  className="flex items-center transition-colors text-white/75 hover:text-white ml-auto"
+                >
+                  <ChevronRight className="h-[18px] w-[18px]" />
+                </button>
+              </div>
 
-            {/* Weekly Schedule */}
-            <div className="grid grid-cols-7 gap-3">
+              {/* Weekly Schedule */}
+              <div className="grid grid-cols-7 gap-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '12px', paddingRight: '12px' }}>
               {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
                 const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
                 const dayKey = format(dayDate, 'yyyy-MM-dd');
@@ -2611,13 +2960,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                 return (
                   <div
                     key={day}
-                    className={`rounded-xl p-3 cursor-pointer transition-colors relative group min-h-[260px] overflow-hidden border ${
-                      isDropTarget
-                        ? 'bg-[#2f2f2f] border-[#d4845a]'
-                        : isToday
-                        ? 'bg-[#262626] border-2 border-[#d4845a]'
-                        : 'bg-[#1a1a1a] border-transparent hover:bg-[#262626]'
-                    }`}
+                    className="rounded-xl px-3 py-1 cursor-pointer transition-colors relative group min-h-[260px] overflow-hidden"
+                    style={{ backgroundColor: 'unset', border: 'none' }}
                     onClick={() => handleDayClick(dayDate)}
                     onDragOver={(event) => handleDayDragOver(event, dayDate)}
                     onDragEnter={(event) => handleDayDragOver(event, dayDate)}
@@ -2632,23 +2976,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                       }
                     }}
                   >
-                    <div className="text-sm text-gray-300 mb-3 flex justify-between items-center">
-                      <span>
-                        {day} {format(dayDate, 'dd')}
+                    <div className="text-sm text-white/75 mb-1.5 flex justify-end items-center gap-1">
+                      <button className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95">
+                        <Plus className="h-4 w-4 text-[#BFBFBF] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                      <span className={`text-[12px] font-extralight ${isToday ? 'text-white rounded-full w-6 h-6 flex items-center justify-center bg-[var(--kaiylo-primary-hover)]' : ''}`}>
+                        {format(dayDate, 'dd')}
                       </span>
-                      <Plus className="h-4 w-4 text-[#d4845a] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
-                    {loadingSessions ? (
-                      <div className="flex items-center justify-center py-10">
-                        <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
-                      </div>
-                    ) : (
-                      renderOverviewDayContent(dayDate, dayKey)
-                    )}
+                    {renderOverviewDayContent(dayDate, dayKey)}
                   </div>
                 );
               })}
+              </div>
             </div>
           </>
         )}
@@ -2758,7 +3099,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                               e.stopPropagation();
                               handleCopyWeek(weekStart);
                             }}
-                            className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
+                            className="p-2 bg-[#262626] rounded-full text-white/50 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
                             title="Copier la semaine"
                           >
                             <Copy className="h-4 w-4" />
@@ -2770,7 +3111,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                                 e.stopPropagation();
                                 handlePasteWeek(weekStart);
                               }}
-                              className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
+                              className="p-2 bg-[#262626] rounded-full text-white/50 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
                               title="Coller la semaine"
                             >
                               <Clipboard className="h-4 w-4" />
@@ -2864,7 +3205,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   <option value="A feedback">A feedback</option>
                   <option value="Complété">Complété</option>
                 </select>
-                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50 pointer-events-none" />
               </div>
 
               {/* Exercise Filter */}
@@ -2879,7 +3220,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                     <option key={exercise} value={exercise}>{exercise}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50 pointer-events-none" />
               </div>
 
               {/* Date Filter */}
@@ -2893,7 +3234,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
               </div>
 
               {/* Add Filter Button */}
-              <button className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm">
+              <button className="px-4 py-2 text-white/50 hover:text-white transition-colors text-sm">
                 + Filter
               </button>
 
@@ -2904,14 +3245,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
                   fetchStudentVideos();
                 }}
                 disabled={videosLoading}
-                className="px-3 py-2 text-gray-400 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-3 py-2 text-white/50 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 title="Rafraîchir la liste des vidéos"
               >
                 <RefreshCw className={`h-4 w-4 ${videosLoading ? 'animate-spin' : ''}`} />
               </button>
 
               {/* Video Count */}
-              <div className="ml-auto text-sm text-gray-400">
+              <div className="ml-auto text-sm text-white/50">
                 {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
               </div>
             </div>
@@ -2919,7 +3260,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
             {videosLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
-                <span className="ml-2 text-gray-400">Chargement des vidéos...</span>
+                <span className="ml-2 text-white/50">Chargement des vidéos...</span>
               </div>
             )}
 
@@ -2929,48 +3270,51 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
 
         {activeTab === 'suivi' && (
           <div className="p-4">
-            <p className="text-gray-400">Suivi Financier - Coming soon</p>
+            <p className="text-white/50">Suivi Financier - Coming soon</p>
           </div>
         )}
-      </div>
+        </div>
 
-      <CreateWorkoutSessionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          setSelectedSession(null); // Réinitialiser selectedSession à la fermeture
-        }}
-        selectedDate={selectedDate}
-        onSessionCreated={handleSessionCreated}
-        studentId={student.id}
-        existingSession={selectedSession}
-      />
+        {/* Modals */}
+        <CreateWorkoutSessionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setSelectedSession(null); // Réinitialiser selectedSession à la fermeture
+          }}
+          selectedDate={selectedDate}
+          onSessionCreated={handleSessionCreated}
+          studentId={student.id}
+          existingSession={selectedSession}
+        />
 
-      <WorkoutSessionDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
-        session={selectedSession}
-        selectedDate={selectedDate}
-      />
+        <WorkoutSessionDetailsModal
+          isOpen={isDetailsModalOpen}
+          onClose={() => setIsDetailsModalOpen(false)}
+          session={selectedSession}
+          selectedDate={selectedDate}
+        />
 
-      <StudentProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        studentData={studentData}
-        onUpdate={async (updatedData) => {
-          // Update local state immediately for better UX
-          setStudentData(prev => ({ ...prev, ...updatedData }));
-          // Refresh full student details to ensure consistency
-          await fetchStudentDetails();
-        }}
-      />
+        <StudentProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          studentData={studentData}
+          onUpdate={async (updatedData) => {
+            // Update local state immediately for better UX
+            setStudentData(prev => ({ ...prev, ...updatedData }));
+            // Refresh full student details to ensure consistency
+            await fetchStudentDetails();
+          }}
+        />
 
-      <OneRmModal
-        isOpen={isOneRmModalOpen}
-        onClose={() => setIsOneRmModalOpen(false)}
-        data={oneRmRecords}
-        studentName={student?.full_name || student?.name || student?.profile?.full_name || studentData?.name || 'Athlète'}
-        onSave={async (updatedLifts) => {
+          <OneRmModal
+          isOpen={isOneRmModalOpen}
+          onClose={() => setIsOneRmModalOpen(false)}
+          data={oneRmRecords}
+          studentName={student?.full_name || student?.name || student?.profile?.full_name || studentData?.name || 'Athlète'}
+          bodyWeight={studentData?.weight ? Number(studentData.weight) : null}
+          gender={studentData?.gender || null}
+          onSave={async (updatedLifts) => {
           try {
             const token = localStorage.getItem('authToken');
             const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
@@ -3136,22 +3480,200 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview' }) => {
         }}
       />
 
-      <VideoDetailModal 
-        isOpen={isVideoDetailModalOpen}
-        onClose={() => setIsVideoDetailModalOpen(false)}
-        video={selectedVideo}
-        onFeedbackUpdate={handleFeedbackUpdate}
-        videoType="student"
-        isCoachView={true}
-      />
+        <VideoDetailModal 
+          isOpen={isVideoDetailModalOpen}
+          onClose={() => setIsVideoDetailModalOpen(false)}
+          video={selectedVideo}
+          onFeedbackUpdate={handleFeedbackUpdate}
+          videoType="student"
+          isCoachView={true}
+        />
 
-      <CoachSessionReviewModal
-        isOpen={isReviewModalOpen}
-        onClose={() => setIsReviewModalOpen(false)}
-        session={selectedSession}
-        selectedDate={selectedDate}
-        studentId={student.id}
-      />
+        <CoachSessionReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          session={selectedSession}
+          selectedDate={selectedDate}
+          studentId={student.id}
+        />
+
+        {/* Block Edit Modal */}
+        {isBlockEditModalOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+            style={{ zIndex: 100 }}
+            onClick={(e) => {
+              // Only close if clicking directly on the backdrop, not on child elements
+              if (e.target === e.currentTarget && !isSavingBlock) {
+                setIsBlockEditModalOpen(false);
+              }
+            }}
+            onMouseDown={(e) => {
+              // Prevent closing when clicking inside the modal
+              if (e.target !== e.currentTarget) {
+                e.stopPropagation();
+              }
+            }}
+          >
+            <div 
+              className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+              style={{
+                background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+                opacity: 0.95
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                    <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z"/>
+                  </svg>
+                  <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    Paramètres du bloc
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setIsBlockEditModalOpen(false)}
+                  className="text-white/50 hover:text-white transition-colors"
+                  aria-label="Close modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
+                    <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="border-b border-white/10 mx-6"></div>
+
+              {/* Form */}
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
+                <div>
+                  <label className="block text-sm font-extralight text-white/50 mb-2">
+                    Numéro de bloc
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={blockNumber}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const value = parseInt(e.target.value) || 1;
+                        setBlockNumber(value);
+                      }}
+                      onFocus={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-12 px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+                      min="1"
+                      disabled={isSavingBlock}
+                    />
+                    <span className="text-white/50 text-sm">/</span>
+                    <input
+                      type="number"
+                      value={totalBlocks}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const value = parseInt(e.target.value) || 1;
+                        setTotalBlocks(value);
+                      }}
+                      onFocus={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-12 px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+                      min="1"
+                      disabled={isSavingBlock}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-extralight text-white/50 mb-2">
+                    Nom du bloc
+                  </label>
+                  <input
+                    type="text"
+                    value={blockName}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setBlockName(e.target.value);
+                    }}
+                    onFocus={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Nom du bloc"
+                    className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+                    disabled={isSavingBlock}
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-white/10">
+                  <h3 className="text-sm font-extralight text-white/50 mb-3">Indicateurs de progression</h3>
+                  <div className="space-y-2 text-sm text-white/60">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#d4845a]"></div>
+                      <span>
+                        <span className="text-[var(--kaiylo-primary-hex)]">1er graphique :</span>
+                        <span className="text-white/75 font-light"> Séances réalisées / assignées (semaine)</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#d4845a]"></div>
+                      <span>
+                        <span className="text-[var(--kaiylo-primary-hex)]">2e graphique :</span>
+                        <span className="text-white/75 font-light"> Séances réalisées / assignées (mois)</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!isSavingBlock) {
+                        setIsBlockEditModalOpen(false);
+                        // Reset to original values from studentData to match what's displayed
+                        if (studentData) {
+                          setBlockNumber(studentData.block_number !== undefined && studentData.block_number !== null ? studentData.block_number : 3);
+                          setTotalBlocks(studentData.total_blocks !== undefined && studentData.total_blocks !== null ? studentData.total_blocks : 3);
+                          setBlockName(studentData.block_name || 'Prépa Force');
+                        } else {
+                          setBlockNumber(3);
+                          setTotalBlocks(3);
+                          setBlockName('Prépa Force');
+                        }
+                      }
+                    }}
+                    disabled={isSavingBlock}
+                    className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveBlockInformation}
+                    disabled={isSavingBlock}
+                    className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+                  >
+                    {isSavingBlock ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      'Enregistrer'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+          </>
+        )}
+      </div>
     </div>
   );
 };

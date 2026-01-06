@@ -11,6 +11,7 @@ import axios from 'axios';
 import { getApiBaseUrlWithApi } from '../config/api';
 import VideoDetailModal from './VideoDetailModal';
 import StudentVideoDetailModal from './StudentVideoDetailModal';
+import { useModalManager } from './ui/modal/ModalManager';
 
 // Custom Notification Icon Component
 const NotificationIcon = ({ className, style }) => (
@@ -47,6 +48,33 @@ const Header = () => {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const location = useLocation();
   const { onVideoUpload, onFeedback } = useSocket();
+  
+  // Check if any modal is open by looking for backdrop elements in the DOM
+  // This works for all modals, not just those registered in ModalManager
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  useEffect(() => {
+    const checkForModal = () => {
+      // Check for elements with fixed inset-0 backdrop-blur (typical modal backdrop)
+      const backdrops = document.querySelectorAll('[class*="fixed"][class*="inset-0"][class*="backdrop-blur"]');
+      const hasModal = backdrops.length > 0;
+      setIsModalOpen(hasModal);
+    };
+    
+    // Check initially
+    checkForModal();
+    
+    // Use MutationObserver to watch for DOM changes (modals opening/closing)
+    const observer = new MutationObserver(checkForModal);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+    
+    return () => observer.disconnect();
+  }, []);
 
   // Load notifications from server on mount (for both coaches and students)
   useEffect(() => {
@@ -80,7 +108,7 @@ const Header = () => {
               return {
                 id: notif.id,
                 type: 'video_upload',
-                studentName: notif.data?.studentName || 'Élève',
+                studentName: notif.data?.studentName || 'Client',
                 exerciseName: notif.data?.exerciseName || '',
                 setInfo: notif.data?.setInfo || null,
                 sessionName: notif.data?.sessionName || null,
@@ -268,6 +296,110 @@ const Header = () => {
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    const unreadNotifications = notifications.filter(n => !n.read);
+    if (unreadNotifications.length === 0) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      // Try to mark all as read via API (if endpoint exists)
+      // First, try a bulk endpoint
+      try {
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/notifications/read-all`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch (bulkError) {
+        // If bulk endpoint doesn't exist, mark each notification individually
+        if (bulkError.response?.status === 404 || bulkError.response?.status === 405) {
+          // Mark each notification with a valid DB ID
+          const validNotifications = unreadNotifications.filter(
+            n => n.id && typeof n.id === 'string' && n.id.length === 36
+          );
+          
+          await Promise.allSettled(
+            validNotifications.map(notif =>
+              axios.patch(
+                `${getApiBaseUrlWithApi()}/notifications/${notif.id}/read`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+            )
+          );
+        } else {
+          throw bulkError;
+        }
+      }
+
+      // Update local state - mark all as read
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, read: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      // Still update local state to mark as read visually
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, read: true }))
+      );
+    }
+  };
+
+  const handleToggleNotificationRead = async (notif) => {
+    const newReadState = !notif.read;
+    
+    // Update local state immediately for better UX
+    setNotifications(prev => 
+      prev.map(n => n.id === notif.id ? { ...n, read: newReadState } : n)
+    );
+
+    // If notification has a valid database ID, update on server
+    if (notif.id && typeof notif.id === 'string' && notif.id.length === 36) {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        if (newReadState) {
+          // Mark as read
+          await axios.patch(
+            `${getApiBaseUrlWithApi()}/notifications/${notif.id}/read`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } else {
+          // Mark as unread - try unread endpoint, fallback to read with false
+          try {
+            await axios.patch(
+              `${getApiBaseUrlWithApi()}/notifications/${notif.id}/unread`,
+              {},
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          } catch (unreadError) {
+            // If unread endpoint doesn't exist, try alternative approach
+            if (unreadError.response?.status === 404 || unreadError.response?.status === 405) {
+              // Some APIs might accept a body with read: false
+              await axios.patch(
+                `${getApiBaseUrlWithApi()}/notifications/${notif.id}/read`,
+                { read: false },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+            } else {
+              throw unreadError;
+            }
+          }
+        }
+      } catch (error) {
+        // Revert local state on error
+        setNotifications(prev => 
+          prev.map(n => n.id === notif.id ? { ...n, read: !newReadState } : n)
+        );
+        console.error('Error toggling notification read state:', error);
+      }
+    }
+  };
+
   const renderCoachHeader = () => (
     <div className="flex items-center w-full pb-3 border-b border-white/10">
       {/* Left side - Title and Hamburger menu */}
@@ -291,26 +423,28 @@ const Header = () => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-0 flex-shrink-0">
-        {/* Notification icon */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="relative text-white/75 hover:text-white hover:bg-white/10"
-          onClick={() => setIsNotificationOpen(true)}
-        >
-          <NotificationIcon style={{ width: '22px', height: '22px', color: 'rgba(255, 255, 255, 0.6)' }} />
-          {notifications.filter(n => !n.read).length > 0 && (
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#d4845a]" />
-          )}
-        </Button>
-
         {/* Settings icon */}
         <Button 
           variant="ghost" 
           size="icon" 
-          className="text-white/75 hover:text-white hover:bg-white/10 h-9 w-9"
+          className="text-white/75 hover:text-[#d4845a] h-9 w-9"
+          style={{ background: 'unset', backgroundColor: 'unset' }}
         >
-          <SettingsIcon style={{ width: '22px', height: '22px', color: 'rgba(255, 255, 255, 0.6)' }} />
+          <SettingsIcon style={{ width: '24px', height: '24px' }} />
+        </Button>
+
+        {/* Notification icon */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative text-white/75 hover:text-[#d4845a]"
+          onClick={() => setIsNotificationOpen(true)}
+          style={{ background: 'unset', backgroundColor: 'unset' }}
+        >
+          <NotificationIcon style={{ width: '24px', height: '24px' }} />
+          {notifications.filter(n => !n.read).length > 0 && (
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-[#d4845a]" />
+          )}
         </Button>
       </div>
     </div>
@@ -372,7 +506,10 @@ const Header = () => {
 
   return (
     <>
-      <header className="relative px-4 sm:px-6 pt-6 pb-3 z-20">
+      <header 
+        className={`relative px-4 sm:px-6 pt-6 pb-3 ${isModalOpen ? 'z-[1]' : 'z-20'}`}
+        style={isModalOpen ? { pointerEvents: 'none' } : {}}
+      >
         {isStudent ? renderStudentHeader() : renderCoachHeader()}
       </header>
       <MobileNavigationDrawer 
@@ -383,6 +520,8 @@ const Header = () => {
         isOpen={isNotificationOpen} 
         onClose={() => setIsNotificationOpen(false)} 
         onNotificationClick={handleNotificationClick}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onToggleRead={handleToggleNotificationRead}
         notifications={notifications}
       />
       {isStudent ? (

@@ -296,10 +296,10 @@ const RegisterPage = () => {
                     Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement.
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
-                    Après l'inscription, vous pourrez inviter vos élèves par email depuis votre tableau de bord.
+                    Après l'inscription, vous pourrez inviter vos clients par email depuis votre tableau de bord.
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left">
-                    <span className="text-[#d4845a]">Note :</span> Les élèves ne peuvent rejoindre que via les invitations de leur coach.
+                    <span className="text-[#d4845a]">Note :</span> Les clients ne peuvent rejoindre que via les invitations de leur coach.
                   </p>
                 </div>
               </div>
@@ -561,7 +561,7 @@ const RegisterPage = () => {
             {/* Student invitation section */}
             <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
-                Êtes-vous un élève ?
+                Êtes-vous un client ?
               </h2>
               <p className="text-xs text-[rgba(255,255,255,0.8)] mb-3 text-left font-light">
                 Si vous avez un code d'invitation de votre coach, cliquez ici :

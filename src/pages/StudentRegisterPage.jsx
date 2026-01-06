@@ -247,7 +247,7 @@ const StudentRegisterPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
           <div className="w-full px-4">
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Inscription Élève
+              Inscription Client
             </h1>
 
             {/* Information section - Accordion */}
@@ -269,7 +269,7 @@ const StudentRegisterPage = () => {
                 }}
               >
                 <h2 className="text-sm font-normal text-[#d4845a]">
-                  Comment fonctionne l'inscription élève ?
+                  Comment fonctionne l'inscription client ?
                 </h2>
                 <div className="flex-shrink-0 ml-4">
                   {isInfoExpanded ? (
@@ -288,7 +288,7 @@ const StudentRegisterPage = () => {
               >
                 <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                   <p className="text-xs text-[rgba(255,255,255,0.8)] text-left font-extralight">
-                    Les élèves peuvent uniquement rejoindre Kaiylo via une invitation de leur coach.
+                    Les clients peuvent uniquement rejoindre Kaiylo via une invitation de leur coach.
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
                     Si vous n'avez pas de code d'invitation, contactez votre coach pour en recevoir un.

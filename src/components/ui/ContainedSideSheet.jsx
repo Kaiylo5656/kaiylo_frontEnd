@@ -14,6 +14,7 @@ const ContainedSideSheet = ({
   sideBySide = false,
   preventClose = false,
   modalId = 'exercise-library-sheet',
+  badgeCount,
 }) => {
   const panelRef = useRef(null);
   const { registerModal, unregisterModal, isTopMost } = useModalManager();
@@ -89,27 +90,43 @@ const ContainedSideSheet = ({
         aria-label={title}
         className={`${pos} ${sideBySideClasses} h-full ${sideBySide ? 'w-1/2' : 'w-full'} ${widthClass} ${
           open ? 'translate-x-0' : 'translate-x-full'
-        } bg-[#121212] text-white border-l border-[#1a1a1a] transition-transform duration-300 ease-in-out`}
+        } text-white border-l border-white/10 transition-transform duration-300 ease-in-out`}
         style={{ 
           zIndex: zPanel,
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          opacity: 1
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-[#1a1a1a] bg-[#121212]">
-          <h2 className="text-lg font-medium text-white">{title}</h2>
+        <div className="shrink-0 px-6 pt-6 pb-1 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-light" style={{ color: 'var(--tw-ring-offset-color)' }}>{title}</h2>
+            {badgeCount !== undefined && badgeCount > 0 && (
+              <span 
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-light"
+                style={{ 
+                  backgroundColor: 'var(--kaiylo-primary-hex)',
+                  color: 'white',
+                  fontSize: '13px'
+                }}
+              >
+                {badgeCount}
+              </span>
+            )}
+          </div>
           <button
             onClick={onClose}
-            className="p-2 bg-[#262626] rounded-lg hover:bg-[#404040] transition-colors"
+            className="text-white/50 hover:text-white transition-colors"
             aria-label="Fermer"
           >
-            <X className="h-4 w-4 text-white" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="h-[calc(100%-60px)] overflow-y-auto bg-[#121212]">
+        <div className="h-[calc(100%-60px)] overflow-y-auto">
           {children}
         </div>
       </div>

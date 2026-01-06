@@ -13,10 +13,10 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
   const [open, setOpen] = useState(false);
   
   const defaultSortOptions = [
-    { value: 'createdAt', dir: 'desc', label: 'Creation (Newest first)' },
-    { value: 'createdAt', dir: 'asc', label: 'Creation (Oldest first)' },
-    { value: 'name', dir: 'asc', label: 'Name (A–Z)' },
-    { value: 'name', dir: 'desc', label: 'Name (Z–A)' }
+    { value: 'createdAt', dir: 'desc', label: 'Création (Plus récent)' },
+    { value: 'createdAt', dir: 'asc', label: 'Création (Plus ancien)' },
+    { value: 'name', dir: 'asc', label: 'Nom (A–Z)' },
+    { value: 'name', dir: 'desc', label: 'Nom (Z–A)' }
   ];
   
   const sortOptions = customSortOptions || defaultSortOptions;
@@ -39,7 +39,7 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
   const currentValue = getOptionValue(currentOption);
 
   // Check if a custom sort is selected (different from default: createdAt desc)
-  const defaultSort = defaultSortOptions[0]; // Creation (Newest first)
+  const defaultSort = defaultSortOptions[0]; // Création (Plus récent)
   const isCustomSort = sort !== defaultSort.value || dir !== defaultSort.dir;
   const isActive = open || isCustomSort;
 
@@ -93,13 +93,33 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
                 className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
                   isSelected 
                     ? 'bg-primary/20 text-primary font-normal' 
-                    : 'text-foreground hover:bg-muted font-light'
+                    : 'text-foreground font-light'
                 }`}
                 style={
                   isSelected
                     ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
                     : {}
                 }
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                    const span = e.currentTarget.querySelector('span');
+                    if (span) {
+                      span.style.color = '#D48459';
+                      span.style.fontWeight = '400';
+                    }
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.backgroundColor = '';
+                    const span = e.currentTarget.querySelector('span');
+                    if (span) {
+                      span.style.color = '';
+                      span.style.fontWeight = '';
+                    }
+                  }
+                }}
               >
                 <span>{option.label}</span>
                 <svg 

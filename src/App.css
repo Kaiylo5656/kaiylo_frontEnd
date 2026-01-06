@@ -919,16 +919,12 @@ html {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
-/* Exercise list scrollbar - minimal and subtle, hidden by default */
+/* Exercise list scrollbar - always visible, transparent track, only thumb visible */
 .exercise-list-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   scrollbar-gutter: stable;
   padding-right: 12px;
-}
-
-.exercise-list-scrollbar:hover {
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar {
@@ -937,16 +933,13 @@ html {
 
 .exercise-list-scrollbar::-webkit-scrollbar-track {
   background: transparent;
+  border-radius: 3px;
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
   transition: opacity 0.3s ease, background 0.3s ease;
-}
-
-.exercise-list-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -957,4 +950,54 @@ html {
   display: none;
   width: 0;
   height: 0;
+}
+
+/* Notification sidebar scrollbar - transparent track */
+.notification-sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.notification-sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notification-sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.notification-sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.notification-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 1RM Stats Card horizontal scrollbar - transparent track */
+.onerm-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.onerm-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.onerm-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.onerm-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.onerm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }

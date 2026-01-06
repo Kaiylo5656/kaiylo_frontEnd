@@ -468,7 +468,7 @@ const ExerciseManagement = () => {
               setEditingExercise(null); // Clear any editing state
               setShowModal(true);
             }}
-            className="group bg-primary hover:bg-primary/90 text-primary-foreground font-extralight pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
+            className="group bg-primary hover:bg-primary/90 text-primary-foreground font-normal pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
               <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
@@ -483,9 +483,9 @@ const ExerciseManagement = () => {
       <div className="flex-1 min-h-0 px-6 pb-6">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none', maxWidth: '899px' }}>
-            <div className="flex items-center">
-              <div className="flex items-center space-x-6 w-[282px]">
+          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none', maxWidth: '978px' }}>
+            <div className="grid grid-cols-[400px_287px_1fr] items-center gap-6">
+              <div className="flex items-center space-x-6">
                 {/* Select All Checkbox */}
                 <button
                   onClick={handleSelectAll}
@@ -509,10 +509,10 @@ const ExerciseManagement = () => {
                   </span>
                 )}
               </div>
-              <div className="w-[287px] flex justify-center">
+              <div className="flex justify-center">
                 <span className="text-xs font-extralight text-muted-foreground pr-0 text-center" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
               </div>
-              <div className="flex-1"></div>
+              <div></div>
             </div>
           </div>
 
@@ -595,8 +595,8 @@ const ExerciseManagement = () => {
                   role="button"
                   aria-label={`View details for ${exercise.title}`}
                 >
-                  <div className="flex items-center">
-                    <div className="flex items-center space-x-6 flex-1">
+                  <div className="grid grid-cols-[400px_287px_1fr] items-center gap-6">
+                    <div className="flex items-center space-x-6">
                       {/* Checkbox */}
                       <button
                         onClick={(e) => {
@@ -657,7 +657,7 @@ const ExerciseManagement = () => {
                     </div>
 
                     {/* Tag Column - Centered */}
-                    <div className="w-[287px] flex justify-center">
+                    <div className="flex justify-center">
                       {exercise.tags && exercise.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 justify-center">
                           {exercise.tags.map(tag => {
@@ -684,7 +684,7 @@ const ExerciseManagement = () => {
                     </div>
 
                     {/* Actions Column */}
-                    <div className="flex-1 flex justify-end">
+                    <div className="flex justify-end">
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={(e) => {

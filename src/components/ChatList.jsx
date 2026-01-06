@@ -546,15 +546,41 @@ const ChatList = ({
                             key={user.id}
                             type="button"
                             onClick={() => handleStartConversation(user.id)}
-                            className="w-full px-5 py-2 text-left text-sm font-light transition-colors flex flex-col hover:bg-muted"
+                            className="w-full px-5 py-2 text-left text-sm font-light transition-colors flex flex-col"
                             style={{
                               color: 'rgba(255, 255, 255, 0.9)'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                              // Apply orange color and font-weight to all text elements
+                              const textElements = e.currentTarget.querySelectorAll('div');
+                              textElements.forEach(el => {
+                                el.style.color = '#D48459';
+                                el.style.fontWeight = '400';
+                              });
+                              // Apply color to all SVG icons if any
+                              const svgElements = e.currentTarget.querySelectorAll('svg');
+                              svgElements.forEach(el => {
+                                el.style.color = '#D48459';
+                              });
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.backgroundColor = 'transparent';
+                              // Reset color for all text elements
+                              const textElements = e.currentTarget.querySelectorAll('div');
+                              textElements.forEach((el, index) => {
+                                if (index === 0) {
+                                  el.style.color = 'rgba(255, 255, 255, 1)';
+                                } else {
+                                  el.style.color = 'rgba(255, 255, 255, 0.5)';
+                                }
+                                el.style.fontWeight = '';
+                              });
+                              // Reset color for all SVG icons
+                              const svgElements = e.currentTarget.querySelectorAll('svg');
+                              svgElements.forEach(el => {
+                                el.style.color = '';
+                              });
                             }}
                           >
                             <div className="font-light" style={{ color: 'rgba(255, 255, 255, 1)' }}>

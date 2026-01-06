@@ -186,9 +186,23 @@ const CoachDashboard = () => {
     
     // Apply no upcoming sessions filter
     if (filterNoUpcomingSessions) {
-      filtered = filtered.filter(student => 
-        !studentNextSessions[student.id]
-      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      filtered = filtered.filter(student => {
+        const nextSessionDate = studentNextSessions[student.id];
+        if (!nextSessionDate) {
+          // No session date means no upcoming session
+          return true;
+        }
+        
+        // Check if the session date is still in the future
+        const sessionDate = new Date(nextSessionDate);
+        sessionDate.setHours(0, 0, 0, 0);
+        
+        // Only show students with no upcoming sessions (date is in the past or today is past the session date)
+        return sessionDate < today;
+      });
     }
     
     // Apply sorting
@@ -431,8 +445,13 @@ const CoachDashboard = () => {
   if (selectedStudent) {
     return (
       <StudentDetailView 
-        student={selectedStudent} 
+        student={selectedStudent}
+        students={students}
         onBack={handleBackToList}
+        onStudentChange={(newStudent) => {
+          setSelectedStudent(newStudent);
+          setSelectedStudentInitialTab('overview');
+        }}
         initialTab={selectedStudentInitialTab}
       />
     );
@@ -500,11 +519,36 @@ const CoachDashboard = () => {
                   }}
                 >
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
                       filterPendingFeedback 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
                     }`}
+                    style={
+                      !filterPendingFeedback 
+                        ? {}
+                        : {}
+                    }
+                    onMouseEnter={(e) => {
+                      if (!filterPendingFeedback) {
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '#D48459';
+                          span.style.fontWeight = '400';
+                        }
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!filterPendingFeedback) {
+                        e.currentTarget.style.backgroundColor = '';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '';
+                          span.style.fontWeight = '';
+                        }
+                      }
+                    }}
                     onClick={() => setFilterPendingFeedback(!filterPendingFeedback)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
@@ -522,11 +566,31 @@ const CoachDashboard = () => {
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
                       filterPendingMessages 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
                     }`}
+                    onMouseEnter={(e) => {
+                      if (!filterPendingMessages) {
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '#D48459';
+                          span.style.fontWeight = '400';
+                        }
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!filterPendingMessages) {
+                        e.currentTarget.style.backgroundColor = '';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '';
+                          span.style.fontWeight = '';
+                        }
+                      }
+                    }}
                     onClick={() => setFilterPendingMessages(!filterPendingMessages)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
@@ -544,11 +608,31 @@ const CoachDashboard = () => {
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer hover:bg-muted rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
                       filterNoUpcomingSessions 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
                     }`}
+                    onMouseEnter={(e) => {
+                      if (!filterNoUpcomingSessions) {
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '#D48459';
+                          span.style.fontWeight = '400';
+                        }
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!filterNoUpcomingSessions) {
+                        e.currentTarget.style.backgroundColor = '';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '';
+                          span.style.fontWeight = '';
+                        }
+                      }
+                    }}
                     onClick={() => setFilterNoUpcomingSessions(!filterNoUpcomingSessions)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
@@ -608,7 +692,7 @@ const CoachDashboard = () => {
             </button>
             <button 
               onClick={handleOpenInviteModal}
-              className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-extralight pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
+              className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-normal pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
                 <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
@@ -624,7 +708,7 @@ const CoachDashboard = () => {
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
 
           {/* Client List - Scrollable */}
-          <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar" style={{ paddingRight: '0px' }}>
+          <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar" style={{ paddingRight: '12px' }}>
             <div className="flex flex-col gap-[7px]">
           {/* Header */}
           {!loading && filteredStudents.length > 0 && (
@@ -640,14 +724,14 @@ const CoachDashboard = () => {
                   }}
                 >
                   <div 
-                    className={`w-[16px] h-[16px] rounded-[4px] flex items-center justify-center transition-colors cursor-pointer ${
+                    className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors cursor-pointer ${
                       selectedStudents.size === filteredStudents.length && filteredStudents.length > 0
                         ? 'bg-[#d4845a] border-[#d4845a]' 
                         : 'bg-transparent border border-white/20 hover:border-white/40'
                     }`}
                   >
                     {selectedStudents.size === filteredStudents.length && filteredStudents.length > 0 && (
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
@@ -670,7 +754,7 @@ const CoachDashboard = () => {
               </div>
 
               {/* Activity / Messages Center Section Header */}
-              <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-24 2xl:!gap-32 3xl:!gap-64">
+              <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
                 {/* Feedback en attente Text */}
                 <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
                   Feedback en attente
@@ -768,14 +852,14 @@ const CoachDashboard = () => {
                     }}
                   >
                     <div 
-                      className={`w-[16px] h-[16px] rounded-[4px] flex items-center justify-center transition-colors ${
+                      className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors ${
                         selectedStudents.has(student.id) 
                           ? 'bg-[#d4845a]' 
                           : 'bg-transparent border border-white/20 group-hover:border-white/40'
                       }`}
                     >
                       {selectedStudents.has(student.id) && (
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       )}
@@ -799,7 +883,7 @@ const CoachDashboard = () => {
                 </div>
 
                 {/* Activity / Messages Center Section */}
-                <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-24 2xl:!gap-32 3xl:!gap-64">
+                <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
                   {/* Count Badge - Always displayed */}
                   <div className="w-[111px] flex items-center justify-center">
                     <div 
@@ -856,7 +940,7 @@ const CoachDashboard = () => {
                   <div className={`w-[150px] whitespace-nowrap text-center ${
                     studentNextSessions[student.id] 
                       ? 'text-[12px] font-normal text-white/75' 
-                      : 'text-[14px] font-medium text-[#d4845a]'
+                      : 'text-[14px] font-normal text-[#d4845a]'
                   }`}>
                     {studentNextSessions[student.id] ? (
                       new Date(studentNextSessions[student.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\w+) (\d{4})/, '$1 .$2')
