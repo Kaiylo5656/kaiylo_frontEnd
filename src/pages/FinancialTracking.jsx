@@ -48,7 +48,7 @@ const FinancialTracking = () => {
           <div className="bg-card p-6 rounded-lg space-y-2">
              <p className="text-sm text-muted-foreground">Indicateurs</p>
              <div className="flex justify-between items-center text-sm">
-                 <span>Moyenne / élèves</span>
+                 <span>Moyenne / clients</span>
                  <span className="font-bold">300 €</span>
              </div>
              <div className="flex justify-between items-center text-sm">
@@ -81,7 +81,7 @@ const FinancialTracking = () => {
           <table className="w-full text-left">
             <thead>
               <tr className="text-sm text-muted-foreground border-b border-border">
-                <th className="py-2 font-normal flex items-center gap-2"><Users className="h-4 w-4" />Élève</th>
+                <th className="py-2 font-normal flex items-center gap-2"><Users className="h-4 w-4" />Client</th>
                 <th className="py-2 font-normal">Formule</th>
                 <th className="py-2 font-normal">Séances restantes</th>
                 <th className="py-2 font-normal">Paiement</th>

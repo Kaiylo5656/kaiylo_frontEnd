@@ -82,101 +82,104 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
     }
   };
 
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-[#1a1a1a] rounded-lg p-6 w-full max-w-md mx-4 relative border border-[#333333]">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+      style={{ zIndex: 100 }}
+      onClick={handleBackdropClick}
+    >
+      <div 
+        className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+        style={{
+          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+          opacity: 0.95
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-xl font-medium text-white mb-2">Modifier le profil</h2>
-          <p className="text-sm text-gray-400">
-            {studentData?.name || studentData?.full_name || 'Étudiant'}
-          </p>
+        <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+          <div className="flex items-center justify-end gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+              <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
+            </svg>
+            <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+              Profil - <span className="font-light">{studentData?.name || studentData?.full_name || 'Étudiant'}</span>
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/50 hover:text-white transition-colors"
+            aria-label="Close modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
+              <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
+            </svg>
+          </button>
         </div>
+        <div className="border-b border-white/10 mx-6"></div>
 
         {/* Form */}
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
           {/* Gender Selection */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">Genre</label>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Genre</label>
             <div className="flex gap-3">
               <button
                 onClick={() => handleGenderSelect('Femme')}
                 type="button"
-                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-[10px] border transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-[10px] transition-all ${
                   formData.gender === 'Femme' 
-                    ? 'bg-[rgba(212,132,90,0.2)] border-[#d4845a]' 
-                    : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)]'
+                    ? 'bg-[#d4845a] border-none' 
+                    : 'bg-[rgba(0,0,0,0.5)]'
                 }`}
-                style={{
-                  borderWidth: '0.5px'
-                }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <circle cx="12" cy="9" r="5" />
-                  <path d="M12 14v7" />
-                  <path d="M9 18h6" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`w-5 h-5 ${formData.gender === 'Femme' ? '' : 'opacity-50'}`} fill="currentColor">
+                  <path d="M80 176a112 112 0 1 1 224 0 112 112 0 1 1 -224 0zM223.9 349.1C305.9 334.1 368 262.3 368 176 368 78.8 289.2 0 192 0S16 78.8 16 176c0 86.3 62.1 158.1 144.1 173.1-.1 1-.1 1.9-.1 2.9l0 64-32 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l32 0 0 32c0 17.7 14.3 32 32 32s32-14.3 32-32l0-32 32 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-32 0 0-64c0-1 0-1.9-.1-2.9z"/>
                 </svg>
-                <span className="text-xs font-light text-[rgba(255,255,255,0.8)]">Femme</span>
+                <span className={`text-sm font-normal ${formData.gender === 'Femme' ? 'text-white' : 'text-white/50'}`}>Femme</span>
               </button>
               
               <button
                 onClick={() => handleGenderSelect('Homme')}
                 type="button"
-                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-[10px] border transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-[10px] transition-all ${
                   formData.gender === 'Homme' 
-                    ? 'bg-[rgba(212,132,90,0.2)] border-[#d4845a]' 
-                    : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)]'
+                    ? 'bg-[#d4845a] border-none' 
+                    : 'bg-[rgba(0,0,0,0.5)]'
                 }`}
-                style={{
-                  borderWidth: '0.5px'
-                }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <circle cx="10" cy="14" r="5" />
-                  <path d="M19 5l-5.4 5.4" />
-                  <path d="M19 5h-5" />
-                  <path d="M19 5v5" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className={`w-5 h-5 ${formData.gender === 'Homme' ? '' : 'opacity-50'}`} fill="currentColor">
+                  <path d="M320 32c0-17.7 14.3-32 32-32L480 0c17.7 0 32 14.3 32 32l0 128c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-50.7-95 95c19.5 28.4 31 62.7 31 99.8 0 97.2-78.8 176-176 176S32 401.2 32 304 110.8 128 208 128c37 0 71.4 11.4 99.8 31l95-95-50.7 0c-17.7 0-32-14.3-32-32zM208 416a112 112 0 1 0 0-224 112 112 0 1 0 0 224z"/>
                 </svg>
-                <span className="text-xs font-light text-[rgba(255,255,255,0.8)]">Homme</span>
+                <span className={`text-sm font-normal ${formData.gender === 'Homme' ? 'text-white' : 'text-white/50'}`}>Homme</span>
               </button>
             </div>
           </div>
 
           {/* Birth Date */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">Date de naissance</label>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Date de naissance</label>
             <div 
               onClick={() => dateInputRef.current?.showPicker()}
-              className="relative rounded-[10px] flex items-center cursor-pointer"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                paddingLeft: '20px',
-                paddingRight: '20px',
-                height: '46px'
-              }}
+              className="relative rounded-[10px] flex items-center cursor-pointer w-full px-[14px] py-3 bg-[rgba(0,0,0,0.5)]"
             >
               {/* Custom Display */}
-              <div className="absolute inset-0 px-5 flex items-center pointer-events-none text-xs text-[rgba(255,255,255,1)] font-light">
+              <div className="w-full text-sm text-white font-normal">
                 {formData.birthDate ? (
                   (() => {
                     const [year, month, day] = formData.birthDate.split('-');
                     return `${day}/${month}/${year}`;
                   })()
                 ) : (
-                  <span className="text-[rgba(255,255,255,0.5)]">Date de naissance</span>
+                  <span className="text-[rgba(255,255,255,0.25)]">Date de naissance</span>
                 )}
               </div>
               
@@ -195,98 +198,68 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
 
           {/* Height */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">Taille (cm)</label>
-            <div 
-              className="rounded-[10px] flex items-center"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                paddingLeft: '20px',
-                paddingRight: '20px',
-                height: '46px'
-              }}
-            >
-              <input
-                type="number"
-                name="height"
-                value={formData.height}
-                onChange={handleChange}
-                className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full font-light placeholder-[rgba(255,255,255,0.5)]"
-                placeholder="Taille (cm)"
-              />
-            </div>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Taille (cm)</label>
+            <input
+              type="number"
+              name="height"
+              value={formData.height}
+              onChange={handleChange}
+              className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
+              placeholder="Taille (cm)"
+            />
           </div>
 
           {/* Weight */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">Poids (kg)</label>
-            <div 
-              className="rounded-[10px] flex items-center"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                paddingLeft: '20px',
-                paddingRight: '20px',
-                height: '46px'
-              }}
-            >
-              <input
-                type="number"
-                name="weight"
-                value={formData.weight}
-                onChange={handleChange}
-                className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full font-light placeholder-[rgba(255,255,255,0.5)]"
-                placeholder="Poids (kg)"
-              />
-            </div>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Poids (kg)</label>
+            <input
+              type="number"
+              name="weight"
+              value={formData.weight}
+              onChange={handleChange}
+              className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
+              placeholder="Poids (kg)"
+            />
           </div>
 
           {/* Discipline */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">Discipline</label>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Discipline</label>
             <div className="relative">
-              <div 
-                className="rounded-[10px] flex items-center justify-between"
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                  border: '0.5px solid rgba(255, 255, 255, 0.05)',
-                  paddingLeft: '20px',
-                  paddingRight: '20px',
-                  height: '46px'
-                }}
+              <select
+                name="discipline"
+                value={formData.discipline}
+                onChange={handleChange}
+                className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm appearance-none focus:outline-none"
               >
-                <select
-                  name="discipline"
-                  value={formData.discipline}
-                  onChange={handleChange}
-                  className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full appearance-none z-10 font-light"
-                >
-                  <option value="Street Lifting" className="bg-[#1a1a1a]">Street Lifting</option>
-                  <option value="Powerlifting" className="bg-[#1a1a1a]">Powerlifting</option>
-                  <option value="Bodybuilding" className="bg-[#1a1a1a]">Bodybuilding</option>
-                  <option value="Calisthenics" className="bg-[#1a1a1a]">Calisthenics</option>
-                </select>
-                <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.5)] absolute right-5 pointer-events-none" />
-              </div>
+                <option value="Street Lifting" className="bg-[#131416]">Street Lifting</option>
+                <option value="Powerlifting" className="bg-[#131416]">Powerlifting</option>
+                <option value="Bodybuilding" className="bg-[#131416]">Bodybuilding</option>
+                <option value="Calisthenics" className="bg-[#131416]">Calisthenics</option>
+              </select>
+              <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.5)] absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
-        </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 bg-[#262626] text-white rounded-[10px] hover:bg-[#333333] transition-colors text-sm"
-          >
-            Annuler
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 px-4 py-2 bg-[#d4845a] text-white rounded-[10px] hover:bg-[#c2754d] transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+            >
+              {loading ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

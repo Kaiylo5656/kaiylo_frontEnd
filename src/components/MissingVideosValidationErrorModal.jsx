@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Modal d'erreur affiché quand l'élève tente de valider la séance
+ * Modal d'erreur affiché quand le client tente de valider la séance
  * alors que des vidéos requises ne sont pas uploadées
  * Design basé sur Figma node-id: 348-730
  */

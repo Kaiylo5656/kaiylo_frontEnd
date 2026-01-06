@@ -296,10 +296,10 @@ const RegisterPage = () => {
                     Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement.
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
-                    Après l'inscription, vous pourrez inviter vos élèves par email depuis votre tableau de bord.
+                    Après l'inscription, vous pourrez inviter vos clients par email depuis votre tableau de bord.
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left">
-                    <span className="text-[#d4845a]">Note :</span> Les élèves ne peuvent rejoindre que via les invitations de leur coach.
+                    <span className="text-[#d4845a]">Note :</span> Les clients ne peuvent rejoindre que via les invitations de leur coach.
                   </p>
                 </div>
               </div>
@@ -416,104 +416,110 @@ const RegisterPage = () => {
               </div>
 
               {/* Password Field */}
-              <div className="relative" style={{ marginBottom: '3px' }}>
-                <input
-                  id="password"
-                  ref={passwordInputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  {...register('password', {
-                    required: 'Mot de passe requis',
-                    minLength: {
-                      value: 6,
-                      message: 'Le mot de passe doit contenir au moins 6 caractères'
-                    },
-                    pattern: {
-                      value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-                      message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
-                    }
-                  })}
-                  className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
-                  style={{
-                    width: '384px',
-                    maxWidth: '100%',
-                    color: 'rgba(255, 255, 255, 1)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
-                    borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '10px',
-                    fontWeight: '300',
-                    boxShadow: 'none',
-                    paddingLeft: '20px',
-                    paddingTop: '10px',
-                    paddingBottom: '10px',
-                  }}
-                  placeholder="Mot de passe"
-                  aria-invalid={errors.password ? 'true' : 'false'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-primary transition-colors"
-                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px', zIndex: 10 }}
-                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                >
-                  {showPassword ? (
-                    <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  ) : (
-                    <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  )}
-                </button>
+              <div style={{ marginBottom: '3px' }}>
+                <div className="relative">
+                  <input
+                    id="password"
+                    ref={passwordInputRef}
+                    type={showPassword ? 'text' : 'password'}
+                    {...register('password', {
+                      required: 'Mot de passe requis',
+                      minLength: {
+                        value: 6,
+                        message: 'Le mot de passe doit contenir au moins 6 caractères'
+                      },
+                      pattern: {
+                        value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+                        message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
+                      }
+                    })}
+                    className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                    style={{
+                      width: '384px',
+                      maxWidth: '100%',
+                      color: 'rgba(255, 255, 255, 1)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                      borderColor: errors.password && dirtyFields.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      fontWeight: '300',
+                      boxShadow: 'none',
+                      paddingLeft: '20px',
+                      paddingRight: '50px',
+                      paddingTop: '10px',
+                      paddingBottom: '10px',
+                    }}
+                    placeholder="Mot de passe"
+                    aria-invalid={errors.password ? 'true' : 'false'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+                    style={{ paddingLeft: '15px', paddingRight: '15px', zIndex: 10, width: '50px' }}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showPassword ? (
+                      <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
+                    ) : (
+                      <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
+                    )}
+                  </button>
+                </div>
                 {errors.password && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.password.message}</p>
                 )}
               </div>
 
               {/* Confirm Password Field */}
-              <div className="relative" style={{ marginBottom: '3px' }}>
-                <input
-                  id="confirmPassword"
-                  ref={confirmPasswordInputRef}
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  {...register('confirmPassword', {
-                    required: 'Confirmation du mot de passe requise',
-                    validate: (value) => {
-                      if (value !== password) {
-                        return 'Les mots de passe ne correspondent pas';
+              <div style={{ marginBottom: '3px' }}>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    ref={confirmPasswordInputRef}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    {...register('confirmPassword', {
+                      required: 'Confirmation du mot de passe requise',
+                      validate: (value) => {
+                        if (value !== password) {
+                          return 'Les mots de passe ne correspondent pas';
+                        }
+                        return true;
                       }
-                      return true;
-                    }
-                  })}
-                  className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
-                  style={{
-                    width: '384px',
-                    maxWidth: '100%',
-                    color: 'rgba(255, 255, 255, 1)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
-                    borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '10px',
-                    fontWeight: '300',
-                    boxShadow: 'none',
-                    paddingLeft: '20px',
-                    paddingTop: '10px',
-                    paddingBottom: '10px',
-                  }}
-                  placeholder="Confirmer le mot de passe"
-                  aria-invalid={errors.confirmPassword ? 'true' : 'false'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-primary transition-colors"
-                  style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px', zIndex: 10 }}
-                  aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-                >
-                  {showConfirmPassword ? (
-                    <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  ) : (
-                    <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
-                  )}
-                </button>
+                    })}
+                    className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                    style={{
+                      width: '384px',
+                      maxWidth: '100%',
+                      color: 'rgba(255, 255, 255, 1)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                      borderColor: errors.confirmPassword && dirtyFields.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      fontWeight: '300',
+                      boxShadow: 'none',
+                      paddingLeft: '20px',
+                      paddingRight: '50px',
+                      paddingTop: '10px',
+                      paddingBottom: '10px',
+                    }}
+                    placeholder="Confirmer le mot de passe"
+                    aria-invalid={errors.confirmPassword ? 'true' : 'false'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
+                    style={{ paddingLeft: '15px', paddingRight: '15px', zIndex: 10, width: '50px' }}
+                    aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  >
+                    {showConfirmPassword ? (
+                      <Eye className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
+                    ) : (
+                      <EyeOff className="h-5 w-5" strokeWidth={1} style={{ color: isConfirmPasswordAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} />
+                    )}
+                  </button>
+                </div>
                 {errors.confirmPassword && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.confirmPassword.message}</p>
                 )}
@@ -555,7 +561,7 @@ const RegisterPage = () => {
             {/* Student invitation section */}
             <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.1)]">
               <h2 className="text-sm font-normal text-[#d4845a] mb-2 text-left">
-                Êtes-vous un élève ?
+                Êtes-vous un client ?
               </h2>
               <p className="text-xs text-[rgba(255,255,255,0.8)] mb-3 text-left font-light">
                 Si vous avez un code d'invitation de votre coach, cliquez ici :

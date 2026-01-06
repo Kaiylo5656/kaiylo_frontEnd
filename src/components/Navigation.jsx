@@ -127,11 +127,11 @@ const Navigation = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : false; // Default to not collapsed
   });
   const [isPinned, setIsPinned] = useState(() => {
     const saved = localStorage.getItem('sidebarPinned');
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : true; // Default to pinned (true) so menu stays open
   });
 
   const fetchUnreadCount = async () => {
@@ -189,6 +189,15 @@ const Navigation = () => {
     localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
   }, [isPinned]);
 
+  // Keep menu open when navigating - don't collapse on route change
+  const location = useLocation();
+  useEffect(() => {
+    // When route changes, ensure menu stays open if pinned
+    if (isPinned && isCollapsed) {
+      setIsCollapsed(false);
+    }
+  }, [location.pathname, isPinned]);
+
   const handleMouseEnter = () => {
     if (!isPinned && isCollapsed) {
       setIsCollapsed(false);
@@ -196,6 +205,7 @@ const Navigation = () => {
   };
 
   const handleMouseLeave = () => {
+    // Only collapse if not pinned - but since we default to pinned, menu will stay open
     if (!isPinned && !isCollapsed) {
       setIsCollapsed(true);
     }
@@ -308,9 +318,6 @@ const Navigation = () => {
       </nav>
       <div className="px-4 py-5 border-t border-border" style={{ borderTopWidth: '0px', borderTopColor: 'rgba(0, 0, 0, 0)', borderTopStyle: 'none', borderImage: 'none', borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)', borderStyle: 'none' }}>
         <div className="space-y-1">
-          <NavLink to="/billing" icon={DollarSignIcon} isCollapsed={isCollapsed}>
-            Facturation
-          </NavLink>
           {!isCollapsed ? (
             <div className="flex items-center justify-start space-x-3 pl-2 pr-4 py-2.5 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', background: 'rgba(255, 255, 255, 0.1)' }}>
@@ -319,7 +326,7 @@ const Navigation = () => {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-foreground truncate leading-tight">{user?.name || user?.email}</p>
+                <p className="font-light text-sm text-foreground truncate leading-tight">{user?.name || user?.email}</p>
               </div>
               <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground flex-shrink-0 p-1 rounded transition-colors hover:bg-muted/50" title="Logout">
                 <LogOut className="h-5 w-5" />

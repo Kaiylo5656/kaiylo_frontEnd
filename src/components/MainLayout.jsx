@@ -99,7 +99,7 @@ const MainLayout = ({ children }) => {
         <Navigation />
         <main className="flex-1 flex flex-col overflow-hidden w-full relative z-10" style={{ gap: 0 }}>
           {!isWorkoutSessionOpen && <Header />}
-          <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'p-0 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
+          <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
             {children}
           </div>
         </main>

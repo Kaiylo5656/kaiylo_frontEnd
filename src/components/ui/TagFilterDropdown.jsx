@@ -278,19 +278,50 @@ const TagFilterDropdown = ({
                   className={`w-full px-5 py-2 text-left text-sm font-light transition-colors flex items-center justify-between ${
                     index === activeIndex 
                       ? 'bg-primary/20 text-primary' 
-                      : 'text-foreground hover:bg-muted'
+                      : 'text-foreground'
                   }`}
                   style={
                     index === activeIndex
                       ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
                       : {}
                   }
+                  onMouseEnter={(e) => {
+                    if (index !== activeIndex) {
+                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                      // Apply color and font-weight to all text elements
+                      const textElements = e.currentTarget.querySelectorAll('span');
+                      textElements.forEach(el => {
+                        el.style.color = '#D48459';
+                        el.style.fontWeight = '400';
+                      });
+                      // Apply color to all SVG icons
+                      const svgElements = e.currentTarget.querySelectorAll('svg');
+                      svgElements.forEach(el => {
+                        el.style.color = '#D48459';
+                      });
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (index !== activeIndex) {
+                      e.currentTarget.style.backgroundColor = '';
+                      const textElements = e.currentTarget.querySelectorAll('span');
+                      textElements.forEach(el => {
+                        el.style.color = '';
+                        el.style.fontWeight = '';
+                      });
+                      // Reset color for all SVG icons
+                      const svgElements = e.currentTarget.querySelectorAll('svg');
+                      svgElements.forEach(el => {
+                        el.style.color = '';
+                      });
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     {isNew ? (
-                      <Plus className="h-4 w-4 text-primary" />
+                      <Plus className={`h-4 w-4 ${index === activeIndex ? 'text-[#D48459]' : 'text-primary'}`} />
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 text-muted-foreground" fill="currentColor" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`h-4 w-4 ${index === activeIndex ? 'text-[#D48459]' : 'text-muted-foreground'}`} fill="currentColor" aria-hidden="true" style={index === activeIndex ? { color: '#D48459' } : {}}>
                         <path d="M96.5 160L96.5 309.5C96.5 326.5 103.2 342.8 115.2 354.8L307.2 546.8C332.2 571.8 372.7 571.8 397.7 546.8L547.2 397.3C572.2 372.3 572.2 331.8 547.2 306.8L355.2 114.8C343.2 102.7 327 96 310 96L160.5 96C125.2 96 96.5 124.7 96.5 160zM208.5 176C226.2 176 240.5 190.3 240.5 208C240.5 225.7 226.2 240 208.5 240C190.8 240 176.5 225.7 176.5 208C176.5 190.3 190.8 176 208.5 176z"/>
                       </svg>
                     )}

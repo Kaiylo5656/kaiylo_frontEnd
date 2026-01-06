@@ -439,7 +439,7 @@ const ExerciseValidationModal = ({
     return false;
   };
 
-  // Vérifier si l'élève a fait un choix pour cette série (vidéo uploadée OU "pas de vidéo")
+  // Vérifier si le client a fait un choix pour cette série (vidéo uploadée OU "pas de vidéo")
   // Retourne: true si vidéo uploadée, 'no-video' si "pas de vidéo" choisi, false si aucun choix
   const hasVideoChoiceForSet = (setIndex) => {
     // PRIORITÉ 1: Vérifier dans localVideos

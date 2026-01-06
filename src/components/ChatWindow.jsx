@@ -773,7 +773,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setTimeout(() => {
       if (messageInputRef.current) {
         messageInputRef.current.focus();
-      }
+    }
     }, 0);
   };
 

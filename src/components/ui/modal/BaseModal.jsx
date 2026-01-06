@@ -99,7 +99,7 @@ const BaseModal = forwardRef(({
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
         onClick={handleBackdropClick}
-        style={{ zIndex: zIndex }}
+        style={{ zIndex: zIndex || 100 }}
       >
         <div
           ref={modalRef}
@@ -108,7 +108,7 @@ const BaseModal = forwardRef(({
           aria-modal="true"
           aria-labelledby={title ? `${modalId}-title` : undefined}
           style={{
-            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(89, 93, 101, 0.5) 100%)',
+            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
             opacity: 0.95
           }}
           onClick={(e) => {

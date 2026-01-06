@@ -729,6 +729,18 @@
   opacity: 1 !important;
 }
 
+/* Dropdown menu items hover - ensure text children inherit orange color and font-weight */
+[data-radix-collection-item]:hover {
+  color: #D48459;
+  font-weight: 400;
+}
+
+[data-radix-collection-item]:hover span,
+[data-radix-collection-item]:hover > *:not(svg):not([class*="absolute"]) {
+  color: #D48459;
+  font-weight: 400;
+}
+
 /* Animation pour détecter l'autofill */
 @keyframes autofill-detection {
   from {
@@ -863,4 +875,24 @@ input:autofill {
     filter: brightness(1.25);
     opacity: 0.75;
   }
+}
+
+/* Fix width for tab buttons to prevent layout shift on hover */
+.tab-button-fixed-width {
+  position: relative;
+  display: inline-block;
+}
+
+.tab-button-fixed-width::before {
+  content: attr(data-text);
+  font-weight: 400;
+  visibility: hidden;
+  display: block;
+  height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.25rem;
+  padding: 0;
+  margin: 0;
 }

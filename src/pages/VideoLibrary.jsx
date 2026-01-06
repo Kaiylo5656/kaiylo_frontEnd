@@ -16,7 +16,7 @@ import { fr } from 'date-fns/locale';
 import { useVideoFilters } from '../hooks/useVideoFilters';
 
 const VideoLibrary = () => {
-  const [activeTab, setActiveTab] = useState('eleves'); // 'eleves' or 'coach'
+  const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'coach'
   const [studentVideos, setStudentVideos] = useState([]);
   const [coachResources, setCoachResources] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -180,7 +180,7 @@ const VideoLibrary = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'eleves') {
+    if (activeTab === 'clients') {
       fetchStudentVideos();
     } else {
       fetchCoachResources();
@@ -420,7 +420,7 @@ const VideoLibrary = () => {
           studentName: video.student?.raw_user_meta_data?.full_name || 
                        video.student?.raw_user_meta_data?.name || 
                        video.student?.email || 
-                       'Élève inconnu'
+                       'Client inconnu'
         };
       }
       
@@ -754,15 +754,15 @@ const VideoLibrary = () => {
           {/* Tabs */}
           <div className="flex gap-8 border-b border-border/20 mb-6">
             <button
-              onClick={() => setActiveTab('eleves')}
+              onClick={() => setActiveTab('clients')}
               className={`pb-3 text-base font-light transition-colors relative ${
-                activeTab === 'eleves' 
+                activeTab === 'clients' 
                   ? 'text-primary' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Vidéos élèves
-              {activeTab === 'eleves' && (
+              Vidéos clients
+              {activeTab === 'clients' && (
                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
               )}
             </button>
@@ -782,7 +782,7 @@ const VideoLibrary = () => {
           </div>
         </div>
 
-        {activeTab === 'eleves' && (
+        {activeTab === 'clients' && (
           <>
             {/* Filters Row */}
             <div className="flex items-center justify-between mb-4">
@@ -792,7 +792,7 @@ const VideoLibrary = () => {
                 
                 <div className="w-px h-6 bg-border/40"></div>
                 
-                {/* Elève Filter */}
+                {/* Client Filter */}
                 <select
                   value={selectedStudent}
                   onChange={(e) => setSelectedStudent(e.target.value)}
@@ -884,7 +884,7 @@ const VideoLibrary = () => {
                   ) : (
                     <>
                       <p className="font-light text-base text-foreground">Aucune vidéo trouvée</p>
-                      <p className="text-sm text-muted-foreground/70">Les vidéos de vos élèves apparaîtront ici</p>
+                      <p className="text-sm text-muted-foreground/70">Les vidéos de vos clients apparaîtront ici</p>
                     </>
                   )}
                 </div>
