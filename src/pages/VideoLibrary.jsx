@@ -39,6 +39,13 @@ const VideoLibrary = () => {
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   
+  // Count processing resources for auto-refresh dependency
+  const processingResourcesCount = useMemo(() => {
+    return coachResources.filter(r => 
+      r.status === 'PROCESSING' || r.status === 'processing'
+    ).length;
+  }, [coachResources]);
+  
   // Status and sort filters with URL persistence
   const { status: statusFilter, setStatus, isInitialized } = useVideoFilters();
 
@@ -58,7 +65,8 @@ const VideoLibrary = () => {
       video_filename: resource.fileName, // Map fileName to video_filename
       description: resource.description || '',
       folder_name: resource.folderName || (folders.find(f => f.id === resource.folderId)?.name || 'Uncategorized'),
-      created_at: resource.createdAt
+      created_at: resource.createdAt,
+      status: resource.status // Include status for modal
     };
     
     console.log('🎬 Coach resource clicked:', resource);
@@ -178,6 +186,25 @@ const VideoLibrary = () => {
       fetchCoachResources();
     }
   }, [activeTab]);
+
+  // Auto-refresh coach resources if there are videos in processing
+  useEffect(() => {
+    if (activeTab !== 'coach') return;
+    
+    if (processingResourcesCount === 0) return;
+
+    console.log(`🔄 Auto-refreshing coach resources (${processingResourcesCount} in processing)...`);
+    
+    // Refresh every 3 seconds if there are processing videos
+    const interval = setInterval(() => {
+      fetchCoachResources();
+    }, 3000); // Reduced to 3 seconds for faster updates
+
+    return () => {
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, processingResourcesCount]); // Depend on processing count only
 
   const handleCreateFolder = async (e) => {
     e.preventDefault();
@@ -656,40 +683,57 @@ const VideoLibrary = () => {
 
   const renderCoachResources = () => {
     // Filter resources based on selected folder
-    const filteredResources = selectedFolder 
+    // Exclude FAILED resources from display (they can't be played)
+    const filteredResources = (selectedFolder 
       ? coachResources.filter(video => video.folderId === selectedFolder)
-      : coachResources;
+      : coachResources
+    ).filter(video => video.status !== 'FAILED' && video.status !== 'failed');
 
     return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {filteredResources.map(video => (
-        <div key={video.id} className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:border-primary/30 hover:shadow-lg transition-all duration-200">
-          <div 
-            onClick={() => handleCoachResourceClick(video)}
-            className="block aspect-video bg-muted relative overflow-hidden"
-          >
-            <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <PlayCircle size={48} className="text-white drop-shadow-lg" />
+        {filteredResources.map(video => {
+          const isProcessing = video.status === 'PROCESSING' || video.status === 'processing';
+          
+          return (
+          <div key={video.id} className={`bg-card border border-border/20 rounded-xl overflow-hidden group transition-all duration-200 ${isProcessing ? 'opacity-80' : 'cursor-pointer hover:border-primary/30 hover:shadow-lg'}`}>
+            <div 
+              onClick={() => !isProcessing && handleCoachResourceClick(video)}
+              className="block aspect-video bg-muted relative overflow-hidden"
+            >
+              {isProcessing ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                  <span className="text-white text-xs font-medium">Traitement en cours...</span>
+                </div>
+              ) : (
+                <>
+                  <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <PlayCircle size={48} className="text-white drop-shadow-lg" />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="p-4 space-y-2">
+              <h3 
+                className={`font-medium text-base text-foreground truncate transition-colors ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isProcessing) handleCoachResourceClick(video);
+                }}
+              >
+                {video.title || video.fileName}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
+              </p>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
+                {isProcessing && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Traitement</span>}
+              </div>
             </div>
           </div>
-          <div className="p-4 space-y-2">
-            <h3 
-              className="font-medium text-base text-foreground truncate hover:text-primary transition-colors cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCoachResourceClick(video);
-              }}
-            >
-              {video.title || video.fileName}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
-            </p>
-            <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
-          </div>
-        </div>
-      ))}
+        )})}
     </div>
   );
   };

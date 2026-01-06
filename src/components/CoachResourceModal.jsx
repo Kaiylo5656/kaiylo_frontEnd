@@ -18,16 +18,27 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [isFileMissing, setIsFileMissing] = useState(false);
 
   const videoRef = useRef(null);
   const { getAuthToken } = useAuth();
+
+  const [currentVideoUrl, setCurrentVideoUrl] = useState(null);
 
   useEffect(() => {
     if (video) {
       setDescription(video.description || '');
       setVideoError(null);
       setIsVideoLoading(true);
+      setIsFileMissing(false);
+      setCurrentVideoUrl(video.video_url);
       console.log('Coach resource loaded:', video);
+      
+      // Update video source if video element exists
+      if (videoRef.current && video.video_url) {
+        videoRef.current.src = video.video_url;
+        videoRef.current.load();
+      }
       
       // Auto-hide loading after 3 seconds as fallback
       const loadingTimeout = setTimeout(() => {
@@ -105,7 +116,11 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
 
     setIsSubmitting(true);
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        alert('Erreur d\'authentification. Veuillez vous reconnecter.');
+        return;
+      }
       await axios.patch(
         buildApiUrl(`/resources/${video.id}`),
         { description: description.trim() },
@@ -143,7 +158,11 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
     }
 
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        alert('Erreur d\'authentification. Veuillez vous reconnecter.');
+        return;
+      }
       const deleteUrl = buildApiUrl(`/resources/${video.id}`);
       console.log('🗑️ Deleting resource:', {
         videoId: video.id,
@@ -217,10 +236,10 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
 
         {/* Video Container */}
         <div className="flex-shrink-0 p-4">
-          {video.video_url ? (
+          {currentVideoUrl ? (
             <VideoPlayer
               ref={videoRef}
-              src={video.video_url}
+              src={currentVideoUrl}
               onLoadedMetadata={() => {
                 const videoElement = videoRef.current;
                 if (videoElement) {
@@ -243,9 +262,75 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
                   setCurrentTime(videoElement.currentTime);
                 }
               }}
-              onError={(error) => {
+              onError={async (error) => {
                 console.error('Video error:', error);
-                setVideoError('Erreur lors du chargement de la vidéo');
+                
+                // Extract useful error info
+                let errorMessage = 'Erreur lors du chargement de la vidéo';
+                let isFileMissing = false;
+                const videoEl = videoRef.current;
+                if (videoEl && videoEl.error) {
+                  const errCode = videoEl.error.code;
+                  const errMessage = videoEl.error.message;
+                  console.error(`Video error code: ${errCode}, message: ${errMessage}`);
+                  
+                  if (errCode === 4) { // MEDIA_ERR_SRC_NOT_SUPPORTED
+                    // Check if the error message indicates file missing/deleted
+                    if (errMessage.includes('Format error') || errMessage.includes('MEDIA_ELEMENT_ERROR')) {
+                      // Try to check if the file actually exists by fetching resource status
+                      try {
+                        const token = await getAuthToken();
+                        const response = await axios.get(buildApiUrl(`/resources/coach`), {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        
+                        if (response.data.success) {
+                          const updatedResource = response.data.data.find(r => r.id === video?.id);
+                          if (updatedResource) {
+                            // Check if resource status is FAILED or if fileUrl is still the same but doesn't work
+                            if (updatedResource.status === 'FAILED') {
+                              errorMessage = 'La vidéo a échoué lors du traitement. Fichier supprimé ou corrompu.';
+                              setIsFileMissing(true);
+                            } else if (updatedResource.status === 'READY' && updatedResource.fileUrl && updatedResource.fileUrl !== currentVideoUrl) {
+                              // Resource is now ready with updated URL, reload video
+                              console.log('🔄 Resource updated, reloading with new URL:', updatedResource.fileUrl);
+                              setCurrentVideoUrl(updatedResource.fileUrl);
+                              setVideoError(null);
+                              setIsFileMissing(false);
+                              setIsVideoLoading(true);
+                              // VideoPlayer will update automatically when src changes
+                              return; // Exit early, video will try to load with new URL
+                            } else {
+                              // Same URL but still failing - file was likely deleted
+                              errorMessage = 'Le fichier vidéo a été supprimé ou n\'existe plus.';
+                              setIsFileMissing(true);
+                            }
+                          } else {
+                            // Resource not found - was deleted
+                            errorMessage = 'Cette ressource n\'existe plus dans la base de données.';
+                            setIsFileMissing(true);
+                          }
+                        }
+                      } catch (refreshError) {
+                        console.error('Failed to refresh resource:', refreshError);
+                        // Assume file is missing if we can't refresh
+                        errorMessage = 'Le fichier vidéo semble avoir été supprimé. Impossible de le charger.';
+                        setIsFileMissing(true);
+                      }
+                    } else {
+                      errorMessage = 'Format vidéo non supporté ou fichier introuvable';
+                      setIsFileMissing(true);
+                    }
+                  } else if (errCode === 3) { // MEDIA_ERR_DECODE
+                    errorMessage = 'Erreur de décodage vidéo - le fichier est peut-être corrompu';
+                    setIsFileMissing(false);
+                  } else if (errCode === 2) { // MEDIA_ERR_NETWORK
+                    errorMessage = 'Erreur réseau lors du chargement';
+                    setIsFileMissing(false);
+                  }
+                }
+                
+                setVideoError(errorMessage);
                 setIsVideoLoading(false);
               }}
               tabIndex={-1}
@@ -271,15 +356,63 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
 
           {/* Error Overlay */}
           {videoError && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="text-red-400 text-center">
-                <p>{videoError}</p>
-                <button
-                  onClick={() => setVideoError(null)}
-                  className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  Réessayer
-                </button>
+            <div className="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-10">
+              <div className="text-red-400 text-center p-6 max-w-md">
+                <div className="mb-4">
+                  <VolumeX size={48} className="mx-auto text-red-500 mb-2 opacity-80" />
+                  <h3 className="text-lg font-semibold text-white mb-1">Lecture impossible</h3>
+                </div>
+                <p className="mb-6 text-gray-300">{videoError}</p>
+                <div className="flex gap-3 justify-center">
+                  {!isFileMissing && (
+                    <button
+                      onClick={async () => {
+                        setVideoError(null);
+                        setIsVideoLoading(true);
+                        
+                        // Try to refresh resource from backend first
+                        try {
+                          const token = await getAuthToken();
+                          const response = await axios.get(buildApiUrl(`/resources/coach`), {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          
+                          if (response.data.success) {
+                            const updatedResource = response.data.data.find(r => r.id === video?.id);
+                            if (updatedResource && updatedResource.status === 'READY' && updatedResource.fileUrl) {
+                              // Resource is now ready with updated URL
+                              if (updatedResource.fileUrl !== currentVideoUrl) {
+                                setCurrentVideoUrl(updatedResource.fileUrl);
+                              }
+                            }
+                          }
+                        } catch (refreshError) {
+                          console.error('Failed to refresh resource:', refreshError);
+                        }
+                        
+                        // Reload video
+                        if (videoRef.current) {
+                          videoRef.current.load();
+                        }
+                      }}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    >
+                      Réessayer
+                    </button>
+                  )}
+                  {isFileMissing && (
+                    <button
+                      onClick={async () => {
+                        if (confirm('Le fichier vidéo a été supprimé ou n\'existe plus. Voulez-vous supprimer cette ressource de la liste ?')) {
+                          await handleDelete();
+                        }
+                      }}
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    >
+                      Supprimer cette ressource
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}

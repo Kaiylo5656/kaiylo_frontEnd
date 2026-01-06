@@ -284,11 +284,20 @@ const ExerciseTagTypeahead = ({
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Collapsed State - Show "+ Tag" affordance or selected tags */}
       {isCollapsed && (
-        <button
+        <div
           onClick={handleCollapsedClick}
-          disabled={disabled}
-          className="flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 hover:bg-[rgba(255,255,255,0.08)] transition-colors w-full text-left min-h-[40px]"
-          type="button"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleCollapsedClick();
+            }
+          }}
+          role="button"
+          tabIndex={disabled ? -1 : 0}
+          aria-disabled={disabled}
+          className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 transition-colors w-full text-left min-h-[40px] ${
+            disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[rgba(255,255,255,0.08)]'
+          }`}
         >
           {selectedTags.length > 0 ? (
             selectedTags.map((tag) => {
@@ -306,24 +315,32 @@ const ExerciseTagTypeahead = ({
                   title="Cliquez pour supprimer ce tag"
                 >
                   {tag}
-                  <button
+                  <span
                     onClick={(e) => {
                       e.stopPropagation();
                       handleTagRemove(tag);
                     }}
-                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
-                    type="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleTagRemove(tag);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 rounded"
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
-                  </button>
+                  </span>
                 </span>
               );
             })
           ) : (
             <span className="text-sm text-[rgba(255,255,255,0.25)] font-extralight">+ Tag</span>
           )}
-        </button>
+        </div>
       )}
 
       {/* Expanded State - Show input and dropdown */}
@@ -346,17 +363,25 @@ const ExerciseTagTypeahead = ({
                   title="Cliquez pour supprimer ce tag"
                 >
                   {tag}
-                  <button
+                  <span
                     onClick={(e) => {
                       e.stopPropagation();
                       handleTagRemove(tag);
                     }}
-                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
-                    type="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleTagRemove(tag);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 rounded"
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
-                  </button>
+                  </span>
                 </span>
               );
             })}

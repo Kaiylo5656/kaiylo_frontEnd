@@ -76,7 +76,11 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     // The main page handles new folder creation.
 
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('You are not authenticated. Please log in again.');
+      }
+      
       const response = await fetch(buildApiUrl('/resources'), {
         method: 'POST',
         headers: {
