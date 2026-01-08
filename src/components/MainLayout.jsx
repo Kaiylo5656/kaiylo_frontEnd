@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState } from 'react';
 import Navigation from './Navigation';
 import Header from './Header';
 import BottomNavBar from './BottomNavBar';
+import FeedbackModal from './FeedbackModal';
+import { MessageSquare } from 'lucide-react';
 import { useLocation } from 'react-router-dom'; // Import useLocation
 
 // Context to track if WorkoutSessionExecution is open
@@ -16,6 +18,7 @@ const MainLayout = ({ children }) => {
   const location = useLocation();
   const isChatPage = location.pathname.startsWith('/chat');
   const [isWorkoutSessionOpen, setIsWorkoutSessionOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   return (
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
@@ -105,6 +108,22 @@ const MainLayout = ({ children }) => {
         </main>
       </div>
       {!isWorkoutSessionOpen && <BottomNavBar />}
+      
+      {/* Bouton flottant pour ouvrir le feedback */}
+      <button
+        onClick={() => setIsFeedbackModalOpen(true)}
+        className="fixed bottom-6 right-6 bg-[#d4845a] hover:bg-[#c47850] text-white p-4 rounded-full border border-white/10 shadow-lg hover:shadow-xl transition-all z-40 flex items-center justify-center"
+        title="Signaler un problème ou envoyer un feedback"
+        style={{ zIndex: 9999 }}
+      >
+        <MessageSquare size={24} />
+      </button>
+
+      {/* Modal de feedback */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+      />
     </WorkoutSessionContext.Provider>
   );
 };
