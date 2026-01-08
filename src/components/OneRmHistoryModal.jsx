@@ -66,7 +66,7 @@ const OneRmHistoryModal = ({ isOpen, onClose, lift, studentName = '', position, 
             historyEntries.map((entry, index) => (
               <div
                 key={`${lift?.id || 'lift'}-${index}`}
-                className="flex items-center justify-between rounded-2xl bg-black/25 px-4 py-3"
+                className="flex items-center justify-between rounded-[14px] bg-black/25 px-4 py-3"
               >
                 <div className="flex flex-col">
                   <span className="text-base font-normal text-white/75">

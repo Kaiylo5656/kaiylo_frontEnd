@@ -13,7 +13,8 @@ const ExerciseDetailModal = ({
   isOpen, 
   onClose, 
   exerciseId,
-  onAddToSession
+  onAddToSession,
+  tagColorMap = null
 }) => {
   const [exercise, setExercise] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -250,7 +251,7 @@ const ExerciseDetailModal = ({
                 <div className="flex flex-wrap gap-1">
                   {exercise.tags && exercise.tags.length > 0 ? (
                     exercise.tags.map(tag => {
-                      const tagStyle = getTagColor(tag);
+                      const tagStyle = getTagColor(tag, tagColorMap);
                       return (
                         <span
                           key={tag}
@@ -262,7 +263,7 @@ const ExerciseDetailModal = ({
                       );
                     })
                   ) : (
-                    <div className="text-white/40 italic">No tags assigned</div>
+                    <div className="text-white/25 font-extralight text-sm">Aucun tag assigné</div>
                   )}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, TrendingUp, FileText, AlertTriangle, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw, Pencil } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -9,6 +9,9 @@ import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
 import OneRmModal, { DEFAULT_ONE_RM_DATA, calculateRIS } from './OneRmModal';
 import StudentProfileModal from './StudentProfileModal';
+import DeleteSessionModal from './DeleteSessionModal';
+import PublishSessionModal from './PublishSessionModal';
+import SwitchToDraftModal from './SwitchToDraftModal';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
@@ -24,6 +27,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isOneRmModalOpen, setIsOneRmModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState(null); // { sessionId, day, sessionTitle }
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
+  const [isPublishSessionModalOpen, setIsPublishSessionModalOpen] = useState(false);
+  const [sessionToPublish, setSessionToPublish] = useState(null); // { session, day }
+  const [isPublishingSession, setIsPublishingSession] = useState(false);
+  const [isSwitchToDraftModalOpen, setIsSwitchToDraftModalOpen] = useState(false);
+  const [sessionToSwitchToDraft, setSessionToSwitchToDraft] = useState(null); // { session, day }
+  const [isSwitchingToDraft, setIsSwitchingToDraft] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [draggedSession, setDraggedSession] = useState(null); // Session currently being dragged
@@ -43,6 +55,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [filterMenuOpen, setFilterMenuOpen] = useState(false); // Track if filter dropdown is open
   const [durationMenuOpen, setDurationMenuOpen] = useState(false); // Track if duration dropdown is open
   const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
+  const [closeTimeout, setCloseTimeout] = useState(null); // Timeout for closing dropdown
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
@@ -155,6 +168,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     console.log('🔄 copiedWeek state changed:', copiedWeek);
   }, [copiedWeek]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeout) {
+        clearTimeout(closeTimeout);
+      }
+    };
+  }, [closeTimeout]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -252,7 +274,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setDragOverDate(format(day, 'yyyy-MM-dd'));
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (event, day) => {
+    // Only clear dragOverDate if we're actually leaving the day container
+    // Check if we're moving to a child element
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+      return; // Still within the day container
+    }
     setDragOverDate(null);
   };
 
@@ -326,14 +354,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
-  const handlePublishDraftSession = async (session, day) => {
+  const handlePublishDraftSession = (session, day) => {
     console.log('🔍 handlePublishDraftSession called with session:', session);
     
-    if (!confirm('Êtes-vous sûr de vouloir publier cette séance brouillon ? Elle sera visible par l\'étudiant.')) {
-      return;
-    }
+    // Store session info and open modal
+    setSessionToPublish({ session, day });
+    setIsPublishSessionModalOpen(true);
+  };
 
+  const confirmPublishSession = async () => {
+    if (!sessionToPublish) return;
+
+    setIsPublishingSession(true);
     try {
+      const { session, day } = sessionToPublish;
       const token = localStorage.getItem('authToken');
       
       console.log('📤 Publishing draft session:', {
@@ -397,6 +431,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         // Rafraîchir les séances pour voir les changements
         await fetchWorkoutSessions();
         alert('Séance publiée avec succès ! Elle est maintenant visible par l\'étudiant.');
+        
+        // Close modal and reset state
+        setIsPublishSessionModalOpen(false);
+        setSessionToPublish(null);
       } else {
         throw new Error('Failed to create assignment');
       }
@@ -415,16 +453,35 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       } else {
         alert(`Erreur lors de la publication de la séance: ${error.response?.data?.message || error.message}`);
       }
+    } finally {
+      setIsPublishingSession(false);
     }
   };
 
-  const handleDeleteSession = async (sessionId, day) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette séance ?')) {
-      return;
-    }
+  const handleDeleteSession = (sessionId, day) => {
+    // Find the session to get its title
+    const session = Object.values(workoutSessions)
+      .flat()
+      .find(s => 
+        (s.assignmentId === sessionId) || (s.id === sessionId && s.status === 'draft')
+      );
+    
+    // Store session info and open modal
+    setSessionToDelete({
+      sessionId,
+      day,
+      sessionTitle: session?.title || null
+    });
+    setIsDeleteSessionModalOpen(true);
+  };
 
+  const confirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+
+    setIsDeletingSession(true);
     try {
       const token = localStorage.getItem('authToken');
+      const { sessionId, day } = sessionToDelete;
       
       // Check if this is a draft session (no assignment) or a regular assignment
       const session = Object.values(workoutSessions)
@@ -464,9 +521,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           throw new Error('Failed to delete session');
         }
       }
+      
+      // Close modal and reset state
+      setIsDeleteSessionModalOpen(false);
+      setSessionToDelete(null);
     } catch (error) {
       console.error('Error deleting session:', error);
       alert('Erreur lors de la suppression de la séance. Veuillez réessayer.');
+    } finally {
+      setIsDeletingSession(false);
     }
   };
 
@@ -1018,12 +1081,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Handle switching session to draft mode
-  const handleSwitchToDraft = async (session, day) => {
-    if (!confirm('Êtes-vous sûr de vouloir passer cette séance en mode brouillon ? Elle ne sera plus visible par l\'étudiant.')) {
-      return;
-    }
+  const handleSwitchToDraft = (session, day) => {
+    // Store session info and open modal
+    setSessionToSwitchToDraft({ session, day });
+    setIsSwitchToDraftModalOpen(true);
+  };
 
+  const confirmSwitchToDraft = async () => {
+    if (!sessionToSwitchToDraft) return;
+
+    setIsSwitchingToDraft(true);
     try {
+      const { session, day } = sessionToSwitchToDraft;
       const token = localStorage.getItem('authToken');
       
       // First, check if the session exists in the database
@@ -1072,6 +1141,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Refresh sessions
       await fetchWorkoutSessions();
       alert('Séance passée en mode brouillon avec succès !');
+      
+      // Close modal and reset state
+      setIsSwitchToDraftModalOpen(false);
+      setSessionToSwitchToDraft(null);
     } catch (error) {
       console.error('Error switching to draft:', error);
       console.error('Error details:', {
@@ -1086,6 +1159,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       } else {
         alert(`Erreur lors du passage en mode brouillon: ${error.response?.data?.message || error.message}`);
       }
+    } finally {
+      setIsSwitchingToDraft(false);
     }
   };
 
@@ -1095,7 +1170,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Deep clone to avoid mutating original reference
       const sessionClone = JSON.parse(JSON.stringify(session));
       setCopiedSession({ session: sessionClone, fromDate: format(day, 'yyyy-MM-dd') });
-      alert('Séance copiée ! Survolez un jour et cliquez sur "Coller" pour la dupliquer.');
     } catch (error) {
       console.error('Error copying session:', error);
       alert('Erreur lors de la copie de la séance');
@@ -1138,19 +1212,50 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
-  // Toggle dropdown menu for session
-  const toggleDropdown = (sessionId, dateKey, event) => {
+  // Open dropdown menu for session on hover
+  const openDropdown = (sessionId, dateKey, event) => {
+    // Clear any pending close timeout
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      setCloseTimeout(null);
+    }
+    
     const dropdownKey = `${sessionId}-${dateKey}`;
-    setDropdownOpen(dropdownOpen === dropdownKey ? null : dropdownKey);
+    setDropdownOpen(dropdownKey);
     
     // Store button position for dropdown positioning
-    if (event && event.target) {
-      const rect = event.target.getBoundingClientRect();
+    if (event && event.currentTarget) {
+      const button = event.currentTarget;
+      const rect = button.getBoundingClientRect();
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 5,
-        left: rect.right + window.scrollX - 190, // Position dropdown just to the left of the button (since it's 180px wide)
-        right: rect.right + window.scrollX
+        top: rect.bottom + 2, // Reduced gap for easier mouse movement
+        right: window.innerWidth - rect.right - 14 // Align right edge of menu with right edge of button, shifted 14px to the right
       });
+    }
+  };
+
+  // Close dropdown menu with delay
+  const closeDropdown = () => {
+    // Clear any existing timeout
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+    }
+    
+    // Set a timeout to close the menu after a short delay
+    const timeout = setTimeout(() => {
+      setDropdownOpen(null);
+      setDropdownPosition(null);
+      setCloseTimeout(null);
+    }, 150); // 150ms delay to allow moving mouse to menu
+    
+    setCloseTimeout(timeout);
+  };
+
+  // Keep dropdown open (cancel close)
+  const keepDropdownOpen = () => {
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      setCloseTimeout(null);
     }
   };
 
@@ -2210,11 +2315,23 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${unit}`;
   };
 
-  const renderOverviewDayContent = (dayDate, dayKey) => {
+  const renderOverviewDayContent = (dayDate, dayKey, isDropTarget = false, draggedSession = null) => {
     const sessions = workoutSessions[dayKey] || [];
+    const hasMultipleSessions = sessions.length > 1;
+    const hasMoreThanTwoSessions = sessions.length > 2;
 
     const sessionList = sessions.length > 0 ? (
-      <div className="session-container space-y-2" style={{ height: '220px', overflowY: 'auto' }}>
+      <div 
+        className={`session-container flex flex-col gap-2 transition-all duration-300 ease-out relative`}
+        style={{ 
+          height: '220px', 
+          overflowY: hasMoreThanTwoSessions ? 'auto' : 'hidden',
+          backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
+          borderRadius: '0.75rem',
+          padding: isDropTarget ? '4px' : '0',
+          transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
+        }}
+      >
         {sessions.map((session, sessionIndex) => {
           const canDrag = session.status === 'draft' || session.status === 'assigned';
           const dropdownKey = `${session.id || session.assignmentId}-${dayKey}`;
@@ -2223,11 +2340,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           return (
             <div
               key={session.id || sessionIndex}
-              className={`rounded transition-colors ${
+              className={`rounded-xl transition-all duration-200 ${hasMultipleSessions && !hasMoreThanTwoSessions ? '' : hasMoreThanTwoSessions ? 'flex-shrink-0' : 'h-full'} flex flex-col ${
                 session.status === 'draft'
-                  ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
-                  : 'bg-[#262626] border border-transparent hover:bg-[#2a2a2a]'
-              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                  ? 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
+                  : 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
+                draggedSession && draggedSession.id === (session.id || session.assignmentId) ? 'opacity-50 scale-95' : ''
+              }`}
               draggable
               onDragStart={(event) => handleSessionDragStart(event, session, dayDate)}
               onDragEnd={handleSessionDragEnd}
@@ -2236,38 +2355,42 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 handleSessionClick(session, dayDate);
               }}
             >
-              <div className="p-2 space-y-2">
+              <div className={`${hasMoreThanTwoSessions ? 'pt-2 pb-2 px-2' : 'pt-3 pb-3 px-3'} space-y-2 flex-1 flex flex-col overflow-visible`} style={{ width: '100%' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <span className="truncate text-[11px] font-light">{session.title || 'Séance'}</span>
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      {session.status === 'in_progress' && <PlayCircle className="h-3 w-3 text-[#d4845a]" />}
-                      {session.status === 'completed' && <CheckCircle className="h-3 w-3 text-[#22c55e]" />}
-                      {session.status === 'draft' && <EyeOff className="h-3 w-3 text-white/50" />}
-                      {session.status === 'assigned' && <Clock className="h-3 w-3 text-[#3b82f6]" />}
-                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`${hasMoreThanTwoSessions ? 'w-3 h-3' : 'w-3.5 h-3.5'} flex-shrink-0`} style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                      <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
+                    </svg>
+                    <span className={`truncate ${hasMoreThanTwoSessions ? 'text-[12px]' : 'text-[14px]'} font-normal`} style={{ color: 'var(--kaiylo-primary-hex)' }}>{session.title || 'Séance'}</span>
                   </div>
 
                   {(session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed' ? (
-                    <div className="relative dropdown-container flex-shrink-0">
+                    <div className="h-full flex items-center relative overflow-visible">
                       <button
-                        onClick={(e) => {
+                        onMouseEnter={(e) => {
                           e.stopPropagation();
-                          toggleDropdown(session.id || session.assignmentId, dayKey, e);
+                          openDropdown(session.id || session.assignmentId, dayKey, e);
                         }}
-                        className="text-white/50 hover:text-white transition-colors"
+                        onMouseLeave={closeDropdown}
+                        className="text-white/50 hover:text-white transition-colors flex items-center justify-center"
                         title="Options de la séance"
                       >
-                        <MoreHorizontal className="h-3 w-3" />
+                        <MoreHorizontal className="h-[14px] w-[14px]" />
                       </button>
 
                       {dropdownOpen === dropdownKey && (
                         <div
-                          className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
+                          onMouseEnter={keepDropdownOpen}
+                          onMouseLeave={closeDropdown}
+                          className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
                           style={{
+                            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                            backdropFilter: 'blur(10px)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
                             top: dropdownPosition?.top || 0,
-                            left: dropdownPosition?.left || 0,
-                            transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
+                            right: dropdownPosition?.right || 0
                           }}
                         >
                           {session.status === 'completed' ? (
@@ -2275,13 +2398,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDropdownOpen(null);
-                                setDropdownPosition(null);
+                                closeDropdown();
                                 handleCopySession(session, dayDate);
                               }}
-                              className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-lg"
+                              className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
                             >
-                              <Copy className="h-4 w-4" />
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                              </svg>
                               Copier
                             </button>
                           ) : (
@@ -2290,11 +2414,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setDropdownOpen(null);
-                                    setDropdownPosition(null);
+                                    closeDropdown();
                                     handlePublishDraftSession(session, dayDate);
                                   }}
-                                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                                  className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
                                 >
                                   <Eye className="h-4 w-4" />
                                   Publier la séance
@@ -2303,13 +2426,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setDropdownOpen(null);
-                                    setDropdownPosition(null);
+                                    closeDropdown();
                                     handleSwitchToDraft(session, dayDate);
                                   }}
-                                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                                  className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
                                 >
-                                  <EyeOff className="h-4 w-4" />
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                    <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L504.5 470.8C507.2 468.4 509.9 466 512.5 463.6C559.3 420.1 590.6 368.2 605.5 332.5C608.8 324.6 608.8 315.8 605.5 307.9C590.6 272.2 559.3 220.2 512.5 176.8C465.4 133.1 400.7 96.2 319.9 96.2C263.1 96.2 214.3 114.4 173.9 140.4L73 39.1zM236.5 202.7C260 185.9 288.9 176 320 176C399.5 176 464 240.5 464 320C464 351.1 454.1 379.9 437.3 403.5L402.6 368.8C415.3 347.4 419.6 321.1 412.7 295.1C399 243.9 346.3 213.5 295.1 227.2C286.5 229.5 278.4 232.9 271.1 237.2L236.4 202.5zM357.3 459.1C345.4 462.3 332.9 464 320 464C240.5 464 176 399.5 176 320C176 307.1 177.7 294.6 180.9 282.7L101.4 203.2C68.8 240 46.4 279 34.5 307.7C31.2 315.6 31.2 324.4 34.5 332.3C49.4 368 80.7 420 127.5 463.4C174.6 507.1 239.3 544 320.1 544C357.4 544 391.3 536.1 421.6 523.4L357.4 459.2z"/>
+                                  </svg>
                                   Passer en mode brouillon
                                 </button>
                               )}
@@ -2317,26 +2441,28 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDropdownOpen(null);
-                                  setDropdownPosition(null);
+                                  closeDropdown();
                                   handleCopySession(session, dayDate);
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2"
                               >
-                                <Copy className="h-4 w-4" />
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                  <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                                </svg>
                                 Copier
                               </button>
 
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDropdownOpen(null);
-                                  setDropdownPosition(null);
+                                  closeDropdown();
                                   handleDeleteSession(session.assignmentId || session.id, dayDate);
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
+                                className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                  <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                                </svg>
                                 Supprimer
                               </button>
                             </>
@@ -2347,42 +2473,159 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   ) : null}
                 </div>
 
-                <div className="space-y-1">
-                  {exercises.slice(0, 3).map((exercise, index) => (
-                    <div key={index} className="text-[11px] text-white/75 truncate">
-                      {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'} {exercise.name}{' '}
-                      {exercise.sets?.[0]?.weight ? `@${exercise.sets[0].weight}kg` : ''}
+                {/* Ligne du nombre d'exercices pour les séances compactées */}
+                {(hasMultipleSessions || hasMoreThanTwoSessions) && (
+                  <>
+                    <div className="border-b border-white/10 mb-2"></div>
+                    <div className="flex items-center justify-between text-[11px] text-white/75">
+                      <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
                     </div>
-                  ))}
-                  {exercises.length > 3 && (
-                    <div className="text-[10px] text-white/50">+ {exercises.length - 3} exercices</div>
-                  )}
-                </div>
+                  </>
+                )}
 
-                <div className="flex items-center justify-between border-t border-[#3a3a3a] pt-2 text-[11px]">
-                  <span
-                    className={`px-2 py-0.5 rounded-full font-light ${
-                      session.status === 'completed'
-                        ? 'bg-[#22c55e] text-white'
+                {!hasMultipleSessions && (
+                  <>
+                    <div className="border-b border-white/10 mb-2"></div>
+
+                    <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
+                      {exercises.map((exercise, index) => {
+                        // Déterminer la couleur du nombre de séries basée sur les statuts de validation
+                        const getSetsColor = () => {
+                          // Seulement pour les séances terminées
+                          if (session.status !== 'completed') return null;
+                          
+                          if (!exercise.sets || exercise.sets.length === 0) return null;
+                          
+                          // Vérifier les statuts de validation de toutes les séries
+                          const hasFailed = exercise.sets.some(set => set.validation_status === 'failed');
+                          const allCompleted = exercise.sets.every(set => set.validation_status === 'completed');
+                          
+                          if (hasFailed) return 'text-red-500'; // Rouge si au moins une série est en échec
+                          if (allCompleted) return 'text-[#2FA064]'; // Vert si toutes les séries sont validées
+                          
+                          return null; // Couleur par défaut si pas toutes les séries sont validées
+                        };
+                        
+                        const setsColor = getSetsColor();
+                        const isCompleted = setsColor === 'text-[#2FA064]';
+                        const isFailed = setsColor === 'text-red-500';
+                        
+                        return (
+                          <div key={index} className="text-[11px] text-white truncate font-extralight">
+                            <span className={`${setsColor || ''} ${isCompleted || isFailed ? 'font-normal' : ''}`}>
+                              {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
+                            </span>
+                            {' '}
+                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center justify-between pt-0 text-[11px]">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1.5 ${
+                        session.status === 'completed'
+                          ? 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20'
+                          : session.status === 'in_progress'
+                          ? 'bg-[#d4845a] text-white'
+                          : session.status === 'draft'
+                          ? 'bg-[#686762] text-white'
+                          : session.status === 'assigned'
+                          ? 'bg-[#3B6591] text-white'
+                          : 'bg-gray-600 text-gray-200'
+                      }`}
+                    >
+                      {session.status === 'completed' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#2FA064]"></span>
+                      )}
+                      {session.status === 'assigned' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#5B85B1]"></span>
+                      )}
+                      {session.status === 'draft' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#4a4a47]"></span>
+                      )}
+                      {session.status === 'completed'
+                        ? 'Terminé'
                         : session.status === 'in_progress'
-                        ? 'bg-[#d4845a] text-white'
+                        ? 'En cours'
                         : session.status === 'draft'
-                        ? 'bg-gray-500 text-white'
+                        ? 'Brouillon'
                         : session.status === 'assigned'
-                        ? 'bg-[#3b82f6] text-white'
-                        : 'bg-gray-600 text-gray-200'
-                    }`}
-                  >
-                    {session.status === 'completed'
-                      ? 'Terminé'
-                      : session.status === 'in_progress'
-                      ? 'En cours'
-                      : session.status === 'draft'
-                      ? 'Brouillon'
-                      : session.status === 'assigned'
-                      ? 'Assigné'
-                      : 'Pas commencé'}
-                  </span>
+                        ? 'Assigné'
+                        : 'Pas commencé'}
+                    </span>
+                    {session.status === 'completed' && (
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 640 640" 
+                        className="w-4 h-4"
+                        style={{ fill: '#2FA064' }}
+                      >
+                        <path d="M535.1 342.6C547.6 330.1 547.6 309.8 535.1 297.3L375.1 137.3C362.6 124.8 342.3 124.8 329.8 137.3C317.3 149.8 317.3 170.1 329.8 182.6L467.2 320L329.9 457.4C317.4 469.9 317.4 490.2 329.9 502.7C342.4 515.2 362.7 515.2 375.2 502.7L535.2 342.7zM183.1 502.6L343.1 342.6C355.6 330.1 355.6 309.8 343.1 297.3L183.1 137.3C170.6 124.8 150.3 124.8 137.8 137.3C125.3 149.8 125.3 170.1 137.8 182.6L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7z"/>
+                      </svg>
+                    )}
+
+                    {/* Difficulty indicator - Only show for completed sessions with difficulty */}
+                    {session.status === 'completed' && session.difficulty && (
+                      <svg 
+                        className={`${
+                          session.difficulty.toLowerCase() === 'facile'
+                            ? 'text-[#2FA064]'
+                            : session.difficulty.toLowerCase() === 'moyen'
+                            ? 'text-[#d4845a]'
+                            : session.difficulty.toLowerCase() === 'difficile'
+                            ? 'text-[#ef4444]'
+                            : 'text-gray-500'
+                        }`}
+                        width="20"
+                        height="20"
+                        fill="currentColor" 
+                        viewBox="0 0 640 640"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576zM438 209.7C427.3 201.9 412.3 204.3 404.5 215L285.1 379.2L233 327.1C223.6 317.7 208.4 317.7 199.1 327.1C189.8 336.5 189.7 351.7 199.1 361L271.1 433C276.1 438 282.9 440.5 289.9 440C296.9 439.5 303.3 435.9 307.4 430.2L443.3 243.2C451.1 232.5 448.7 217.5 438 209.7z"/>
+                      </svg>
+                    )}
+
+                    {/* Difficulty Indicator - Only show for completed sessions */}
+                    {/* Temporarily disabled - to be reworked later
+                    {session.status === 'completed' && session.difficulty && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-light text-[10px] flex items-center gap-1 ${
+                          session.difficulty.toLowerCase() === 'facile'
+                            ? 'bg-[#2FA064]/20 text-[#2FA064] border border-[#2FA064]/30'
+                            :                           session.difficulty.toLowerCase() === 'moyen'
+                            ? 'text-[#d4845a]'
+                            : session.difficulty.toLowerCase() === 'difficile'
+                            ? 'bg-[#ef4444]/20 text-[#ef4444] border border-[#ef4444]/30'
+                            : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                        }`}
+                        title={`Difficulté: ${session.difficulty}`}
+                      >
+                        {session.difficulty.toLowerCase() === 'facile' && (
+                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {session.difficulty.toLowerCase() === 'moyen' && (
+                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {session.difficulty.toLowerCase() === 'difficile' && (
+                          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {session.difficulty.toLowerCase() !== 'moyen' && session.difficulty}
+                      </span>
+                    )}
+                    */}
+                  </div>
 
                   {session.startTime && (
                     <span className="text-gray-400">
@@ -2396,25 +2639,128 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         })}
       </div>
     ) : (
-      <div className="flex-1" />
+      <div 
+        className={`flex-1 transition-all duration-300 ease-out relative`}
+        style={{
+          backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
+          borderRadius: '0.75rem',
+          minHeight: '220px',
+          transition: 'background-color 0.2s ease-out'
+        }}
+      />
     );
 
     return (
       <>
         {sessionList}
+        {isDropTarget && draggedSession && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" style={{ top: '40px', bottom: '0' }}>
+            <div className="bg-[#d4845a] bg-opacity-25 text-[#d4845a] px-3 py-1.5 rounded-lg text-xs font-medium shadow-md" style={{ fontWeight: 500 }}>
+              Déposer ici
+            </div>
+          </div>
+        )}
         {copiedSession && hoveredPasteDate === dayKey && !draggedSession && (
-          <button
-            className={`absolute left-1/2 bottom-4 -translate-x-1/2 px-5 py-2 rounded-lg text-sm shadow-lg transition-colors ${
-              isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-[#2563eb]'
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePasteCopiedSession(dayDate);
-            }}
-            disabled={isPastingSession}
-          >
-            {isPastingSession ? 'Collage…' : 'Coller'}
-          </button>
+          <>
+            {/* Overlay avec blur et assombrissement si des séances existent */}
+            {sessions.length > 0 && (
+              <div 
+                className="absolute inset-0 pointer-events-none z-10 rounded-xl"
+                style={{
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  transition: 'opacity 0.3s ease-out'
+                }}
+              />
+            )}
+            {/* Preview de la séance copiée - même style que le drag */}
+            <div className="absolute inset-0 pointer-events-none z-20">
+              <div className="session-container flex flex-col gap-2 transition-all duration-300 ease-out relative" style={{ height: '220px', overflowY: 'hidden' }}>
+                <div className="rounded-xl transition-all duration-200 h-full flex flex-col bg-[rgba(255,255,255,0.05)] opacity-50 scale-95">
+                  <div className="pt-3 pb-3 px-3 space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                          <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
+                        </svg>
+                        <span className="text-[14px] font-normal truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>{copiedSession.session.title || 'Séance'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="border-b border-white/10 mb-2"></div>
+                    
+                    <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
+                      {copiedSession.session.exercises?.slice(0, 3).map((exercise, index) => (
+                        <div key={index} className="text-[11px] text-white truncate font-extralight">
+                          <span className="font-light text-white/75">
+                            {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
+                          </span>
+                          {' '}
+                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                        </div>
+                      ))}
+                      {copiedSession.session.exercises?.length > 3 && (
+                        <div className="text-[11px] text-white/50 font-extralight">
+                          + {copiedSession.session.exercises.length - 3} exercice{(copiedSession.session.exercises.length - 3) > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Boutons Coller et Annuler avec animation */}
+            <div 
+              className="absolute left-1/2 bottom-4 -translate-x-1/2 flex flex-col items-center gap-2 z-10 w-[120px]"
+              style={{
+                animation: 'slideUpFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+              }}
+            >
+              <button
+                className={`w-full px-5 py-2 rounded-lg text-sm shadow-lg ${
+                  isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
+                }`}
+                style={{
+                  transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePasteCopiedSession(dayDate);
+                }}
+                disabled={isPastingSession}
+                onMouseEnter={(e) => {
+                  if (!isPastingSession) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                {isPastingSession ? 'Collage…' : 'Coller'}
+              </button>
+              <button
+                className="w-full px-5 py-2 rounded-lg text-sm shadow-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                style={{
+                  transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCopiedSession(null);
+                  setHoveredPasteDate(null);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                Annuler
+              </button>
+            </div>
+          </>
         )}
       </>
     );
@@ -2432,13 +2778,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           return (
             <div
               key={session.id || sessionIndex}
-              className={`rounded transition-colors ${
+              className={`rounded transition-all duration-200 ${
                 session.status === 'draft'
-                  ? 'bg-[#3a3a3a] border-l-2 border-dashed border-gray-500 hover:bg-[#4a4a4a]'
+                  ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
                   : session.status === 'assigned'
                   ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
                   : 'bg-[#262626] border-l-2 border-[#d4845a] hover:bg-[#2a2a2a]'
-              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-1.5' : 'p-1'}`}
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-1.5' : 'p-1'} ${
+                draggedSession && draggedSession.id === (session.id || session.assignmentId) ? 'opacity-50 scale-95' : ''
+              }`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSessionClick(session, day);
@@ -2466,35 +2814,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </div>
                 </div>
                 {session.status !== 'completed' && session.status !== 'in_progress' && (
-                  <div className="relative ml-2 dropdown-container flex-shrink-0">
+                  <div className="relative ml-2 dropdown-container flex-shrink-0 overflow-visible">
                     <button
-                      onClick={(e) => {
+                      onMouseEnter={(e) => {
                         e.stopPropagation();
-                        toggleDropdown(session.id || session.assignmentId, dateKey, e);
+                        openDropdown(session.id || session.assignmentId, dateKey, e);
                       }}
-                      className="text-white/50 hover:text-white transition-colors"
+                      onMouseLeave={closeDropdown}
+                      className="text-white/50 hover:text-white transition-colors flex items-center justify-center"
                       title="Options de la séance"
                     >
                       <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
                     </button>
                     {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
                       <div
-                        className="fixed bg-[#262626] border border-[#404040] rounded-lg shadow-lg z-[9999] min-w-[180px]"
+                        onMouseEnter={keepDropdownOpen}
+                        onMouseLeave={closeDropdown}
+                        className="fixed rounded-lg shadow-2xl z-[9999] min-w-[180px]"
                         style={{
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(10px)',
+                          borderColor: 'rgba(255, 255, 255, 0.1)',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
                           top: dropdownPosition?.top || 0,
-                          left: dropdownPosition?.left || 0,
-                          transform: dropdownPosition?.right > window.innerWidth - 50 ? 'translateX(-100%)' : 'none'
+                          right: dropdownPosition?.right || 0
                         }}
                       >
                         {session.status === 'draft' ? (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDropdownOpen(null);
-                              setDropdownPosition(null);
+                              closeDropdown();
                               handlePublishDraftSession(session, day);
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                            className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
                           >
                             <Eye className="h-4 w-4" />
                             Publier la séance
@@ -2503,38 +2857,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDropdownOpen(null);
-                              setDropdownPosition(null);
+                              closeDropdown();
                               handleSwitchToDraft(session, day);
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2 rounded-t-lg"
+                            className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
                           >
-                            <EyeOff className="h-4 w-4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                              <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L504.5 470.8C507.2 468.4 509.9 466 512.5 463.6C559.3 420.1 590.6 368.2 605.5 332.5C608.8 324.6 608.8 315.8 605.5 307.9C590.6 272.2 559.3 220.2 512.5 176.8C465.4 133.1 400.7 96.2 319.9 96.2C263.1 96.2 214.3 114.4 173.9 140.4L73 39.1zM236.5 202.7C260 185.9 288.9 176 320 176C399.5 176 464 240.5 464 320C464 351.1 454.1 379.9 437.3 403.5L402.6 368.8C415.3 347.4 419.6 321.1 412.7 295.1C399 243.9 346.3 213.5 295.1 227.2C286.5 229.5 278.4 232.9 271.1 237.2L236.4 202.5zM357.3 459.1C345.4 462.3 332.9 464 320 464C240.5 464 176 399.5 176 320C176 307.1 177.7 294.6 180.9 282.7L101.4 203.2C68.8 240 46.4 279 34.5 307.7C31.2 315.6 31.2 324.4 34.5 332.3C49.4 368 80.7 420 127.5 463.4C174.6 507.1 239.3 544 320.1 544C357.4 544 391.3 536.1 421.6 523.4L357.4 459.2z"/>
+                            </svg>
                             Passer en mode brouillon
                           </button>
                         )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDropdownOpen(null);
-                            setDropdownPosition(null);
+                            closeDropdown();
                             handleCopySession(session, day);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-white hover:bg-[#404040] flex items-center gap-2"
+                          className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2"
                         >
-                          <Copy className="h-4 w-4" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                            <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                          </svg>
                           Copier
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDropdownOpen(null);
-                            setDropdownPosition(null);
+                            closeDropdown();
                             handleDeleteSession(session.assignmentId || session.id, day);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-[#404040] flex items-center gap-2 rounded-b-lg"
+                          className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                            <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                          </svg>
                           Supprimer
                         </button>
                       </div>
@@ -2557,18 +2914,106 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       <>
         {sessionList}
         {copiedSession && hoveredPasteDate === dateKey && !draggedSession && (
-          <button
-            className={`absolute left-1/2 bottom-3 -translate-x-1/2 px-3 py-1.5 rounded-lg text-xs shadow-lg transition-colors ${
-              isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[#3b82f6] text-white hover:bg-[#2563eb]'
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePasteCopiedSession(day);
-            }}
-            disabled={isPastingSession}
-          >
-            {isPastingSession ? 'Collage…' : 'Coller'}
-          </button>
+          <>
+            {/* Overlay avec blur et assombrissement si des séances existent */}
+            {sessions.length > 0 && (
+              <div 
+                className="absolute inset-0 pointer-events-none z-10 rounded-lg"
+                style={{
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  transition: 'opacity 0.3s ease-out'
+                }}
+              />
+            )}
+            {/* Preview de la séance copiée - même style que le drag */}
+            <div className="absolute inset-0 pointer-events-none z-20">
+              <div className="flex-1 space-y-1 overflow-y-auto">
+                <div className="rounded-lg transition-all duration-200 flex-shrink-0 flex flex-col bg-[rgba(255,255,255,0.05)] opacity-50 scale-95">
+                  <div className="pt-2 pb-2 px-2 space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                          <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
+                        </svg>
+                        <span className="text-[12px] font-normal truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>{copiedSession.session.title || 'Séance'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="border-b border-white/10 mb-1"></div>
+                    
+                    <div className="flex flex-col gap-1 flex-1">
+                      {copiedSession.session.exercises?.slice(0, 2).map((exercise, index) => (
+                        <div key={index} className="text-[10px] text-white truncate font-extralight">
+                          <span className="font-light text-white/75">
+                            {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
+                          </span>
+                          {' '}
+                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                        </div>
+                      ))}
+                      {copiedSession.session.exercises?.length > 2 && (
+                        <div className="text-[10px] text-white/50 font-extralight">
+                          + {copiedSession.session.exercises.length - 2} ex.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Boutons Coller et Annuler avec animation */}
+            <div 
+              className="absolute left-1/2 bottom-3 -translate-x-1/2 flex flex-col items-center gap-2 z-10 w-[100px]"
+              style={{
+                animation: 'slideUpFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+              }}
+            >
+              <button
+                className={`w-full px-3 py-1.5 rounded-lg text-xs shadow-lg ${
+                  isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
+                }`}
+                style={{
+                  transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePasteCopiedSession(day);
+                }}
+                disabled={isPastingSession}
+                onMouseEnter={(e) => {
+                  if (!isPastingSession) {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                {isPastingSession ? 'Collage…' : 'Coller'}
+              </button>
+              <button
+                className="w-full px-3 py-1.5 rounded-lg text-xs shadow-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-white/20"
+                style={{
+                  transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCopiedSession(null);
+                  setHoveredPasteDate(null);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                Annuler
+              </button>
+            </div>
+          </>
         )}
       </>
     );
@@ -2682,7 +3127,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       </div>
 
       {/* Main Content */}
-      <div className="p-4">
+      <div className="p-4 pb-0" style={{ overflowX: 'hidden' }}>
         {activeTab === 'overview' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3 mb-3">
@@ -2690,17 +3135,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               <div 
                 className="bg-white/5 rounded-2xl px-2 py-3 cursor-pointer hover:bg-white/10 transition-colors border border-white/10"
                 onClick={() => {
-                  // Charger les valeurs actuelles depuis studentData pour qu'elles correspondent exactement à l'affichage
-                  if (studentData) {
-                    setBlockNumber(studentData.block_number !== undefined && studentData.block_number !== null ? studentData.block_number : 3);
-                    setTotalBlocks(studentData.total_blocks !== undefined && studentData.total_blocks !== null ? studentData.total_blocks : 3);
-                    setBlockName(studentData.block_name || 'Prépa Force');
-                  } else {
-                    // Valeurs par défaut si studentData n'est pas encore chargé
-                    setBlockNumber(3);
-                    setTotalBlocks(3);
-                    setBlockName('Prépa Force');
-                  }
+                  // Utiliser exactement la même logique que l'affichage pour charger les valeurs
+                  const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
+                  const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
+                  const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
+                  const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
+                  
+                  // Charger les valeurs calculées dans la modale
+                  setBlockNumber(displayBlockNumber);
+                  setTotalBlocks(displayTotalBlocks);
+                  setBlockName(displayBlockName);
                   setIsBlockEditModalOpen(true);
                 }}
               >
@@ -2785,18 +3229,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
               {/* 1RM Stats Card */}
               <div 
-                className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
+                className="bg-white/5 rounded-2xl pt-4 px-4 pb-2 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
                 onClick={() => setIsOneRmModalOpen(true)}
               >
                 <div className="mb-2 border-b border-white/10">
-                  <h3 className="text-sm font-light pb-[8px] flex items-center gap-[10px] text-white/75">
+                  <h3 className="text-sm font-medium pb-[8px] flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 opacity-75" fill="currentColor">
                       <path d="M144.3 0l224 0c26.5 0 48.1 21.8 47.1 48.2-.2 5.3-.4 10.6-.7 15.8l49.6 0c26.1 0 49.1 21.6 47.1 49.8-7.5 103.7-60.5 160.7-118 190.5-15.8 8.2-31.9 14.3-47.2 18.8-20.2 28.6-41.2 43.7-57.9 51.8l0 73.1 64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-192 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0 0-73.1c-16-7.7-35.9-22-55.3-48.3-18.4-4.8-38.4-12.1-57.9-23.1-54.1-30.3-102.9-87.4-109.9-189.9-1.9-28.1 21-49.7 47.1-49.7l49.6 0c-.3-5.2-.5-10.4-.7-15.8-1-26.5 20.6-48.2 47.1-48.2zM101.5 112l-52.4 0c6.2 84.7 45.1 127.1 85.2 149.6-14.4-37.3-26.3-86-32.8-149.6zM380 256.8c40.5-23.8 77.1-66.1 83.3-144.8L411 112c-6.2 60.9-17.4 108.2-31 144.8z"/>
                     </svg>
                     1 RM actuel
                   </h3>
                 </div>
-                <div className="flex flex-nowrap gap-2 pt-2 overflow-x-auto -mx-4 px-4 onerm-scrollbar">
+                <div className="flex flex-nowrap gap-2 pt-2 pb-2 overflow-x-auto -mx-4 px-4 onerm-scrollbar">
                   {oneRmRecords.map((record) => (
                     <div key={record.id} className="w-[84px] flex-shrink-0 p-3 bg-[rgba(0,0,0,0.35)] rounded-lg text-white">
                       <div className="flex items-center gap-1">
@@ -2844,11 +3288,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
               {/* Profile Card */}
               <div 
-                className="bg-white/5 rounded-2xl p-4 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
+                className="bg-white/5 rounded-2xl pt-4 px-4 pb-2 cursor-pointer hover:bg-white/10 transition-colors overflow-hidden border border-white/10"
                 onClick={() => setIsProfileModalOpen(true)}
               >
                 <div className="mb-2 border-b border-white/10">
-                  <h3 className="text-sm font-light pb-[8px] flex items-center justify-between text-white/75">
+                  <h3 className="text-sm font-medium pb-[8px] flex items-center justify-between text-[#d4845a]" style={{ fontWeight: 400 }}>
                     <div className="flex items-center gap-[10px]">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 opacity-75" fill="currentColor">
                         <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512H418.3c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304H178.3z"/>
@@ -2919,38 +3363,39 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       )}
                     </div>
                   ) : (
-                    <div className="text-[10px] text-white/50 font-extralight pt-0.5">Aucune information de profil</div>
+                    <div className="text-[10px] text-white/50 font-extralight pt-0.5 text-center">Aucune information de profil</div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div>
-              {/* Week Navigation with Day Labels */}
-              <div className="flex items-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
-                <button
-                  onClick={() => changeOverviewWeek('prev')}
-                  className="flex items-center transition-colors text-white/75 hover:text-white mr-auto"
-                >
-                  <ChevronLeft className="h-[18px] w-[18px]" />
-                </button>
-                <div className="grid grid-cols-7 gap-3 flex-1">
-                  {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((dayLabel) => (
-                    <div key={dayLabel} className="text-center">
-                      <span className="text-[12px] text-white/75 font-extralight">{dayLabel}</span>
-                    </div>
-                  ))}
+            <div className="overflow-x-auto planning-scrollbar">
+              <div style={{ minWidth: '1203px', paddingRight: '0px' }}>
+                {/* Week Navigation with Day Labels */}
+                <div className="flex items-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px', paddingBottom: '0px' }}>
+                  <button
+                    onClick={() => changeOverviewWeek('prev')}
+                    className="flex items-center transition-colors text-white/75 hover:text-white mr-auto"
+                  >
+                    <ChevronLeft className="h-[18px] w-[18px]" />
+                  </button>
+                  <div className="grid grid-cols-7 flex-1" style={{ gap: '8px' }}>
+                    {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((dayLabel) => (
+                      <div key={dayLabel} className="text-center">
+                        <span className="text-[12px] text-white/75 font-extralight">{dayLabel}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => changeOverviewWeek('next')}
+                    className="flex items-center transition-colors text-white/75 hover:text-white ml-auto"
+                  >
+                    <ChevronRight className="h-[18px] w-[18px]" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => changeOverviewWeek('next')}
-                  className="flex items-center transition-colors text-white/75 hover:text-white ml-auto"
-                >
-                  <ChevronRight className="h-[18px] w-[18px]" />
-                </button>
-              </div>
 
-              {/* Weekly Schedule */}
-              <div className="grid grid-cols-7 gap-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '12px', paddingRight: '12px' }}>
+                {/* Weekly Schedule */}
+                <div className="grid grid-cols-7 gap-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '8px', paddingRight: '8px', marginBottom: '4px' }}>
               {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
                 const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
                 const dayKey = format(dayDate, 'yyyy-MM-dd');
@@ -2960,8 +3405,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 return (
                   <div
                     key={day}
-                    className="rounded-xl px-3 py-1 cursor-pointer transition-colors relative group min-h-[260px] overflow-hidden"
-                    style={{ backgroundColor: 'unset', border: 'none' }}
+                    className="rounded-xl px-1 pt-1 pb-2 cursor-pointer transition-all duration-300 relative group min-h-[260px] overflow-hidden"
+                    style={{ 
+                      backgroundColor: copiedSession && hoveredPasteDate === dayKey ? 'rgba(212, 132, 90, 0.08)' : 'unset', 
+                      border: 'none', 
+                      width: '100%',
+                      transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
                     onClick={() => handleDayClick(dayDate)}
                     onDragOver={(event) => handleDayDragOver(event, dayDate)}
                     onDragEnter={(event) => handleDayDragOver(event, dayDate)}
@@ -2985,10 +3435,364 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </span>
                     </div>
 
-                    {renderOverviewDayContent(dayDate, dayKey)}
+                    {renderOverviewDayContent(dayDate, dayKey, isDropTarget, draggedSession)}
                   </div>
                 );
               })}
+              </div>
+              </div>
+            </div>
+
+            {/* Evolution des Kg/Reps, Notes et Limitations Section */}
+            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-3 mt-3">
+              {/* Evolution des Kg/Reps - Left Section (2/3 width) */}
+              <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10">
+                <div className="mb-4 border-b border-white/10 pb-2">
+                  <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-4 h-4 flex-shrink-0" fill="currentColor">
+                      <path d="M128 128C128 110.3 113.7 96 96 96C78.3 96 64 110.3 64 128L64 464C64 508.2 99.8 544 144 544L544 544C561.7 544 576 529.7 576 512C576 494.3 561.7 480 544 480L144 480C135.2 480 128 472.8 128 464L128 128zM534.6 214.6C547.1 202.1 547.1 181.8 534.6 169.3C522.1 156.8 501.8 156.8 489.3 169.3L384 274.7L326.6 217.4C314.1 204.9 293.8 204.9 281.3 217.4L185.3 313.4C172.8 325.9 172.8 346.2 185.3 358.7C197.8 371.2 218.1 371.2 230.6 358.7L304 285.3L361.4 342.7C373.9 355.2 394.2 355.2 406.7 342.7L534.7 214.7z"/>
+                    </svg>
+                    Evolution des Kg/Reps
+                  </h3>
+                </div>
+                {/* Grid 2x2 for exercise cards */}
+                <div className="grid grid-cols-2 gap-3 relative">
+                  {/* Overlay avec blur et icône "En développement" */}
+                  <div className="absolute inset-0 flex items-center justify-center z-10 backdrop-blur-sm bg-black/20 rounded-2xl">
+                    <div className="flex flex-col items-center gap-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-16 h-16" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                        <path d="M415.9 274.5C428.1 271.2 440.9 277 446.4 288.3L465 325.9C475.3 327.3 485.4 330.1 494.9 334L529.9 310.7C540.4 303.7 554.3 305.1 563.2 314L582.4 333.2C591.3 342.1 592.7 356.1 585.7 366.5L562.4 401.4C564.3 406.1 566 411 567.4 416.1C568.8 421.2 569.7 426.2 570.4 431.3L608.1 449.9C619.4 455.5 625.2 468.3 621.9 480.4L614.9 506.6C611.6 518.7 600.3 526.9 587.7 526.1L545.7 523.4C539.4 531.5 532.1 539 523.8 545.4L526.5 587.3C527.3 599.9 519.1 611.3 507 614.5L480.8 621.5C468.6 624.8 455.9 619 450.3 607.7L431.7 570.1C421.4 568.7 411.3 565.9 401.8 562L366.8 585.3C356.3 592.3 342.4 590.9 333.5 582L314.3 562.8C305.4 553.9 304 540 311 529.5L334.3 494.5C332.4 489.8 330.7 484.9 329.3 479.8C327.9 474.7 327 469.6 326.3 464.6L288.6 446C277.3 440.4 271.6 427.6 274.8 415.5L281.8 389.3C285.1 377.2 296.4 369 309 369.8L350.9 372.5C357.2 364.4 364.5 356.9 372.8 350.5L370.1 308.7C369.3 296.1 377.5 284.7 389.6 281.5L415.8 274.5zM448.4 404C424.1 404 404.4 423.7 404.5 448.1C404.5 472.4 424.2 492 448.5 492C472.8 492 492.5 472.3 492.5 448C492.4 423.6 472.7 404 448.4 404zM224.9 18.5L251.1 25.5C263.2 28.8 271.4 40.2 270.6 52.7L267.9 94.5C276.2 100.9 283.5 108.3 289.8 116.5L331.8 113.8C344.3 113 355.7 121.2 359 133.3L366 159.5C369.2 171.6 363.5 184.4 352.2 190L314.5 208.6C313.8 213.7 312.8 218.8 311.5 223.8C310.2 228.8 308.4 233.8 306.5 238.5L329.8 273.5C336.8 284 335.4 297.9 326.5 306.8L307.3 326C298.4 334.9 284.5 336.3 274 329.3L239 306C229.5 309.9 219.4 312.7 209.1 314.1L190.5 351.7C184.9 363 172.1 368.7 160 365.5L133.8 358.5C121.6 355.2 113.5 343.8 114.3 331.3L117 289.4C108.7 283 101.4 275.6 95.1 267.4L53.1 270.1C40.6 270.9 29.2 262.7 25.9 250.6L18.9 224.4C15.7 212.3 21.4 199.5 32.7 193.9L70.4 175.3C71.1 170.2 72.1 165.2 73.4 160.1C74.8 155 76.4 150.1 78.4 145.4L55.1 110.5C48.1 100 49.5 86.1 58.4 77.2L77.6 58C86.5 49.1 100.4 47.7 110.9 54.7L145.9 78C155.4 74.1 165.5 71.3 175.8 69.9L194.4 32.3C200 21 212.7 15.3 224.9 18.5zM192.4 148C168.1 148 148.4 167.7 148.4 192C148.4 216.3 168.1 236 192.4 236C216.7 236 236.4 216.3 236.4 192C236.4 167.7 216.7 148 192.4 148z"/>
+                      </svg>
+                      <span className="text-sm font-medium" style={{ color: 'var(--kaiylo-primary-hex)' }}>En développement</span>
+                    </div>
+                  </div>
+                  {/* Muscle-up Card */}
+                  <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Muscle-up</div>
+                        <div className="flex items-center gap-2 mb-2 ml-2">
+                          <span className="text-lg font-normal text-white">26,1 kg</span>
+                          <div className="flex items-center gap-1 text-green-500">
+                            <TrendingUp className="h-3 w-3" />
+                            <span className="text-xs font-normal">13%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">522</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">20</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Mini chart */}
+                      <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
+                        <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="gradient-muscleup" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(212,132,89,0.5)" />
+                              <stop offset="70%" stopColor="rgba(212,132,89,0.15)" />
+                              <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
+                              <stop offset="100%" stopColor="rgba(212,132,89,0)" />
+                            </linearGradient>
+                            <mask id="fade-mask-muscleup">
+                              <linearGradient id="fade-gradient-muscleup" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="1" />
+                                <stop offset="60%" stopColor="white" stopOpacity="1" />
+                                <stop offset="80%" stopColor="white" stopOpacity="0.6" />
+                                <stop offset="95%" stopColor="white" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                              </linearGradient>
+                              <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-muscleup)" />
+                            </mask>
+                          </defs>
+                          <g mask="url(#fade-mask-muscleup)">
+                            <path
+                              d="M 0,44 Q 12,40 20,34 T 40,25 T 60,19 T 80,13 T 100,8 L 100,44 Z"
+                              fill="url(#gradient-muscleup)"
+                            />
+                            <path
+                              d="M 0,44 Q 12,40 20,34 T 40,25 T 60,19 T 80,13 T 100,8"
+                              stroke="#d4845a"
+                              strokeWidth="1.5"
+                              fill="none"
+                              opacity="0.8"
+                            />
+                          </g>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pull-up Card */}
+                  <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Pull-up</div>
+                        <div className="flex items-center gap-2 mb-2 ml-2">
+                          <span className="text-lg font-normal text-white">72 kg</span>
+                          <div className="flex items-center gap-1 text-green-500">
+                            <TrendingUp className="h-3 w-3" />
+                            <span className="text-xs font-normal">19%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">864</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">12</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Mini chart */}
+                      <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
+                        <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="gradient-pullup" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(212,132,89,0.6)" />
+                              <stop offset="70%" stopColor="rgba(212,132,89,0.2)" />
+                              <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
+                              <stop offset="100%" stopColor="rgba(212,132,89,0)" />
+                            </linearGradient>
+                            <mask id="fade-mask-pullup">
+                              <linearGradient id="fade-gradient-pullup" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="1" />
+                                <stop offset="60%" stopColor="white" stopOpacity="1" />
+                                <stop offset="80%" stopColor="white" stopOpacity="0.6" />
+                                <stop offset="95%" stopColor="white" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                              </linearGradient>
+                              <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-pullup)" />
+                            </mask>
+                          </defs>
+                          <g mask="url(#fade-mask-pullup)">
+                            <path
+                              d="M 0,44 Q 15,42 25,38 T 50,26 T 75,11 T 100,5 L 100,44 Z"
+                              fill="url(#gradient-pullup)"
+                            />
+                            <path
+                              d="M 0,44 Q 15,42 25,38 T 50,26 T 75,11 T 100,5"
+                              stroke="#d4845a"
+                              strokeWidth="1.5"
+                              fill="none"
+                              opacity="0.9"
+                            />
+                          </g>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dips Card */}
+                  <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Dips</div>
+                        <div className="flex items-center gap-2 mb-2 ml-2">
+                          <span className="text-lg font-normal text-white">88 kg</span>
+                          <div className="flex items-center gap-1 text-red-500">
+                            <TrendingUp className="h-3 w-3 rotate-180" />
+                            <span className="text-xs font-normal">19%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">880</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">10</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Mini chart */}
+                      <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
+                        <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="gradient-dips" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(212,132,89,0.5)" />
+                              <stop offset="70%" stopColor="rgba(212,132,89,0.15)" />
+                              <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
+                              <stop offset="100%" stopColor="rgba(212,132,89,0)" />
+                            </linearGradient>
+                            <mask id="fade-mask-dips">
+                              <linearGradient id="fade-gradient-dips" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="1" />
+                                <stop offset="60%" stopColor="white" stopOpacity="1" />
+                                <stop offset="80%" stopColor="white" stopOpacity="0.6" />
+                                <stop offset="95%" stopColor="white" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                              </linearGradient>
+                              <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-dips)" />
+                            </mask>
+                          </defs>
+                          <g mask="url(#fade-mask-dips)">
+                            <path
+                              d="M 0,36 Q 10,34 20,32 Q 30,30 40,32 Q 50,34 60,30 Q 70,32 80,34 Q 90,36 100,38 L 100,44 L 0,44 Z"
+                              fill="url(#gradient-dips)"
+                            />
+                            <path
+                              d="M 0,36 Q 10,34 20,32 Q 30,30 40,32 Q 50,34 60,30 Q 70,32 80,34 Q 90,36 100,38"
+                              stroke="#d4845a"
+                              strokeWidth="1.5"
+                              fill="none"
+                              opacity="0.8"
+                            />
+                          </g>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Squat Card */}
+                  <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Squat</div>
+                        <div className="flex items-center gap-2 mb-2 ml-2">
+                          <span className="text-lg font-normal text-white">163 kg</span>
+                          <div className="flex items-center gap-1 text-red-500">
+                            <TrendingUp className="h-3 w-3 rotate-180" />
+                            <span className="text-xs font-normal">24%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">815</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
+                            <p className="text-[18px] font-light mt-0.5">
+                              <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">5</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Mini chart */}
+                      <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
+                        <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
+                          <defs>
+                            <linearGradient id="gradient-squat" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(212,132,89,0.55)" />
+                              <stop offset="70%" stopColor="rgba(212,132,89,0.18)" />
+                              <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
+                              <stop offset="100%" stopColor="rgba(212,132,89,0)" />
+                            </linearGradient>
+                            <mask id="fade-mask-squat">
+                              <linearGradient id="fade-gradient-squat" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="white" stopOpacity="1" />
+                                <stop offset="60%" stopColor="white" stopOpacity="1" />
+                                <stop offset="80%" stopColor="white" stopOpacity="0.6" />
+                                <stop offset="95%" stopColor="white" stopOpacity="0.2" />
+                                <stop offset="100%" stopColor="white" stopOpacity="0" />
+                              </linearGradient>
+                              <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-squat)" />
+                            </mask>
+                          </defs>
+                          <g mask="url(#fade-mask-squat)">
+                            <path
+                              d="M 0,40 Q 8,38 16,36 Q 24,34 32,32 Q 40,30 48,32 Q 56,34 64,31 Q 72,32 80,34 Q 88,36 100,36 L 100,44 L 0,44 Z"
+                              fill="url(#gradient-squat)"
+                            />
+                            <path
+                              d="M 0,40 Q 8,38 16,36 Q 24,34 32,32 Q 40,30 48,32 Q 56,34 64,31 Q 72,32 80,34 Q 88,36 100,36"
+                              stroke="#d4845a"
+                              strokeWidth="1.5"
+                              fill="none"
+                              opacity="0.85"
+                            />
+                          </g>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes et Limitations - Right Section (1/3 width) */}
+              <div className="flex flex-col gap-3">
+                {/* Notes Card */}
+                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex-1">
+                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                    <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-4 h-4 opacity-75" fill="currentColor">
+                        <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
+                      </svg>
+                      Notes
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
+                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">A besoin d'une prog pour le bloc prochain azap</span>
+                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <Pencil className="w-4 h-4 text-[#d4845a]" />
+                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
+                      </div>
+                    </div>
+                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
+                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">Part en vacance 2 semaines</span>
+                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <Pencil className="w-4 h-4 text-[#d4845a]" />
+                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
+                      </div>
+                    </div>
+                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
+                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">A pas fait la séance du 13/09</span>
+                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <Pencil className="w-4 h-4 text-[#d4845a]" />
+                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Limitations et blessures Card */}
+                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex-1">
+                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                    <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 opacity-75" fill="currentColor">
+                        <path d="M200 48l112 0c4.4 0 8 3.6 8 8l0 40-128 0 0-40c0-4.4 3.6-8 8-8zm-56 8l0 40-80 0C28.7 96 0 124.7 0 160L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64l-80 0 0-40c0-30.9-25.1-56-56-56L200 0c-30.9 0-56 25.1-56 56zm80 160c0-8.8 7.2-16 16-16l32 0c8.8 0 16 7.2 16 16l0 40 40 0c8.8 0 16 7.2 16 16l0 32c0 8.8-7.2 16-16 16l-40 0 0 40c0 8.8-7.2 16-16 16l-32 0c-8.8 0-16-7.2-16-16l0-40-40 0c-8.8 0-16-7.2-16-16l0-32c0-8.8 7.2-16 16-16l40 0 0-40z"/>
+                      </svg>
+                      Limitations et blessures
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs text-white/75 font-extralight flex items-start gap-2">
+                      <span className="text-[#d4845a] mt-0.5">•</span>
+                      <span>Douleure au pec gauche</span>
+                    </div>
+                    <div className="text-xs text-white/75 font-extralight flex items-start gap-2">
+                      <span className="text-[#d4845a] mt-0.5">•</span>
+                      <span>Asthmatique</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </>
@@ -3140,20 +3944,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             });
                             const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
+                            const isDropTarget = dragOverDate === dateKey;
+                            
                             return (
                               <div
                                 key={dateKey}
-                                className="bg-[rgba(255,255,255,0.05)] rounded-lg p-2 flex flex-col h-[200px]"
-                                onDragOver={(e) => handleDragOver(e, day)}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, day)}
+                                className="bg-[rgba(255,255,255,0.05)] rounded-lg p-2 flex flex-col h-[200px] transition-all duration-300 relative"
+                                onDragOver={(e) => handleDayDragOver(e, day)}
+                                onDragEnter={(e) => handleDayDragOver(e, day)}
+                                onDragLeave={(e) => handleDragLeave(e, day)}
+                                onDrop={(e) => handleDayDrop(e, day)}
                               >
                                 <div className="flex items-center mb-2">
                                   <span className={`text-xs ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 text-white' : 'text-white/50'}`}>
                                     {format(day, 'd')}
                                   </span>
                                 </div>
-                                <div className="flex-1 space-y-1 overflow-y-auto">
+                                
+                                <div 
+                                  className={`flex-1 space-y-1 overflow-y-auto transition-all duration-300 ease-out rounded`}
+                                  style={{
+                                    backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
+                                    padding: isDropTarget ? '4px' : '0',
+                                    transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
+                                  }}
+                                >
                                   {sessionsOnDay.map(session => {
                                     const exercises = session.exercises || [];
                                     const sessionTitle = session.title || 'Séance';
@@ -3163,7 +3978,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                            onDragStart={(e) => handleSessionDragStart(e, session, day)}
                                            onDragEnd={handleSessionDragEnd}
                                            onClick={() => handleSessionClick(session, day)}
-                                           className="bg-[rgba(255,255,255,0.03)] border border-white/20 rounded-md p-1.5 cursor-pointer"
+                                           className={`bg-[rgba(255,255,255,0.03)] border border-white/20 rounded-md p-1.5 cursor-pointer transition-all duration-200 ${
+                                             draggedSession && (draggedSession.id === session.id || draggedSession.assignmentId === session.assignmentId || draggedSession.workoutSessionId === session.workoutSessionId) ? 'opacity-50 scale-95' : ''
+                                           }`}
                                       >
                                         <p className="text-xs text-[#d4845a] truncate">{sessionTitle}</p>
                                         <p className="text-[10px] text-white/60">
@@ -3173,6 +3990,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                     );
                                   })}
                                 </div>
+                                
+                                {isDropTarget && draggedSession && (
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                                    <div className="bg-[#d4845a] bg-opacity-25 text-[#d4845a] px-2.5 py-1 rounded-lg text-[10px] font-medium shadow-md" style={{ fontWeight: 500 }}>
+                                      Déposer ici
+                                    </div>
+                                  </div>
+                                )}
                                 <button onClick={() => handleDayClick(day)} className="mt-auto flex items-center justify-center w-full h-6 bg-white/5 rounded-md hover:bg-white/10">
                                   <Plus className="h-4 w-4 text-white/50" />
                                 </button>
@@ -3269,8 +4094,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         )}
 
         {activeTab === 'suivi' && (
-          <div className="p-4">
-            <p className="text-white/50">Suivi Financier - Coming soon</p>
+          <div className="p-4 flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center justify-center gap-4">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-16 h-16 text-white/25">
+                <path d="M415.9 274.5C428.1 271.2 440.9 277 446.4 288.3L465 325.9C475.3 327.3 485.4 330.1 494.9 334L529.9 310.7C540.4 303.7 554.3 305.1 563.2 314L582.4 333.2C591.3 342.1 592.7 356.1 585.7 366.5L562.4 401.4C564.3 406.1 566 411 567.4 416.1C568.8 421.2 569.7 426.2 570.4 431.3L608.1 449.9C619.4 455.5 625.2 468.3 621.9 480.4L614.9 506.6C611.6 518.7 600.3 526.9 587.7 526.1L545.7 523.4C539.4 531.5 532.1 539 523.8 545.4L526.5 587.3C527.3 599.9 519.1 611.3 507 614.5L480.8 621.5C468.6 624.8 455.9 619 450.3 607.7L431.7 570.1C421.4 568.7 411.3 565.9 401.8 562L366.8 585.3C356.3 592.3 342.4 590.9 333.5 582L314.3 562.8C305.4 553.9 304 540 311 529.5L334.3 494.5C332.4 489.8 330.7 484.9 329.3 479.8C327.9 474.7 327 469.6 326.3 464.6L288.6 446C277.3 440.4 271.6 427.6 274.8 415.5L281.8 389.3C285.1 377.2 296.4 369 309 369.8L350.9 372.5C357.2 364.4 364.5 356.9 372.8 350.5L370.1 308.7C369.3 296.1 377.5 284.7 389.6 281.5L415.8 274.5zM448.4 404C424.1 404 404.4 423.7 404.5 448.1C404.5 472.4 424.2 492 448.5 492C472.8 492 492.5 472.3 492.5 448C492.4 423.6 472.7 404 448.4 404zM224.9 18.5L251.1 25.5C263.2 28.8 271.4 40.2 270.6 52.7L267.9 94.5C276.2 100.9 283.5 108.3 289.8 116.5L331.8 113.8C344.3 113 355.7 121.2 359 133.3L366 159.5C369.2 171.6 363.5 184.4 352.2 190L314.5 208.6C313.8 213.7 312.8 218.8 311.5 223.8C310.2 228.8 308.4 233.8 306.5 238.5L329.8 273.5C336.8 284 335.4 297.9 326.5 306.8L307.3 326C298.4 334.9 284.5 336.3 274 329.3L239 306C229.5 309.9 219.4 312.7 209.1 314.1L190.5 351.7C184.9 363 172.1 368.7 160 365.5L133.8 358.5C121.6 355.2 113.5 343.8 114.3 331.3L117 289.4C108.7 283 101.4 275.6 95.1 267.4L53.1 270.1C40.6 270.9 29.2 262.7 25.9 250.6L18.9 224.4C15.7 212.3 21.4 199.5 32.7 193.9L70.4 175.3C71.1 170.2 72.1 165.2 73.4 160.1C74.8 155 76.4 150.1 78.4 145.4L55.1 110.5C48.1 100 49.5 86.1 58.4 77.2L77.6 58C86.5 49.1 100.4 47.7 110.9 54.7L145.9 78C155.4 74.1 165.5 71.3 175.8 69.9L194.4 32.3C200 21 212.7 15.3 224.9 18.5zM192.4 148C168.1 148 148.4 167.7 148.4 192C148.4 216.3 168.1 236 192.4 236C216.7 236 236.4 216.3 236.4 192C236.4 167.7 216.7 148 192.4 148z" fill="currentColor"/>
+              </svg>
+              <p className="text-white/25 text-lg">Page en cours de développement</p>
+            </div>
           </div>
         )}
         </div>
@@ -3305,6 +4135,39 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             // Refresh full student details to ensure consistency
             await fetchStudentDetails();
           }}
+        />
+
+        <DeleteSessionModal
+          isOpen={isDeleteSessionModalOpen}
+          onClose={() => {
+            setIsDeleteSessionModalOpen(false);
+            setSessionToDelete(null);
+          }}
+          onConfirm={confirmDeleteSession}
+          sessionTitle={sessionToDelete?.sessionTitle}
+          loading={isDeletingSession}
+        />
+
+        <PublishSessionModal
+          isOpen={isPublishSessionModalOpen}
+          onClose={() => {
+            setIsPublishSessionModalOpen(false);
+            setSessionToPublish(null);
+          }}
+          onConfirm={confirmPublishSession}
+          sessionTitle={sessionToPublish?.session?.title}
+          loading={isPublishingSession}
+        />
+
+        <SwitchToDraftModal
+          isOpen={isSwitchToDraftModalOpen}
+          onClose={() => {
+            setIsSwitchToDraftModalOpen(false);
+            setSessionToSwitchToDraft(null);
+          }}
+          onConfirm={confirmSwitchToDraft}
+          sessionTitle={sessionToSwitchToDraft?.session?.title}
+          loading={isSwitchingToDraft}
         />
 
           <OneRmModal
@@ -3553,35 +4416,109 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     Numéro de bloc
                   </label>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={blockNumber}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        const value = parseInt(e.target.value) || 1;
-                        setBlockNumber(value);
-                      }}
-                      onFocus={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-12 px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
-                      min="1"
-                      disabled={isSavingBlock}
-                    />
+                    <div className="relative bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] h-[36px] w-14 flex items-center justify-center pr-[10px]">
+                      <input
+                        type="number"
+                        value={blockNumber}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const value = parseInt(e.target.value) || 1;
+                          setBlockNumber(value);
+                        }}
+                        onFocus={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setBlockNumber(prev => Math.max(1, prev + 1));
+                          } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setBlockNumber(prev => Math.max(1, prev - 1));
+                          }
+                        }}
+                        className="w-full h-full bg-transparent border-none text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none px-2"
+                        min="1"
+                        disabled={isSavingBlock}
+                      />
+                      <div className="absolute right-[1px] top-0 bottom-0 flex flex-col justify-center items-center gap-0 pointer-events-none">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBlockNumber(prev => Math.max(1, prev + 1));
+                          }}
+                          disabled={isSavingBlock}
+                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+                          tabIndex={-1}
+                        >
+                          <ChevronUp className="h-3 w-3 text-white/50" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBlockNumber(prev => Math.max(1, prev - 1));
+                          }}
+                          disabled={isSavingBlock}
+                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+                          tabIndex={-1}
+                        >
+                          <ChevronDown className="h-3 w-3 text-white/50" />
+                        </button>
+                      </div>
+                    </div>
                     <span className="text-white/50 text-sm">/</span>
-                    <input
-                      type="number"
-                      value={totalBlocks}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        const value = parseInt(e.target.value) || 1;
-                        setTotalBlocks(value);
-                      }}
-                      onFocus={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-12 px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
-                      min="1"
-                      disabled={isSavingBlock}
-                    />
+                    <div className="relative bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] h-[36px] w-14 flex items-center justify-center pr-[10px]">
+                      <input
+                        type="number"
+                        value={totalBlocks}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const value = parseInt(e.target.value) || 1;
+                          setTotalBlocks(value);
+                        }}
+                        onFocus={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setTotalBlocks(prev => Math.max(1, prev + 1));
+                          } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setTotalBlocks(prev => Math.max(1, prev - 1));
+                          }
+                        }}
+                        className="w-full h-full bg-transparent border-none text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none px-2"
+                        min="1"
+                        disabled={isSavingBlock}
+                      />
+                      <div className="absolute right-[1px] top-0 bottom-0 flex flex-col justify-center items-center gap-0 pointer-events-none">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTotalBlocks(prev => Math.max(1, prev + 1));
+                          }}
+                          disabled={isSavingBlock}
+                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+                          tabIndex={-1}
+                        >
+                          <ChevronUp className="h-3 w-3 text-white/50" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTotalBlocks(prev => Math.max(1, prev - 1));
+                          }}
+                          disabled={isSavingBlock}
+                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+                          tabIndex={-1}
+                        >
+                          <ChevronDown className="h-3 w-3 text-white/50" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3633,16 +4570,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       e.stopPropagation();
                       if (!isSavingBlock) {
                         setIsBlockEditModalOpen(false);
-                        // Reset to original values from studentData to match what's displayed
-                        if (studentData) {
-                          setBlockNumber(studentData.block_number !== undefined && studentData.block_number !== null ? studentData.block_number : 3);
-                          setTotalBlocks(studentData.total_blocks !== undefined && studentData.total_blocks !== null ? studentData.total_blocks : 3);
-                          setBlockName(studentData.block_name || 'Prépa Force');
-                        } else {
-                          setBlockNumber(3);
-                          setTotalBlocks(3);
-                          setBlockName('Prépa Force');
-                        }
+                        // Reset to original values using the same logic as display
+                        const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
+                        const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
+                        const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
+                        const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
+                        
+                        setBlockNumber(displayBlockNumber);
+                        setTotalBlocks(displayTotalBlocks);
+                        setBlockName(displayBlockName);
                       }
                     }}
                     disabled={isSavingBlock}

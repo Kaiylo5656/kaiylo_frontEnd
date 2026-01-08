@@ -661,6 +661,11 @@ input[type="number"] {
 }
 
 /* Session container scrollbar styles */
+.session-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
 .session-container::-webkit-scrollbar {
   width: 4px;
 }
@@ -671,12 +676,12 @@ input[type="number"] {
 }
 
 .session-container::-webkit-scrollbar-thumb {
-  background: #404040;
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 }
 
 .session-container::-webkit-scrollbar-thumb:hover {
-  background: #505050;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 /* Video container scrollbar styles */
@@ -720,7 +725,7 @@ input[type="number"] {
 /* Modal scrollable body - always visible scrollbar */
 .modal-scrollable-body {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   box-sizing: border-box;
 }
 
@@ -729,7 +734,7 @@ input[type="number"] {
 }
 
 .modal-scrollable-body::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
   border-radius: 9999px;
 }
 
@@ -871,7 +876,7 @@ input[type="number"] {
 }
 
 .dashboard-scrollbar::-webkit-scrollbar-track {
-  background: #121212;
+  background: transparent;
   border-radius: 4px;
 }
 
@@ -889,6 +894,10 @@ input[type="number"] {
 * {
   scrollbar-width: thin;
   scrollbar-color: #404040 #1a1a1a;
+}
+
+.dashboard-scrollbar {
+  scrollbar-color: #404040 transparent;
 }
 
 /* Register page scrollbar - always visible */
@@ -999,5 +1008,30 @@ html {
 }
 
 .onerm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Planning scrollbar - no background, transparent track */
+.planning-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.planning-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.planning-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.planning-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.planning-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }

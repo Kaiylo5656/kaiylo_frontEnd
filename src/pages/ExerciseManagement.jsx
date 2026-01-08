@@ -627,7 +627,7 @@ const ExerciseManagement = () => {
                         <div className="flex items-center" title={exercise.instructions && exercise.instructions.trim() ? "Instructions renseignées" : "Aucune instruction"}>
                           <svg 
                             xmlns="http://www.w3.org/2000/svg" 
-                            viewBox="0 0 640 640" 
+                            viewBox="0 0 384 512" 
                             className="h-4 w-4"
                             style={{ 
                               fill: exercise.instructions && exercise.instructions.trim() 
@@ -635,7 +635,7 @@ const ExerciseManagement = () => {
                                 : 'rgba(255, 255, 255, 0.2)' 
                             }}
                           >
-                            <path d="M192 112L304 112L304 200C304 239.8 336.2 272 376 272L464 272L464 512C464 520.8 456.8 528 448 528L192 528C183.2 528 176 520.8 176 512L176 128C176 119.2 183.2 112 192 112zM352 131.9L444.1 224L376 224C362.7 224 352 213.3 352 200L352 131.9zM192 64C156.7 64 128 92.7 128 128L128 512C128 547.3 156.7 576 192 576L448 576C483.3 576 512 547.3 512 512L512 250.5C512 233.5 505.3 217.2 493.3 205.2L370.7 82.7C358.7 70.7 342.5 64 325.5 64L192 64zM248 320C234.7 320 224 330.7 224 344C224 357.3 234.7 368 248 368L392 368C405.3 368 416 357.3 416 344C416 330.7 405.3 320 392 320L248 320zM248 416C234.7 416 224 426.7 224 440C224 453.3 234.7 464 248 464L392 464C405.3 464 416 453.3 416 440C416 426.7 405.3 416 392 416L248 416z"/>
+                            <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
                           </svg>
                         </div>
                         {/* Video Indicator */}
@@ -751,6 +751,7 @@ const ExerciseManagement = () => {
         isOpen={showDetailModal}
         onClose={handleDetailModalClose}
         exerciseId={selectedExerciseId}
+        tagColorMap={tagColorMap}
       />
 
       {/* Delete Exercise Modal */}

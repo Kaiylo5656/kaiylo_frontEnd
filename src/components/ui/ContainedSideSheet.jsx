@@ -63,19 +63,18 @@ const ContainedSideSheet = ({
   // For side-by-side mode, position the panel to the right of the main content
   const sideBySideClasses = sideBySide ? 'right-0 top-0 h-full w-1/2' : 'right-0 top-0';
 
-  if (!open) return null;
-
   const content = (
     <>
       {/* Backdrop scoped to parent if contained */}
       <div
         aria-hidden
-        className={`${pos} inset-0 transition-opacity duration-300 ${
+        className={`${pos} inset-0 ${
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{ 
           zIndex: zBackdrop,
-          pointerEvents: isTopMost(modalId) ? 'auto' : 'none'
+          pointerEvents: isTopMost(modalId) ? 'auto' : 'none',
+          transition: 'opacity 600ms cubic-bezier(0.32, 0.72, 0, 1)'
         }}
         onClick={preventClose ? undefined : onClose}
       >
@@ -88,14 +87,14 @@ const ContainedSideSheet = ({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`${pos} ${sideBySideClasses} h-full ${sideBySide ? 'w-1/2' : 'w-full'} ${widthClass} ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        } text-white border-l border-white/10 transition-transform duration-300 ease-in-out`}
+        className={`${pos} ${sideBySideClasses} h-full ${sideBySide ? 'w-1/2' : 'w-full'} ${widthClass} text-white border-l border-white/10`}
         style={{ 
           zIndex: zPanel,
-          pointerEvents: 'auto',
+          pointerEvents: open ? 'auto' : 'none',
           backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          opacity: 1
+          opacity: 1,
+          transition: 'transform 600ms cubic-bezier(0.32, 0.72, 0, 1)',
+          transform: open ? 'translateX(0)' : 'translateX(100%)'
         }}
         onClick={(e) => e.stopPropagation()}
       >

@@ -150,7 +150,7 @@ const OneRmModal = ({
 }) => {
   const lifts = useMemo(() => (data.length ? data : DEFAULT_ONE_RM_DATA), [data]);
   const [selectedLiftId, setSelectedLiftId] = useState(lifts[0]?.id ?? null);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(true);
   // État local pour stocker les valeurs modifiées
   const [editedLifts, setEditedLifts] = useState(() => {
     return lifts.map(lift => ({ ...lift }));
@@ -198,6 +198,8 @@ const OneRmModal = ({
       if (!selectedLiftId && fallbackId) {
         setSelectedLiftId(fallbackId);
       }
+      // Ouvrir l'historique par défaut quand la modal s'ouvre
+      setIsHistoryModalOpen(true);
     } else {
       setIsHistoryModalOpen(false);
     }
@@ -343,11 +345,11 @@ const OneRmModal = ({
         </div>
         <div className="border-b border-white/10 mx-6"></div>
         <div className="px-6 pt-6 pb-3">
-          <p className="text-xs text-white/50 font-extralight">
+          <p className="text-sm text-white/50 font-extralight">
             Dernière mise à jour{lastUpdatedAt && (
               <>
                 &nbsp;
-                <span className="font-normal text-sm" style={{ color: 'var(--kaiylo-primary-hex)' }}>{formatDate(lastUpdatedAt)}</span>
+                <span className="font-normal text-sm" style={{ color: 'var(--kaiylo-primary-hex)', marginLeft: '2px' }}>{formatDate(lastUpdatedAt)}</span>
               </>
             )}
           </p>
@@ -355,17 +357,17 @@ const OneRmModal = ({
 
         {/* Form */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 pb-6 space-y-5">
-          <div className="rounded-none divide-y divide-white/5 flex flex-col gap-[3px]">
+          <div className="rounded-none divide-y divide-white/5 flex flex-col gap-[6px]">
                 {editedLifts.map((lift) => {
                   const isActive = lift.id === selectedLift?.id;
                   const editedLift = editedLifts.find(l => l.id === lift.id) || lift;
                   return (
                     <div
                       key={lift.id}
-                      className={`w-full flex items-center gap-4 px-4 py-3 transition-all duration-150 rounded-2xl border-t-0 ${
+                      className={`w-full flex items-center gap-4 px-4 py-2.5 transition-all duration-150 rounded-2xl border-t-0 ${
                         isActive
-                          ? 'bg-[rgba(212,132,89,0.2)]'
-                          : 'bg-[rgba(0,0,0,0.35)] hover:bg-[rgba(255,255,255,0.05)]'
+                          ? 'bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(0,0,0,0.5)] hover:bg-[rgba(255,255,255,0.05)]'
                       }`}
                       style={{ borderTop: 'none', border: 'none' }}
                     >
@@ -437,7 +439,7 @@ const OneRmModal = ({
                             {editedLift.unit}
                           </span>
                           {/* Boutons de flèches */}
-                          <div className="absolute right-[2px] top-0 bottom-0 w-[20px] flex flex-col rounded-[10px]">
+                          <div className="absolute right-0 top-0 bottom-0 w-[20px] flex flex-col rounded-[10px]">
                             <button
                               type="button"
                               onClick={(e) => {

@@ -315,17 +315,22 @@ const CoachDashboard = () => {
             );
 
             if (response.data && response.data.data) {
-              // Find the first non-completed session
-              const upcomingSession = response.data.data.find(assignment => {
-                const sessionDate = assignment.scheduled_date || assignment.due_date;
-                if (!sessionDate) return false;
-                const date = new Date(sessionDate);
-                date.setHours(0, 0, 0, 0);
-                return date >= today && assignment.status !== 'completed';
-              });
+              // Find the last scheduled session (furthest date in the future)
+              const allScheduledSessions = response.data.data
+                .map(assignment => {
+                  const sessionDate = assignment.scheduled_date || assignment.due_date;
+                  if (!sessionDate) return null;
+                  const date = new Date(sessionDate);
+                  date.setHours(0, 0, 0, 0);
+                  return { assignment, date };
+                })
+                .filter(item => item !== null && item.date >= today)
+                .sort((a, b) => b.date - a.date); // Sort descending (latest first)
 
-              if (upcomingSession) {
-                nextSessions[student.id] = upcomingSession.scheduled_date || upcomingSession.due_date;
+              if (allScheduledSessions.length > 0) {
+                // Get the last scheduled session (furthest date)
+                const lastScheduledSession = allScheduledSessions[0];
+                nextSessions[student.id] = lastScheduledSession.assignment.scheduled_date || lastScheduledSession.assignment.due_date;
               }
             }
           } catch (error) {
@@ -709,7 +714,7 @@ const CoachDashboard = () => {
 
           {/* Client List - Scrollable */}
           <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar" style={{ paddingRight: '12px' }}>
-            <div className="flex flex-col gap-[7px]">
+            <div className={`flex flex-col ${filteredStudents.length === 0 && !loading ? 'w-full min-h-full justify-center' : 'gap-[7px]'}`}>
           {/* Header */}
           {!loading && filteredStudents.length > 0 && (
             <div className="w-full h-[40px] rounded-[16px] grid grid-cols-[1fr_auto] items-center px-9 gap-8">
@@ -788,7 +793,7 @@ const CoachDashboard = () => {
               />
             </div>
           ) : filteredStudents.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center min-h-full">
               <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
                 <span>
                   <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>
