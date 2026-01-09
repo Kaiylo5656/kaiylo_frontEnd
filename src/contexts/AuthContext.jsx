@@ -758,6 +758,51 @@ export const AuthProvider = ({ children }) => {
     return token;
   };
 
+  // Login with Google function
+  const signInWithGoogle = async (navigate) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔐 Starting Google sign-in...');
+      
+      // Get the current origin for redirect URL
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      
+      // Initiate Google OAuth flow through Supabase
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        }
+      });
+
+      if (error) {
+        console.error('❌ Google sign-in error:', error);
+        setError(error.message || 'Erreur lors de la connexion Google');
+        setLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      // Note: The actual redirect will happen, so we don't need to handle navigation here
+      // The callback URL will handle the rest
+      console.log('✅ Google sign-in initiated, redirecting to:', redirectUrl);
+      
+      // Don't set loading to false here because we're redirecting
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Google sign-in exception:', error);
+      const errorMessage = error.message || 'Erreur lors de la connexion Google';
+      setError(errorMessage);
+      setLoading(false);
+      return { success: false, error: errorMessage };
+    }
+  };
+
   // Value object to provide to consumers
   const value = {
     user,
@@ -774,7 +819,8 @@ export const AuthProvider = ({ children }) => {
     isStudent,
     checkAuthStatus,
     getAuthToken,
-    refreshAuthToken
+    refreshAuthToken,
+    signInWithGoogle
   };
 
   return (
