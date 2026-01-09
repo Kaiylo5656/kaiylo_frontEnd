@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   History, 
   ChevronDown, 
@@ -10,23 +10,71 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useExerciseHistory from '../hooks/useExerciseHistory';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 const ExerciseHistory = ({ exerciseId, className = '' }) => {
   const [showMore, setShowMore] = useState(false);
-  const [dateRange, setDateRange] = useState('90');
+  const [dateRange] = useState('all');
+  const [selectedAthleteIds, setSelectedAthleteIds] = useState([]);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   
+  const getAthleteName = (item) => {
+    // Debug: log the item structure to understand the data format
+    if (process.env.NODE_ENV === 'development' && !item?.athlete?.name && !item?.athleteName && !item?.user?.name && !item?.student?.name) {
+      console.log('ExerciseHistory - Item structure:', item);
+    }
+    
+    // Try multiple possible paths for athlete name
+    return item?.athlete?.name || 
+           item?.athleteName || 
+           item?.user?.name || 
+           item?.student?.name ||
+           (item?.athlete?.firstName ? `${item.athlete.firstName} ${item.athlete.lastName || ''}`.trim() : null) ||
+           item?.session?.athlete?.name ||
+           item?.session?.student?.name ||
+           item?.session?.user?.name ||
+           '—';
+  };
+
+  const getAthleteId = (item) => {
+    return item?.athlete?.id || 
+           item?.athleteId || 
+           item?.user?.id || 
+           item?.student?.id ||
+           item?.session?.athlete?.id ||
+           item?.session?.student?.id ||
+           item?.session?.user?.id ||
+           null;
+  };
+
+  // Fetch all history items to get the list of athletes and all data
   const {
-    data: historyItems,
+    data: allHistoryItems,
     loading,
     error,
     hasMore,
     loadMore,
     isEmpty
   } = useExerciseHistory(exerciseId, {
-    limit: showMore ? 20 : 5,
+    limit: showMore ? 100 : 50,
     range: dateRange,
     enabled: !!exerciseId
   });
+  
+  // Filter history items client-side based on selected athlete IDs
+  const historyItems = useMemo(() => {
+    if (selectedAthleteIds.length === 0) {
+      return allHistoryItems;
+    }
+    return allHistoryItems.filter(item => {
+      const athleteId = getAthleteId(item);
+      return athleteId && selectedAthleteIds.includes(athleteId);
+    });
+  }, [allHistoryItems, selectedAthleteIds]);
 
   const formatDate = (dateString, isScheduled = false) => {
     try {
@@ -49,6 +97,11 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
 
   const formatSetsAndWeight = (setsSummary, weight) => {
     if (!setsSummary) return '—';
+    
+    // Translate "No sets" to French
+    if (setsSummary.toLowerCase().includes('no sets')) {
+      return <span className="text-white/80" style={{ fontWeight: 200 }}>Aucune série</span>;
+    }
     
     // Extract sets/reps information (e.g., "2×5", "3×8", "1×10")
     // Handle various formats: "2×5", "2 x 5", "2X5", "2, 5", etc.
@@ -102,22 +155,41 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
     return <span className="text-white/80" style={{ fontWeight: 200 }}>{setsRepsText}</span>;
   };
 
-  const getAthleteName = (item) => {
-    // Debug: log the item structure to understand the data format
-    if (process.env.NODE_ENV === 'development' && !item?.athlete?.name && !item?.athleteName && !item?.user?.name && !item?.student?.name) {
-      console.log('ExerciseHistory - Item structure:', item);
-    }
+  // Extract unique athletes from all history items
+  const uniqueAthletes = useMemo(() => {
+    const athletesMap = new Map();
     
-    // Try multiple possible paths for athlete name
-    return item?.athlete?.name || 
-           item?.athleteName || 
-           item?.user?.name || 
-           item?.student?.name ||
-           (item?.athlete?.firstName ? `${item.athlete.firstName} ${item.athlete.lastName || ''}`.trim() : null) ||
-           item?.session?.athlete?.name ||
-           item?.session?.student?.name ||
-           item?.session?.user?.name ||
-           '—';
+    allHistoryItems.forEach(item => {
+      const athleteId = getAthleteId(item);
+      const athleteName = getAthleteName(item);
+      
+      if (athleteId && athleteName && !athletesMap.has(athleteId)) {
+        athletesMap.set(athleteId, athleteName);
+      }
+    });
+    
+    return Array.from(athletesMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [allHistoryItems]);
+
+  const handleFilterToggle = (athleteId) => {
+    setSelectedAthleteIds(prev => {
+      if (prev.includes(athleteId)) {
+        return prev.filter(id => id !== athleteId);
+      } else {
+        return [...prev, athleteId];
+      }
+    });
+  };
+
+  const getSelectedAthletesText = () => {
+    if (selectedAthleteIds.length === 0) {
+      return 'Filtrer par élève';
+    }
+    if (selectedAthleteIds.length === 1) {
+      const athlete = uniqueAthletes.find(a => a.id === selectedAthleteIds[0]);
+      return athlete?.name || 'Filtrer par élève';
+    }
+    return `${selectedAthleteIds.length} élèves`;
   };
 
   const handleLoadMore = () => {
@@ -126,23 +198,110 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
     }
   };
 
-  const handleDateRangeChange = (newRange) => {
-    setDateRange(newRange);
-    setShowMore(false);
-  };
+
 
   if (isEmpty && !loading) {
     return (
       <div className={`${className}`}>
-        <div className="flex items-center gap-2 mb-4">
-          <History className="h-5 w-5 text-white/60" />
-          <h3 className="text-lg font-medium text-white">Historique de l'exercice</h3>
-          <div className="group relative">
-            <Info className="h-4 w-4 text-white/40 cursor-help" />
-            <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-black/90 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
-              Dernières utilisations de cet exercice
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-white/60" />
+            <h3 className="text-[14px] font-[200] text-[rgba(255,255,255,0.5)]">Historique de l'exercice</h3>
+            <div className="group relative">
+              <Info className="h-4 w-4 text-white/40 cursor-help" />
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-black/90 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                Dernières utilisations de cet exercice
+              </div>
             </div>
           </div>
+          
+          {/* Filter by Student Button */}
+          {uniqueAthletes.length > 0 && (
+            <DropdownMenu open={isFilterDropdownOpen} onOpenChange={setIsFilterDropdownOpen} modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
+                    isFilterDropdownOpen || selectedAthleteIds.length > 0 ? 'bg-primary/90' : ''
+                  }`}
+                  style={{
+                    backgroundColor: isFilterDropdownOpen || selectedAthleteIds.length > 0 ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    color: isFilterDropdownOpen || selectedAthleteIds.length > 0 ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                    <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
+                  </svg>
+                  <span style={{ fontSize: '14px' }}>{getSelectedAthletesText()}</span>
+                  {selectedAthleteIds.length > 0 && (
+                    <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                      {selectedAthleteIds.length}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="bottom"
+                align="end"
+                sideOffset={8}
+                disablePortal={true}
+                className="w-56 rounded-xl p-1"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(10px)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                {uniqueAthletes.map((athlete) => {
+                  const isSelected = selectedAthleteIds.includes(athlete.id);
+                  return (
+                    <div 
+                      key={athlete.id}
+                      className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                        isSelected 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'font-light'
+                      }`}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                      onClick={() => handleFilterToggle(athlete.id)}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                        isSelected 
+                          ? 'bg-[#d4845a] border-[#d4845a]' 
+                          : 'bg-transparent border-white/20'
+                      }`}>
+                        {isSelected && (
+                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                      <span className={isSelected ? 'text-primary' : 'text-foreground'}>{athlete.name}</span>
+                    </div>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         
         <div className="bg-black/50 rounded-[10px] p-6 flex items-center justify-center">
@@ -166,28 +325,93 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <select
-            value={dateRange}
-            onChange={(e) => handleDateRangeChange(e.target.value)}
-            className="select-dark-kaiylo appearance-none cursor-pointer px-4 py-2.5 text-sm font-extralight text-white rounded-[10px] bg-[rgba(0,0,0,0.5)] focus:outline-none focus-visible:outline-none active:outline-none transition-all"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23d4845a' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 12px center',
-              paddingRight: '36px',
-              outline: 'none',
-              border: 'none',
-              boxShadow: 'none',
-              colorScheme: 'dark'
-            }}
-          >
-            <option value="30" className="bg-[rgba(14,14,14,0.95)] text-white">30 jours</option>
-            <option value="90" className="bg-[rgba(14,14,14,0.95)] text-white">90 jours</option>
-            <option value="365" className="bg-[rgba(14,14,14,0.95)] text-white">1 an</option>
-            <option value="all" className="bg-[rgba(14,14,14,0.95)] text-white">Tout</option>
-          </select>
-        </div>
+        {/* Filter by Student Button */}
+        {uniqueAthletes.length > 0 && (
+          <DropdownMenu open={isFilterDropdownOpen} onOpenChange={setIsFilterDropdownOpen} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
+                  isFilterDropdownOpen || selectedAthleteIds.length > 0 ? 'bg-primary/90' : ''
+                }`}
+                style={{
+                  backgroundColor: isFilterDropdownOpen || selectedAthleteIds.length > 0 ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  color: isFilterDropdownOpen || selectedAthleteIds.length > 0 ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                  <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
+                </svg>
+                <span style={{ fontSize: '14px' }}>{getSelectedAthletesText()}</span>
+                {selectedAthleteIds.length > 0 && (
+                  <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                    {selectedAthleteIds.length}
+                  </span>
+                )}
+                <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="bottom"
+              align="end"
+              sideOffset={8}
+              disablePortal={true}
+              className="w-56 rounded-xl p-1"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              {uniqueAthletes.map((athlete) => {
+                const isSelected = selectedAthleteIds.includes(athlete.id);
+                return (
+                  <div 
+                    key={athlete.id}
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                      isSelected 
+                        ? 'bg-primary/20 text-primary font-normal' 
+                        : 'font-light'
+                    }`}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '#D48459';
+                          span.style.fontWeight = '400';
+                        }
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.backgroundColor = '';
+                        const span = e.currentTarget.querySelector('span');
+                        if (span) {
+                          span.style.color = '';
+                          span.style.fontWeight = '';
+                        }
+                      }
+                    }}
+                    onClick={() => handleFilterToggle(athlete.id)}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      isSelected 
+                        ? 'bg-[#d4845a] border-[#d4845a]' 
+                        : 'bg-transparent border-white/20'
+                    }`}>
+                      {isSelected && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={isSelected ? 'text-primary' : 'text-foreground'}>{athlete.name}</span>
+                  </div>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {error && (
@@ -227,8 +451,10 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                 return (
                   <div 
                     key={`${item.sessionId}-${index}`}
-                    className="grid grid-cols-3 gap-4 px-4 py-3 transition-colors cursor-pointer items-center"
-                    onClick={() => {
+                    className="grid grid-cols-3 gap-4 px-4 py-3 transition-colors cursor-pointer items-center hover:bg-white/5"
+                    onClick={(e) => {
+                      // Prevent closing dropdown when clicking on history row
+                      e.stopPropagation();
                       // Optional: Open session details in new tab
                       console.log('Open session:', item.sessionId);
                     }}
@@ -269,7 +495,9 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
               <div 
                 key={`${item.sessionId}-${index}`}
                 className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
-                onClick={() => {
+                onClick={(e) => {
+                  // Prevent closing dropdown when clicking on history row
+                  e.stopPropagation();
                   // Optional: Open session details
                   console.log('Open session:', item.sessionId);
                 }}
@@ -288,7 +516,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                   <div>
                     <div className="text-white/60 mb-1">Séries + reps</div>
                     <div className="text-white truncate" title={item.setsSummary}>
-                      {item.setsSummary}
+                      {item.setsSummary?.toLowerCase().includes('no sets') ? 'Aucune série' : item.setsSummary}
                     </div>
                   </div>
                   <div>
@@ -309,11 +537,12 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
 
         {/* Load More Button */}
         {hasMore && (
-          <div className="text-center pt-4">
+          <div className="text-center pt-1">
             <button
               onClick={handleLoadMore}
               disabled={loading}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 hover:bg-white/20 text-white/50 hover:text-white hover:font-normal rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              style={{ fontWeight: 200, backgroundColor: 'unset', background: 'unset' }}
             >
               {loading ? 'Chargement...' : 'Afficher plus'}
             </button>
