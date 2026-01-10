@@ -383,7 +383,9 @@ const useSocket = () => {
     
     const setupListener = () => {
       if (socketRef.current && isConnected) {
+        // Listen to both events: new_video_upload and new_video_notification
         socketRef.current.on('new_video_upload', callback);
+        socketRef.current.on('new_video_notification', callback);
         return true;
       }
       return false;
@@ -407,6 +409,7 @@ const useSocket = () => {
     return () => {
       if (socketRef.current) {
         socketRef.current.off('new_video_upload', callback);
+        socketRef.current.off('new_video_notification', callback);
         if (connectHandler) {
           socketRef.current.off('connect', connectHandler);
         }

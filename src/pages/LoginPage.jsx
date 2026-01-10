@@ -344,7 +344,7 @@ const LoginPage = () => {
                 </button>
               </div>
               
-              <div className="text-right sm:text-right text-left pr-[5px]" style={{ marginTop: '5px', paddingTop: '0px', paddingBottom: '0px', color: 'rgba(250, 250, 250, 0.75)' }}>
+              <div className="text-right pr-[5px]" style={{ marginTop: '5px', paddingTop: '0px', paddingBottom: '0px', color: 'rgba(250, 250, 250, 0.75)' }}>
                 <Link 
                   to="/forgot-password" 
                   className="text-sm text-muted-foreground transition-colors font-light forgot-password-link" 

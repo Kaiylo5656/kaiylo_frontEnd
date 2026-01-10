@@ -1,123 +1,133 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
+import { getApiBaseUrlWithApi } from '../config/api';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { checkAuthStatus } = useAuth();
   const [error, setError] = useState(null);
+  const sessionProcessedRef = useRef(false);
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      try {
-        // Check for error in URL parameters
-        const urlError = searchParams.get('error');
-        const errorDescription = searchParams.get('error_description');
-        
-        if (urlError) {
-          console.error('❌ OAuth error:', urlError, errorDescription);
-          setError(errorDescription || urlError);
-          // Redirect to login with error after a delay
-          setTimeout(() => {
-            navigate(`/login?error=${encodeURIComponent(errorDescription || urlError)}`, { replace: true });
-          }, 2000);
-          return;
-        }
+    console.log('🔄 AuthCallback mounted, checking OAuth callback...');
+    console.log('🔍 Current URL:', window.location.href);
+    console.log('🔍 URL search params:', Object.fromEntries(searchParams.entries()));
+    
+    // Check for error in URL parameters first
+    const urlError = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
+    const code = searchParams.get('code');
+    
+    console.log('🔍 OAuth callback params:', { urlError, errorDescription, hasCode: !!code });
+    
+    if (urlError) {
+      console.error('❌ OAuth error:', urlError, errorDescription);
+      setError(errorDescription || urlError);
+      setTimeout(() => {
+        navigate(`/login?error=${encodeURIComponent(errorDescription || urlError)}`, { replace: true });
+      }, 2000);
+      return;
+    }
+    
+    if (!code) {
+      console.error('❌ No OAuth code found in URL');
+      setError('Code OAuth manquant');
+      setTimeout(() => {
+        navigate('/login?error=no_code', { replace: true });
+      }, 2000);
+      return;
+    }
 
-        // Get the session from URL hash after OAuth redirect
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('❌ Error getting session:', sessionError);
-          setError(sessionError.message || 'authentication_failed');
-          setTimeout(() => {
-            navigate('/login?error=authentication_failed', { replace: true });
-          }, 2000);
-          return;
-        }
+    // With PKCE flow, Supabase should automatically process the code with detectSessionInUrl: true
+    // But if it doesn't work, we'll try to trigger it manually
+    if (code) {
+      console.log('✅ OAuth code found in URL, Supabase should process it automatically');
+      console.log('⏳ Waiting for Supabase to process the code...');
+      
+      // Give Supabase a moment to process the code automatically
+      // The onAuthStateChange listener below will handle when the session is ready
+    } else if (!window.location.hash) {
+      console.warn('⚠️ No OAuth code or hash found in URL');
+      console.warn('⚠️ URL:', window.location.href);
+      setError('Aucun code OAuth trouvé dans l\'URL');
+      setTimeout(() => {
+        navigate('/login?error=no_oauth_code', { replace: true });
+      }, 2000);
+      return;
+    } else if (window.location.hash) {
+      console.log('✅ URL hash found, Supabase should process it automatically');
+    }
 
-        if (session && session.access_token) {
+    // Listen for auth state changes (OAuth callback processing)
+    // With detectSessionInUrl: true, Supabase automatically processes the code
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 Auth state changed:', event, session ? 'Session present' : 'No session');
+        
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && session.access_token) {
+          if (sessionProcessedRef.current) {
+            console.log('⚠️ Session already processed, ignoring duplicate event');
+            return;
+          }
+          sessionProcessedRef.current = true;
+          
           console.log('✅ OAuth session established:', session.user.email);
           
-          // Persist session tokens manually
-          const accessToken = session.access_token;
-          const refreshToken = session.refresh_token;
-
-          if (accessToken) {
-            try {
-              localStorage.setItem('authToken', accessToken);
-              // Also set axios default header
-              const axios = (await import('axios')).default;
-              axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            } catch (err) {
-              console.warn('Failed to persist access token:', err);
-            }
-          }
-          
-          if (refreshToken) {
-            try {
-              localStorage.setItem('supabaseRefreshToken', refreshToken);
-            } catch (err) {
-              console.warn('Failed to persist refresh token:', err);
-            }
-          }
-
-          // Also store full session for Supabase
           try {
-            const sessionWrapper = {
-              currentSession: {
-                access_token: accessToken,
-                refresh_token: refreshToken,
-                expires_at: session.expires_at,
-                expires_in: session.expires_in,
-                token_type: session.token_type || 'bearer',
-                user: session.user
-              },
-              expiresAt: session.expires_at
-            };
-            localStorage.setItem('sb-auth-token', JSON.stringify(sessionWrapper));
-          } catch (err) {
-            console.warn('Failed to persist session:', err);
-          }
-          
-          // Update auth status to get user data from backend
-          await checkAuthStatus();
-          
-          // Wait a bit for the auth status to update
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Get user role to navigate appropriately
-          const userRole = session.user.user_metadata?.role || 'student';
-          
-          // Navigate based on user role
-          const targetPath = 
-            userRole === 'admin' ? '/admin/dashboard' 
-            : userRole === 'coach' ? '/coach/dashboard'
-            : userRole === 'student' ? '/student/dashboard'
-            : '/dashboard';
-          
-          console.log('✅ Navigating to:', targetPath);
-          navigate(targetPath, { replace: true });
-        } else {
-          console.warn('⚠️ No session found after OAuth callback');
-          setError('Aucune session trouvée après la connexion Google');
-          setTimeout(() => {
-            navigate('/login?error=no_session', { replace: true });
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('❌ Auth callback error:', error);
-        setError(error.message || 'Erreur lors de la connexion');
-        setTimeout(() => {
-          navigate(`/login?error=${encodeURIComponent(error.message || 'callback_error')}`, { replace: true });
-        }, 2000);
-      }
-    };
+            // Persist tokens
+            const accessToken = session.access_token;
+            const refreshToken = session.refresh_token;
 
-    handleAuthCallback();
+            localStorage.setItem('authToken', accessToken);
+            localStorage.setItem('supabaseRefreshToken', refreshToken);
+            
+            // Set axios header
+            const axios = (await import('axios')).default;
+            axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+            
+            // Get user role and navigate
+            const userRole = session.user.user_metadata?.role || 'student';
+            const targetPath = 
+              userRole === 'admin' ? '/admin/dashboard' 
+              : userRole === 'coach' ? '/coach/dashboard'
+              : userRole === 'student' ? '/student/dashboard'
+              : '/dashboard';
+            
+            console.log('✅ Navigating to:', targetPath);
+            
+            // Small delay to ensure storage is written
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            navigate(targetPath, { replace: true });
+          } catch (err) {
+            console.error('❌ Error processing OAuth session:', err);
+            setError('Erreur lors du traitement de la session');
+            setTimeout(() => {
+              navigate('/login?error=session_processing_error', { replace: true });
+            }, 2000);
+          }
+        }
+      }
+    );
+
+    // Fallback timeout: if onAuthStateChange doesn't fire within 5 seconds, redirect to error
+    const timeoutId = setTimeout(() => {
+      if (!sessionProcessedRef.current) {
+        console.error('⏰ Timeout: OAuth callback took too long, onAuthStateChange did not fire');
+        setError('La connexion Google a pris trop de temps');
+        navigate('/login?error=callback_timeout', { replace: true });
+      }
+    }, 5000); // 5 seconds timeout
+
+    // Cleanup subscription and timeout
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, [navigate, searchParams, checkAuthStatus]);
 
   // Show error if any

@@ -114,7 +114,12 @@ const Header = () => {
                 sessionName: notif.data?.sessionName || null,
                 timestamp: notif.created_at || notif.data?.timestamp || new Date().toISOString(),
                 read: notif.read || false,
-                videoId: notif.data?.videoId
+                videoId: notif.data?.videoId,
+                // Include full data object for setNumber and setIndex (totalSets)
+                data: notif.data || {},
+                // Include message and title for parsing the format
+                message: notif.message || '',
+                title: notif.title || ''
               };
             } else if (notif.type === 'video_feedback') {
               // Student notification (coach sent feedback)
@@ -129,7 +134,12 @@ const Header = () => {
                 rating: notif.data?.rating || null,
                 timestamp: notif.created_at || notif.data?.timestamp || new Date().toISOString(),
                 read: notif.read || false,
-                videoId: notif.data?.videoId
+                videoId: notif.data?.videoId,
+                // Include full data object for setNumber and setIndex (totalSets)
+                data: notif.data || {},
+                // Include message and title for parsing the format
+                message: notif.message || '',
+                title: notif.title || ''
               };
             }
             return null;
@@ -151,16 +161,27 @@ const Header = () => {
 
     const unsubscribe = onVideoUpload((payload) => {
       setNotifications((prev) => {
+        // Extract notification data from payload (could be in payload.notification or payload directly)
+        const notification = payload?.notification || payload;
         const newNotification = {
-          id: payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
+          id: notification?.id || payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
           type: 'video_upload',
-          studentName: payload?.studentName || payload?.student?.name || payload?.studentEmail,
-          exerciseName: payload?.exerciseName || payload?.exercise?.name,
-          setInfo: payload?.setInfo,
-          sessionName: payload?.sessionName,
-          timestamp: payload?.timestamp || new Date().toISOString(),
+          studentName: notification?.data?.studentName || payload?.studentName || payload?.student?.name || payload?.studentEmail || 'Client',
+          exerciseName: notification?.data?.exerciseName || payload?.exerciseName || payload?.exercise?.name || '',
+          setInfo: notification?.data?.setInfo || payload?.setInfo,
+          sessionName: notification?.data?.sessionName || payload?.sessionName || null,
+          timestamp: notification?.created_at || payload?.timestamp || new Date().toISOString(),
           read: false,
-          videoId: payload?.videoId
+          videoId: notification?.data?.videoId || payload?.videoId,
+          // Include full data object for setNumber and setIndex (totalSets)
+          data: {
+            ...(notification?.data || {}),
+            setNumber: payload?.setNumber || notification?.data?.setNumber,
+            setIndex: payload?.totalSets || notification?.data?.setIndex || notification?.data?.totalSets
+          },
+          // Include message and title for parsing the format
+          message: notification?.message || '',
+          title: notification?.title || ''
         };
 
         // Check if this notification already exists (avoid duplicates)
@@ -184,18 +205,29 @@ const Header = () => {
 
     const unsubscribe = onFeedback((payload) => {
       setNotifications((prev) => {
+        // Extract notification data from payload (could be in payload.notification or payload directly)
+        const notification = payload?.notification || payload;
         const newNotification = {
-          id: payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
+          id: notification?.id || payload?.notificationId || payload?.id || payload?.videoId || `${Date.now()}-${Math.random()}`,
           type: 'video_feedback',
-          coachName: payload?.coachName || 'Coach',
-          exerciseName: payload?.exerciseName || '',
-          sessionName: payload?.sessionName || null,
-          setInfo: payload?.setInfo,
-          feedback: payload?.feedback || '',
-          rating: payload?.rating || null,
-          timestamp: payload?.timestamp || new Date().toISOString(),
+          coachName: notification?.data?.coachName || payload?.coachName || 'Coach',
+          exerciseName: notification?.data?.exerciseName || payload?.exerciseName || '',
+          sessionName: notification?.data?.sessionName || payload?.sessionName || null,
+          setInfo: notification?.data?.setInfo || payload?.setInfo,
+          feedback: notification?.data?.feedback || payload?.feedback || '',
+          rating: notification?.data?.rating || payload?.rating || null,
+          timestamp: notification?.created_at || payload?.timestamp || new Date().toISOString(),
           read: false,
-          videoId: payload?.videoId
+          videoId: notification?.data?.videoId || payload?.videoId,
+          // Include full data object for setNumber and setIndex (totalSets)
+          data: {
+            ...(notification?.data || {}),
+            setNumber: payload?.setNumber || notification?.data?.setNumber,
+            setIndex: payload?.totalSets || notification?.data?.setIndex || notification?.data?.totalSets
+          },
+          // Include message and title for parsing the format
+          message: notification?.message || '',
+          title: notification?.title || ''
         };
 
         // Check if this notification already exists (avoid duplicates)

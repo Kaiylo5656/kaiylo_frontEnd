@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { getSafeStorage } from '../utils/storage';
 
 // Initialize Supabase client with singleton pattern to avoid multiple instances
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -28,6 +27,14 @@ const getSupabaseClient = () => {
   }
   
   // Créer une nouvelle instance
+  // IMPORTANT: For PKCE OAuth to work properly, we MUST use Supabase's default storage
+  // DO NOT use custom storage adapters as they can cause getSession() to hang/timeout
+  // Supabase's default storage automatically handles:
+  // - localStorage for sessions
+  // - sessionStorage for PKCE code verifier
+  
+  console.log('✅ Initializing Supabase with default storage (PKCE compatible)');
+  
   supabaseInstance = createClient(
     supabaseUrl || 'https://placeholder.supabase.co',
     supabaseAnonKey || 'placeholder-key',
@@ -35,10 +42,9 @@ const getSupabaseClient = () => {
       auth: {
         persistSession: true,              // ✅ Persiste la session automatiquement
         autoRefreshToken: true,            // ✅ Refresh automatique des tokens
-        detectSessionInUrl: false,         // ✅ Pas de détection d'URL (on utilise le backend)
-        storage: getSafeStorage(),         // ✅ Utilise storage sécurisé
-        storageKey: 'sb-auth-token',       // ✅ Clé personnalisée pour éviter les conflits
+        detectSessionInUrl: true,          // ✅ Active la détection pour OAuth (PKCE traite le code automatiquement)
         flowType: 'pkce'                   // ✅ Utilise PKCE flow (plus sécurisé)
+        // ❌ NO custom storage - use Supabase defaults
       },
       global: {
         headers: {
