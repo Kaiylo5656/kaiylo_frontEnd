@@ -286,9 +286,11 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       zIndex={80}
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
-      size="md"
+      size="lg"
       title={editingExercise ? 'Modifier l\'exercice' : 'Nouvel exercice'}
       titleClassName="text-xl font-normal text-white"
+      className="!w-[448px] !max-w-[448px] !min-w-[448px]"
+      borderRadius="16px"
     >
 
         {/* Form */}

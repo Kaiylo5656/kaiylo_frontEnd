@@ -649,13 +649,13 @@ const ExerciseValidationModal = ({
               </h1>
             </div>
             <div className="flex flex-col gap-[15px] items-start w-full">
-              {/* Tempo et Chaque côté - Affichés si définis par le coach */}
+              {/* Tempo et Charge par main - Affichés si définis par le coach */}
               {(exercise.tempo || exercise.per_side) && (
                 <div className="flex flex-col gap-[15px] items-start">
                   <p className="text-[10px] font-light text-white/50">
                     {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
                     {exercise.tempo && exercise.per_side ? ' | ' : ''}
-                    {exercise.per_side ? 'Chaque côté' : ''}
+                    {exercise.per_side ? 'Charge par main' : ''}
                   </p>
                 </div>
               )}

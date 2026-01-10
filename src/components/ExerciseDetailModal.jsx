@@ -118,6 +118,7 @@ const ExerciseDetailModal = ({
       title=""
       footer={createFooter()}
       noPadding={true}
+      borderRadius="16px"
     >
           {loading ? (
             <div className="px-6 py-6 space-y-4">

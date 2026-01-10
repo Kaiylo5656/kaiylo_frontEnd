@@ -11,9 +11,10 @@ const Input = React.forwardRef(({ className, type, style, ...props }, ref) => {
         className
       )}
       style={{
-        borderStyle: 'solid',
-        borderWidth: '0.5px',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderStyle: 'none',
+        borderWidth: '0px',
+        borderColor: 'rgba(0, 0, 0, 0)',
+        borderImage: 'none',
         ...style
       }}
       ref={ref}

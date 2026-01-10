@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import ExerciseHistory from './ExerciseHistory';
 
@@ -12,7 +12,9 @@ const ExerciseLibraryModal = ({
   onCreateClick,
   loading,
   onExerciseUpdated,
-  onExerciseDetailOpen
+  onExerciseDetailOpen,
+  onEditExercise,
+  focusSearch = false
 }) => {
   const [selectedExercise, setSelectedExercise] = useState(null);
 
@@ -44,49 +46,54 @@ const ExerciseLibraryModal = ({
     <div
       role="region"
       aria-label="Bibliothèque d'exercices"
-      className="absolute z-[1001] text-white pointer-events-auto"
+      className="fixed z-[1001] text-white pointer-events-auto"
       style={style}
     >
-      <div className="rounded-[28px] border border-[#2c2c2c] bg-gradient-to-br from-[#181818]/95 via-[#121212]/95 to-[#0d0d0d]/95 shadow-[0_18px_48px_rgba(0,0,0,0.45)] backdrop-blur-md overflow-hidden h-full flex flex-col">
-        <div className="px-6 pt-6 pb-4 border-b border-[#242424] flex items-start justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2">
-            {selectedExercise && (
-              <button
-                onClick={handleBackToList}
-                className="p-1 text-gray-400 hover:text-white transition-colors hover:bg-white/10 rounded"
-                aria-label="Retour"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-            )}
-            <BookOpen className="h-5 w-5 text-[#e87c3e]" />
-            <h3 className="text-base font-semibold tracking-wide">
-              {selectedExercise ? selectedExercise.title : 'Bibliothèque d\'exercices'}
-            </h3>
+      <div 
+        className="relative mx-auto w-full max-h-[92vh] overflow-hidden rounded-tl-2xl rounded-tr-none rounded-br-none rounded-bl-2xl shadow-2xl flex flex-col h-full"
+        style={{
+          backgroundColor: 'rgba(34, 35, 37, 0.75)',
+          opacity: 0.95
+        }}
+      >
+        <div className="shrink-0 pt-6 pb-3 flex flex-col">
+          <div className="px-6 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {selectedExercise && (
+                <button
+                  onClick={handleBackToList}
+                  className="text-white/50 hover:text-white transition-colors p-1"
+                  aria-label="Retour"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+              )}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z"/>
+              </svg>
+              <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                {selectedExercise ? selectedExercise.title : 'Bibliothèque d\'exercices'}
+              </h2>
+            </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
-            aria-label="Fermer"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="mx-6 mt-3 border-b border-white/10"></div>
         </div>
         
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain library-modal-scrollable-body px-3 pt-3 pb-6">
           {selectedExercise ? (
             // Afficher l'historique de l'exercice sélectionné
-            <div className="h-full overflow-y-auto p-6">
+            <div className="flex flex-col">
               <ExerciseHistory exerciseId={selectedExercise.id} />
               
               {/* Bouton pour ajouter à la séance */}
-              <div className="mt-6 pt-4 border-t border-[#242424]">
+              <div className="mt-6 pt-4 border-t border-white/10">
                 <button
                   onClick={() => {
                     onSelect(selectedExercise);
                     handleBackToList();
                   }}
-                  className="w-full bg-[#e87c3e] hover:bg-[#d66d35] text-white py-3 rounded-lg font-medium transition-colors"
+                  className="w-full py-2.5 text-sm font-normal text-white rounded-[10px] hover:opacity-90 transition-colors"
+                  style={{ backgroundColor: 'var(--kaiylo-primary-hex)' }}
                 >
                   Ajouter à la séance
                 </button>
@@ -103,6 +110,8 @@ const ExerciseLibraryModal = ({
               onExerciseUpdated={onExerciseUpdated}
               isOpen={isOpen}
               onExerciseDetailOpen={handleExerciseClick}
+              onEditExercise={onEditExercise}
+              focusSearch={focusSearch}
             />
           )}
         </div>

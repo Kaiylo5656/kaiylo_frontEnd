@@ -32,7 +32,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
   const hasVideos = (exercise, exerciseIndex) => {
     if (!sessionVideos || sessionVideos.length === 0) return false;
     
-    // Check by exercise_index and exercise_name
+    // Check by exercise_index and exercise_name (most specific)
     if (exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByIndex = sessionVideos.filter(
         (video) => video.exercise_index === exerciseIndex && video.exercise_name === exercise.name
@@ -49,8 +49,16 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       if (videosById.length > 0) return true;
     }
     
-    // Check by exercise name
-    if (exercise.name) {
+    // Check by exercise name only if exercise_index is not available on the video
+    // This prevents false positives when multiple exercises have the same name
+    if (exercise.name && exerciseIndex !== undefined && exerciseIndex !== null) {
+      const videosByName = sessionVideos.filter(
+        (video) => video.exercise_name === exercise.name && 
+        (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
+      );
+      if (videosByName.length > 0) return true;
+    } else if (exercise.name && (exerciseIndex === undefined || exerciseIndex === null)) {
+      // Fallback: only check by name if we don't have an index
       const videosByName = sessionVideos.filter(
         (video) => video.exercise_name === exercise.name
       );
@@ -64,7 +72,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
   const getVideoCount = (exercise, exerciseIndex) => {
     if (!sessionVideos || sessionVideos.length === 0) return 0;
     
-    // Check by exercise_index and exercise_name
+    // Check by exercise_index and exercise_name (most specific)
     if (exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByIndex = sessionVideos.filter(
         (video) => video.exercise_index === exerciseIndex && video.exercise_name === exercise.name
@@ -81,8 +89,16 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       if (videosById.length > 0) return videosById.length;
     }
     
-    // Check by exercise name
-    if (exercise.name) {
+    // Check by exercise name only if exercise_index is not available on the video
+    // This prevents false positives when multiple exercises have the same name
+    if (exercise.name && exerciseIndex !== undefined && exerciseIndex !== null) {
+      const videosByName = sessionVideos.filter(
+        (video) => video.exercise_name === exercise.name && 
+        (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
+      );
+      if (videosByName.length > 0) return videosByName.length;
+    } else if (exercise.name && (exerciseIndex === undefined || exerciseIndex === null)) {
+      // Fallback: only check by name if we don't have an index
       const videosByName = sessionVideos.filter(
         (video) => video.exercise_name === exercise.name
       );

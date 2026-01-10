@@ -14,7 +14,8 @@ const StudentSidebar = ({
   onToggleCollapse,
   studentVideoCounts = {},
   studentMessageCounts = {},
-  studentNextSessions = {}
+  studentNextSessions = {},
+  onFeedbackBadgeClick
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
@@ -301,6 +302,26 @@ const StudentSidebar = ({
                         }`}>
                           {studentName}
                         </div>
+                      </div>
+                      
+                      {/* Feedback Badge */}
+                      <div 
+                        className={`h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 transition-all duration-200 mr-3 ${
+                          (studentVideoCounts[student.id] || 0) === 0 
+                            ? 'opacity-0 cursor-default pointer-events-none' 
+                            : 'cursor-pointer hover:bg-[#d4845a]/90 hover:scale-110'
+                        }`}
+                        onClick={(studentVideoCounts[student.id] || 0) > 0 ? (e) => {
+                          e.stopPropagation(); // Prevent triggering the button click
+                          if (onFeedbackBadgeClick) {
+                            onFeedbackBadgeClick(student);
+                          }
+                        } : undefined}
+                        title="Voir les vidéos en attente de feedback"
+                      >
+                        <span className="text-[13px] text-white font-normal leading-none">
+                          {studentVideoCounts[student.id] || 0}
+                        </span>
                       </div>
                     </button>
                   );

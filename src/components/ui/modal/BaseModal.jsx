@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, forwardRef } from 'react';
+import React, { useEffect, useRef, useCallback, forwardRef, cloneElement, isValidElement } from 'react';
 import { useRegisterModal } from './ModalManager';
 import ModalPortal from './ModalPortal';
 
@@ -11,15 +11,20 @@ const BaseModal = forwardRef(({
   zIndex = 50,
   closeOnEsc = true,
   closeOnBackdrop = true,
+  onBackdropClick,
   className = '',
   size = 'md',
   noPadding = false,
   footer,
-  titleClassName = 'text-xl font-semibold text-white'
+  titleClassName = 'text-xl font-semibold text-white',
+  externalContent,
+  borderRadius
 }, ref) => {
   const { isTopMost } = useRegisterModal(modalId);
   const internalModalRef = useRef(null);
   const modalRef = ref || internalModalRef;
+  const backdropRef = useRef(null);
+  const externalContentRef = useRef(null);
   const previousActiveElement = useRef(null);
 
   // Store the element that opened the modal
@@ -77,10 +82,24 @@ const BaseModal = forwardRef(({
 
   // Handle backdrop click
   const handleBackdropClick = useCallback((e) => {
-    if (e.target === e.currentTarget && isTopMost && closeOnBackdrop) {
-      onClose();
+    // Check if click is on backdrop (not on modal content or external content)
+    // The backdrop has padding, so we need to check if the target is the backdrop or outside modal content
+    const isExternalContentClick = externalContentRef.current && externalContentRef.current.contains(e.target);
+    const isModalContentClick = modalRef.current && modalRef.current.contains(e.target);
+    const isBackdropClick = e.target === backdropRef.current || 
+                           (backdropRef.current && backdropRef.current.contains(e.target) && 
+                            !isModalContentClick && !isExternalContentClick);
+    
+    if (isBackdropClick) {
+      // If custom handler provided, always call it (let it decide what to do)
+      if (onBackdropClick) {
+        onBackdropClick(e);
+      } else if (isTopMost && closeOnBackdrop) {
+        // Default behavior: only close if topmost and closeOnBackdrop is enabled
+        onClose();
+      }
     }
-  }, [isTopMost, closeOnBackdrop, onClose]);
+  }, [isTopMost, closeOnBackdrop, onClose, onBackdropClick]);
 
   if (!isOpen) {
     return null;
@@ -97,24 +116,36 @@ const BaseModal = forwardRef(({
   return (
     <ModalPortal zIndex={zIndex}>
       <div
+        ref={backdropRef}
         className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+        onMouseDown={handleBackdropClick}
         onClick={handleBackdropClick}
         style={{ zIndex: zIndex || 100 }}
       >
-        <div
-          ref={modalRef}
-          className={`relative mx-auto w-full ${sizeClasses[size]} max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col ${className}`}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={title ? `${modalId}-title` : undefined}
-          style={{
-            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
-            opacity: 0.95
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-        >
+        <div className="relative w-full overflow-visible">
+          {/* External content - rendered outside modal but inside relative container */}
+          {externalContent && isValidElement(externalContent) 
+            ? cloneElement(externalContent, { ref: externalContentRef })
+            : externalContent
+          }
+          <div
+            ref={modalRef}
+            className={`relative mx-auto w-full ${sizeClasses[size]} min-w-[min(500px,calc(100vw-2rem))] max-h-[92vh] overflow-hidden ${borderRadius ? '' : 'rounded-2xl'} shadow-2xl flex flex-col ${className}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? `${modalId}-title` : undefined}
+            style={{
+              background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+              opacity: 0.95,
+              ...(borderRadius && { borderRadius })
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
           {/* Header */}
           {title && (
             <>
@@ -169,6 +200,7 @@ const BaseModal = forwardRef(({
               {footer}
             </div>
           )}
+          </div>
         </div>
       </div>
     </ModalPortal>
