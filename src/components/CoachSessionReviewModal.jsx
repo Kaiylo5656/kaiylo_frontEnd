@@ -443,16 +443,25 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             }}
             aria-expanded={isOpen}
             aria-label={isOpen ? "Masquer les exercices" : "Voir tous les exercices de la séance"}
+            disabled={isOpen}
             className={`inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 ${
               isOpen 
-                ? 'scale-95 hover:scale-105' 
+                ? 'scale-95 opacity-60 cursor-not-allowed' 
                 : 'bg-white/15 hover:scale-105 hover:bg-white/15'
             }`}
             style={{
-              ...(isOpen && { backgroundColor: 'var(--kaiylo-primary-hex)' })
+              ...(isOpen && { 
+                backgroundColor: 'var(--kaiylo-primary-hex)',
+                opacity: 0.6
+              })
             }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 text-white" fill="currentColor">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 512 512" 
+              className={`h-4 w-4 text-white transition-transform duration-150 ${isOpen ? '' : 'rotate-180'}`}
+              fill="currentColor"
+            >
               <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z"/>
             </svg>
           </button>

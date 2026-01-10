@@ -46,7 +46,7 @@ const SwitchToDraftModal = ({
               )}
             </p>
             <p className="text-xs font-extralight text-white/50">
-              Elle ne sera plus visible par l'étudiant.
+              Elle ne sera plus visible par l'élève.
             </p>
           </div>
         </div>

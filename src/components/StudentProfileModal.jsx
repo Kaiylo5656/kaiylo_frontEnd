@@ -171,8 +171,17 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
               onClick={() => dateInputRef.current?.showPicker()}
               className="relative rounded-[10px] flex items-center cursor-pointer w-full px-[14px] py-3 bg-[rgba(0,0,0,0.5)]"
             >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 448 512" 
+                className="h-4 w-4 pointer-events-none mr-3 flex-shrink-0"
+                style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                fill="currentColor"
+              >
+                <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+              </svg>
               {/* Custom Display */}
-              <div className="w-full text-sm text-white font-normal">
+              <div className="flex-1 text-sm text-white font-normal">
                 {formData.birthDate ? (
                   (() => {
                     const [year, month, day] = formData.birthDate.split('-');
@@ -199,38 +208,70 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
           {/* Height */}
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Taille (cm)</label>
-            <input
-              type="number"
-              name="height"
-              value={formData.height}
-              onChange={handleChange}
-              className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
-              placeholder="Taille (cm)"
-            />
+            <div className="relative flex items-center">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 256 512" 
+                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
+                style={{ color: '#d4845a' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              <input
+                type="number"
+                name="height"
+                value={formData.height}
+                onChange={handleChange}
+                className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
+                placeholder="Taille (cm)"
+              />
+            </div>
           </div>
 
           {/* Weight */}
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Poids (kg)</label>
-            <input
-              type="number"
-              name="weight"
-              value={formData.weight}
-              onChange={handleChange}
-              className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
-              placeholder="Poids (kg)"
-            />
+            <div className="relative flex items-center">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 256 512" 
+                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
+                style={{ color: '#d4845a' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              <input
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={handleChange}
+                className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
+                placeholder="Poids (kg)"
+              />
+            </div>
           </div>
 
           {/* Discipline */}
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Discipline</label>
-            <div className="relative">
+            <div className="relative flex items-center">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 256 512" 
+                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
+                style={{ color: '#d4845a' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
               <select
                 name="discipline"
                 value={formData.discipline}
                 onChange={handleChange}
-                className="w-full px-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm appearance-none focus:outline-none"
+                className="select-dark-kaiylo w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm appearance-none focus:outline-none"
+                style={{ colorScheme: 'dark' }}
               >
                 <option value="Street Lifting" className="bg-[#131416]">Street Lifting</option>
                 <option value="Powerlifting" className="bg-[#131416]">Powerlifting</option>

@@ -231,18 +231,36 @@ const ExerciseTagTypeahead = ({
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      // Only handle clicks when menu is open or component is expanded
+      if (isCollapsed && !isOpen) {
+        return;
+      }
+      
+      const container = containerRef.current;
+      if (!container) return;
+      
+      const target = event.target;
+      if (!target || !(target instanceof Node)) return;
+      
+      // Check if click is inside the container (dropdown is a child, so it's included)
+      const clickedInside = container.contains(target);
+      
+      // Close menu if click is outside the container
+      if (!clickedInside) {
         setIsOpen(false);
         setIsCollapsed(true);
         setActiveIndex(-1);
-        // Clear input value when clicking outside
         setInputValue('');
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // Always attach listener, but function checks if menu is open
+    document.addEventListener('mousedown', handleClickOutside, true);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+    };
+  }, [isOpen, isCollapsed]);
 
   // Handle dropdown positioning
   useEffect(() => {

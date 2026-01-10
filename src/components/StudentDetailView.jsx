@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw, Pencil } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -12,6 +12,8 @@ import StudentProfileModal from './StudentProfileModal';
 import DeleteSessionModal from './DeleteSessionModal';
 import PublishSessionModal from './PublishSessionModal';
 import SwitchToDraftModal from './SwitchToDraftModal';
+import BaseModal from './ui/modal/BaseModal';
+import { useModalManager } from './ui/modal/ModalManager';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
@@ -19,6 +21,8 @@ import StudentSidebar from './StudentSidebar';
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange }) => {
   const navigate = useNavigate();
+  const { isTopMost: isDeleteNoteModalTopMost } = useModalManager();
+  const { isTopMost: isDeleteLimitationModalTopMost } = useModalManager();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +83,24 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [isEditingBlock, setIsEditingBlock] = useState(false);
   const [isBlockEditModalOpen, setIsBlockEditModalOpen] = useState(false);
   const [isSavingBlock, setIsSavingBlock] = useState(false);
+  
+  // Notes state
+  const [notes, setNotes] = useState([]);
+  const [editingNoteIndex, setEditingNoteIndex] = useState(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const [isDeleteNoteModalOpen, setIsDeleteNoteModalOpen] = useState(false);
+  const [noteToDeleteIndex, setNoteToDeleteIndex] = useState(null);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  
+  // Limitations state
+  const [limitations, setLimitations] = useState([]);
+  const [editingLimitationIndex, setEditingLimitationIndex] = useState(null);
+  const [editingLimitationText, setEditingLimitationText] = useState('');
+  const [isDeleteLimitationModalOpen, setIsDeleteLimitationModalOpen] = useState(false);
+  const [limitationToDeleteIndex, setLimitationToDeleteIndex] = useState(null);
+  const [isAddingLimitation, setIsAddingLimitation] = useState(false);
+  const [newLimitationText, setNewLimitationText] = useState('');
 
   // Sidebar filter states
   const [studentVideoCounts, setStudentVideoCounts] = useState({});
@@ -430,7 +452,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         console.log('✅ Assignment created successfully');
         // Rafraîchir les séances pour voir les changements
         await fetchWorkoutSessions();
-        alert('Séance publiée avec succès ! Elle est maintenant visible par l\'étudiant.');
         
         // Close modal and reset state
         setIsPublishSessionModalOpen(false);
@@ -1140,7 +1161,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       // Refresh sessions
       await fetchWorkoutSessions();
-      alert('Séance passée en mode brouillon avec succès !');
       
       // Close modal and reset state
       setIsSwitchToDraftModalOpen(false);
@@ -1709,6 +1729,130 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } finally {
       setIsSavingBlock(false);
     }
+  };
+
+  // Handle note editing
+  const handleEditNote = (index) => {
+    setEditingNoteIndex(index);
+    setEditingNoteText(notes[index]);
+  };
+
+  // Handle note deletion
+  const handleDeleteNote = (index) => {
+    setNoteToDeleteIndex(index);
+    setIsDeleteNoteModalOpen(true);
+  };
+
+  // Confirm note deletion
+  const confirmDeleteNote = () => {
+    if (noteToDeleteIndex !== null) {
+      const newNotes = notes.filter((_, i) => i !== noteToDeleteIndex);
+      setNotes(newNotes);
+      setIsDeleteNoteModalOpen(false);
+      setNoteToDeleteIndex(null);
+    }
+  };
+
+  // Handle note save
+  const handleSaveNote = () => {
+    if (editingNoteIndex !== null && editingNoteText.trim()) {
+      const newNotes = [...notes];
+      newNotes[editingNoteIndex] = editingNoteText.trim();
+      setNotes(newNotes);
+      setEditingNoteIndex(null);
+      setEditingNoteText('');
+    }
+  };
+
+  // Handle note cancel
+  const handleCancelEditNote = () => {
+    setEditingNoteIndex(null);
+    setEditingNoteText('');
+  };
+
+  // Handle adding new note
+  const handleStartAddingNote = () => {
+    setIsAddingNote(true);
+    setNewNoteText('');
+  };
+
+  // Handle save new note
+  const handleSaveNewNote = () => {
+    if (newNoteText.trim()) {
+      setNotes([...notes, newNoteText.trim()]);
+      setNewNoteText('');
+      setIsAddingNote(false);
+    } else {
+      setIsAddingNote(false);
+    }
+  };
+
+  // Handle cancel adding note
+  const handleCancelAddingNote = () => {
+    setIsAddingNote(false);
+    setNewNoteText('');
+  };
+
+  // Handle limitation editing
+  const handleEditLimitation = (index) => {
+    setEditingLimitationIndex(index);
+    setEditingLimitationText(limitations[index]);
+  };
+
+  // Handle limitation deletion
+  const handleDeleteLimitation = (index) => {
+    setLimitationToDeleteIndex(index);
+    setIsDeleteLimitationModalOpen(true);
+  };
+
+  // Confirm limitation deletion
+  const confirmDeleteLimitation = () => {
+    if (limitationToDeleteIndex !== null) {
+      const newLimitations = limitations.filter((_, i) => i !== limitationToDeleteIndex);
+      setLimitations(newLimitations);
+      setIsDeleteLimitationModalOpen(false);
+      setLimitationToDeleteIndex(null);
+    }
+  };
+
+  // Handle limitation save
+  const handleSaveLimitation = () => {
+    if (editingLimitationIndex !== null && editingLimitationText.trim()) {
+      const newLimitations = [...limitations];
+      newLimitations[editingLimitationIndex] = editingLimitationText.trim();
+      setLimitations(newLimitations);
+      setEditingLimitationIndex(null);
+      setEditingLimitationText('');
+    }
+  };
+
+  // Handle limitation cancel
+  const handleCancelEditLimitation = () => {
+    setEditingLimitationIndex(null);
+    setEditingLimitationText('');
+  };
+
+  // Handle adding new limitation
+  const handleStartAddingLimitation = () => {
+    setIsAddingLimitation(true);
+    setNewLimitationText('');
+  };
+
+  // Handle save new limitation
+  const handleSaveNewLimitation = () => {
+    if (newLimitationText.trim()) {
+      setLimitations([...limitations, newLimitationText.trim()]);
+      setNewLimitationText('');
+      setIsAddingLimitation(false);
+    } else {
+      setIsAddingLimitation(false);
+    }
+  };
+
+  // Handle cancel adding limitation
+  const handleCancelAddingLimitation = () => {
+    setIsAddingLimitation(false);
+    setNewLimitationText('');
   };
 
   // Fetch next sessions for all students
@@ -2719,7 +2863,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             >
               <button
                 className={`w-full px-5 py-2 rounded-lg text-sm shadow-lg ${
-                  isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
+                  isPastingSession ? 'bg-[var(--kaiylo-primary-hex)] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
                 }`}
                 style={{
                   transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
@@ -2972,7 +3116,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             >
               <button
                 className={`w-full px-3 py-1.5 rounded-lg text-xs shadow-lg ${
-                  isPastingSession ? 'bg-[#1f3b70] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
+                  isPastingSession ? 'bg-[var(--kaiylo-primary-hex)] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
                 }`}
                 style={{
                   transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
@@ -3025,11 +3169,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
+  const handleFeedbackBadgeClick = (student) => {
+    if (onStudentChange) {
+      onStudentChange(student);
+    }
+    setActiveTab('analyse');
+  };
+
   return (
     <div className="min-h-screen bg-transparent text-white flex">
       {/* Sidebar */}
       {students.length > 0 && (
-        <div className="ml-6 self-stretch flex items-stretch">
+        <div className="ml-6 mt-3 self-stretch flex items-stretch">
           <StudentSidebar
             students={students}
             currentStudentId={student?.id}
@@ -3039,6 +3190,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             studentVideoCounts={studentVideoCounts}
             studentMessageCounts={studentMessageCounts}
             studentNextSessions={studentNextSessions}
+            onFeedbackBadgeClick={handleFeedbackBadgeClick}
           />
         </div>
       )}
@@ -3057,7 +3209,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           <>
         {/* Header */}
         <div className="relative">
-        <div className="p-4 relative">
+        <div className="p-4 relative mt-3">
           {/* Toggle Sidebar Button */}
           {students.length > 0 && (
             <button
@@ -3395,7 +3547,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 </div>
 
                 {/* Weekly Schedule */}
-                <div className="grid grid-cols-7 gap-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '8px', paddingRight: '8px', marginBottom: '4px' }}>
+                <div className="grid grid-cols-7 gap-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '8px', paddingRight: '8px', paddingBottom: '4px', marginBottom: '4px' }}>
               {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
                 const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
                 const dayKey = format(dayDate, 'yyyy-MM-dd');
@@ -3444,9 +3596,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             </div>
 
             {/* Evolution des Kg/Reps, Notes et Limitations Section */}
-            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-3 mt-3">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-3 mt-3 items-stretch">
               {/* Evolution des Kg/Reps - Left Section (2/3 width) */}
-              <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10">
+              <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 h-full">
                 <div className="mb-4 border-b border-white/10 pb-2">
                   <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-4 h-4 flex-shrink-0" fill="currentColor">
@@ -3733,10 +3885,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               </div>
 
               {/* Notes et Limitations - Right Section (1/3 width) */}
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 h-full min-h-0">
                 {/* Notes Card */}
-                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex-1">
-                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex flex-col flex-1 min-h-0 overflow-hidden">
+                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2 shrink-0">
                     <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-4 h-4 opacity-75" fill="currentColor">
                         <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
@@ -3744,37 +3896,106 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       Notes
                     </h3>
                   </div>
-                  <div className="space-y-2">
-                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
-                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
-                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">A besoin d'une prog pour le bloc prochain azap</span>
-                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                        <Pencil className="w-4 h-4 text-[#d4845a]" />
-                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
+                  <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar pr-2">
+                    {notes.map((note, index) => (
+                      <div key={index} className="relative group text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                        {editingNoteIndex === index ? (
+                          <>
+                            <span className="text-[#d4845a] mt-0.5">•</span>
+                            <input
+                              type="text"
+                              value={editingNoteText}
+                              onChange={(e) => setEditingNoteText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveNote();
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditNote();
+                                }
+                              }}
+                              onBlur={handleSaveNote}
+                              className="flex-1 bg-transparent border-none outline-none text-xs text-white/75 font-normal px-0 py-0"
+                              style={{ 
+                                caretColor: '#d4845a',
+                                width: '100%'
+                              }}
+                              autoFocus
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
+                            <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40 flex-1">{note}</span>
+                            <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditNote(index);
+                                }}
+                                className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
+                                title="Modifier la note"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 text-[#d4845a] fill-current">
+                                  <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/>
+                                </svg>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteNote(index);
+                                }}
+                                className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
+                                title="Supprimer la note"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 text-[#d4845a] fill-current">
+                                  <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </div>
-                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
-                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
-                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">Part en vacance 2 semaines</span>
-                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                        <Pencil className="w-4 h-4 text-[#d4845a]" />
-                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
+                    ))}
+                    
+                    {/* Add new note */}
+                    {isAddingNote ? (
+                      <div className="text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5">
+                        <span className="text-[#d4845a] mt-0.5">•</span>
+                        <input
+                          type="text"
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveNewNote();
+                            } else if (e.key === 'Escape') {
+                              handleCancelAddingNote();
+                            }
+                          }}
+                          onBlur={handleSaveNewNote}
+                          placeholder="Ajouter une note..."
+                          className="flex-1 bg-transparent border-none outline-none text-xs text-white/75 font-normal px-0 py-0 placeholder:text-white/30"
+                          style={{ 
+                            caretColor: '#d4845a',
+                            width: '100%'
+                          }}
+                          autoFocus
+                        />
                       </div>
-                    </div>
-                    <div className="relative group text-xs text-white/75 font-normal flex items-start gap-2 p-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
-                      <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
-                      <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40">A pas fait la séance du 13/09</span>
-                      <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                        <Pencil className="w-4 h-4 text-[#d4845a]" />
-                        <Trash2 className="w-4 h-4 text-[#d4845a]" />
-                      </div>
-                    </div>
+                    ) : (
+                      <button
+                        onClick={handleStartAddingNote}
+                        className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
+                      >
+                        <span className="text-[#d4845a]">Ajouter une note</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {/* Limitations et blessures Card */}
-                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex-1">
-                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex flex-col flex-1 min-h-0 overflow-hidden">
+                  <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2 shrink-0">
                     <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 opacity-75" fill="currentColor">
                         <path d="M200 48l112 0c4.4 0 8 3.6 8 8l0 40-128 0 0-40c0-4.4 3.6-8 8-8zm-56 8l0 40-80 0C28.7 96 0 124.7 0 160L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64l-80 0 0-40c0-30.9-25.1-56-56-56L200 0c-30.9 0-56 25.1-56 56zm80 160c0-8.8 7.2-16 16-16l32 0c8.8 0 16 7.2 16 16l0 40 40 0c8.8 0 16 7.2 16 16l0 32c0 8.8-7.2 16-16 16l-40 0 0 40c0 8.8-7.2 16-16 16l-32 0c-8.8 0-16-7.2-16-16l0-40-40 0c-8.8 0-16-7.2-16-16l0-32c0-8.8 7.2-16 16-16l40 0 0-40z"/>
@@ -3782,15 +4003,100 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       Limitations et blessures
                     </h3>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-xs text-white/75 font-extralight flex items-start gap-2">
-                      <span className="text-[#d4845a] mt-0.5">•</span>
-                      <span>Douleure au pec gauche</span>
-                    </div>
-                    <div className="text-xs text-white/75 font-extralight flex items-start gap-2">
-                      <span className="text-[#d4845a] mt-0.5">•</span>
-                      <span>Asthmatique</span>
-                    </div>
+                  <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar pr-2">
+                    {limitations.map((limitation, index) => (
+                      <div key={index} className="relative group text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                        {editingLimitationIndex === index ? (
+                          <>
+                            <span className="text-[#d4845a] mt-0.5">•</span>
+                            <input
+                              type="text"
+                              value={editingLimitationText}
+                              onChange={(e) => setEditingLimitationText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveLimitation();
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditLimitation();
+                                }
+                              }}
+                              onBlur={handleSaveLimitation}
+                              className="flex-1 bg-transparent border-none outline-none text-xs text-white/75 font-normal px-0 py-0"
+                              style={{ 
+                                caretColor: '#d4845a',
+                                width: '100%'
+                              }}
+                              autoFocus
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
+                            <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40 flex-1">{limitation}</span>
+                            <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditLimitation(index);
+                                }}
+                                className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
+                                title="Modifier la limitation"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 text-[#d4845a] fill-current">
+                                  <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/>
+                                </svg>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteLimitation(index);
+                                }}
+                                className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
+                                title="Supprimer la limitation"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 text-[#d4845a] fill-current">
+                                  <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* Add new limitation */}
+                    {isAddingLimitation ? (
+                      <div className="text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5">
+                        <span className="text-[#d4845a] mt-0.5">•</span>
+                        <input
+                          type="text"
+                          value={newLimitationText}
+                          onChange={(e) => setNewLimitationText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveNewLimitation();
+                            } else if (e.key === 'Escape') {
+                              handleCancelAddingLimitation();
+                            }
+                          }}
+                          onBlur={handleSaveNewLimitation}
+                          placeholder="Ajouter une limitation..."
+                          className="flex-1 bg-transparent border-none outline-none text-xs text-white/75 font-normal px-0 py-0 placeholder:text-white/30"
+                          style={{ 
+                            caretColor: '#d4845a',
+                            width: '100%'
+                          }}
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleStartAddingLimitation}
+                        className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
+                      >
+                        <span className="text-[#d4845a]">Ajouter une limitation</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -4169,6 +4475,100 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           sessionTitle={sessionToSwitchToDraft?.session?.title}
           loading={isSwitchingToDraft}
         />
+
+        {/* Delete Note Modal */}
+        <BaseModal
+          isOpen={isDeleteNoteModalOpen}
+          onClose={() => {
+            setIsDeleteNoteModalOpen(false);
+            setNoteToDeleteIndex(null);
+          }}
+          modalId="delete-note-modal"
+          zIndex={80}
+          closeOnEsc={isDeleteNoteModalTopMost}
+          closeOnBackdrop={isDeleteNoteModalTopMost}
+          size="md"
+          title="Supprimer la note"
+          titleClassName="text-xl font-normal text-white"
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col items-start space-y-4">
+              <div className="text-left space-y-2">
+                <p className="text-sm font-extralight text-white/70">
+                  Êtes-vous sûr de vouloir supprimer cette note ?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteNoteModalOpen(false);
+                  setNoteToDeleteIndex(null);
+                }}
+                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteNote}
+                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </BaseModal>
+
+        {/* Delete Limitation Modal */}
+        <BaseModal
+          isOpen={isDeleteLimitationModalOpen}
+          onClose={() => {
+            setIsDeleteLimitationModalOpen(false);
+            setLimitationToDeleteIndex(null);
+          }}
+          modalId="delete-limitation-modal"
+          zIndex={80}
+          closeOnEsc={isDeleteLimitationModalTopMost}
+          closeOnBackdrop={isDeleteLimitationModalTopMost}
+          size="md"
+          title="Supprimer la limitation"
+          titleClassName="text-xl font-normal text-white"
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col items-start space-y-4">
+              <div className="text-left space-y-2">
+                <p className="text-sm font-extralight text-white/70">
+                  Êtes-vous sûr de vouloir supprimer cette limitation ?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteLimitationModalOpen(false);
+                  setLimitationToDeleteIndex(null);
+                }}
+                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteLimitation}
+                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </BaseModal>
 
           <OneRmModal
           isOpen={isOneRmModalOpen}

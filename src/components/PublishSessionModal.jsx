@@ -46,7 +46,7 @@ const PublishSessionModal = ({
               )}
             </p>
             <p className="text-xs font-extralight text-white/50">
-              Elle sera visible par l'étudiant.
+              Elle sera visible par l'élève.
             </p>
           </div>
         </div>

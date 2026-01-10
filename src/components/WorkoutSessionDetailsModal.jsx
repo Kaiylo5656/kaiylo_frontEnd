@@ -130,7 +130,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                           <thead>
                             <tr className="text-gray-400 text-xs border-b border-[#262626]">
                               <th className="text-left pb-3">Série</th>
-                              <th className="text-center pb-3">Charge (kg)</th>
+                              <th className="text-center pb-3 font-extralight">Charge (kg)</th>
                               <th className="text-center pb-3">Reps</th>
                               <th className="text-center pb-3">Repos</th>
                               <th className="text-center pb-3">Vidéo</th>
