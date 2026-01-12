@@ -262,7 +262,7 @@ const Navigation = () => {
         {!isCollapsed ? (
           <>
             <div className="flex items-center justify-start px-4 h-full">
-              <Logo />
+              <Logo isCollapsed={false} />
             </div>
             <button
               onClick={togglePin}
@@ -277,28 +277,9 @@ const Navigation = () => {
             </button>
           </>
         ) : (
-          <>
-            <div 
-              className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity h-full"
-              onClick={handleLogoClick}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="text-white flex-shrink-0"
-                style={{ minWidth: '24px', width: '24px', height: '24px' }}
-              >
-                <path
-                  d="M6.75 6.75V17.25H8.25V13.5H12.75V17.25H14.25V10.5H8.25V6.75H6.75ZM15.75 6.75V17.25H17.25V6.75H15.75Z"
-                  fill="currentColor"
-                />
-                <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </div>
-          </>
+          <div className="flex items-center justify-center h-full">
+            <Logo isCollapsed={true} />
+          </div>
         )}
       </div>
 

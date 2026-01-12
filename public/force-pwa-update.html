@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Force PWA Update - Kaiylo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 30px;
+            border: 1px solid #333;
+        }
+        h1 {
+            color: #e87c3e;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #e87c3e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .log {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-item {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        .success { color: #4caf50; }
+        .error { color: #f44336; }
+        .info { color: #2196f3; }
+        .warning { color: #ff9800; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Force PWA Update</h1>
+        <p>Cette page permet de forcer la mise à jour du service worker et du cache PWA.</p>
+        
+        <button onclick="clearServiceWorkers()">1. Désinscrire les Service Workers</button>
+        <button onclick="clearAllCaches()">2. Vider tous les caches</button>
+        <button onclick="reloadApp()">3. Recharger l'application</button>
+        <button onclick="checkManifest()">4. Vérifier le manifest</button>
+        <button onclick="checkIcons()">5. Vérifier les icônes PNG</button>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function clearServiceWorkers() {
+            addLog('Suppression des service workers...', 'info');
+            try {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    addLog(`Trouvé ${registrations.length} service worker(s)`, 'info');
+                    
+                    for (const registration of registrations) {
+                        const unregistered = await registration.unregister();
+                        addLog(`Service worker désinscrit: ${unregistered}`, unregistered ? 'success' : 'error');
+                    }
+                    
+                    if (registrations.length === 0) {
+                        addLog('Aucun service worker trouvé', 'warning');
+                    } else {
+                        addLog('✅ Tous les service workers ont été désinscrits', 'success');
+                    }
+                } else {
+                    addLog('❌ Service Workers non supportés', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearAllCaches() {
+            addLog('Vidage des caches...', 'info');
+            try {
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    addLog(`Trouvé ${cacheNames.length} cache(s)`, 'info');
+                    
+                    for (const cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        addLog(`Cache supprimé: ${cacheName}`, 'success');
+                    }
+                    
+                    if (cacheNames.length === 0) {
+                        addLog('Aucun cache trouvé', 'warning');
+                    } else {
+                        addLog('✅ Tous les caches ont été vidés', 'success');
+                    }
+                } else {
+                    addLog('❌ Cache API non supportée', 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+            }
+        }
+
+        function reloadApp() {
+            addLog('Rechargement de l\'application...', 'info');
+            // Clear localStorage and sessionStorage
+            localStorage.clear();
+            sessionStorage.clear();
+            addLog('✅ LocalStorage et SessionStorage vidés', 'success');
+            addLog('Redirection vers l\'application...', 'info');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
+        }
+
+        async function checkManifest() {
+            addLog('Vérification du manifest...', 'info');
+            try {
+                const response = await fetch('/manifest.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const manifest = await response.json();
+                addLog('✅ Manifest chargé avec succès', 'success');
+                addLog(`Nom: ${manifest.name}`, 'info');
+                addLog(`Icônes: ${manifest.icons.length}`, 'info');
+                manifest.icons.forEach((icon, index) => {
+                    addLog(`  Icon ${index + 1}: ${icon.src} (${icon.sizes}) [${icon.type}]`, 'info');
+                });
+            } catch (error) {
+                addLog(`❌ Erreur lors du chargement du manifest: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkIcons() {
+            addLog('Vérification des icônes PNG...', 'info');
+            const icons = ['pwa-192x192.png', 'pwa-512x512.png', 'Test 26.png'];
+            
+            for (const icon of icons) {
+                try {
+                    const response = await fetch(`/${icon}`);
+                    if (response.ok) {
+                        const size = response.headers.get('content-length');
+                        addLog(`✅ ${icon}: OK (${size} bytes)`, 'success');
+                    } else {
+                        addLog(`❌ ${icon}: Erreur HTTP ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    addLog(`❌ ${icon}: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            addLog('Page de mise à jour PWA chargée', 'success');
+            checkManifest();
+            checkIcons();
+        });
+    </script>
+</body>
+</html>
