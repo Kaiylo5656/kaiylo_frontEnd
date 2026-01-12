@@ -2126,13 +2126,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const weekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
     
-    // Get current training week range - use the displayed weeks
-    const trainingWeekStart = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
-    const trainingWeekEnd = addDays(trainingWeekStart, (weekViewFilter * 7) - 1);
+    // Get current month range for monthly stats
+    const today = new Date();
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
     
     // Get date keys for the ranges
     const weekDateKeys = [];
-    const trainingWeekDateKeys = [];
+    const monthDateKeys = [];
     
     // Generate week date keys
     for (let i = 0; i < 7; i++) {
@@ -2140,17 +2141,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       weekDateKeys.push(format(date, 'yyyy-MM-dd'));
     }
     
-    // Generate training week date keys - ensure we cover all displayed weeks
-    for (let i = 0; i < (weekViewFilter * 7); i++) {
-      const date = addDays(trainingWeekStart, i);
-      trainingWeekDateKeys.push(format(date, 'yyyy-MM-dd'));
-    }
+    // Generate month date keys - all days of the current month
+    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    monthDays.forEach(date => {
+      monthDateKeys.push(format(date, 'yyyy-MM-dd'));
+    });
     
-    console.log('Training week date range:', {
-      trainingWeekStart: format(trainingWeekStart, 'yyyy-MM-dd'),
-      trainingWeekEnd: format(trainingWeekEnd, 'yyyy-MM-dd'),
-      totalDays: trainingWeekDateKeys.length,
-      trainingWeekDateKeys: trainingWeekDateKeys.slice(0, 5) + '...' + trainingWeekDateKeys.slice(-5)
+    console.log('Month date range:', {
+      monthStart: format(monthStart, 'yyyy-MM-dd'),
+      monthEnd: format(monthEnd, 'yyyy-MM-dd'),
+      totalDays: monthDateKeys.length,
+      monthDateKeys: monthDateKeys.slice(0, 5) + '...' + monthDateKeys.slice(-5)
     });
     
     // Count sessions for current week (flatten arrays)
@@ -2158,29 +2159,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
     
-    // Count sessions for training weeks (flatten arrays)
-    const allTrainingWeekSessions = trainingWeekDateKeys
+    // Count sessions for current month (flatten arrays)
+    const allMonthSessions = monthDateKeys
       .flatMap(dateKey => workoutSessions[dateKey] || [])
       .filter(session => session !== undefined);
     
     // Filter to only assigned workouts (exclude drafts)
     const weekSessions = allWeekSessions.filter(session => session.status !== 'draft');
-    const trainingWeekSessions = allTrainingWeekSessions.filter(session => session.status !== 'draft');
+    const monthSessions = allMonthSessions.filter(session => session.status !== 'draft');
     
     // Count completed sessions
     const weekCompleted = weekSessions.filter(session => session.status === 'completed').length;
-    const trainingWeekCompleted = trainingWeekSessions.filter(session => session.status === 'completed').length;
+    const monthCompleted = monthSessions.filter(session => session.status === 'completed').length;
     
     // Debug logging
     console.log('Progress calculation debug:', {
       weekDateKeys: weekDateKeys,
-      trainingWeekDateKeys: trainingWeekDateKeys.slice(0, 10) + '...',
+      monthDateKeys: monthDateKeys.slice(0, 10) + '...',
       weekSessions: weekSessions.length,
-      trainingWeekSessions: trainingWeekSessions.length,
+      monthSessions: monthSessions.length,
       weekCompleted,
-      trainingWeekCompleted,
+      monthCompleted,
       workoutSessionsKeys: Object.keys(workoutSessions),
-      sampleSession: weekSessions[0] || trainingWeekSessions[0],
+      sampleSession: weekSessions[0] || monthSessions[0],
       allWorkoutSessions: workoutSessions
     });
     
@@ -2191,9 +2192,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         progress: weekSessions.length > 0 ? (weekCompleted / weekSessions.length) * 100 : 0
       },
       trainingWeek: {
-        completed: trainingWeekCompleted,
-        total: trainingWeekSessions.length,
-        progress: trainingWeekSessions.length > 0 ? (trainingWeekCompleted / trainingWeekSessions.length) * 100 : 0
+        completed: monthCompleted,
+        total: monthSessions.length,
+        progress: monthSessions.length > 0 ? (monthCompleted / monthSessions.length) * 100 : 0
       }
     };
   };

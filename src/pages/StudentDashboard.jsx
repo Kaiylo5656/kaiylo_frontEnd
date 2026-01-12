@@ -39,6 +39,7 @@ const StudentDashboard = () => {
   const [executingSession, setExecutingSession] = useState(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const scrollContainerRef = useRef(null);
+  const weekSwipeRef = useRef({ startX: null, startY: null });
 
   // Update dates when URL parameter changes
   useEffect(() => {
@@ -101,7 +102,8 @@ const StudentDashboard = () => {
         
         // Require multiple force attempts (user trying to scroll when already at bottom)
         // This indicates intentional "pull" to navigate
-        if (forceScrollAttempts.current >= 5) {
+        // Increased from 5 to 12 to make it less sensitive
+        if (forceScrollAttempts.current >= 12) {
           navigate('/student/monthly');
           forceScrollAttempts.current = 0;
           isAtBottom.current = false;
@@ -131,7 +133,8 @@ const StudentDashboard = () => {
       if (distanceFromBottom <= 5 && e.deltaY > 0) {
         forceScrollAttempts.current += 1;
         
-        if (forceScrollAttempts.current >= 3) {
+        // Increased from 3 to 10 to make it less sensitive
+        if (forceScrollAttempts.current >= 10) {
           navigate('/student/monthly');
           forceScrollAttempts.current = 0;
         }
@@ -274,6 +277,50 @@ const StudentDashboard = () => {
     const newDate = direction === 'next' ? addDays(currentDate, 7) : subDays(currentDate, 7);
     setCurrentDate(newDate);
     setSelectedDate(newDate);
+  };
+
+  // Gestionnaires de swipe pour changer de semaine
+  const handleWeekSwipeStart = (e) => {
+    const touch = e.touches[0];
+    weekSwipeRef.current.startX = touch.clientX;
+    weekSwipeRef.current.startY = touch.clientY;
+  };
+
+  const handleWeekSwipeMove = (e) => {
+    // Empêcher le scroll pendant le swipe
+    if (weekSwipeRef.current.startX !== null) {
+      e.preventDefault();
+    }
+  };
+
+  const handleWeekSwipeEnd = (e) => {
+    if (weekSwipeRef.current.startX === null || weekSwipeRef.current.startY === null) {
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const endX = touch.clientX;
+    const endY = touch.clientY;
+    const diffX = weekSwipeRef.current.startX - endX;
+    const diffY = weekSwipeRef.current.startY - endY;
+
+    // Seuil minimum pour déclencher un swipe (50px)
+    const minSwipeDistance = 50;
+    
+    // Vérifier que c'est un swipe horizontal (plus horizontal que vertical)
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
+      if (diffX > 0) {
+        // Swipe vers la gauche = semaine suivante
+        changeWeek('next');
+      } else {
+        // Swipe vers la droite = semaine précédente
+        changeWeek('prev');
+      }
+    }
+
+    // Réinitialiser
+    weekSwipeRef.current.startX = null;
+    weekSwipeRef.current.startY = null;
   };
 
 
@@ -545,7 +592,12 @@ const StudentDashboard = () => {
         </h1>
 
         {/* Planning de la semaine - Design Figma */}
-        <div className="relative mb-6 -mx-10 px-5">
+        <div 
+          className="relative mb-6 -mx-10 px-5"
+          onTouchStart={handleWeekSwipeStart}
+          onTouchMove={handleWeekSwipeMove}
+          onTouchEnd={handleWeekSwipeEnd}
+        >
           <div className="flex items-center justify-center gap-0 w-full">
             {/* Flèche gauche */}
             <button
@@ -747,7 +799,7 @@ const StudentDashboard = () => {
             // Mode vertical pour une seule séance
             <div className="space-y-4 w-full max-w-xl mx-auto px-4 flex-1 flex flex-col">
               {selectedAssignments.map((assignment, index) => (
-                <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+                <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
                   <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
                     <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
                       {assignment.workout_sessions?.title || 'Workout'}

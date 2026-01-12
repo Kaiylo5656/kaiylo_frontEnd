@@ -539,7 +539,7 @@ const Header = () => {
   return (
     <>
       <header 
-        className={`relative px-4 sm:px-6 pt-6 pb-0 ${isModalOpen ? 'z-[1]' : 'z-20'}`}
+        className={`relative px-4 sm:px-6 pt-3 pb-3 ${isModalOpen ? 'z-[1]' : 'z-20'}`}
         style={isModalOpen ? { pointerEvents: 'none' } : {}}
       >
         {isStudent ? renderStudentHeader() : renderCoachHeader()}

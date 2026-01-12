@@ -126,16 +126,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         setMessages(reversedMessages);
         setIsInitialLoad(false); // Mark initial load as complete
         
-        // CRITICAL: Scroll to bottom after initial load to show newest messages
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const container = messagesContainerRef.current;
-            if (container && newMessages.length > 0) {
-              container.scrollTop = container.scrollHeight;
-              console.log('✅ Scrolled to bottom after initial load');
-            }
-          });
-        });
+        // Scroll will be handled by the dedicated useEffect after state update
       }
       
       setNextCursor(newNextCursor);
@@ -429,6 +420,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       // Clear processed message IDs when switching conversations
       processedMessageIdsRef.current.clear();
       
+      // Reset scroll position to top before loading new messages
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTop = 0;
+      }
+      
       fetchMessages(); // Initial load (no cursor)
       markMessagesAsRead(conversation.id);
       joinConversation(conversation.id);
@@ -686,6 +683,39 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
   }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
 
+  // Scroll to bottom after initial load completes
+  useEffect(() => {
+    if (!isInitialLoad && !loading && messages.length > 0) {
+      // Use multiple requestAnimationFrame calls + setTimeout to ensure DOM is fully rendered
+      const scrollToBottom = () => {
+        const container = messagesContainerRef.current;
+        if (container) {
+          // Force scroll to bottom
+          container.scrollTop = container.scrollHeight;
+          console.log('✅ Scrolled to bottom after initial load complete', {
+            scrollTop: container.scrollTop,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight
+          });
+          
+          // Double check after a short delay to ensure we're at the bottom
+          setTimeout(() => {
+            if (container.scrollTop < container.scrollHeight - container.clientHeight - 10) {
+              container.scrollTop = container.scrollHeight;
+              console.log('✅ Re-scrolled to bottom (second attempt)');
+            }
+          }, 200);
+        }
+      };
+      
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(scrollToBottom, 100); // Small delay to ensure layout is complete
+        });
+      });
+    }
+  }, [isInitialLoad, loading, messages.length]);
+
   // Scroll to bottom when new messages arrive (not when loading more or on initial load)
   // NOTE: This only handles length changes. Real-time messages handle their own scrolling in handleNewMessage
   useEffect(() => {
@@ -859,7 +889,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               <div className="font-normal text-white">
                 {participantInfo.name || getUserDisplayName(conversation.other_participant_id)}
               </div>
-              {participantInfo.email && (
+              {participantInfo.email && currentUser?.role !== 'student' && (
                 <div className="text-sm text-gray-400" style={{ fontWeight: 200 }}>
                   ({participantInfo.email})
                 </div>
@@ -1060,10 +1090,25 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                             ? 'bg-primary text-primary-foreground border-primary rounded-full pl-1 pr-1'
                             : 'bg-white/15 text-card-foreground border-0 rounded-full pl-1 pr-1'
                         }`}
+                        style={{ 
+                          overflowWrap: 'break-word',
+                          wordBreak: 'break-word',
+                          overflow: 'hidden'
+                        }}
                       >
-                        <CardContent className="p-3" style={{ padding: "10px" }}>
-                          <div className="flex items-end gap-1.5">
-                            <div className="text-xs font-normal break-words whitespace-pre-wrap flex-1">{message.content}</div>
+                        <CardContent className="p-3" style={{ padding: "10px", minWidth: 0 }}>
+                          <div className="flex items-end gap-1.5" style={{ minWidth: 0 }}>
+                            <div 
+                              className="text-xs font-normal break-words whitespace-pre-wrap flex-1" 
+                              style={{ 
+                                overflowWrap: 'break-word',
+                                wordBreak: 'break-word',
+                                overflow: 'hidden',
+                                minWidth: 0
+                              }}
+                            >
+                              {message.content}
+                            </div>
                             {isOwnMessage && isSent && (
                               <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
                                 {isRead ? (
@@ -1260,7 +1305,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       )}
 
       {/* Message Input */}
-      <div className="pt-0 px-2 pb-2 md:px-4 md:pb-4">
+      <div className="pt-0 px-2 pb-2 md:px-4 md:pb-4 flex-shrink-0">
         <div className="bg-muted rounded-full flex items-center p-1.5 md:px-2 md:py-[5px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
           <input
             ref={fileInputRef}
@@ -1295,7 +1340,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 borderColor: 'rgba(0, 0, 0, 0)',
                 borderImage: 'none',
                 backgroundColor: 'unset',
-                background: 'unset'
+                background: 'unset',
+                fontWeight: currentUser?.role === 'student' ? 400 : undefined
               }}
               disabled={sending || uploadingFile}
             />

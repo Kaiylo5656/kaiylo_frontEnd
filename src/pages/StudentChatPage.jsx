@@ -299,31 +299,6 @@ const StudentChatPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center px-4">
-          <div className="text-red-400 text-lg font-semibold mb-2">Error</div>
-          <div className="text-gray-400 mb-4">{error}</div>
-          <button 
-            onClick={fetchConversations}
-            className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div 
@@ -439,8 +414,61 @@ const StudentChatPage = () => {
 
         {/* Content wrapper */}
         <div className="relative z-10 flex flex-col h-full">
-        {/* Show Conversation List or Chat Window based on selection (mobile view) */}
-        {showConversationList && !selectedConversation ? (
+        {loading ? (
+          <>
+            {/* Header Component */}
+            <Header />
+            
+            {/* Title - Same style as StudentDashboard with same spacing */}
+            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
+              <h1 className="text-[28px] font-light text-center text-white mb-6">
+                Messages
+              </h1>
+            </div>
+
+            {/* Loading state - only in content area */}
+            <div className="flex-1 flex items-center justify-center pb-16">
+              <div className="flex flex-col items-center gap-4">
+                <div 
+                  className="rounded-full border-2 border-transparent animate-spin"
+                  style={{
+                    borderTopColor: '#d4845a',
+                    borderRightColor: '#d4845a',
+                    width: '40px',
+                    height: '40px'
+                  }}
+                />
+                <p className="text-white/50 text-sm font-light">Chargement des conversations...</p>
+              </div>
+            </div>
+          </>
+        ) : error ? (
+          <>
+            {/* Header Component */}
+            <Header />
+            
+            {/* Title - Same style as StudentDashboard with same spacing */}
+            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
+              <h1 className="text-[28px] font-light text-center text-white mb-6">
+                Messages
+              </h1>
+            </div>
+
+            {/* Error state - only in content area */}
+            <div className="flex-1 flex items-center justify-center pb-16">
+              <div className="text-center px-4">
+                <div className="text-red-400 text-lg font-semibold mb-2">Erreur</div>
+                <div className="text-gray-400 mb-4">{error}</div>
+                <button 
+                  onClick={fetchConversations}
+                  className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
+                >
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          </>
+        ) : showConversationList && !selectedConversation ? (
           <>
             {/* Header Component */}
             <Header />
@@ -462,7 +490,7 @@ const StudentChatPage = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[15px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                  style={{ color: 'rgba(255, 255, 255, 1)' }}
+                  style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
                 />
               </div>
             </div>

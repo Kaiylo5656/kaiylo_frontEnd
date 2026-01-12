@@ -4,6 +4,7 @@ import Header from './Header';
 import BottomNavBar from './BottomNavBar';
 import FeedbackModal from './FeedbackModal';
 import { useLocation } from 'react-router-dom'; // Import useLocation
+import { useAuth } from '../contexts/AuthContext';
 
 // Context to track if WorkoutSessionExecution is open
 const WorkoutSessionContext = createContext({
@@ -15,9 +16,11 @@ export const useWorkoutSession = () => useContext(WorkoutSessionContext);
 
 const MainLayout = ({ children }) => {
   const location = useLocation();
+  const { user } = useAuth();
   const isChatPage = location.pathname.startsWith('/chat');
   const [isWorkoutSessionOpen, setIsWorkoutSessionOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const isStudent = user?.role === 'student';
 
   return (
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
@@ -108,17 +111,19 @@ const MainLayout = ({ children }) => {
       </div>
       {!isWorkoutSessionOpen && <BottomNavBar />}
       
-      {/* Bouton flottant pour ouvrir le feedback */}
-      <button
-        onClick={() => setIsFeedbackModalOpen(true)}
-        className="fixed bottom-6 right-6 bg-[#d4845a] hover:bg-[#c47850] text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all z-40 flex items-center justify-center hover:scale-110"
-        title="Signaler un problème ou envoyer un feedback"
-        style={{ zIndex: 9999, backgroundColor: 'rgba(196, 120, 80, 0.25)', border: 'none' }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20" fill="#d4845a" aria-hidden="true">
-          <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/>
-        </svg>
-      </button>
+      {/* Bouton flottant pour ouvrir le feedback - uniquement pour les coaches */}
+      {!isStudent && (
+        <button
+          onClick={() => setIsFeedbackModalOpen(true)}
+          className="fixed bottom-6 right-6 bg-[#d4845a] hover:bg-[#c47850] text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all z-40 flex items-center justify-center hover:scale-110"
+          title="Signaler un problème ou envoyer un feedback"
+          style={{ zIndex: 9999, backgroundColor: 'rgba(196, 120, 80, 0.25)', border: 'none' }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20" fill="#d4845a" aria-hidden="true">
+            <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/>
+          </svg>
+        </button>
+      )}
 
       {/* Modal de feedback */}
       <FeedbackModal

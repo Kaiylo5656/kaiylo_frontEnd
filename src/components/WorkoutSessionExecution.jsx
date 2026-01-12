@@ -2185,7 +2185,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   onClick={() => handleExerciseSelection(exerciseIndex)}
                   className={`
                     rounded-[12px] overflow-hidden transition-all duration-200
-                    ${isCompleted ? 'bg-white/10' : 'bg-white/5'}
+                    ${isCompleted ? 'bg-white/10' : 'bg-white/10'}
                     ${isSessionStarted ? 'cursor-pointer' : 'cursor-default opacity-75'}
                     w-full min-h-[64px] flex items-center justify-center
                   `}
@@ -2193,7 +2193,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   <div className="px-[18px] py-[10px] h-full w-full">
                     <div className="flex items-center justify-between gap-5 h-full">
                       <div className="flex flex-col gap-[3px]">
-                        <h3 className="text-[14px] font-light text-white/85 break-words leading-tight">
+                        <h3 className="text-[14px] font-light text-white break-words leading-tight">
                           {exercise.name}
                         </h3>
                         {exerciseSummary && (
@@ -2221,7 +2221,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                           } else if (status === 'failed') {
                             variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
                           } else if (isSelected && isActive) {
-                            variantClasses = 'bg-[rgba(0,0,0,0.45)] border-[#d4845a]';
+                            variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[#d4845a]';
                           }
 
                           const isButtonDimmed = !isActive || !isSessionStarted;

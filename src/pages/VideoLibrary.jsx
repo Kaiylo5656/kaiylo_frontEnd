@@ -347,12 +347,18 @@ const VideoLibrary = () => {
       tempDiv.style.whiteSpace = 'nowrap';
       tempDiv.style.display = 'inline-flex';
       tempDiv.style.alignItems = 'center';
-      tempDiv.style.gap = '4px'; // gap-1
-      tempDiv.style.paddingLeft = '20px'; // px-5
-      tempDiv.style.paddingRight = '8px'; // pr-2
+      tempDiv.style.gap = '6px'; // gap-1.5
+      tempDiv.style.paddingLeft = '12px'; // pl-[12px]
+      tempDiv.style.paddingRight = '12px'; // pr-3
       tempDiv.style.fontSize = '14px'; // text-sm
       tempDiv.style.fontWeight = '400'; // font-normal
       tempDiv.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
+      // Create SVG icon for folder (h-4 w-4 = 16px)
+      const tempSvg = document.createElement('div');
+      tempSvg.style.width = '16px';
+      tempSvg.style.height = '16px';
+      tempSvg.style.flexShrink = '0';
       
       // Create span for text
       const tempSpan = document.createElement('span');
@@ -366,6 +372,7 @@ const VideoLibrary = () => {
       tempButton.style.height = '14px';
       tempButton.style.flexShrink = '0';
       
+      tempDiv.appendChild(tempSvg);
       tempDiv.appendChild(tempSpan);
       tempDiv.appendChild(tempButton);
       document.body.appendChild(tempDiv);
@@ -1700,7 +1707,7 @@ const VideoLibrary = () => {
                 {folders.map(folder => (
                   <div
                     key={folder.id}
-                    className={`relative group inline-flex items-center gap-1 rounded-full px-5 pr-2 py-[7px] hover:bg-muted cursor-pointer ${
+                    className={`relative group inline-flex items-center gap-1.5 rounded-full pl-[12px] pr-3 py-[7px] hover:bg-muted cursor-pointer ${
                       selectedFolder === folder.id 
                         ? 'bg-primary/15 text-primary font-normal' 
                         : 'bg-white/5 text-white/75 font-extralight'
@@ -1708,6 +1715,9 @@ const VideoLibrary = () => {
                     style={folderMinWidths[folder.id] ? { width: `${folderMinWidths[folder.id]}px` } : {}}
                     onClick={() => handleFolderSelect(folder.id)}
                   >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 flex-shrink-0" fill="currentColor">
+                      <path d="M64 448l384 0c35.3 0 64-28.7 64-64l0-240c0-35.3-28.7-64-64-64L298.7 80c-6.9 0-13.7-2.2-19.2-6.4L241.1 44.8C230 36.5 216.5 32 202.7 32L64 32C28.7 32 0 60.7 0 96L0 384c0 35.3 28.7 64 64 64z"/>
+                    </svg>
                     <span className="text-sm whitespace-nowrap">{folder.name}</span>
                     <button
                       onClick={(e) => {

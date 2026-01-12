@@ -213,6 +213,26 @@ const CoachDashboard = () => {
     setFilteredStudents(sorted);
   }, [searchTerm, students, sort, dir, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
+  // Helper function to extract name without email (preserves first and last names)
+  const extractStudentName = (name, email) => {
+    if (!name) return email || 'Unknown Student';
+    
+    // Remove email if it's present in the name
+    let cleanName = name;
+    if (email) {
+      // Remove the email from the name (handles various formats)
+      cleanName = cleanName.replace(email, '').trim();
+    }
+    
+    // Remove "élève" if present (case insensitive, handles multiple spaces)
+    cleanName = cleanName.replace(/\s*élève\s*/gi, ' ').trim();
+    
+    // Clean up multiple spaces but preserve the name structure (first name + last name)
+    cleanName = cleanName.replace(/\s+/g, ' ').trim();
+    
+    return cleanName || email || 'Unknown Student';
+  };
+
   const fetchCoachData = async () => {
     setLoading(true);
     try {
@@ -229,15 +249,41 @@ const CoachDashboard = () => {
       
       if (studentsResponse.data.success && studentsResponse.data.data) {
         // Transform the real student data to match our UI format
-        const transformedStudents = studentsResponse.data.data.map(student => ({
-          id: student.id,
-          name: student.name || student.email || 'Unknown Student',
-          lastActivity: student.last_activity || 'N/A',
-          feedbackCount: student.pending_feedback_count || 0,
-          status: student.status === 'active' ? 'Actif' : 'Inactif',
-          email: student.email,
-          joinedAt: student.joined_at
-        }));
+        const transformedStudents = studentsResponse.data.data.map(student => {
+          // Try to get the full name from various sources
+          let fullName = student.name;
+          
+          // Check if there's metadata with firstname/lastname
+          if (student.user_metadata) {
+            const firstName = student.user_metadata.firstname || student.user_metadata.first_name;
+            const lastName = student.user_metadata.lastname || student.user_metadata.last_name;
+            if (firstName || lastName) {
+              fullName = [firstName, lastName].filter(Boolean).join(' ');
+            }
+          }
+          
+          // If we still don't have a good name, try raw_user_meta_data
+          if (!fullName && student.raw_user_meta_data) {
+            const firstName = student.raw_user_meta_data.firstname || student.raw_user_meta_data.first_name;
+            const lastName = student.raw_user_meta_data.lastname || student.raw_user_meta_data.last_name;
+            if (firstName || lastName) {
+              fullName = [firstName, lastName].filter(Boolean).join(' ');
+            }
+          }
+          
+          // Clean the name (remove email and "élève" if present)
+          const cleanName = extractStudentName(fullName || student.name, student.email);
+          
+          return {
+            id: student.id,
+            name: cleanName,
+            lastActivity: student.last_activity || 'N/A',
+            feedbackCount: student.pending_feedback_count || 0,
+            status: student.status === 'active' ? 'Actif' : 'Inactif',
+            email: student.email,
+            joinedAt: student.joined_at
+          };
+        });
         
         setStudents(transformedStudents);
         console.log('✅ Fetched real students:', transformedStudents);

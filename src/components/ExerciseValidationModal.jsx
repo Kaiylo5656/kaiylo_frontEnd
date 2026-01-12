@@ -84,20 +84,8 @@ const ExerciseValidationModal = ({
     const hasInstructions = exercise.instructions && 
       exercise.instructions.trim().length > 0;
     
-    // Vérifier si l'exercice a une vidéo
-    const hasVideo = exercise.demoVideoURL && 
-      exercise.demoVideoURL.trim().length > 0;
-    
-    // Vérifier si l'exercice a un exerciseId (l'API pourrait avoir des informations)
-    // Si l'exercice a un exerciseId, on permet l'ouverture car l'API pourrait avoir des infos
-    const hasExerciseId = exercise.exerciseId && 
-      exercise.exerciseId.trim().length > 0;
-    
-    // L'exercice a des informations si :
-    // - Il a des instructions OU
-    // - Il a une vidéo OU
-    // - Il a un exerciseId (l'API pourrait avoir des informations à récupérer)
-    return hasInstructions || hasVideo || hasExerciseId;
+    // L'exercice a des informations seulement s'il a des instructions
+    return hasInstructions;
   };
 
   const exerciseHasInfo = hasExerciseInfo();
@@ -652,7 +640,7 @@ const ExerciseValidationModal = ({
               {/* Tempo et Charge par main - Affichés si définis par le coach */}
               {(exercise.tempo || exercise.per_side) && (
                 <div className="flex flex-col gap-[15px] items-start">
-                  <p className="text-[10px] font-light text-white/50">
+                  <p className="text-[12px] font-light text-white/50">
                     {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
                     {exercise.tempo && exercise.per_side ? ' | ' : ''}
                     {exercise.per_side ? 'Charge par main' : ''}
@@ -701,7 +689,7 @@ const ExerciseValidationModal = ({
                   className={`w-5 h-5 flex items-center justify-center rounded-full transition-opacity ${
                     exerciseHasInfo 
                       ? 'hover:opacity-80 cursor-pointer' 
-                      : 'cursor-not-allowed opacity-30'
+                      : 'cursor-not-allowed'
                   }`}
                   title={exerciseHasInfo 
                     ? "Voir les instructions et la vidéo de l'exercice" 
@@ -709,11 +697,9 @@ const ExerciseValidationModal = ({
                 >
                   <Info 
                     className={`w-5 h-5 ${
-                      !exerciseHasInfo 
-                        ? 'text-white/10' 
-                        : coachFeedback 
-                          ? 'text-[#d4845a]' 
-                          : 'text-white/25'
+                      exerciseHasInfo 
+                        ? 'text-[#d4845a]' 
+                        : 'text-white/25'
                     }`} 
                     strokeWidth={1.5} 
                   />
@@ -762,7 +748,7 @@ const ExerciseValidationModal = ({
             <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
               <div className="flex items-center w-full gap-3">
                 <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                  <p className="text-[8px] font-normal text-white/25 leading-none">Charge (kg)</p>
+                  <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RIR' : 'Charge (kg)'}</p>
                 </div>
                 <div className="w-[40px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>

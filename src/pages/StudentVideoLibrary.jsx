@@ -9,8 +9,6 @@ import {
   PlayCircle, 
   Clock, 
   MessageSquare, 
-  CheckCircle,
-  AlertCircle,
   Search,
   Filter,
   ChevronDown,
@@ -284,22 +282,20 @@ const StudentVideoLibrary = () => {
     switch (status) {
       case 'pending':
         return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-500 text-white">
-            <AlertCircle className="w-4 h-4 mr-1" />
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
             En attente
           </span>
         );
       case 'reviewed':
       case 'completed':
         return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-600 text-white">
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Feedback reçu
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+            Complété
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-600 text-gray-200">
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-gray-600 text-gray-200">
             {status}
           </span>
         );
@@ -412,20 +408,20 @@ const StudentVideoLibrary = () => {
           <div className="flex bg-[rgba(255,255,255,0.05)] border border-white/10 rounded-full p-1">
             <button
               onClick={() => setActiveTab('mes-videos')}
-              className={`flex-1 px-6 py-3 text-sm font-light rounded-full transition-all duration-200 ${
+              className={`flex-1 px-6 py-3 text-sm rounded-full transition-all duration-200 ${
                 activeTab === 'mes-videos' 
-                  ? 'bg-[#e87c3e] text-white shadow-lg' 
-                  : 'text-white/50 hover:text-white'
+                  ? 'bg-[#e87c3e] text-white shadow-lg font-normal' 
+                  : 'text-white/50 hover:text-white font-light'
               }`}
             >
               Mes vidéos
             </button>
             <button
               onClick={() => setActiveTab('ressource')}
-              className={`flex-1 px-6 py-3 text-sm font-light rounded-full transition-all duration-200 ${
+              className={`flex-1 px-6 py-3 text-sm rounded-full transition-all duration-200 ${
                 activeTab === 'ressource' 
-                  ? 'bg-[#e87c3e] text-white shadow-lg' 
-                  : 'text-white/50 hover:text-white'
+                  ? 'bg-[#e87c3e] text-white shadow-lg font-normal' 
+                  : 'text-white/50 hover:text-white font-light'
               }`}
             >
               Ressource
@@ -443,7 +439,7 @@ const StudentVideoLibrary = () => {
       <div className="relative z-10">
       {/* Search and Filters - Only show for "Mes vidéos" tab */}
       {activeTab === 'mes-videos' && (
-        <div className="p-4 space-y-4">
+        <div className="px-[26px] py-4 space-y-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -466,7 +462,7 @@ const StudentVideoLibrary = () => {
                   setIsStatusDropdownOpen(!isStatusDropdownOpen);
                   setIsExerciseDropdownOpen(false);
                 }}
-                className={`appearance-none bg-[rgba(255,255,255,0.05)] border ${statusFilter ? 'border-[#D4845A]' : 'border-white/10'} rounded-[15px] px-3 py-2 pr-7 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none focus:border-white/20 w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-7 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span>{statusFilter === 'pending' ? 'Attente' : statusFilter === 'completed' ? 'Reçu' : 'Statuts'}</span>
                 <ChevronDown className={`h-3 w-3 ${statusFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
@@ -521,7 +517,7 @@ const StudentVideoLibrary = () => {
                   setIsExerciseDropdownOpen(!isExerciseDropdownOpen);
                   setIsStatusDropdownOpen(false);
                 }}
-                className={`appearance-none bg-[rgba(255,255,255,0.05)] border ${exerciseFilter ? 'border-[#D4845A]' : 'border-white/10'} rounded-[15px] px-3 py-2 pr-7 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none focus:border-white/20 w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-7 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span className="truncate">{exerciseFilter || 'Exercices'}</span>
                 <ChevronDown className={`h-3 w-3 flex-shrink-0 ml-2 ${exerciseFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isExerciseDropdownOpen ? 'rotate-180' : ''}`} />
@@ -573,7 +569,7 @@ const StudentVideoLibrary = () => {
               <button
                 type="button"
                 onClick={() => document.getElementById('date-filter')?.showPicker?.() || document.getElementById('date-filter')?.click()}
-                className={`appearance-none bg-[rgba(255,255,255,0.05)] border ${dateFilter ? 'border-[#D4845A]' : 'border-white/10'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none focus:border-white/20 w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span>{dateFilter ? format(new Date(dateFilter), 'dd/MM/yyyy', { locale: fr }) : 'Date'}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`h-4 w-4 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} pointer-events-none`} fill="currentColor" aria-hidden="true">
@@ -584,7 +580,7 @@ const StudentVideoLibrary = () => {
           </div>
 
           {/* Video Count */}
-          <div className="text-xs text-[#D4845A] font-light">
+          <div className="text-xs text-[#D4845A] font-normal">
             {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} trouvée{filteredVideos.length > 1 ? 's' : ''}
           </div>
         </div>
@@ -603,11 +599,11 @@ const StudentVideoLibrary = () => {
                 return (
                   <div 
                     key={session.sessionId}
-                    className="border border-white/10 rounded-[20px] overflow-hidden bg-white/5"
+                    className="rounded-[20px] overflow-hidden bg-white/10"
                   >
                     {/* Session Header (Clickable) */}
                     <div 
-                      className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                      className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/12 transition-colors"
                       onClick={() => toggleSession(session.sessionId)}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
@@ -621,8 +617,11 @@ const StudentVideoLibrary = () => {
                           <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
                             <span className="flex items-center gap-2 flex-wrap">
                               <span>{session.sessionName}</span>
-                              <span style={{ fontSize: '13px', fontWeight: 300, color: 'var(--kaiylo-primary-hex)' }}>
-                                • {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
+                              <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                  <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                                </svg>
+                                <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                               </span>
                             </span>
                             <span className="text-white/50" style={{ fontSize: '13px' }}>{sessionDate}</span>
@@ -633,12 +632,12 @@ const StudentVideoLibrary = () => {
                       {/* Status indicator */}
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {session.videos.some(v => v.status === 'pending') && (
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
                             {session.videos.filter(v => v.status === 'pending').length} en attente
                           </span>
                         )}
                         {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-green-500/15 text-green-300 border border-green-500/25 backdrop-blur-sm">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
                             Complété
                           </span>
                         )}
@@ -652,12 +651,12 @@ const StudentVideoLibrary = () => {
                           {session.videos.map((video) => (
                             <div 
                               key={video.id} 
-                              className="bg-white/5 rounded-[15px] border border-white/10 p-4 hover:bg-white/10 transition-colors cursor-pointer"
+                              className="bg-white/5 rounded-[15px] p-4 hover:bg-white/10 transition-colors cursor-pointer"
                               onClick={() => handleVideoClick(video)}
                             >
                               <div className="flex items-start gap-4 pl-[5px]">
                                 {/* Video Thumbnail */}
-                                <div className="relative w-24 h-16 bg-white/5 rounded-[10px] border border-white/10 flex-shrink-0 overflow-hidden">
+                                <div className="relative w-24 h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                   {video.video_url ? (
                                     <video 
                                       src={video.video_url}
@@ -690,9 +689,14 @@ const StudentVideoLibrary = () => {
                                             return (
                                               <>
                                                 <span>•</span>
-                                                {weight > 0 && <span>{weight} kg</span>}
-                                                {weight > 0 && reps > 0 && <span>•</span>}
-                                                {reps > 0 && <span>{reps} reps</span>}
+                                                <span>
+                                                  {reps > 0 && <span>{reps} reps </span>}
+                                                  {weight > 0 && (
+                                                    <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: '400' }}>
+                                                      @{weight}kg
+                                                    </span>
+                                                  )}
+                                                </span>
                                               </>
                                             );
                                           }
@@ -714,7 +718,7 @@ const StudentVideoLibrary = () => {
                               {/* Coach Feedback - Full width below video */}
                               {video.coach_feedback && (
                                 <div 
-                                  className="mt-3 p-3 bg-white/5 rounded-[10px] relative overflow-hidden w-full"
+                                  className="mt-3 p-3 bg-white/10 rounded-[10px] relative overflow-hidden w-full"
                                   style={{
                                     borderLeft: '4px solid transparent',
                                     backgroundImage: 'linear-gradient(to right, rgba(212, 132, 90, 0.15) 0%, rgba(212, 132, 90, 0.05) 100%)',
@@ -750,10 +754,11 @@ const StudentVideoLibrary = () => {
               })}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center text-center text-gray-400 py-12">
-              <Video className="w-16 h-16 mb-4 text-gray-600" />
-              <h3 className="text-lg font-medium mb-2">Aucune vidéo trouvée</h3>
-              <p className="text-sm">
+            <div className="flex flex-col items-center justify-center text-center py-12">
+              <h3 className="text-lg font-light mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>
+                Aucune vidéo trouvée
+              </h3>
+              <p className="text-sm font-light" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
                 {searchTerm || statusFilter || exerciseFilter || dateFilter
                   ? 'Aucune vidéo ne correspond à vos critères de recherche.'
                   : 'Vous n\'avez pas encore envoyé de vidéos à votre coach.'}
@@ -811,38 +816,51 @@ const StudentVideoLibrary = () => {
                 const displayFolders = Array.from(folderMap.values()).filter(folder => folder.resources.length > 0);
                 
                 return displayFolders.map(folder => (
-                  <div key={folder.id}>
+                  <div 
+                    key={folder.id}
+                    className="rounded-[20px] overflow-hidden bg-white/10"
+                  >
                     {/* Folder Header */}
                     <div 
-                      className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
+                      className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/12 transition-colors"
                       onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <ChevronRight 
-                            size={20} 
-                            className={`text-gray-400 transition-transform ${
-                              selectedFolder === folder.id ? 'rotate-90' : ''
-                            }`} 
-                          />
-                          <span className="text-white font-medium">{folder.name}</span>
+                      <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+                        <ChevronRight 
+                          size={20} 
+                          className={`text-white/50 transition-transform flex-shrink-0 ${
+                            selectedFolder === folder.id ? 'rotate-90' : ''
+                          }`} 
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
+                            <span className="flex items-center gap-2 flex-wrap">
+                              <span>{folder.name}</span>
+                              <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                  <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                                </svg>
+                                <span style={{ fontWeight: '400' }}>x{folder.resources.length}</span>
+                              </span>
+                            </span>
+                          </h3>
                         </div>
-                        <span className="text-gray-400 text-sm">{folder.resources.length}</span>
                       </div>
                     </div>
                     
                     {/* Folder Resources */}
                     {selectedFolder === folder.id && folder.resources.length > 0 && (
-                      <div className="mt-2 ml-4 space-y-2">
+                      <div className="border-t border-white/10">
+                        <div className="p-4 space-y-3">
                         {folder.resources.map(resource => (
                           <div 
                             key={resource.id}
-                            className="bg-[#262626] rounded-lg border border-[#404040] p-3 hover:bg-[#2a2a2a] transition-colors cursor-pointer"
+                            className="bg-white/5 rounded-[15px] p-4 hover:bg-white/10 transition-colors cursor-pointer"
                             onClick={() => handleCoachResourceClick(resource)}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start gap-4 pl-[5px]">
                               {/* Video Thumbnail */}
-                              <div className="relative w-16 h-12 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                              <div className="relative w-24 h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                 {resource.fileUrl ? (
                                   <video 
                                     src={resource.fileUrl}
@@ -851,21 +869,21 @@ const StudentVideoLibrary = () => {
                                   />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center">
-                                    <Video className="w-6 h-6 text-gray-600" />
+                                    <Video className="w-8 h-8 text-white/30" />
                                   </div>
                                 )}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                  <PlayCircle size={16} className="text-white" />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30">
+                                  <PlayCircle size={20} className="text-white" />
                                 </div>
                               </div>
                               
                               {/* Resource Info */}
                               <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-medium truncate text-sm">
-                                  {resource.title || resource.fileName}
-                                </h4>
+                                <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
+                                  <span>{resource.title || resource.fileName}</span>
+                                </h3>
                                 {resource.description && (
-                                  <p className="text-gray-400 text-xs mt-1 line-clamp-2">
+                                  <p className="text-white/50 text-[13px] font-light mt-1">
                                     {resource.description}
                                   </p>
                                 )}
@@ -873,6 +891,7 @@ const StudentVideoLibrary = () => {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </div>
                     )}
                   </div>

@@ -121,7 +121,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           notes: ex.notes || '',
           isExpanded: true,
           tempo: ex.tempo || '',
-          per_side: ex.per_side || false
+          per_side: ex.per_side || false,
+          useRir: ex.useRir || false
         };
       }) || [];
       
@@ -384,7 +385,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       notes: '',
       isExpanded: true,
       tempo: '',
-      per_side: false
+      per_side: false,
+      useRir: false
     };
     
     setExercises([...exercises, newExercise]);
@@ -818,7 +820,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       ],
       notes: '',
       isExpanded: true,
-      tempo: ''
+      tempo: '',
+      useRir: false
     };
     
     // If we're replacing an exercise, replace it at the specified index
@@ -1255,6 +1258,31 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           );
                         })}
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const updatedExercises = [...exercises];
+                          updatedExercises[exerciseIndex].useRir = !exercise.useRir;
+                          // Réinitialiser toutes les valeurs de poids à 0 (ou vide) lors du changement de mode
+                          updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
+                            ...set,
+                            weight: ''
+                          }));
+                          setExercises(updatedExercises);
+                        }}
+                        className={`ml-auto py-1 px-3 rounded-[8px] text-sm font-normal transition-colors flex items-center gap-1.5 ${
+                          exercise.useRir
+                            ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
+                            : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
+                        }`}
+                        title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RIR"}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3.5 h-3.5 flex-shrink-0 fill-current">
+                          <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"/>
+                        </svg>
+                        <span>{exercise.useRir ? 'RIR' : 'Charge'}</span>
+                      </button>
                     </div>
                     <div className="flex items-center gap-0 px-0">
                       <div className="flex items-center gap-0" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
@@ -1304,7 +1332,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           <thead className="sticky top-0 z-10">
                             <tr className="text-white/50 text-xs font-extralight">
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Charge</th>
+                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RIR' : 'Charge'}</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Reps</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
@@ -1317,7 +1345,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                 <td className="py-1.5 text-sm text-center font-normal text-white/25">{set.serie}</td>
                                 <td className="py-1.5">
                                   <div 
-                                    className="relative flex items-center justify-center mx-auto w-16"
+                                    className="relative flex items-center justify-center mx-auto w-20"
                                     onMouseEnter={(e) => {
                                       const input = e.currentTarget.querySelector('input');
                                       if (input) {
@@ -1337,11 +1365,52 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                   >
                                     <Input
                                       type="number"
-                                      step="1"
+                                      step={exercise.useRir ? "1" : "1"}
                                       value={set.weight}
-                                      onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'weight', e.target.value)}
+                                      onChange={(e) => {
+                                        let value = e.target.value;
+                                        if (exercise.useRir) {
+                                          // En mode RIR, seulement des nombres entiers (pas de virgule/point)
+                                          // Limité à 2 chiffres maximum (99)
+                                          value = value.replace(/[,.]/g, '');
+                                          if (value === '' || value === '-') {
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', value);
+                                            return;
+                                          }
+                                          const numValue = parseInt(value, 10);
+                                          if (!isNaN(numValue) && numValue >= 0) {
+                                            // Limiter à 99 (2 chiffres)
+                                            const limitedValue = Math.min(99, numValue);
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
+                                          } else if (value === '') {
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', '');
+                                          }
+                                        } else {
+                                          // En mode Charge, limiter à 999 (3 chiffres)
+                                          if (value === '' || value === '-') {
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', value);
+                                            return;
+                                          }
+                                          const numValue = parseFloat(value);
+                                          if (!isNaN(numValue) && numValue >= 0) {
+                                            // Limiter à 999 (3 chiffres)
+                                            const limitedValue = Math.min(999, numValue);
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
+                                          } else if (value === '') {
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', '');
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (exercise.useRir) {
+                                          // Empêcher la saisie de virgule, point et autres caractères non numériques
+                                          if (e.key === ',' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+                                            e.preventDefault();
+                                          }
+                                        }
+                                      }}
                                       placeholder=""
-                                      className="text-white text-sm text-center h-8 w-16 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] pr-6 transition-colors"
+                                      className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${exercise.useRir ? '' : 'pr-6'} transition-colors`}
                                       onFocus={(e) => {
                                         e.target.style.borderStyle = 'solid';
                                         e.target.style.borderWidth = '0.5px';
@@ -1353,7 +1422,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                         e.target.style.borderColor = 'transparent';
                                       }}
                                     />
-                                    <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
+                                    {!exercise.useRir && (
+                                      <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="py-1.5">
@@ -1379,10 +1450,21 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     <Input
                                       type="number"
                                       min="0"
+                                      max="99"
                                       value={set.reps}
                                       onChange={(e) => {
-                                        const value = Math.max(0, Number(e.target.value));
-                                        handleSetChange(exerciseIndex, setIndex, 'reps', value === 0 ? '' : value.toString());
+                                        const inputValue = e.target.value;
+                                        // Only allow numbers and limit to 2 digits
+                                        if (inputValue === '' || inputValue === '0') {
+                                          handleSetChange(exerciseIndex, setIndex, 'reps', '');
+                                          return;
+                                        }
+                                        const numericValue = parseInt(inputValue, 10);
+                                        if (!isNaN(numericValue) && numericValue >= 0) {
+                                          // Limit to 99 (2 digits max)
+                                          const limitedValue = Math.min(99, numericValue);
+                                          handleSetChange(exerciseIndex, setIndex, 'reps', limitedValue.toString());
+                                        }
                                       }}
                                       placeholder=""
                                       className="text-white text-sm text-center h-8 w-12 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
@@ -1425,6 +1507,30 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
                                       placeholder="03:00"
                                       className="text-white text-sm text-center h-8 w-16 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                          e.preventDefault();
+                                          const currentValue = set.rest || '00:00';
+                                          const parts = currentValue.split(':');
+                                          if (parts.length === 2) {
+                                            const minutes = parseInt(parts[0], 10) || 0;
+                                            const seconds = parseInt(parts[1], 10) || 0;
+                                            const totalSeconds = minutes * 60 + seconds;
+                                            
+                                            // Add or subtract 1 minute (60 seconds)
+                                            const newTotalSeconds = e.key === 'ArrowUp' 
+                                              ? totalSeconds + 60 
+                                              : Math.max(0, totalSeconds - 60);
+                                            
+                                            const newMinutes = Math.floor(newTotalSeconds / 60);
+                                            const newSeconds = newTotalSeconds % 60;
+                                            
+                                            // Format as MM:SS with leading zeros
+                                            const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
+                                            handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
+                                          }
+                                        }
+                                      }}
                                       onFocus={(e) => {
                                         e.target.style.borderStyle = 'solid';
                                         e.target.style.borderWidth = '0.5px';
