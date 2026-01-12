@@ -156,15 +156,102 @@ const NotificationSidebar = ({ isOpen, onClose, onNotificationClick, onMarkAllAs
           ) : (
             filteredNotifications.map((notif) => {
               // Build exercise name with set number (e.g., "traction 3/3")
-              const exerciseName = notif.exerciseName || 'Exercice';
-              const setNumber = notif.setInfo?.setNumber;
-              const exerciseDisplay = setNumber ? `${exerciseName} ${setNumber}/${setNumber}` : exerciseName;
+              // For video_upload notifications, extract the format from message/title or use data
+              let exerciseDisplay = '';
+              let fullDisplay = '';
               
-              // Build full display text with session name for video_upload notifications
-              const sessionName = notif.sessionName;
-              const fullDisplay = (notif.type === 'video_upload' && sessionName) 
-                ? `${sessionName} - ${exerciseDisplay}`
-                : exerciseDisplay;
+              if (notif.type === 'video_upload') {
+                // Extract the format from message/title or use data properties
+                // Format in DB message: "studentName a uploadé une vidéo pour sessionName - exerciseName X/Y"
+                // Format in DB title: "studentName a ajouté une vidéo : sessionName - exerciseName X/Y"
+                const messageOrTitle = notif.message || notif.title || '';
+                
+                // Try to parse the format from message/title
+                // Match patterns like:
+                // - "XXX a uploadé une vidéo pour sessionName - exerciseName X/Y"
+                // - "XXX a ajouté une vidéo : sessionName - exerciseName X/Y"
+                // - "sessionName - exerciseName X/Y"
+                let formatMatch = messageOrTitle.match(/(?:a ajouté une vidéo : |a uploadé une vidéo pour )?([^-]+?)\s*-\s*([^\s]+)\s+(\d+)\/(\d+)/i);
+                
+                if (!formatMatch) {
+                  // Try alternative pattern: match just the format "sessionName - exerciseName X/Y" at the end
+                  formatMatch = messageOrTitle.match(/([^-]+?)\s*-\s*([^\s]+)\s+(\d+)\/(\d+)/i);
+                }
+                
+                if (formatMatch && formatMatch.length >= 5) {
+                  // Found the format in message/title - extract sessionName, exerciseName, setNumber, totalSets
+                  const sessionName = formatMatch[1].trim();
+                  const exerciseName = formatMatch[2].trim();
+                  const setNumber = formatMatch[3];
+                  const totalSets = formatMatch[4];
+                  fullDisplay = `${sessionName} - ${exerciseName} ${setNumber}/${totalSets}`;
+                } else {
+                  // Fallback: use data properties or reconstruct from notification data
+                  const exerciseName = notif.data?.exerciseName || notif.exerciseName || 'Exercice';
+                  const sessionName = notif.data?.sessionName || notif.sessionName || '';
+                  const setNumber = notif.data?.setNumber || notif.setInfo?.setNumber;
+                  // setIndex contains totalSets in backend (as set in videoUtils.js and workoutSessionController.js)
+                  const totalSets = notif.data?.setIndex || notif.data?.totalSets || notif.setInfo?.setIndex;
+                  
+                  if (setNumber && totalSets) {
+                    exerciseDisplay = `${exerciseName} ${setNumber}/${totalSets}`;
+                  } else if (setNumber) {
+                    exerciseDisplay = `${exerciseName} ${setNumber}/${setNumber}`;
+                  } else {
+                    exerciseDisplay = exerciseName;
+                  }
+                  
+                  fullDisplay = sessionName 
+                    ? `${sessionName} - ${exerciseDisplay}`
+                    : exerciseDisplay;
+                }
+              } else if (notif.type === 'video_feedback') {
+                // For feedback notifications, extract format similar to video_upload
+                const messageOrTitle = notif.message || notif.title || '';
+                
+                // Try to parse the format from message/title
+                // Match patterns like: "A ajouté un feedback sur votre vidéo : sessionName - exerciseName X/Y"
+                let formatMatch = messageOrTitle.match(/(?:a ajouté un feedback sur votre vidéo : |a ajouté une vidéo : |a uploadé une vidéo pour )?([^-]+?)\s*-\s*([^\s]+)\s+(\d+)\/(\d+)/i);
+                
+                if (!formatMatch) {
+                  // Try alternative pattern: match just the format "sessionName - exerciseName X/Y" at the end
+                  formatMatch = messageOrTitle.match(/([^-]+?)\s*-\s*([^\s]+)\s+(\d+)\/(\d+)/i);
+                }
+                
+                if (formatMatch && formatMatch.length >= 5) {
+                  // Found the format in message/title - extract sessionName, exerciseName, setNumber, totalSets
+                  const sessionName = formatMatch[1].trim();
+                  const exerciseName = formatMatch[2].trim();
+                  const setNumber = formatMatch[3];
+                  const totalSets = formatMatch[4];
+                  fullDisplay = `${sessionName} - ${exerciseName} ${setNumber}/${totalSets}`;
+                } else {
+                  // Fallback: use data properties or reconstruct from notification data
+                  const exerciseName = notif.data?.exerciseName || notif.exerciseName || 'Exercice';
+                  const sessionName = notif.data?.sessionName || notif.sessionName || '';
+                  const setNumber = notif.data?.setNumber || notif.setInfo?.setNumber;
+                  // setIndex contains totalSets in backend
+                  const totalSets = notif.data?.setIndex || notif.data?.totalSets || notif.setInfo?.setIndex;
+                  
+                  if (setNumber && totalSets) {
+                    exerciseDisplay = `${exerciseName} ${setNumber}/${totalSets}`;
+                  } else if (setNumber) {
+                    exerciseDisplay = `${exerciseName} ${setNumber}/${setNumber}`;
+                  } else {
+                    exerciseDisplay = exerciseName;
+                  }
+                  
+                  fullDisplay = sessionName 
+                    ? `${sessionName} - ${exerciseDisplay}`
+                    : exerciseDisplay;
+                }
+              } else {
+                // For other notification types, use simple format
+                const exerciseName = notif.exerciseName || 'Exercice';
+                const setNumber = notif.setInfo?.setNumber;
+                exerciseDisplay = setNumber ? `${exerciseName} ${setNumber}/${setNumber}` : exerciseName;
+                fullDisplay = exerciseDisplay;
+              }
               
               // Get initial for avatar and display name based on notification type
               const isFeedbackNotification = notif.type === 'video_feedback';
@@ -219,17 +306,11 @@ const NotificationSidebar = ({ isOpen, onClose, onNotificationClick, onMarkAllAs
                     <div className="text-[13px] text-white/90 leading-tight">
                       <span className="font-normal text-white block mb-0.5">{displayName}</span>
                       {isFeedbackNotification ? (
-                        <>
-                          <span className="text-gray-400">A ajouté un feedback sur votre vidéo : </span>
-                          <span className="text-white font-normal">
-                            {notif.sessionName ? `${notif.sessionName} - ${exerciseDisplay}` : exerciseDisplay}
-                          </span>
-                        </>
+                        // Display only the format: "sessionName - exerciseName setNumber/totalSets"
+                        <span className="text-white font-normal">{fullDisplay}</span>
                       ) : (
-                        <>
-                          <span className="text-gray-400">A ajouté une vidéo : </span>
-                          <span className="font-normal" style={{ color: 'rgba(212, 132, 90, 1)' }}>{fullDisplay}</span>
-                        </>
+                        // Display only the format: "sessionName - exerciseName setNumber/totalSets"
+                        <span className="font-normal" style={{ color: 'rgba(212, 132, 90, 1)' }}>{fullDisplay}</span>
                       )}
                     </div>
                     
