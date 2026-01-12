@@ -142,10 +142,10 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
                       type === 'bug'
                         ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                        : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                        : 'bg-black/50 text-white/50 hover:bg-black/70'
                     } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="16" height="16" fill="currentColor" aria-hidden="true" className={type !== 'bug' ? 'opacity-50' : ''}>
                       <path d="M192 96c0-53 43-96 96-96s96 43 96 96l0 3.6c0 15.7-12.7 28.4-28.4 28.4l-135.1 0c-15.7 0-28.4-12.7-28.4-28.4l0-3.6zm345.6 12.8c10.6 14.1 7.7 34.2-6.4 44.8l-97.8 73.3c5.3 8.9 9.3 18.7 11.8 29.1l98.8 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-96 0 0 32c0 2.6-.1 5.3-.2 7.9l83.4 62.5c14.1 10.6 17 30.7 6.4 44.8s-30.7 17-44.8 6.4l-63.1-47.3c-23.2 44.2-66.5 76.2-117.7 83.9L312 280c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 230.2c-51.2-7.7-94.5-39.7-117.7-83.9L83.2 473.6c-14.1 10.6-34.2 7.7-44.8-6.4s-7.7-34.2 6.4-44.8l83.4-62.5c-.1-2.6-.2-5.2-.2-7.9l0-32-96 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l98.8 0c2.5-10.4 6.5-20.2 11.8-29.1L44.8 153.6c-14.1-10.6-17-30.7-6.4-44.8s30.7-17 44.8-6.4L192 184c12.3-5.1 25.8-8 40-8l112 0c14.2 0 27.7 2.8 40 8l108.8-81.6c14.1-10.6 34.2-7.7 44.8 6.4z"/>
                     </svg>
                     Bug
@@ -157,10 +157,10 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
                       type === 'feedback'
                         ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                        : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                        : 'bg-black/50 text-white/50 hover:bg-black/70'
                     } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="currentColor" aria-hidden="true" className={type !== 'feedback' ? 'opacity-50' : ''}>
                       <path d="M0 352L0 128C0 75 43 32 96 32l320 0c53 0 96 43 96 96l0 224c0 53-43 96-96 96l-120 0c-5.2 0-10.2 1.7-14.4 4.8L166.4 539.2c-4.2 3.1-9.2 4.8-14.4 4.8-13.3 0-24-10.7-24-24l0-72-32 0c-53 0-96-43-96-96z"/>
                     </svg>
                     Feedback
@@ -172,10 +172,10 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
                       type === 'feature_request'
                         ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                        : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                        : 'bg-black/50 text-white/50 hover:bg-black/70'
                     } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="16" height="16" fill="currentColor" aria-hidden="true" className={type !== 'feature_request' ? 'opacity-50' : ''}>
                       <path d="M292.9 384c7.3-22.3 21.9-42.5 38.4-59.9 32.7-34.4 52.7-80.9 52.7-132.1 0-106-86-192-192-192S0 86 0 192c0 51.2 20 97.7 52.7 132.1 16.5 17.4 31.2 37.6 38.4 59.9l201.7 0zM288 432l-192 0 0 16c0 44.2 35.8 80 80 80l32 0c44.2 0 80-35.8 80-80l0-16zM184 112c-39.8 0-72 32.2-72 72 0 13.3-10.7 24-24 24s-24-10.7-24-24c0-66.3 53.7-120 120-120 13.3 0 24 10.7 24 24s-10.7 24-24 24z"/>
                     </svg>
                     Suggestion
@@ -229,7 +229,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className={`py-2 px-2 sm:px-3 rounded-lg text-[11px] sm:text-[13px] font-normal transition-colors whitespace-nowrap ${
                         severity === 'low'
                           ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                          : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                          : 'bg-black/50 text-white/50 hover:bg-black/70'
                       } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Faible
@@ -241,7 +241,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className={`py-2 px-2 sm:px-3 rounded-lg text-[11px] sm:text-[13px] font-normal transition-colors whitespace-nowrap ${
                         severity === 'medium'
                           ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                          : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                          : 'bg-black/50 text-white/50 hover:bg-black/70'
                       } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Moyenne
@@ -253,7 +253,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className={`py-2 px-2 sm:px-3 rounded-lg text-[11px] sm:text-[13px] font-normal transition-colors whitespace-nowrap ${
                         severity === 'high'
                           ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                          : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                          : 'bg-black/50 text-white/50 hover:bg-black/70'
                       } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Élevée
@@ -265,7 +265,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className={`py-2 px-2 sm:px-3 rounded-lg text-[11px] sm:text-[13px] font-normal transition-colors whitespace-nowrap ${
                         severity === 'critical'
                           ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                          : 'bg-black/50 text-gray-300 hover:bg-black/70'
+                          : 'bg-black/50 text-white/50 hover:bg-black/70'
                       } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Critique

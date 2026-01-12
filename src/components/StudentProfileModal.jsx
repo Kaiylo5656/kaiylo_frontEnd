@@ -278,7 +278,16 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
                 <option value="Bodybuilding" className="bg-[#131416]">Bodybuilding</option>
                 <option value="Calisthenics" className="bg-[#131416]">Calisthenics</option>
               </select>
-              <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.5)] absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 384 512" 
+                className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.5)' }}
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+              </svg>
             </div>
           </div>
 

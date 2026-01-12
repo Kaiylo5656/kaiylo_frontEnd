@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
+import DeleteStudentModal from '../components/DeleteStudentModal';
 import StudentDetailView from '../components/StudentDetailView';
 import SortControl from '../components/SortControl';
 import useSortParams from '../hooks/useSortParams';
@@ -28,6 +29,8 @@ const CoachDashboard = () => {
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPendingInvitationsModalOpen, setIsPendingInvitationsModalOpen] = useState(false);
+  const [isDeleteStudentModalOpen, setIsDeleteStudentModalOpen] = useState(false);
+  const [isDeletingStudents, setIsDeletingStudents] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedStudentInitialTab, setSelectedStudentInitialTab] = useState('overview');
   const [studentVideoCounts, setStudentVideoCounts] = useState({}); // Track pending videos per student
@@ -363,13 +366,15 @@ const CoachDashboard = () => {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedStudents.size === 0) return;
-    
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer ${selectedStudents.size} étudiant(s) sélectionné(s) ?`)) {
-      return;
-    }
+    setIsDeleteStudentModalOpen(true);
+  };
 
+  const handleConfirmDeleteStudents = async () => {
+    if (selectedStudents.size === 0) return;
+
+    setIsDeletingStudents(true);
     try {
       const studentIds = Array.from(selectedStudents);
       
@@ -384,11 +389,22 @@ const CoachDashboard = () => {
       setStudents(students.filter(s => !selectedStudents.has(s.id)));
       setSelectedStudents(new Set());
       
+      // Fermer la modale
+      setIsDeleteStudentModalOpen(false);
+      
       // Rafraîchir les données
       fetchCoachData();
     } catch (error) {
       console.error('Error deleting students:', error);
       setError('Erreur lors de la suppression des étudiants');
+    } finally {
+      setIsDeletingStudents(false);
+    }
+  };
+
+  const handleCloseDeleteStudentModal = () => {
+    if (!isDeletingStudents) {
+      setIsDeleteStudentModalOpen(false);
     }
   };
 
@@ -974,6 +990,19 @@ const CoachDashboard = () => {
       <PendingInvitationsModal
         isOpen={isPendingInvitationsModalOpen}
         onClose={handleClosePendingInvitationsModal}
+      />
+
+      {/* Delete Student Modal */}
+      <DeleteStudentModal
+        isOpen={isDeleteStudentModalOpen}
+        onClose={handleCloseDeleteStudentModal}
+        onConfirm={handleConfirmDeleteStudents}
+        studentNames={Array.from(selectedStudents).map(id => {
+          const student = students.find(s => s.id === id);
+          return student ? student.name : '';
+        }).filter(name => name)}
+        studentCount={selectedStudents.size}
+        loading={isDeletingStudents}
       />
     </div>
   );

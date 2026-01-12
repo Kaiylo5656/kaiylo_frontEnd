@@ -53,9 +53,6 @@ const DeleteExerciseModal = ({
                 </>
               )}
             </p>
-            <p className="text-xs font-extralight text-white/50">
-              Cette action est irréversible.
-            </p>
           </div>
         </div>
 
@@ -73,7 +70,7 @@ const DeleteExerciseModal = ({
             type="button"
             onClick={handleConfirm}
             disabled={loading}
-            className="px-5 py-2.5 text-sm font-extralight bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
           >
             {loading ? 'Suppression...' : 'Supprimer'}

@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { buildApiUrl } from '../config/api';
-import { truncateMiddle } from '../utils/text';
 import { useAuth } from '../contexts/AuthContext';
+import { useModalManager } from './ui/modal/ModalManager';
+import BaseModal from './ui/modal/BaseModal';
 
 const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const [title, setTitle] = useState('');
@@ -15,6 +13,10 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const { getAuthToken } = useAuth();
+
+  // Modal management
+  const { isTopMost } = useModalManager();
+  const modalId = 'upload-video-modal';
 
   // Maximum file size: 48MB (Supabase free tier 50MB limit with 2MB safety margin)
   const MAX_FILE_SIZE = 48 * 1024 * 1024; // 48MB in bytes
@@ -34,7 +36,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     
     // Validate file type
     if (!file.type.startsWith('video/')) {
-      setError('Please select a valid video file.');
+      setError('Veuillez sélectionner un fichier vidéo valide.');
       setVideoFile(null);
       return;
     }
@@ -54,7 +56,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!videoFile || !title) {
-      setError('A video file and a title are required.');
+      setError('Un fichier vidéo et un titre sont requis.');
       return;
     }
 
@@ -78,7 +80,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     try {
       const token = await getAuthToken();
       if (!token) {
-        throw new Error('You are not authenticated. Please log in again.');
+        throw new Error('Vous n\'êtes pas authentifié. Veuillez vous reconnecter.');
       }
       
       const response = await fetch(buildApiUrl('/resources'), {
@@ -90,7 +92,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
       });
 
       if (!response.ok) {
-        let errorMessage = 'Failed to upload video.';
+        let errorMessage = 'Échec du téléchargement de la vidéo.';
         try {
           const errData = await response.json();
           errorMessage = errData.message || errData.error || errorMessage;
@@ -131,103 +133,167 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent 
-        className="w-full max-w-xl sm:max-w-2xl overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-      >
-        <DialogHeader>
-          <DialogTitle>Upload a New Resource</DialogTitle>
-          <DialogDescription>
-            Fill in the details below to upload a new video resource for your students.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-full">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium mb-1">Title</label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., How to perform a squat"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium mb-1">Description (Optional)</label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="A short description of the video content"
-            />
-          </div>
-          <div>
-            <label htmlFor="folder" className="block text-sm font-medium mb-1">Folder (Optional)</label>
+    <BaseModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      modalId={modalId}
+      zIndex={80}
+      closeOnEsc={isTopMost}
+      closeOnBackdrop={isTopMost}
+      size="md"
+      title={
+        <>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" fill="currentColor">
+            <path d="M144 480c-79.5 0-144-64.5-144-144 0-63.4 41-117.2 97.9-136.5-1.3-7.7-1.9-15.5-1.9-23.5 0-79.5 64.5-144 144-144 55.4 0 103.5 31.3 127.6 77.1 14.2-8.3 30.8-13.1 48.4-13.1 53 0 96 43 96 96 0 15.7-3.8 30.6-10.5 43.7 44 20.3 74.5 64.7 74.5 116.3 0 70.7-57.3 128-128 128l-304 0zM377 313c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-31 31 0-102.1c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 102.1-31-31c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l72 72c9.4 9.4 24.6 9.4 33.9 0l72-72z"/>
+          </svg>
+          Télécharger une nouvelle ressource
+        </>
+      }
+      titleClassName="text-xl font-normal text-white"
+      borderRadius="16px"
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Title */}
+        <div className="space-y-2">
+          <label htmlFor="title" className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+            Titre *
+          </label>
+          <input
+            id="title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="ex: Comment effectuer un squat"
+            required
+            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-2">
+          <label htmlFor="description" className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+            Description (optionnelle)
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Une courte description du contenu vidéo"
+            rows={3}
+            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
+          />
+        </div>
+
+        {/* Folder Selection */}
+        <div className="space-y-2">
+          <label htmlFor="folder" className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+            Dossier (optionnel)
+          </label>
+          <div className="relative">
             <select
               id="folder"
               value={selectedFolder}
               onChange={(e) => setSelectedFolder(e.target.value)}
-              className="w-full p-2 bg-input border border-border rounded-md"
+              className="select-dark-kaiylo w-full px-[14px] py-3 pr-10 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] appearance-none"
+              style={{ 
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                colorScheme: 'dark'
+              }}
             >
-              <option value="">Select a folder</option>
               {folders.map((folder) => (
-                <option key={folder.id} value={folder.id}>
+                <option key={folder.id} value={folder.id} className="bg-[#131416]">
                   {folder.name}
                 </option>
               ))}
             </select>
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 384 512" 
+              className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ width: '16px', height: '16px', opacity: '0.75' }}
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+            </svg>
           </div>
-          <div className="max-w-full">
-            <label htmlFor="videoFile" className="block text-sm font-medium mb-1 shrink-0">Video File</label>
-            <Input
+        </div>
+
+        {/* Video File Upload */}
+        <div className="space-y-2">
+          <label htmlFor="videoFile" className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+            Fichier vidéo *
+          </label>
+          <div className="border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] p-6 text-center hover:border-[rgba(255,255,255,0.1)] transition-colors bg-[rgba(0,0,0,0.5)]">
+            <input
               id="videoFile"
               type="file"
-              accept="video/*"
+              accept="video/mp4,video/mov,video/quicktime"
               onChange={handleFileChange}
               required
-              className="max-w-full"
+              className="hidden"
             />
-            {videoFile && (
-              <div className="mt-2 max-w-full overflow-hidden space-y-1">
-                <p
-                  className="text-xs text-white/90 truncate font-medium"
-                  title={videoFile.name}
-                  data-testid="upload-file-meta"
-                >
-                  {truncateMiddle(videoFile.name, 56)}
-                </p>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-white/60">
-                    Size: {formatFileSize(videoFile.size)}
-                  </p>
-                  {videoFile.size > MAX_FILE_SIZE * 0.8 && (
-                    <span className="text-xs text-yellow-500">
-                      (Large file, longer upload time)
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
+            <label
+              htmlFor="videoFile"
+              className="cursor-pointer flex flex-col items-center space-y-2"
+            >
+              <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                Sélectionner un fichier vidéo
+              </span>
+              <span className="text-xs font-extralight text-[rgba(255,255,255,0.5)]">
+                (formats: mp4, mov - max 300 Mo)
+              </span>
+            </label>
           </div>
-          {error && (
-            <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-              <p className="text-sm text-red-400 font-medium">{error}</p>
+          {videoFile && (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-extralight text-white/60">
+                  Taille : {formatFileSize(videoFile.size)}
+                </p>
+                {videoFile.size > MAX_FILE_SIZE * 0.8 && (
+                  <span className="text-xs font-extralight text-yellow-500">
+                    (Fichier volumineux, temps de téléchargement plus long)
+                  </span>
+                )}
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isUploading}>
-              {isUploading ? 'Uploading...' : 'Upload'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/30 rounded-[10px] p-3">
+            <p className="text-sm font-extralight text-red-400 whitespace-pre-line">{error}</p>
+          </div>
+        )}
+
+        {/* Form Actions */}
+        <div className="flex justify-end gap-3 pt-0">
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isUploading}
+            className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={isUploading}
+            className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+          >
+            {isUploading ? 'Téléchargement...' : 'Télécharger'}
+          </button>
+        </div>
+      </form>
+    </BaseModal>
   );
 };
 

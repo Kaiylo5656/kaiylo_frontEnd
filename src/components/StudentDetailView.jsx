@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Trash2, Eye, EyeOff, Copy, Clipboard, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -18,11 +18,19 @@ import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth,
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
 import StudentSidebar from './StudentSidebar';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from './ui/dropdown-menu';
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange }) => {
   const navigate = useNavigate();
   const { isTopMost: isDeleteNoteModalTopMost } = useModalManager();
   const { isTopMost: isDeleteLimitationModalTopMost } = useModalManager();
+  const { isTopMost: isDeleteWeekModalTopMost } = useModalManager();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +53,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [draggedSession, setDraggedSession] = useState(null); // Session currently being dragged
   const [draggedFromDate, setDraggedFromDate] = useState(null); // Original date for the dragged session
   const [dragOverDate, setDragOverDate] = useState(null); // Date currently highlighted as drop target
+  const [dragOverSessionId, setDragOverSessionId] = useState(null); // Session currently being hovered during drag
   const [isRescheduling, setIsRescheduling] = useState(false); // Prevent concurrent rescheduling calls
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
   const [trainingWeekDate, setTrainingWeekDate] = useState(new Date()); // For training weekly calendar (starts with current week)
@@ -52,6 +61,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [hoveredWeek, setHoveredWeek] = useState(null); // Track which week is being hovered
   const [copiedWeek, setCopiedWeek] = useState(null); // Store copied week data for pasting
+  const [isDeleteWeekModalOpen, setIsDeleteWeekModalOpen] = useState(false);
+  const [weekToDelete, setWeekToDelete] = useState(null); // { weekStart, sessionCount }
   const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'draft', 'all'
   const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
@@ -59,7 +70,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [filterMenuOpen, setFilterMenuOpen] = useState(false); // Track if filter dropdown is open
   const [durationMenuOpen, setDurationMenuOpen] = useState(false); // Track if duration dropdown is open
   const [dropdownPosition, setDropdownPosition] = useState(null); // Store dropdown position
-  const [closeTimeout, setCloseTimeout] = useState(null); // Timeout for closing dropdown
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
@@ -74,7 +84,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
   const [exerciseFilter, setExerciseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const dateInputRef = useRef(null);
+  const statusFilterButtonRef = useRef(null);
+  const statusFilterTextRef = useRef(null);
+  const [statusFilterMinWidth, setStatusFilterMinWidth] = useState(170); // Default width in px
+  const exerciseFilterButtonRef = useRef(null);
+  const exerciseFilterTextRef = useRef(null);
+  const [exerciseFilterMinWidth, setExerciseFilterMinWidth] = useState(120); // Default width in px
+  const dateFilterButtonRef = useRef(null);
+  const dateFilterTextRef = useRef(null);
+  const [dateFilterMinWidth, setDateFilterMinWidth] = useState(100); // Default width in px
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
+  const [hoveredSessionId, setHoveredSessionId] = useState(null); // Track which session is hovered
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
   
   // Block information state
   const [blockNumber, setBlockNumber] = useState(3);
@@ -190,14 +213,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     console.log('🔄 copiedWeek state changed:', copiedWeek);
   }, [copiedWeek]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (closeTimeout) {
-        clearTimeout(closeTimeout);
-      }
-    };
-  }, [closeTimeout]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -220,6 +235,122 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       document.removeEventListener('click', handleClickOutside);
     };
   }, [dropdownOpen, filterMenuOpen, durationMenuOpen]);
+
+  // Close dropdown when scrolling
+  useEffect(() => {
+    if (!dropdownOpen) return;
+
+    const handleScroll = () => {
+      setDropdownOpen(null);
+      setDropdownPosition(null);
+    };
+
+    // Listen to scroll events on window and all scrollable containers
+    window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scroll events
+    document.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [dropdownOpen]);
+
+  // Calculate button width based on the longest possible text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateButtonWidth = () => {
+      // Possible text values: 'Tous les statuts', 'A feedback', 'Complété'
+      const possibleTexts = ['Tous les statuts', 'A feedback', 'Complété'];
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
+      document.body.appendChild(tempSpan);
+      
+      // Find the widest text
+      let maxWidth = 0;
+      possibleTexts.forEach(text => {
+        tempSpan.textContent = text;
+        maxWidth = Math.max(maxWidth, tempSpan.offsetWidth);
+      });
+      
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setStatusFilterMinWidth(maxWidth + buttonPadding + gap + iconWidth);
+    };
+
+    // Calculate on mount
+    calculateButtonWidth();
+  }, []);
+
+  // Calculate button width for exercise filter based on text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateExerciseButtonWidth = () => {
+      // Use "Exercice" as base width to keep button size consistent
+      const text = 'Exercice';
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      tempSpan.textContent = text;
+      
+      document.body.appendChild(tempSpan);
+      const width = tempSpan.offsetWidth;
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setExerciseFilterMinWidth(width + buttonPadding + gap + iconWidth);
+    };
+
+    calculateExerciseButtonWidth();
+  }, []);
+
+  // Calculate button width for date filter based on text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateDateButtonWidth = () => {
+      // Text is always "Date"
+      const text = 'Date';
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      tempSpan.textContent = text;
+      
+      document.body.appendChild(tempSpan);
+      const width = tempSpan.offsetWidth;
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setDateFilterMinWidth(width + buttonPadding + gap + iconWidth);
+    };
+
+    calculateDateButtonWidth();
+  }, []);
 
   const changeOverviewWeek = (direction) => {
     const newDate = direction === 'next' ? addDays(overviewWeekDate, 7) : subDays(overviewWeekDate, 7);
@@ -288,6 +419,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setDraggedSession(null);
     setDraggedFromDate(null);
     setDragOverDate(null);
+    setDragOverSessionId(null);
   };
 
   const handleDayDragOver = (event, day) => {
@@ -304,6 +436,25 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       return; // Still within the day container
     }
     setDragOverDate(null);
+    setDragOverSessionId(null);
+  };
+
+  const handleSessionDragOver = (event, session) => {
+    if (!draggedSession) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const sessionId = session.id || session.assignmentId || session.workoutSessionId;
+    setDragOverSessionId(sessionId);
+  };
+
+  const handleSessionDragLeave = (event, session) => {
+    if (!draggedSession) return;
+    // Check if we're moving to a child element
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+      return; // Still within the session container
+    }
+    setDragOverSessionId(null);
   };
 
   const handleDayDrop = async (event, day) => {
@@ -957,8 +1108,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     
     console.log('🔄 Setting copiedWeek:', copiedData);
     setCopiedWeek(copiedData);
-
-    alert(`${weekSessions.length} séance(s) copiée(s) ! Survolez une semaine pour la coller.`);
   };
 
   const handlePasteWeek = async (targetWeekStart) => {
@@ -970,21 +1119,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     try {
       const token = localStorage.getItem('authToken');
       
-      // Check if target week has existing sessions
-      const targetWeekSessions = [];
-      for (let i = 0; i < 7; i++) {
-        const day = addDays(targetWeekStart, i);
-        const dateKey = format(day, 'yyyy-MM-dd');
-        const sessions = workoutSessions[dateKey] || [];
-        targetWeekSessions.push(...sessions);
-      }
-
-      if (targetWeekSessions.length > 0) {
-        if (!confirm(`Cette semaine contient déjà ${targetWeekSessions.length} séance(s). Voulez-vous continuer ? Les séances existantes seront remplacées.`)) {
-          return;
-        }
-      }
-
       // Copy each session to the target week
       for (const { session, date } of copiedWeek.sessions) {
         const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday=0 to Monday=0
@@ -1009,51 +1143,54 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         );
       }
 
-      // Clear copied week after successful paste
-      setCopiedWeek(null);
-      
       // Refresh sessions
       await fetchWorkoutSessions();
-      alert(`Semaine collée avec succès ! ${copiedWeek.sessions.length} séance(s) collée(s).`);
+      
+      // Clear copied week after successful paste
+      setCopiedWeek(null);
     } catch (error) {
       console.error('Error pasting week:', error);
       alert('Erreur lors du collage de la semaine');
     }
   };
 
-  const handleDeleteWeek = async (weekStart) => {
+  const handleDeleteWeek = (weekStart) => {
+    // Get all sessions in this week
+    const weekSessions = [];
+    for (let i = 0; i < 7; i++) {
+      const day = addDays(weekStart, i);
+      const dateKey = format(day, 'yyyy-MM-dd');
+      const sessions = workoutSessions[dateKey] || [];
+      sessions.forEach(session => {
+        // Only delete sessions that match the current filter
+        if (trainingFilter === 'all' || 
+            (trainingFilter === 'assigned' && session.status !== 'draft') ||
+            (trainingFilter === 'draft' && session.status === 'draft')) {
+          weekSessions.push({ session, date: day });
+        }
+      });
+    }
+
+    if (weekSessions.length === 0) {
+      alert('Aucune séance à supprimer dans cette semaine');
+      return;
+    }
+
+    // Open modal instead of using confirm()
+    setWeekToDelete({ weekStart, sessionCount: weekSessions.length, weekSessions });
+    setIsDeleteWeekModalOpen(true);
+  };
+
+  const confirmDeleteWeek = async () => {
+    if (!weekToDelete) return;
+
     try {
-      // Get all sessions in this week
-      const weekSessions = [];
-      for (let i = 0; i < 7; i++) {
-        const day = addDays(weekStart, i);
-        const dateKey = format(day, 'yyyy-MM-dd');
-        const sessions = workoutSessions[dateKey] || [];
-        sessions.forEach(session => {
-          // Only delete sessions that match the current filter
-          if (trainingFilter === 'all' || 
-              (trainingFilter === 'assigned' && session.status !== 'draft') ||
-              (trainingFilter === 'draft' && session.status === 'draft')) {
-            weekSessions.push({ session, date: day });
-          }
-        });
-      }
-
-      if (weekSessions.length === 0) {
-        alert('Aucune séance à supprimer dans cette semaine');
-        return;
-      }
-
-      if (!confirm(`Êtes-vous sûr de vouloir supprimer ${weekSessions.length} séance(s) de cette semaine ?`)) {
-        return;
-      }
-
       const token = localStorage.getItem('authToken');
       let deletedCount = 0;
       let errorCount = 0;
 
       // Delete each session automatically without individual confirmations
-      for (const { session, date } of weekSessions) {
+      for (const { session, date } of weekToDelete.weekSessions) {
         try {
           const sessionId = session.assignmentId || session.id;
           
@@ -1090,11 +1227,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Refresh workout sessions after all deletions
       await fetchWorkoutSessions();
 
-      if (errorCount > 0) {
-        alert(`Semaine partiellement supprimée : ${deletedCount} séance(s) supprimée(s), ${errorCount} erreur(s).`);
-      } else {
-        alert(`Semaine supprimée avec succès ! ${deletedCount} séance(s) supprimée(s).`);
-      }
+      // Close modal
+      setIsDeleteWeekModalOpen(false);
+      setWeekToDelete(null);
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Erreur lors de la suppression de la semaine');
@@ -1233,50 +1368,32 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Open dropdown menu for session on hover
-  const openDropdown = (sessionId, dateKey, event) => {
-    // Clear any pending close timeout
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      setCloseTimeout(null);
-    }
-    
+  const toggleDropdown = (sessionId, dateKey, event) => {
     const dropdownKey = `${sessionId}-${dateKey}`;
-    setDropdownOpen(dropdownKey);
     
-    // Store button position for dropdown positioning
-    if (event && event.currentTarget) {
-      const button = event.currentTarget;
-      const rect = button.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 2, // Reduced gap for easier mouse movement
-        right: window.innerWidth - rect.right - 14 // Align right edge of menu with right edge of button, shifted 14px to the right
-      });
-    }
-  };
-
-  // Close dropdown menu with delay
-  const closeDropdown = () => {
-    // Clear any existing timeout
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-    }
-    
-    // Set a timeout to close the menu after a short delay
-    const timeout = setTimeout(() => {
+    // Toggle dropdown: if already open for this session, close it; otherwise open it
+    if (dropdownOpen === dropdownKey) {
       setDropdownOpen(null);
       setDropdownPosition(null);
-      setCloseTimeout(null);
-    }, 150); // 150ms delay to allow moving mouse to menu
-    
-    setCloseTimeout(timeout);
+    } else {
+      setDropdownOpen(dropdownKey);
+      
+      // Store button position for dropdown positioning
+      if (event && event.currentTarget) {
+        const button = event.currentTarget;
+        const rect = button.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + 2, // Reduced gap for easier mouse movement
+          right: window.innerWidth - rect.right - 14 // Align right edge of menu with right edge of button, shifted 14px to the right
+        });
+      }
+    }
   };
 
-  // Keep dropdown open (cancel close)
-  const keepDropdownOpen = () => {
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      setCloseTimeout(null);
-    }
+  // Close dropdown menu immediately
+  const closeDropdown = () => {
+    setDropdownOpen(null);
+    setDropdownPosition(null);
   };
 
   // Fetch videos for the specific student
@@ -1928,6 +2045,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     if (activeTab === 'analyse') {
       console.log(`📹 Fetching videos for student ${student.id} (analyse tab active)`);
       fetchStudentVideos();
+      // Set default status filter to "A feedback" when opening analyse tab
+      if (statusFilter === '') {
+        setStatusFilter('A feedback');
+      }
     }
   }, [activeTab, student.id]);
 
@@ -2183,58 +2304,123 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return exercises;
   };
 
+  // Get weight and reps from video data
+  const getVideoWeightAndReps = (video) => {
+    // Try direct properties first
+    let weight = video.weight || video.target_weight || video.requested_weight;
+    let reps = video.reps || video.target_reps || video.requested_reps;
+    
+    // If not found, try to get from assignment workout session
+    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+      const exerciseName = video.exercise_name;
+      const setNumber = video.set_number || 1;
+      
+      for (const exercise of video.assignment.workout_session.exercises) {
+        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
+          const set = exercise.sets[setNumber - 1];
+          weight = weight || set.weight || set.target_weight;
+          reps = reps || set.reps || set.target_reps;
+          break;
+        }
+      }
+    }
+    
+    return { weight: weight || 0, reps: reps || 0 };
+  };
+
   // Render student videos grouped by session
   const renderStudentVideosGrouped = () => {
     if (groupedVideosBySession.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-center text-white/50 h-80">
-          <Video size={48} className="mb-4 opacity-30" />
-          <p className="font-light">Aucune vidéo trouvée</p>
-          <p className="text-sm">Aucune vidéo ne correspond aux filtres sélectionnés.</p>
+        <div className="flex items-center justify-center min-h-[320px] py-8">
+          <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+            <span>
+              <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
+              <br />
+              <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Aucune vidéo ne correspond aux filtres sélectionnés.</span>
+            </span>
+            <button 
+              onClick={() => {
+                setStatusFilter('');
+                setExerciseFilter('');
+                setDateFilter('');
+              }}
+              className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+              style={{
+                backgroundColor: 'var(--kaiylo-primary-hex)',
+                color: 'var(--tw-ring-offset-color)'
+              }}
+            >
+              Effacer les filtres
+            </button>
+          </div>
         </div>
       );
     }
     
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-[7px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
         {groupedVideosBySession.map((session) => {
           const isOpen = openSessions[session.sessionId];
-          const sessionTitle = `${session.sessionName} - ${format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr })}`;
+          const isHovered = hoveredSessionId === session.sessionId;
+          const sessionName = session.sessionName;
+          const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
+          const backgroundColor = isHovered 
+            ? 'rgba(255, 255, 255, 0.16)' 
+            : 'rgba(255, 255, 255, 0.05)';
           
           return (
             <div 
               key={session.sessionId}
-              className="border border-white/10 rounded-lg overflow-hidden"
+              className="px-5 py-4 transition-colors cursor-pointer rounded-2xl"
+              style={{ 
+                backgroundColor: backgroundColor,
+                borderWidth: '0px',
+                borderColor: 'rgba(0, 0, 0, 0)',
+                borderStyle: 'none',
+                borderImage: 'none'
+              }}
+              onMouseEnter={() => setHoveredSessionId(session.sessionId)}
+              onMouseLeave={() => setHoveredSessionId(null)}
+              onClick={() => toggleSession(session.sessionId)}
             >
-              {/* Session Header (Clickable) */}
-              <div 
-                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-white/5 transition-colors"
-                onClick={() => toggleSession(session.sessionId)}
-              >
+              {/* Session Header */}
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
-                  <ChevronRight 
-                    size={20} 
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 256 512" 
                     className={`text-white/50 transition-transform flex-shrink-0 ${
                       isOpen ? 'rotate-90' : ''
-                    }`} 
-                  />
+                    }`}
+                    style={{ width: '20px', height: '20px' }}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                  </svg>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-white font-light text-base">{sessionTitle}</h3>
-                    <p className="text-sm text-white/50 mt-1">
-                      {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
-                    </p>
+                    <h3 className="text-white font-light text-base flex items-center gap-2">
+                      {sessionName} <span style={{ opacity: 0.5 }}>- {sessionDate}</span> 
+                      <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                          <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                        </svg>
+                        <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
+                      </span>
+                    </h3>
                   </div>
                 </div>
                 
                 {/* Status indicator */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                      {session.videos.filter(v => v.status === 'pending').length} à feedback
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                      A feedback
                     </span>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light bg-green-500/20 text-green-400 border border-green-500/30">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
                       Complété
                     </span>
                   )}
@@ -2243,64 +2429,96 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               
               {/* Session Videos (Collapsible) */}
               {isOpen && (
-                <div className="border-t border-white/10">
-                  <div className="p-4 space-y-3">
+                <div className="mt-2 pt-2 pl-6">
+                  <div className="flex flex-col gap-[7px]">
                     {session.videos.map((video) => (
-          <div 
-            key={video.id} 
-            className="bg-[#1a1a1a] rounded-lg border border-[#262626] p-4 hover:bg-[#262626] transition-colors cursor-pointer"
-            onClick={() => handleVideoClick(video)}
-          >
-            <div className="flex items-center gap-4">
-              {/* Video Thumbnail */}
-              <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                      <div 
+                        key={video.id} 
+                        className="px-2 py-2 transition-colors cursor-pointer rounded-2xl hover:bg-white/8"
+                        style={{ 
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderWidth: '0px',
+                          borderColor: 'rgba(0, 0, 0, 0)',
+                          borderStyle: 'none',
+                          borderImage: 'none'
+                        }}
+                        onClick={() => handleVideoClick(video)}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Video Thumbnail */}
+                          <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
                             {video?.video_url && video.video_url.trim() !== '' ? (
                               <>
-                <video 
-                  src={video.video_url}
-                  className="w-full h-full object-cover"
-                  preload="metadata"
+                                <video 
+                                  src={video.video_url}
+                                  className="w-full h-full object-cover"
+                                  preload="metadata"
                                 />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                  <PlayCircle size={24} className="text-white" />
-                </div>
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                  <PlayCircle size={24} className="text-white" />
+                                </div>
                               </>
                             ) : (
                               <div className="w-full h-full bg-gray-700 flex items-center justify-center">
                                 <Video size={24} className="text-gray-500" />
                               </div>
                             )}
-              </div>
-              
-              {/* Video Info */}
-              <div className="flex-1 min-w-0">
-                {/* Exercise Tag */}
-                <div className="mb-2">
-                  <span className="inline-block bg-gray-700 text-gray-300 px-3 py-1 rounded-lg text-sm font-light">
-                    {video.exercise_name}
-                  </span>
-                </div>
-                
-                {/* Series and Date */}
-                <div className="text-white/50 text-sm">
-                  Série {video.set_number || 1}/3
-                </div>
-                <div className="text-white/50 text-sm">
-                  {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
-                </div>
-              </div>
-              
-              {/* Status Tag - Only show for videos needing feedback */}
-              {video.status === 'pending' && (
-                <div className="flex-shrink-0 flex items-center">
-                  <span className="inline-flex items-center justify-center bg-orange-500/20 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-full text-xs font-light">
-                    A feedback
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+                          </div>
+                          
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0">
+                            {/* Exercise Tag and Date */}
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-white font-light text-base">
+                                {video.exercise_name}
+                              </span>
+                              <span className="text-white/50">-</span>
+                              <span className="text-white/50 text-base font-extralight">
+                                {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                              </span>
+                            </div>
+                            
+                            {/* Series */}
+                            <div className="text-white/75 text-sm font-extralight">
+                              {(() => {
+                                const { weight, reps } = getVideoWeightAndReps(video);
+                                const seriesText = `Série ${video.set_number || 1}/3`;
+                                const repsText = reps > 0 ? `${reps} reps` : null;
+                                const weightText = weight > 0 ? `${weight}kg` : null;
+                                
+                                if (repsText && weightText) {
+                                  return (
+                                    <>
+                                      {seriesText} • {repsText}{' '}
+                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                    </>
+                                  );
+                                } else if (repsText) {
+                                  return `${seriesText} • ${repsText}`;
+                                } else if (weightText) {
+                                  return (
+                                    <>
+                                      {seriesText} •{' '}
+                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                    </>
+                                  );
+                                }
+                                return seriesText;
+                              })()}
+                            </div>
+                          </div>
+                          
+                          {/* Status Tag - Only show for videos needing feedback */}
+                          {video.status === 'pending' && (
+                            <div className="flex-shrink-0 flex items-center">
+                              <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                A feedback
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -2511,12 +2729,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   {(session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed' ? (
                     <div className="h-full flex items-center relative overflow-visible">
                       <button
-                        onMouseEnter={(e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          openDropdown(session.id || session.assignmentId, dayKey, e);
+                          toggleDropdown(session.id || session.assignmentId, dayKey, e);
                         }}
-                        onMouseLeave={closeDropdown}
-                        className="text-white/50 hover:text-white transition-colors flex items-center justify-center"
+                        className={`transition-colors flex items-center justify-center ${
+                          dropdownOpen === dropdownKey 
+                            ? 'text-[var(--kaiylo-primary-hex)]' 
+                            : 'text-white/50 hover:text-white'
+                        }`}
                         title="Options de la séance"
                       >
                         <MoreHorizontal className="h-[14px] w-[14px]" />
@@ -2524,8 +2745,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                       {dropdownOpen === dropdownKey && (
                         <div
-                          onMouseEnter={keepDropdownOpen}
-                          onMouseLeave={closeDropdown}
                           className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
                           style={{
                             backgroundColor: 'rgba(0, 0, 0, 0.75)',
@@ -2707,7 +2926,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         xmlns="http://www.w3.org/2000/svg" 
                         viewBox="0 0 640 640" 
                         className="w-4 h-4"
-                        style={{ fill: '#2FA064' }}
+                        style={{ 
+                          fill: session.difficulty?.toLowerCase() === 'facile'
+                            ? '#2FA064'
+                            : session.difficulty?.toLowerCase() === 'moyen'
+                            ? '#d4845a'
+                            : session.difficulty?.toLowerCase() === 'difficile'
+                            ? '#ef4444'
+                            : '#2FA064'
+                        }}
                       >
                         <path d="M535.1 342.6C547.6 330.1 547.6 309.8 535.1 297.3L375.1 137.3C362.6 124.8 342.3 124.8 329.8 137.3C317.3 149.8 317.3 170.1 329.8 182.6L467.2 320L329.9 457.4C317.4 469.9 317.4 490.2 329.9 502.7C342.4 515.2 362.7 515.2 375.2 502.7L535.2 342.7zM183.1 502.6L343.1 342.6C355.6 330.1 355.6 309.8 343.1 297.3L183.1 137.3C170.6 124.8 150.3 124.8 137.8 137.3C125.3 149.8 125.3 170.1 137.8 182.6L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7z"/>
                       </svg>
@@ -2960,20 +3187,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 {session.status !== 'completed' && session.status !== 'in_progress' && (
                   <div className="relative ml-2 dropdown-container flex-shrink-0 overflow-visible">
                     <button
-                      onMouseEnter={(e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        openDropdown(session.id || session.assignmentId, dateKey, e);
+                        toggleDropdown(session.id || session.assignmentId, dateKey, e);
                       }}
-                      onMouseLeave={closeDropdown}
-                      className="text-white/50 hover:text-white transition-colors flex items-center justify-center"
+                      className={`transition-colors flex items-center justify-center ${
+                        dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` 
+                          ? 'text-[var(--kaiylo-primary-hex)]' 
+                          : 'text-white/50 hover:text-white'
+                      }`}
                       title="Options de la séance"
                     >
                       <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
                     </button>
                     {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
                       <div
-                        onMouseEnter={keepDropdownOpen}
-                        onMouseLeave={closeDropdown}
                         className="fixed rounded-lg shadow-2xl z-[9999] min-w-[180px]"
                         style={{
                           backgroundColor: 'rgba(0, 0, 0, 0.75)',
@@ -3241,7 +3469,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               </h1>
               <div className="flex gap-6 mt-1" style={{ paddingLeft: '24px' }}>
                 <button 
-                  className={`tab-button-fixed-width pt-3 pb-2 text-sm ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                   data-text="Tableau de bord"
                   style={activeTab !== 'overview' ? { fontWeight: 200 } : {}}
                   onClick={() => setActiveTab('overview')}
@@ -3249,7 +3477,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   Tableau de bord
                 </button>
                 <button 
-                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'training' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'training' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                   data-text="Entraînement"
                   style={activeTab !== 'training' ? { fontWeight: 200 } : {}}
                   onClick={() => setActiveTab('training')}
@@ -3257,7 +3485,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   Entraînement
                 </button>
                 <button 
-                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                   data-text="Analyse vidéo"
                   style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
                   onClick={() => setActiveTab('analyse')}
@@ -3265,7 +3493,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   Analyse vidéo
                 </button>
                 <button 
-                  className={`tab-button-fixed-width py-3 text-sm ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-b-2 border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal'}`}
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                   data-text="Suivi Financier"
                   style={activeTab !== 'suivi' ? { fontWeight: 200 } : {}}
                   onClick={() => setActiveTab('suivi')}
@@ -3279,7 +3507,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       </div>
 
       {/* Main Content */}
-      <div className="p-4 pb-0" style={{ overflowX: 'hidden' }}>
+      <div className="p-4 pb-0 pt-0" style={{ overflowX: 'hidden' }}>
         {activeTab === 'overview' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3 mb-3">
@@ -3523,6 +3751,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
             <div className="overflow-x-auto planning-scrollbar">
               <div style={{ minWidth: '1203px', paddingRight: '0px' }}>
+                {/* Month indicator */}
+                <div className="flex items-center justify-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+                  <span className="text-sm text-white/50 font-light">
+                    {(() => {
+                      const month = format(overviewWeekDate, 'MMMM', { locale: fr });
+                      return month.charAt(0).toUpperCase() + month.slice(1);
+                    })()}
+                  </span>
+                </div>
+                
                 {/* Week Navigation with Day Labels */}
                 <div className="flex items-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px', paddingBottom: '0px' }}>
                   <button
@@ -3582,7 +3820,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <button className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95">
                         <Plus className="h-4 w-4 text-[#BFBFBF] opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
-                      <span className={`text-[12px] font-extralight ${isToday ? 'text-white rounded-full w-6 h-6 flex items-center justify-center bg-[var(--kaiylo-primary-hover)]' : ''}`}>
+                      <span className={`text-[12px] font-extralight ${isToday ? 'text-white rounded-full w-6 h-6 flex items-center justify-center bg-[var(--kaiylo-primary-hover)]' : 'text-white/75'}`}>
                         {format(dayDate, 'dd')}
                       </span>
                     </div>
@@ -3987,7 +4225,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         onClick={handleStartAddingNote}
                         className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
                       >
-                        <span className="text-[#d4845a]">Ajouter une note</span>
+                        <span className="text-white/50 font-light">Ajouter une note</span>
                       </button>
                     )}
                   </div>
@@ -4094,7 +4332,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         onClick={handleStartAddingLimitation}
                         className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
                       >
-                        <span className="text-[#d4845a]">Ajouter une limitation</span>
+                        <span className="text-white/50 font-extralight">Ajouter une limitation</span>
                       </button>
                     )}
                   </div>
@@ -4107,62 +4345,132 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         {activeTab === 'training' && (
           <div className="relative">
             {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => changeTrainingWeek('prev')} className="p-1.5 rounded-full hover:bg-white/10">
-                    <ChevronLeft className="h-5 w-5" />
+            <div className="flex items-center justify-between mb-4" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-0">
+                  <button 
+                    onClick={() => changeTrainingWeek('prev')} 
+                    className="bg-primary hover:bg-primary/90 font-normal py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: 'rgba(255, 255, 255, 0.75)',
+                      fontWeight: '400'
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors" style={{ transform: 'scaleX(-1)' }}>
+                      <path fill="currentColor" d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                    </svg>
                   </button>
-                  <span className="text-sm font-light text-white/75 w-40 text-center">
+                  <span className="text-sm font-light text-white/75 min-w-[180px] text-center">
                     {format(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), 'd MMM', { locale: fr })} - {format(addDays(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), (weekViewFilter * 7) - 1), 'd MMM yyyy', { locale: fr })}
                   </span>
-                  <button onClick={() => changeTrainingWeek('next')} className="p-1.5 rounded-full hover:bg-white/10">
-                    <ChevronRight className="h-5 w-5" />
+                  <button 
+                    onClick={() => changeTrainingWeek('next')} 
+                    className="bg-primary hover:bg-primary/90 font-normal py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: 'rgba(255, 255, 255, 0.75)',
+                      fontWeight: '400'
+                    }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors">
+                      <path fill="currentColor" d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                    </svg>
                   </button>
                 </div>
                 <button 
                   onClick={() => setTrainingWeekDate(new Date())}
-                  className="bg-[rgba(255,255,255,0.1)] text-white/75 text-xs px-3 py-1.5 rounded-full hover:bg-white/20"
+                  className="bg-primary hover:bg-primary/90 font-normal py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-1 text-primary-foreground text-sm"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    color: 'rgba(250, 250, 250, 0.5)',
+                    fontWeight: '400'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                    e.currentTarget.style.color = '#D48459';
+                    e.currentTarget.style.fontWeight = '400';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                    e.currentTarget.style.fontWeight = '400';
+                  }}
                 >
                   Aujourd'hui
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                {/* Status Filter Dropdown */}
-                <select
-                  value={trainingFilter}
-                  onChange={(e) => setTrainingFilter(e.target.value)}
-                  className="text-xs px-3 py-1.5 rounded-md select-dark text-white/75 hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    paddingRight: '28px'
-                  }}
-                >
-                  <option value="all" className="bg-[#1a1a1a] text-white">Tous</option>
-                  <option value="assigned" className="bg-[#1a1a1a] text-white">Assigné</option>
-                  <option value="draft" className="bg-[#1a1a1a] text-white">Brouillon</option>
-                </select>
+              <div className="flex items-center gap-3">
+                {/* Status Filter - Using buttons instead of select for better Kaiylo theme */}
+                <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+                  <button
+                    onClick={() => setTrainingFilter('all')}
+                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                      trainingFilter === 'all'
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: trainingFilter === 'all' ? 400 : 200 }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Tous</span>
+                    <span>Tous</span>
+                  </button>
+                  <button
+                    onClick={() => setTrainingFilter('assigned')}
+                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                      trainingFilter === 'assigned'
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: trainingFilter === 'assigned' ? 400 : 200 }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Assigné</span>
+                    <span>Assigné</span>
+                  </button>
+                  <button
+                    onClick={() => setTrainingFilter('draft')}
+                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                      trainingFilter === 'draft'
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: trainingFilter === 'draft' ? 400 : 200 }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Brouillon</span>
+                    <span>Brouillon</span>
+                  </button>
+                </div>
 
-                <div className="h-5 w-[1px] bg-white/20 mx-2"></div>
+                <div className="h-5 w-[1px] bg-white/10"></div>
 
-                {/* Week View Filter Dropdown */}
-                <select
-                  value={weekViewFilter}
-                  onChange={(e) => setWeekViewFilter(Number(e.target.value))}
-                  className="text-xs px-3 py-1.5 rounded-full select-dark text-white/75 hover:bg-white/5 focus:outline-none focus:border-[#d4845a] transition-colors appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23FFFFFF' stroke-opacity='0.75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    paddingRight: '28px'
-                  }}
-                >
-                  <option value="2" className="bg-[#1a1a1a] text-white">2 semaines</option>
-                  <option value="4" className="bg-[#1a1a1a] text-white">4 semaines</option>
-                </select>
+                {/* Week View Filter - Using buttons instead of select */}
+                <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+                  <button
+                    onClick={() => setWeekViewFilter(2)}
+                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                      weekViewFilter === 2
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: weekViewFilter === 2 ? 400 : 200 }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 semaines</span>
+                    <span>2 semaines</span>
+                  </button>
+                  <button
+                    onClick={() => setWeekViewFilter(4)}
+                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                      weekViewFilter === 4
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: weekViewFilter === 4 ? 400 : 200 }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
+                    <span>4 semaines</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4173,7 +4481,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               {/* Day Headers */}
               <div className="grid grid-cols-7 gap-2 mb-2">
                 {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
-                  <div key={day} className="text-center text-xs text-white/50 font-light">
+                  <div key={day} className="text-center text-[12px] text-white/75 font-extralight">
                     {day}
                   </div>
                 ))}
@@ -4201,42 +4509,33 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     const weekKey = format(weekStart, 'yyyy-MM-dd');
                     
                     return (
-                      <div key={weekKey} className="relative group">
+                      <div key={weekKey} className="relative week-group group/week">
                         {/* Week Actions - Side Buttons */}
-                        <div className="absolute -right-12 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 px-2">
+                        <div className="absolute -right-12 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleCopyWeek(weekStart);
                             }}
-                            className="p-2 bg-[#262626] rounded-full text-white/50 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
+                            className="p-2 rounded-full text-white/25 hover:text-[#d4845a] transition-all hover:scale-110"
                             title="Copier la semaine"
                           >
-                            <Copy className="h-4 w-4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5 fill-current">
+                              <path d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z"/>
+                            </svg>
                           </button>
-                          
-                          {copiedWeek && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePasteWeek(weekStart);
-                              }}
-                              className="p-2 bg-[#262626] rounded-full text-white/50 hover:text-white hover:bg-[#333] shadow-lg border border-white/10 transition-transform hover:scale-110"
-                              title="Coller la semaine"
-                            >
-                              <Clipboard className="h-4 w-4" />
-                            </button>
-                          )}
                           
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteWeek(weekStart);
                             }}
-                            className="p-2 bg-[#262626] rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/20 shadow-lg border border-white/10 transition-transform hover:scale-110"
+                            className="p-2 rounded-full text-white/25 hover:text-[#d4845a] transition-all hover:scale-110"
                             title="Supprimer la semaine"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5 fill-current">
+                              <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+                            </svg>
                           </button>
                         </div>
 
@@ -4255,62 +4554,420 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             return (
                               <div
                                 key={dateKey}
-                                className="bg-[rgba(255,255,255,0.05)] rounded-lg p-2 flex flex-col h-[200px] transition-all duration-300 relative"
+                                className="bg-[rgba(255,255,255,0.05)] rounded-xl p-2 flex flex-col h-[200px] transition-all duration-300 relative group cursor-pointer"
+                                style={{ 
+                                  backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)'
+                                }}
+                                onClick={() => handleDayClick(day)}
                                 onDragOver={(e) => handleDayDragOver(e, day)}
                                 onDragEnter={(e) => handleDayDragOver(e, day)}
                                 onDragLeave={(e) => handleDragLeave(e, day)}
                                 onDrop={(e) => handleDayDrop(e, day)}
+                                onMouseEnter={() => setHoveredPasteDate(dateKey)}
+                                onMouseLeave={(event) => {
+                                  const relatedTarget = event.relatedTarget;
+                                  if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+                                    setHoveredPasteDate((current) => (current === dateKey ? null : current));
+                                  }
+                                }}
                               >
-                                <div className="flex items-center mb-2">
-                                  <span className={`text-xs ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 text-white' : 'text-white/50'}`}>
+                                <div className="text-sm text-white/75 mb-1.5 flex justify-end items-center gap-1">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDayClick(day);
+                                    }} 
+                                    className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95 pointer-events-none group-hover:pointer-events-auto"
+                                  >
+                                    <Plus className="h-4 w-4 text-[#BFBFBF] transition-opacity" />
+                                  </button>
+                                  <span className={`text-[12px] font-extralight ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 text-white' : 'text-white/75'}`}>
                                     {format(day, 'd')}
                                   </span>
                                 </div>
                                 
                                 <div 
-                                  className={`flex-1 space-y-1 overflow-y-auto transition-all duration-300 ease-out rounded`}
+                                  className={`flex-1 space-y-1 overflow-y-auto transition-all duration-300 ease-out rounded relative`}
                                   style={{
-                                    backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
-                                    padding: isDropTarget ? '4px' : '0',
+                                    backgroundColor: isDropTarget && !dragOverSessionId ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
+                                    borderRadius: '0.75rem',
+                                    padding: isDropTarget && !dragOverSessionId ? '4px' : '0',
                                     transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
                                   }}
                                 >
-                                  {sessionsOnDay.map(session => {
+                                  {sessionsOnDay.map((session, sessionIndex) => {
                                     const exercises = session.exercises || [];
                                     const sessionTitle = session.title || 'Séance';
+                                    const canDrag = session.status === 'draft' || session.status === 'assigned';
+                                    const dropdownKey = `${session.id || session.assignmentId || session.workoutSessionId}-${dateKey}`;
+                                    const hasMultipleSessions = sessionsOnDay.length > 1;
+                                    
                                     return (
-                                      <div key={session.id || session.workoutSessionId} 
-                                           draggable={session.status === 'draft' || session.status === 'assigned'}
-                                           onDragStart={(e) => handleSessionDragStart(e, session, day)}
-                                           onDragEnd={handleSessionDragEnd}
-                                           onClick={() => handleSessionClick(session, day)}
-                                           className={`bg-[rgba(255,255,255,0.03)] border border-white/20 rounded-md p-1.5 cursor-pointer transition-all duration-200 ${
-                                             draggedSession && (draggedSession.id === session.id || draggedSession.assignmentId === session.assignmentId || draggedSession.workoutSessionId === session.workoutSessionId) ? 'opacity-50 scale-95' : ''
-                                           }`}
+                                      <div
+                                        key={session.id || session.workoutSessionId}
+                                        className={`rounded-xl transition-all duration-200 flex-shrink-0 flex flex-col relative ${
+                                          session.status === 'draft'
+                                            ? 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
+                                            : 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
+                                        } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
+                                          draggedSession && (draggedSession.id === session.id || draggedSession.assignmentId === session.assignmentId || draggedSession.workoutSessionId === session.workoutSessionId) ? 'opacity-50 scale-95' : ''
+                                        }`}
+                                        draggable={canDrag}
+                                        onDragStart={(e) => handleSessionDragStart(e, session, day)}
+                                        onDragEnd={handleSessionDragEnd}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSessionClick(session, day);
+                                        }}
                                       >
-                                        <p className="text-xs text-[#d4845a] truncate">{sessionTitle}</p>
-                                        <p className="text-[10px] text-white/60">
-                                          {exercises.length} exercise{exercises.length > 1 ? 's' : ''}
-                                        </p>
+                                        <div className="pt-2 pb-2 px-2 space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-1 min-w-0 flex-1">
+                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                                <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
+                                              </svg>
+                                              <span className="truncate text-[12px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{sessionTitle}</span>
+                                            </div>
+
+                                            {((session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed') && (
+                                              <div className="h-full flex items-center relative overflow-visible">
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleDropdown(session.id || session.assignmentId || session.workoutSessionId, dateKey, e);
+                                                  }}
+                                                  className={`transition-colors flex items-center justify-center ${
+                                                    dropdownOpen === dropdownKey 
+                                                      ? 'text-[var(--kaiylo-primary-hex)]' 
+                                                      : 'text-white/50 hover:text-white'
+                                                  }`}
+                                                  title="Options de la séance"
+                                                >
+                                                  <MoreHorizontal className="h-[14px] w-[14px]" />
+                                                </button>
+
+                                                {dropdownOpen === dropdownKey && (
+                                                  <div
+                                                    className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
+                                                    style={{
+                                                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                                      backdropFilter: 'blur(10px)',
+                                                      borderColor: 'rgba(255, 255, 255, 0.1)',
+                                                      borderWidth: '1px',
+                                                      borderStyle: 'solid',
+                                                      top: dropdownPosition?.top || 0,
+                                                      right: dropdownPosition?.right || 0
+                                                    }}
+                                                  >
+                                                    {session.status === 'completed' ? (
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          closeDropdown();
+                                                          handleCopySession(session, day);
+                                                        }}
+                                                        className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
+                                                      >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                          <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                                                        </svg>
+                                                        Copier
+                                                      </button>
+                                                    ) : (
+                                                      <>
+                                                        {session.status === 'draft' ? (
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              closeDropdown();
+                                                              handlePublishDraftSession(session, day);
+                                                            }}
+                                                            className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
+                                                          >
+                                                            <Eye className="h-4 w-4" />
+                                                            Publier la séance
+                                                          </button>
+                                                        ) : (
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              closeDropdown();
+                                                              handleSwitchToDraft(session, day);
+                                                            }}
+                                                            className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
+                                                          >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                              <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L504.5 470.8C507.2 468.4 509.9 466 512.5 463.6C559.3 420.1 590.6 368.2 605.5 332.5C608.8 324.6 608.8 315.8 605.5 307.9C590.6 272.2 559.3 220.2 512.5 176.8C465.4 133.1 400.7 96.2 319.9 96.2C263.1 96.2 214.3 114.4 173.9 140.4L73 39.1zM236.5 202.7C260 185.9 288.9 176 320 176C399.5 176 464 240.5 464 320C464 351.1 454.1 379.9 437.3 403.5L402.6 368.8C415.3 347.4 419.6 321.1 412.7 295.1C399 243.9 346.3 213.5 295.1 227.2C286.5 229.5 278.4 232.9 271.1 237.2L236.4 202.5zM357.3 459.1C345.4 462.3 332.9 464 320 464C240.5 464 176 399.5 176 320C176 307.1 177.7 294.6 180.9 282.7L101.4 203.2C68.8 240 46.4 279 34.5 307.7C31.2 315.6 31.2 324.4 34.5 332.3C49.4 368 80.7 420 127.5 463.4C174.6 507.1 239.3 544 320.1 544C357.4 544 391.3 536.1 421.6 523.4L357.4 459.2z"/>
+                                                            </svg>
+                                                            Passer en mode brouillon
+                                                          </button>
+                                                        )}
+
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            closeDropdown();
+                                                            handleCopySession(session, day);
+                                                          }}
+                                                          className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2"
+                                                        >
+                                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                            <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                                                          </svg>
+                                                          Copier
+                                                        </button>
+
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            closeDropdown();
+                                                            handleDeleteSession(session.assignmentId || session.id || session.workoutSessionId, day);
+                                                          }}
+                                                          className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
+                                                        >
+                                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                            <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                                                          </svg>
+                                                          Supprimer
+                                                        </button>
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {exercises.length > 0 && (
+                                            <>
+                                              <div className="border-b border-white/10 mb-1"></div>
+                                              <div className="flex items-center justify-between text-[11px] text-white/75">
+                                                <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
+                                              </div>
+                                            </>
+                                          )}
+
+                                          <div className="flex items-center justify-between pt-0 text-[11px]">
+                                            <div className="flex items-center gap-2 flex-1">
+                                              <span
+                                                className={`px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1.5 ${
+                                                  session.status === 'completed'
+                                                    ? 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20'
+                                                    : session.status === 'in_progress'
+                                                    ? 'bg-[#d4845a] text-white'
+                                                    : session.status === 'draft'
+                                                    ? 'bg-[#686762] text-white'
+                                                    : session.status === 'assigned'
+                                                    ? 'bg-[#3B6591] text-white'
+                                                    : 'bg-gray-600 text-gray-200'
+                                                }`}
+                                              >
+                                                {session.status === 'completed' && (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#2FA064]"></span>
+                                                )}
+                                                {session.status === 'assigned' && (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#5B85B1]"></span>
+                                                )}
+                                                {session.status === 'draft' && (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#4a4a47]"></span>
+                                                )}
+                                                {session.status === 'completed'
+                                                  ? 'Terminé'
+                                                  : session.status === 'in_progress'
+                                                  ? 'En cours'
+                                                  : session.status === 'draft'
+                                                  ? 'Brouillon'
+                                                  : session.status === 'assigned'
+                                                  ? 'Assigné'
+                                                  : 'Pas commencé'}
+                                              </span>
+                                              {session.status === 'completed' && (
+                                                <svg 
+                                                  xmlns="http://www.w3.org/2000/svg" 
+                                                  viewBox="0 0 640 640" 
+                                                  className="w-4 h-4"
+                                                  style={{ 
+                                                    fill: session.difficulty?.toLowerCase() === 'facile'
+                                                      ? '#2FA064'
+                                                      : session.difficulty?.toLowerCase() === 'moyen'
+                                                      ? '#d4845a'
+                                                      : session.difficulty?.toLowerCase() === 'difficile'
+                                                      ? '#ef4444'
+                                                      : '#2FA064'
+                                                  }}
+                                                >
+                                                  <path d="M535.1 342.6C547.6 330.1 547.6 309.8 535.1 297.3L375.1 137.3C362.6 124.8 342.3 124.8 329.8 137.3C317.3 149.8 317.3 170.1 329.8 182.6L467.2 320L329.9 457.4C317.4 469.9 317.4 490.2 329.9 502.7C342.4 515.2 362.7 515.2 375.2 502.7L535.2 342.7zM183.1 502.6L343.1 342.6C355.6 330.1 355.6 309.8 343.1 297.3L183.1 137.3C170.6 124.8 150.3 124.8 137.8 137.3C125.3 149.8 125.3 170.1 137.8 182.6L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7z"/>
+                                                </svg>
+                                              )}
+                                              {session.status === 'completed' && session.difficulty && (
+                                                <svg 
+                                                  className={`${
+                                                    session.difficulty.toLowerCase() === 'facile'
+                                                      ? 'text-[#2FA064]'
+                                                      : session.difficulty.toLowerCase() === 'moyen'
+                                                      ? 'text-[#d4845a]'
+                                                      : session.difficulty.toLowerCase() === 'difficile'
+                                                      ? 'text-[#ef4444]'
+                                                      : 'text-gray-500'
+                                                  }`}
+                                                  width="20"
+                                                  height="20"
+                                                  fill="currentColor" 
+                                                  viewBox="0 0 640 640"
+                                                  xmlns="http://www.w3.org/2000/svg"
+                                                >
+                                                  <path d="M320 576C178.6 576 64 461.4 64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576zM438 209.7C427.3 201.9 412.3 204.3 404.5 215L285.1 379.2L233 327.1C223.6 317.7 208.4 317.7 199.1 327.1C189.8 336.5 189.7 351.7 199.1 361L271.1 433C276.1 438 282.9 440.5 289.9 440C296.9 439.5 303.3 435.9 307.4 430.2L443.3 243.2C451.1 232.5 448.7 217.5 438 209.7z"/>
+                                                </svg>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
                                       </div>
                                     );
                                   })}
                                 </div>
-                                
                                 {isDropTarget && draggedSession && (
-                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                                    <div className="bg-[#d4845a] bg-opacity-25 text-[#d4845a] px-2.5 py-1 rounded-lg text-[10px] font-medium shadow-md" style={{ fontWeight: 500 }}>
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" style={{ top: '40px', bottom: '0' }}>
+                                    <div className="bg-[#d4845a] bg-opacity-25 text-[#d4845a] px-3 py-1.5 rounded-lg text-xs font-medium shadow-md" style={{ fontWeight: 500 }}>
                                       Déposer ici
                                     </div>
                                   </div>
                                 )}
-                                <button onClick={() => handleDayClick(day)} className="mt-auto flex items-center justify-center w-full h-6 bg-white/5 rounded-md hover:bg-white/10">
-                                  <Plus className="h-4 w-4 text-white/50" />
-                                </button>
+                                {copiedSession && hoveredPasteDate === dateKey && !draggedSession && (
+                                  <>
+                                    {/* Overlay avec blur et assombrissement si des séances existent */}
+                                    {sessionsOnDay.length > 0 && (
+                                      <div 
+                                        className="absolute inset-0 pointer-events-none z-10 rounded-lg"
+                                        style={{
+                                          backdropFilter: 'blur(8px)',
+                                          WebkitBackdropFilter: 'blur(8px)',
+                                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                          transition: 'opacity 0.3s ease-out'
+                                        }}
+                                      />
+                                    )}
+                                    {/* Preview de la séance copiée */}
+                                    <div className="absolute inset-0 pointer-events-none z-20 flex items-start justify-center pt-2" style={{ top: '40px', bottom: '0' }}>
+                                      <div className="space-y-1">
+                                        <div className="rounded-xl transition-all duration-200 flex-shrink-0 flex flex-col bg-[rgba(255,255,255,0.05)] opacity-50 scale-95">
+                                          <div className="pt-2 pb-2 px-2 space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="flex items-center gap-1 min-w-0 flex-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                                  <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
+                                                </svg>
+                                                <span className="text-[12px] font-normal truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>{copiedSession.session.title || 'Séance'}</span>
+                                              </div>
+                                            </div>
+                                            
+                                            {copiedSession.session.exercises && copiedSession.session.exercises.length > 0 && (
+                                              <>
+                                                <div className="border-b border-white/10 mb-1"></div>
+                                                <div className="flex flex-col gap-1 flex-1">
+                                                  {copiedSession.session.exercises.slice(0, 2).map((exercise, index) => (
+                                                    <div key={index} className="text-[10px] text-white truncate font-extralight">
+                                                      <span className="font-light text-white/75">
+                                                        {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
+                                                      </span>
+                                                      {' '}
+                                                      <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                                                    </div>
+                                                  ))}
+                                                  {copiedSession.session.exercises.length > 2 && (
+                                                    <div className="text-[10px] text-white/50 font-extralight">
+                                                      + {copiedSession.session.exercises.length - 2} ex.
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {/* Boutons Coller et Annuler */}
+                                    <div 
+                                      className="absolute left-1/2 bottom-3 -translate-x-1/2 flex flex-col items-center gap-2 z-10 w-[100px]"
+                                      style={{
+                                        animation: 'slideUpFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+                                      }}
+                                    >
+                                      <button
+                                        className={`w-full px-3 py-1.5 rounded-lg text-xs shadow-lg ${
+                                          isPastingSession ? 'bg-[var(--kaiylo-primary-hex)] text-white opacity-80 cursor-not-allowed' : 'bg-[var(--kaiylo-primary-hex)] text-white hover:bg-[var(--kaiylo-primary-hover)]'
+                                        }`}
+                                        style={{
+                                          transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handlePasteCopiedSession(day);
+                                        }}
+                                        disabled={isPastingSession}
+                                        onMouseEnter={(e) => {
+                                          if (!isPastingSession) {
+                                            e.currentTarget.style.transform = 'scale(1.05)';
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                        }}
+                                      >
+                                        {isPastingSession ? 'Collage…' : 'Coller'}
+                                      </button>
+                                      <button
+                                        className="w-full px-3 py-1.5 rounded-lg text-xs shadow-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                                        style={{
+                                          transition: 'background-color 0.2s ease-out, transform 0.2s ease-out'
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCopiedSession(null);
+                                          setHoveredPasteDate(null);
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1.05)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                        }}
+                                      >
+                                        Annuler
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             );
                           })}
                         </div>
+                        
+                        {/* Overlay pour coller une semaine copiée */}
+                        {copiedWeek && (
+                          <div className="absolute inset-0 bg-[#d4845a]/10 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePasteWeek(weekStart);
+                              }}
+                              className="bg-[#d4845a] hover:bg-[#c47850] text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110"
+                              title="Coller la semaine copiée ici"
+                            >
+                              Copier
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCopiedWeek(null);
+                              }}
+                              className="bg-white/10 hover:bg-white/20 text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110"
+                              title="Annuler la copie"
+                            >
+                              Annuler
+                            </button>
+                          </div>
+                        )}
                         
                       </div>
                     );
@@ -4326,72 +4983,399 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             {/* Filters */}
             <div className="flex items-center gap-4 mb-6">
               {/* Status Filter */}
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="appearance-none bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={statusFilterButtonRef}
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    style={{
+                      backgroundColor: isStatusFilterOpen || statusFilter !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isStatusFilterOpen || statusFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : '200',
+                      width: `${statusFilterMinWidth}px`,
+                      minWidth: `${statusFilterMinWidth}px`
+                    }}
+                  >
+                    <span ref={statusFilterTextRef} style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{statusFilter || 'Tous les statuts'}</span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform"
+                      style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
                 >
-                  <option value="">Tous les statuts</option>
-                  <option value="A feedback">A feedback</option>
-                  <option value="Complété">Complété</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50 pointer-events-none" />
-              </div>
+                  <DropdownMenuRadioGroup 
+                    value={statusFilter} 
+                    onValueChange={(value) => {
+                      setStatusFilter(value);
+                      setIsStatusFilterOpen(false);
+                    }}
+                  >
+                    <DropdownMenuRadioItem
+                      value=""
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === '' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === ''
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== '') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== '') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Tous les statuts</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="A feedback"
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === 'A feedback' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === 'A feedback'
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== 'A feedback') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== 'A feedback') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>A feedback</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === 'A feedback' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="Complété"
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === 'Complété' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === 'Complété'
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== 'Complété') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== 'Complété') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Complété</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === 'Complété' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Exercise Filter */}
-              <div className="relative">
-                <select
-                  value={exerciseFilter}
-                  onChange={(e) => setExerciseFilter(e.target.value)}
-                  className="appearance-none bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              <DropdownMenu open={isExerciseFilterOpen} onOpenChange={setIsExerciseFilterOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={exerciseFilterButtonRef}
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    style={{
+                      backgroundColor: isExerciseFilterOpen || exerciseFilter !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isExerciseFilterOpen || exerciseFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : '200',
+                      width: `${exerciseFilterMinWidth}px`,
+                      minWidth: `${exerciseFilterMinWidth}px`
+                    }}
+                  >
+                    <span ref={exerciseFilterTextRef} style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exerciseFilter || 'Exercice'}</span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform"
+                      style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
                 >
-                  <option value="">Exercice</option>
-                  {getUniqueExercises().map(exercise => (
-                    <option key={exercise} value={exercise}>{exercise}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50 pointer-events-none" />
-              </div>
+                  <DropdownMenuRadioGroup 
+                    value={exerciseFilter} 
+                    onValueChange={(value) => {
+                      setExerciseFilter(value);
+                      setIsExerciseFilterOpen(false);
+                    }}
+                  >
+                    <DropdownMenuRadioItem
+                      value=""
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        exerciseFilter === '' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        exerciseFilter === ''
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (exerciseFilter !== '') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (exerciseFilter !== '') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Exercice</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          exerciseFilter === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    {getUniqueExercises().map(exercise => (
+                      <DropdownMenuRadioItem
+                        key={exercise}
+                        value={exercise}
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                          exerciseFilter === exercise 
+                            ? 'bg-primary/20 text-primary font-normal' 
+                            : 'text-foreground font-light'
+                        }`}
+                        style={
+                          exerciseFilter === exercise
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (exerciseFilter !== exercise) {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (exerciseFilter !== exercise) {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>{exercise}</span>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 448 512" 
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                            exerciseFilter === exercise ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                          }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                        </svg>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Date Filter */}
               <div className="relative">
-                <input
-                  type="date"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
+                <div 
+                  ref={dateFilterButtonRef}
+                  onClick={() => dateInputRef.current?.showPicker()}
+                  className="relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors gap-2"
+                  style={{
+                    backgroundColor: dateFilter ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    color: dateFilter ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
+                    fontWeight: dateFilter ? '400' : '200',
+                    width: `${dateFilterMinWidth}px`,
+                    minWidth: `${dateFilterMinWidth}px`
+                  }}
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 448 512" 
+                    className="h-4 w-4 pointer-events-none flex-shrink-0"
+                    style={{ color: dateFilter ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
+                    fill="currentColor"
+                  >
+                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                  </svg>
+                  {/* Custom Display */}
+                  <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap" style={{ 
+                    fontSize: '14px',
+                    fontWeight: dateFilter ? '400' : 'inherit',
+                    flex: '1'
+                  }}>
+                    Date
+                  </span>
+                  
+                  {/* Native Input */}
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
               </div>
 
-              {/* Add Filter Button */}
-              <button className="px-4 py-2 text-white/50 hover:text-white transition-colors text-sm">
-                + Filter
-              </button>
-
-              {/* Refresh Button */}
-              <button
-                onClick={() => {
-                  console.log('🔄 Manual refresh triggered');
-                  fetchStudentVideos();
-                }}
-                disabled={videosLoading}
-                className="px-3 py-2 text-white/50 hover:text-white transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                title="Rafraîchir la liste des vidéos"
-              >
-                <RefreshCw className={`h-4 w-4 ${videosLoading ? 'animate-spin' : ''}`} />
-              </button>
-
               {/* Video Count */}
-              <div className="ml-auto text-sm text-white/50">
+              <div className="ml-auto text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
               </div>
             </div>
 
             {videosLoading && (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
-                <span className="ml-2 text-white/50">Chargement des vidéos...</span>
+                <div 
+                  className="rounded-full border-2 border-transparent animate-spin"
+                  style={{
+                    borderTopColor: '#d4845a',
+                    borderRightColor: '#d4845a',
+                    width: '40px',
+                    height: '40px'
+                  }}
+                />
               </div>
             )}
 
@@ -4402,10 +5386,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         {activeTab === 'suivi' && (
           <div className="p-4 flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center justify-center gap-4">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-16 h-16 text-white/25">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-12 h-12" style={{ color: 'rgb(212, 132, 90)' }}>
                 <path d="M415.9 274.5C428.1 271.2 440.9 277 446.4 288.3L465 325.9C475.3 327.3 485.4 330.1 494.9 334L529.9 310.7C540.4 303.7 554.3 305.1 563.2 314L582.4 333.2C591.3 342.1 592.7 356.1 585.7 366.5L562.4 401.4C564.3 406.1 566 411 567.4 416.1C568.8 421.2 569.7 426.2 570.4 431.3L608.1 449.9C619.4 455.5 625.2 468.3 621.9 480.4L614.9 506.6C611.6 518.7 600.3 526.9 587.7 526.1L545.7 523.4C539.4 531.5 532.1 539 523.8 545.4L526.5 587.3C527.3 599.9 519.1 611.3 507 614.5L480.8 621.5C468.6 624.8 455.9 619 450.3 607.7L431.7 570.1C421.4 568.7 411.3 565.9 401.8 562L366.8 585.3C356.3 592.3 342.4 590.9 333.5 582L314.3 562.8C305.4 553.9 304 540 311 529.5L334.3 494.5C332.4 489.8 330.7 484.9 329.3 479.8C327.9 474.7 327 469.6 326.3 464.6L288.6 446C277.3 440.4 271.6 427.6 274.8 415.5L281.8 389.3C285.1 377.2 296.4 369 309 369.8L350.9 372.5C357.2 364.4 364.5 356.9 372.8 350.5L370.1 308.7C369.3 296.1 377.5 284.7 389.6 281.5L415.8 274.5zM448.4 404C424.1 404 404.4 423.7 404.5 448.1C404.5 472.4 424.2 492 448.5 492C472.8 492 492.5 472.3 492.5 448C492.4 423.6 472.7 404 448.4 404zM224.9 18.5L251.1 25.5C263.2 28.8 271.4 40.2 270.6 52.7L267.9 94.5C276.2 100.9 283.5 108.3 289.8 116.5L331.8 113.8C344.3 113 355.7 121.2 359 133.3L366 159.5C369.2 171.6 363.5 184.4 352.2 190L314.5 208.6C313.8 213.7 312.8 218.8 311.5 223.8C310.2 228.8 308.4 233.8 306.5 238.5L329.8 273.5C336.8 284 335.4 297.9 326.5 306.8L307.3 326C298.4 334.9 284.5 336.3 274 329.3L239 306C229.5 309.9 219.4 312.7 209.1 314.1L190.5 351.7C184.9 363 172.1 368.7 160 365.5L133.8 358.5C121.6 355.2 113.5 343.8 114.3 331.3L117 289.4C108.7 283 101.4 275.6 95.1 267.4L53.1 270.1C40.6 270.9 29.2 262.7 25.9 250.6L18.9 224.4C15.7 212.3 21.4 199.5 32.7 193.9L70.4 175.3C71.1 170.2 72.1 165.2 73.4 160.1C74.8 155 76.4 150.1 78.4 145.4L55.1 110.5C48.1 100 49.5 86.1 58.4 77.2L77.6 58C86.5 49.1 100.4 47.7 110.9 54.7L145.9 78C155.4 74.1 165.5 71.3 175.8 69.9L194.4 32.3C200 21 212.7 15.3 224.9 18.5zM192.4 148C168.1 148 148.4 167.7 148.4 192C148.4 216.3 168.1 236 192.4 236C216.7 236 236.4 216.3 236.4 192C236.4 167.7 216.7 148 192.4 148z" fill="currentColor"/>
               </svg>
-              <p className="text-white/25 text-lg">Page en cours de développement</p>
+              <p className="text-base" style={{ color: 'rgb(212, 132, 90)' }}>Page en cours de développement</p>
             </div>
           </div>
         )}
@@ -4561,6 +5545,53 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               <button
                 type="button"
                 onClick={confirmDeleteLimitation}
+                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </BaseModal>
+
+        {/* Delete Week Modal */}
+        <BaseModal
+          isOpen={isDeleteWeekModalOpen}
+          onClose={() => {
+            setIsDeleteWeekModalOpen(false);
+            setWeekToDelete(null);
+          }}
+          modalId="delete-week-modal"
+          zIndex={80}
+          closeOnEsc={isDeleteWeekModalTopMost}
+          closeOnBackdrop={isDeleteWeekModalTopMost}
+          size="md"
+          title="Supprimer la semaine"
+          titleClassName="text-xl font-normal text-white"
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col items-start space-y-4">
+              <div className="text-left space-y-2">
+                <p className="text-sm font-extralight text-white/70">
+                  Êtes-vous sûr de vouloir supprimer {weekToDelete?.sessionCount || 0} séance(s) de cette semaine ?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteWeekModalOpen(false);
+                  setWeekToDelete(null);
+                }}
+                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteWeek}
                 className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
                 style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
               >

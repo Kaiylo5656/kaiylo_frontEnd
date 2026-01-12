@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Download, Trash2, Send, Dumbbell, Calendar, User, Save, Edit3, Folder } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import axios from 'axios';
-import { buildApiUrl } from '../config/api';
+import { buildApiUrl, getApiBaseUrlWithApi } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import ReactPlayer from 'react-player';
 import VideoPlayer from './VideoPlayer';
@@ -22,9 +22,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const [videoError, setVideoError] = useState(null);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [studentWeight, setStudentWeight] = useState(null);
 
   
   const videoRef = useRef(null);
+  const textareaRef = useRef(null);
   const { getAuthToken } = useAuth();
 
   useEffect(() => {
@@ -42,6 +44,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       console.log('Video URL:', video.video_url);
       console.log('Coach feedback:', video.coach_feedback);
       console.log('Video status:', video.status);
+      console.log('Video student object:', video.student);
+      console.log('Video student weight:', video.student?.weight);
       
       // Determine video status based on coach feedback presence
       if (video.coach_feedback && video.coach_feedback.trim() !== '') {
@@ -68,6 +72,37 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       return () => clearTimeout(loadingTimeout);
     }
   }, [video]);
+
+  // Fetch student weight from profile
+  useEffect(() => {
+    const fetchStudentWeight = async () => {
+      if (!video?.student?.id) {
+        setStudentWeight(null);
+        return;
+      }
+
+      try {
+        const token = await getAuthToken();
+        if (!token) return;
+
+        const response = await axios.get(
+          `${getApiBaseUrlWithApi()}/coach/student/${video.student.id}/profile`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data?.data?.weight) {
+          setStudentWeight(response.data.data.weight);
+        }
+      } catch (error) {
+        console.error('Error fetching student weight:', error);
+        setStudentWeight(null);
+      }
+    };
+
+    if (isOpen && video?.student?.id) {
+      fetchStudentWeight();
+    }
+  }, [isOpen, video?.student?.id, getAuthToken]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -139,6 +174,14 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       return () => document.removeEventListener('keydown', handleKeyPress, true);
     }
   }, [isOpen, onClose]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '24px';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [feedback]);
 
   const togglePlay = () => {
     const now = Date.now();
@@ -219,7 +262,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setIsEditing(false);
-        alert('Description enregistrée avec succès');
       } else {
         // For student videos, submit feedback
         await axios.patch(
@@ -286,6 +328,30 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     }
   };
 
+  // Get weight and reps from video data
+  const getVideoWeightAndReps = (video) => {
+    // Try direct properties first
+    let weight = video.weight || video.target_weight || video.requested_weight;
+    let reps = video.reps || video.target_reps || video.requested_reps;
+    
+    // If not found, try to get from assignment workout session
+    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+      const exerciseName = video.exercise_name;
+      const setNumber = video.set_number || 1;
+      
+      for (const exercise of video.assignment.workout_session.exercises) {
+        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
+          const set = exercise.sets[setNumber - 1];
+          weight = weight || set.weight || set.target_weight;
+          reps = reps || set.reps || set.target_reps;
+          break;
+        }
+      }
+    }
+    
+    return { weight: weight || 0, reps: reps || 0 };
+  };
+
   if (!isOpen || !video) return null;
 
   const studentName = video.student?.raw_user_meta_data?.full_name || 
@@ -294,63 +360,23 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                      'Coach Resource';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-[#1a1a1a] rounded-lg w-full max-h-[95vh] sm:max-h-[85vh] flex flex-col overflow-hidden max-w-4xl">
-        <div 
-          className="flex flex-col overflow-y-auto custom-scrollbar"
-          onWheel={(e) => {
-            // Prevent scroll from bubbling to parent when modal is open
-            e.stopPropagation();
-          }}
-          onTouchMove={(e) => {
-            // Prevent touch scroll from bubbling to parent on mobile
-            e.stopPropagation();
-          }}
-        >
-        {/* Header */}
-        <div className="p-3 sm:p-4 border-b border-[#262626]">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h2 className="text-white font-medium text-base sm:text-lg">
-                {videoType === 'coach' ? (
-                  video.title || 'Ressource Coach'
-                ) : (
-                  <>
-                    <span className="text-white">{video.exercise_name}</span>
-                    <span className="text-gray-400 ml-1">{video.set_number || 1}/3</span>
-                  </>
-                )}
-              </h2>
-              <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
-                {videoType === 'coach' && video.folder_name && (
-                  <div className="flex items-center gap-1">
-                    <Folder className="w-4 h-4" />
-                    <span>{video.folder_name}</span>
-                  </div>
-                )}
-                <span>
-                  {video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}
-                </span>
-                {videoType === 'student' && (
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    videoStatus === 'pending' ? 'bg-orange-500 text-white' : 'bg-green-600 text-white'
-                  }`}>
-                    {videoStatus === 'pending' ? 'A feedback' : 'Complété'}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Video Container */}
-        <div className="flex-shrink-0 p-4 relative">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+      style={{ zIndex: 100 }}
+    >
+      <div 
+        className="relative mx-auto w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex"
+        style={{
+          background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+          opacity: 0.95
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Left Column - Video */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Video Container */}
+          <div className="flex-shrink-0 px-6 pt-6 pb-4 relative">
           {video?.video_url && video.video_url.trim() !== '' ? (
             <>
             <VideoPlayer
@@ -438,141 +464,294 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
           {/* Loading Overlay */}
           {isVideoLoading && (
-                <div className="absolute inset-4 bg-black/80 rounded-md flex items-center justify-center z-10">
-              <div className="text-white">Chargement de la vidéo...</div>
+            <div className="absolute inset-6 bg-black/80 rounded-2xl flex items-center justify-center z-10">
+              <div className="text-white font-light">Chargement de la vidéo...</div>
             </div>
           )}
 
           {/* Error Overlay */}
           {videoError && (
-                <div className="absolute inset-4 bg-black/90 rounded-md flex items-center justify-center z-10 border border-red-500/50">
-                  <div className="text-center p-6 max-w-md">
-                    <p className="text-red-400 mb-4">{videoError}</p>
+            <div className="absolute inset-6 bg-black/90 rounded-2xl flex items-center justify-center z-10 border border-red-500/30">
+              <div className="text-center p-6 max-w-md">
+                <p className="text-red-400 mb-4 font-light">{videoError}</p>
                 <button
-                      onClick={() => {
-                        setVideoError(null);
-                        // Try to reload the video
-                        if (videoRef.current) {
-                          videoRef.current.load();
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  onClick={() => {
+                    setVideoError(null);
+                    // Try to reload the video
+                    if (videoRef.current) {
+                      videoRef.current.load();
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600/80 hover:bg-red-600 text-white rounded-lg transition-colors font-light"
                 >
                   Réessayer
                 </button>
               </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-400 bg-black/90 rounded-md border border-white/10">
-              <p>Aucune vidéo disponible</p>
             </div>
           )}
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-64 text-white/50 bg-black/20 rounded-2xl border border-white/10">
+              <p className="font-light">Aucune vidéo disponible</p>
+            </div>
+          )}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="px-6 pb-6 flex gap-2 flex-shrink-0 justify-center">
+          <button
+            onClick={handleDownload}
+            className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="14" height="14" fill="currentColor">
+              <path d="M246.6 9.4c-12.5-12.5-32.8-12.5-45.3 0l-128 128c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 109.3 192 320c0 17.7 14.3 32 32 32s32-14.3 32-32l0-210.7 73.4 73.4c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-128-128zM64 352c0-17.7-14.3-32-32-32S0 334.3 0 352l0 64c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 64c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-64z"/>
+            </svg>
+            Télécharger
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="14" height="14" fill="currentColor">
+              <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+            </svg>
+            Supprimer
+          </button>
+          </div>
         </div>
 
-        {/* Student Video - Coach Feedback Display */}
-        {videoType === 'student' && (
-          <div className="bg-[#262626] border-t border-[#404040]">
-            <div className="p-3 sm:p-4">
-              <h3 className="text-gray-400 text-sm font-medium mb-3">Feedback du coach</h3>
-              {video.coach_feedback ? (
-                <p className="text-white text-sm leading-relaxed">{video.coach_feedback}</p>
-              ) : (
-                <p className="text-gray-400 text-sm italic">Aucun feedback du coach pour le moment</p>
+        {/* Right Column - Sidebar */}
+        <div 
+          className="w-96 flex-shrink-0 flex flex-col overflow-hidden"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            boxShadow: '0px 8px 24px 0px rgba(0, 0, 0, 0.4), 0px 4px 8px 0px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <div 
+            className="flex flex-col overflow-y-auto flex-1"
+            onWheel={(e) => {
+              e.stopPropagation();
+            }}
+            onTouchMove={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+              <div className="flex items-center justify-end gap-3">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 576 512" 
+                  className="h-5 w-5"
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  fill="currentColor"
+                >
+                  <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                </svg>
+                <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  Vidéo séance
+                  {video.created_at && (
+                    <> - <span className="font-light" style={{ fontWeight: 300 }}>{format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}</span></>
+                  )}
+                </h2>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-white/50 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Video Information */}
+            <div className="px-6 pt-1.5 pb-5 space-y-3 border-b border-white/5">
+              <div className="flex items-center gap-2">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 256 512" 
+                  className="h-4 w-4"
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  fill="currentColor"
+                >
+                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                </svg>
+                <span className="text-white font-light text-base">
+                  {studentName}
+                  {studentWeight && (
+                    <span className="ml-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                      @{studentWeight}kg
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 256 512" 
+                  className="h-4 w-4"
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  fill="currentColor"
+                >
+                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                </svg>
+                <span className="text-white font-light text-base">{video.exercise_name || 'Exercice'}</span>
+                <span className="text-white/75 text-base font-extralight">•</span>
+                <span className="text-white/75 text-base font-extralight">
+                  {(() => {
+                    const { weight, reps } = getVideoWeightAndReps(video);
+                    const seriesText = `Série ${video.set_number || 1}/3`;
+                    const repsText = reps > 0 ? `${reps} reps` : null;
+                    const weightText = weight > 0 ? `${weight}kg` : null;
+                    
+                    if (repsText && weightText) {
+                      return (
+                        <>
+                          {seriesText} • {repsText}{' '}
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                        </>
+                      );
+                    } else if (repsText) {
+                      return `${seriesText} • ${repsText}`;
+                    } else if (weightText) {
+                      return (
+                        <>
+                          {seriesText} •{' '}
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                        </>
+                      );
+                    } else {
+                      return seriesText;
+                    }
+                  })()}
+                </span>
+              </div>
+              {videoType === 'student' && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 256 512" 
+                    className="h-4 w-4"
+                    style={{ color: 'var(--kaiylo-primary-hex)' }}
+                    fill="currentColor"
+                  >
+                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                  </svg>
+                  {videoStatus === 'pending' ? (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                      A feedback
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                      Complété
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Description/Response Section - Only show for coaches or coach resources */}
-        {(videoType === 'coach' || isCoachView) && (
-          <div className="bg-[#262626] border-t border-[#404040]">
-            <div className="p-3 sm:p-4">
+            {/* Comment Section */}
+            <div className="px-6 py-4 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-medium flex items-center gap-2">
-                  {videoType === 'coach' ? 'Description' : 'Feedback du coach'}
-                  <Edit3 size={16} className="text-gray-400" />
-                </h3>
+                <h3 className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>Commentaire coach</h3>
                 {videoType === 'coach' && (
                   <button
                     onClick={() => setIsEditing(!isEditing)}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                    className="text-white/50 hover:text-white transition-colors text-sm font-light"
                     disabled={isSubmitting}
                   >
                     {isEditing ? 'Annuler' : 'Modifier'}
                   </button>
                 )}
               </div>
+              
+              {/* Student Video - Coach Feedback Display */}
+              {videoType === 'student' && !isCoachView && (
+                <div className="mb-4">
+                  {video.coach_feedback ? (
+                    <p className="text-white/75 text-sm leading-relaxed font-extralight">{video.coach_feedback}</p>
+                  ) : (
+                    <p className="text-white/50 text-sm font-extralight italic">Aucun feedback du coach pour le moment</p>
+                  )}
+                </div>
+              )}
 
-              {videoType === 'coach' ? (
-                // Coach resource - editable description
-                isEditing ? (
-                  <div className="space-y-3">
-                    <textarea
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      placeholder="Ajouter une description pour cette ressource..."
-                      className="w-full h-24 bg-[#1a1a1a] border border-[#404040] rounded-lg p-3 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                    />
-                    <button
-                      onClick={handleSubmitFeedback}
-                      disabled={isSubmitting}
-                      className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      <Save size={16} />
-                      {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-[#1a1a1a] border border-[#404040] rounded-lg p-3 min-h-[60px]">
-                    {feedback ? (
-                      <p className="text-white text-sm whitespace-pre-wrap">{feedback}</p>
+              {/* Description/Response Section - Only show for coaches or coach resources */}
+              {(videoType === 'coach' || isCoachView) && (
+                <div className="flex-1 flex flex-col">
+                  {videoType === 'coach' ? (
+                    // Coach resource - editable description
+                    isEditing ? (
+                      <div className="space-y-3 flex-1 flex flex-col">
+                        <textarea
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          placeholder="Ajouter un commentaire..."
+                          className="w-full flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] text-sm font-light"
+                        />
+                        <button
+                          onClick={handleSubmitFeedback}
+                          disabled={isSubmitting}
+                          className="w-full text-white py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 font-light"
+                          style={{ 
+                            backgroundColor: 'var(--kaiylo-primary-hex)'
+                          }}
+                        >
+                          <Save size={16} />
+                          {isSubmitting ? 'Enregistrement...' : 'Envoyer'}
+                        </button>
+                      </div>
                     ) : (
-                      <p className="text-gray-400 text-sm italic">Aucune description</p>
-                    )}
-                  </div>
-                )
-              ) : (
-                // Student video - coach view only (feedback input)
-                <div className="space-y-3">
-                  <textarea
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    placeholder="Écrire un feedback pour l'étudiant..."
-                    className="w-full h-24 bg-[#1a1a1a] border border-[#404040] rounded-lg p-3 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                  />
-                  <button
-                    onClick={handleSubmitFeedback}
-                    disabled={!feedback.trim() || isSubmitting}
-                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Send size={16} />
-                    {isSubmitting ? 'Envoi...' : 'Envoyer'}
-                  </button>
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 min-h-[100px] flex-1">
+                        {feedback ? (
+                          <p className="text-white/75 text-sm whitespace-pre-wrap font-extralight">{feedback}</p>
+                        ) : (
+                          <p className="text-white/50 text-sm font-extralight italic">Aucune description</p>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    // Student video - coach view only (feedback input)
+                    <div className="flex-1 flex flex-col space-y-3">
+                      {/* Display existing comment if video is completed */}
+                      {videoStatus === 'completed' && video.coach_feedback && (
+                        <div className="flex flex-col gap-[8px] flex-shrink-0">
+                          <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] min-h-[150px]">
+                            {video.coach_feedback}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Comment input section */}
+                      <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[12px] flex items-center gap-3 flex-shrink-0 mt-auto">
+                        <textarea
+                          ref={textareaRef}
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          placeholder="Ajouter un commentaire ..."
+                          rows={1}
+                          className="flex-1 bg-transparent text-[13px] font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                          style={{ paddingTop: '1px', paddingBottom: '1px', lineHeight: '1.5' }}
+                        />
+                        <button
+                          onClick={handleSubmitFeedback}
+                          disabled={!feedback.trim() || isSubmitting}
+                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                          style={{ opacity: (!feedback.trim() || isSubmitting) ? 0.5 : 1 }}
+                          type="button"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
+                            <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
-        )}
-
-        {/* Footer Actions */}
-        <div className="px-3 py-3 sm:px-4 sm:py-4 border-t border-[#404040] flex gap-2 sm:gap-3 flex-shrink-0">
-          <button
-            onClick={handleDownload}
-            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 sm:py-3 px-2 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-2 text-sm sm:text-base"
-          >
-            <Download size={14} className="sm:w-4 sm:h-4" />
-            Télécharger
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 sm:py-3 px-2 sm:px-4 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-2 text-sm sm:text-base"
-          >
-            <Trash2 size={14} className="sm:w-4 sm:h-4" />
-            Supprimer
-          </button>
-        </div>
         </div>
       </div>
     </div>

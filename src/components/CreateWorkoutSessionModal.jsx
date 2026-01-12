@@ -189,12 +189,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   // Update arrangement position when sidebar opens or window resizes
   useEffect(() => {
-    if (!showSidebar) return;
+    if (!showSidebar || !modalRef.current) return;
     
     // Use setTimeout to ensure button ref and modal ref are available after render
     const timer = setTimeout(() => {
       updateArrangementPosition();
     }, 0);
+
+    // Use ResizeObserver to instantly update when modal size changes
+    const resizeObserver = new ResizeObserver(() => {
+      updateArrangementPosition();
+    });
+    
+    resizeObserver.observe(modalRef.current);
 
     const handleResize = () => updateArrangementPosition();
     const handleScroll = () => updateArrangementPosition();
@@ -204,60 +211,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
     return () => {
       clearTimeout(timer);
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('scroll', handleScroll, true);
     };
   }, [showSidebar, updateArrangementPosition]);
 
   // Also update position when exercises change (modal height may change)
+  // Note: ResizeObserver in the previous effect should handle this, but we keep this as a fallback
   useEffect(() => {
     if (!showSidebar || !isOpen) return;
     const timer = setTimeout(() => {
       updateArrangementPosition();
-    }, 100); // Slightly longer delay to ensure modal has resized
+    }, 50); // Reduced delay since ResizeObserver handles most updates
     return () => clearTimeout(timer);
   }, [exercises.length, showSidebar, isOpen, updateArrangementPosition]);
 
-  // Update button position when modal opens or resizes
-  const [buttonPosition, setButtonPosition] = useState({ left: 'auto', top: '1.125rem' });
-  
-  const updateButtonPosition = useCallback(() => {
-    if (!modalRef.current) return;
-    const modalRect = modalRef.current.getBoundingClientRect();
-    // Position button to the right of the modal with 16px margin
-    const leftPosition = modalRect.right + 16; // 16px margin from modal right edge
-    setButtonPosition({
-      left: `${leftPosition}px`,
-      top: `${modalRect.top + 18}px` // 1.125rem = 18px from modal top
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    // Initial position
-    const timer = setTimeout(() => {
-      updateButtonPosition();
-    }, 100);
-
-    const handleResize = () => {
-      updateButtonPosition();
-      if (showSidebar) {
-        updateArrangementPosition();
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('scroll', handleResize, true);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('scroll', handleResize, true);
-    };
-  }, [isOpen, updateButtonPosition, showSidebar, updateArrangementPosition]);
-
-  // Calculate position for library modal
+  // Calculate position for library modal - MUST be defined before useEffect that uses it
   const updateLibraryPosition = useCallback(() => {
     if (!modalRef.current) return;
     
@@ -292,22 +262,92 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     });
   }, []);
 
-  // Update library position when it opens or window resizes
-  useEffect(() => {
-    if (!openSheet) return;
-    updateLibraryPosition();
+  // Update button position when modal opens or resizes
+  const [buttonPosition, setButtonPosition] = useState({ left: 'auto', top: '1.125rem' });
+  
+  const updateButtonPosition = useCallback(() => {
+    if (!modalRef.current) return;
+    const modalRect = modalRef.current.getBoundingClientRect();
+    // Position button to the right of the modal with 16px margin
+    const leftPosition = modalRect.right + 16; // 16px margin from modal right edge
+    setButtonPosition({
+      left: `${leftPosition}px`,
+      top: `${modalRect.top + 18}px` // 1.125rem = 18px from modal top
+    });
+  }, []);
 
-    const handleResize = () => updateLibraryPosition();
-    const handleScroll = () => updateLibraryPosition();
+  useEffect(() => {
+    if (!isOpen || !modalRef.current) return;
+    
+    // Initial position
+    const timer = setTimeout(() => {
+      if (modalRef.current && isOpen) {
+        updateButtonPosition();
+      }
+    }, 100);
+
+    // Use ResizeObserver to instantly update button position when modal size changes
+    const resizeObserver = new ResizeObserver(() => {
+      // Only update if modal ref is available (don't check isOpen here to avoid stale closure)
+      if (!modalRef.current) return;
+      updateButtonPosition();
+      if (showSidebar) {
+        updateArrangementPosition();
+      }
+      if (openSheet) {
+        updateLibraryPosition();
+      }
+    });
+    
+    try {
+      if (modalRef.current) {
+        resizeObserver.observe(modalRef.current);
+      }
+    } catch (error) {
+      console.error('Error observing modal:', error);
+    }
+
+    const handleResize = () => {
+      // Only handle resize if modal is still open
+      if (!isOpen || !modalRef.current) return;
+      updateButtonPosition();
+      if (showSidebar) {
+        updateArrangementPosition();
+      }
+      if (openSheet) {
+        updateLibraryPosition();
+      }
+    };
 
     window.addEventListener('resize', handleResize);
-    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('scroll', handleResize, true);
 
     return () => {
+      clearTimeout(timer);
+      try {
+        resizeObserver.disconnect();
+      } catch (error) {
+        // Ignore errors on cleanup
+      }
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleResize, true);
     };
-  }, [openSheet, updateLibraryPosition]);
+  }, [isOpen, updateButtonPosition, showSidebar, updateArrangementPosition, openSheet, updateLibraryPosition]);
+
+  // Update library position when it opens (initial position)
+  // Note: The ResizeObserver in the main useEffect handles instant updates when modal size changes
+  useEffect(() => {
+    if (!openSheet || !isOpen || !modalRef.current) return;
+    
+    // Initial position update when library opens
+    const timer = setTimeout(() => {
+      updateLibraryPosition();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [openSheet, isOpen, updateLibraryPosition]);
 
   const fetchExercises = async () => {
     try {
@@ -1576,7 +1616,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               }
                             }}
                             placeholder="Tempo"
-                            className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[8px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
+                            className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[12px] md:text-[12px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
                           />
                         </div>
 

@@ -2,15 +2,16 @@ import React from 'react';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 
-const DeleteSessionModal = ({ 
+const DeleteStudentModal = ({ 
   isOpen, 
   onClose, 
   onConfirm, 
-  sessionTitle,
+  studentNames = [],
+  studentCount = 0,
   loading = false
 }) => {
   const { isTopMost } = useModalManager();
-  const modalId = 'delete-session-modal';
+  const modalId = 'delete-student-modal';
 
   const handleConfirm = () => {
     onConfirm();
@@ -22,6 +23,10 @@ const DeleteSessionModal = ({
 
   if (!isOpen) return null;
 
+  const isMultiple = studentCount > 1 || studentNames.length > 1;
+  const count = studentCount || studentNames.length || 1;
+  const studentText = count === 1 ? 'élève' : 'élèves';
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -31,7 +36,7 @@ const DeleteSessionModal = ({
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
       size="md"
-      title="Supprimer la séance"
+      title={isMultiple ? `Supprimer ${count} ${studentText}` : 'Supprimer l\'élève'}
       titleClassName="text-xl font-normal text-white"
     >
       <div className="space-y-6">
@@ -39,13 +44,32 @@ const DeleteSessionModal = ({
         <div className="flex flex-col items-start space-y-4">
           <div className="text-left space-y-2">
             <p className="text-sm font-extralight text-white/70">
-              Êtes-vous sûr de vouloir supprimer {sessionTitle ? (
-                <>la séance <span className="font-normal text-white">"{sessionTitle}"</span> ?</>
+              {isMultiple ? (
+                <>
+                  Êtes-vous sûr de vouloir supprimer <span className="font-normal text-white">{count} {studentText}</span> sélectionné{count > 1 ? 's' : ''} ?
+                </>
+              ) : studentNames.length > 0 ? (
+                <>
+                  Êtes-vous sûr de vouloir supprimer l'élève <span className="font-normal text-white">"{studentNames[0]}"</span> ?
+                </>
               ) : (
-                <>cette séance ?</>
+                <>
+                  Êtes-vous sûr de vouloir supprimer cet élève ?
+                </>
               )}
             </p>
           </div>
+          
+          {/* Student Names List (if multiple and names provided) */}
+          {isMultiple && studentNames.length > 0 && studentNames.length <= 5 && (
+            <div className="w-full bg-[rgba(255,255,255,0.05)] rounded-lg p-3 space-y-1">
+              {studentNames.map((name, index) => (
+                <div key={index} className="text-xs font-light text-white/75">
+                  • {name}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Form Actions */}
@@ -73,4 +97,4 @@ const DeleteSessionModal = ({
   );
 };
 
-export default DeleteSessionModal;
+export default DeleteStudentModal;

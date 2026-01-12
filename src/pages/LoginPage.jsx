@@ -395,7 +395,7 @@ const LoginPage = () => {
                 <div className="w-full border-t" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-transparent font-light" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Ou</span>
+                <span className="px-2 font-light" style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'rgba(10, 10, 10, 0.95)', backdropFilter: 'blur(10px)' }}>Ou</span>
               </div>
             </div>
 

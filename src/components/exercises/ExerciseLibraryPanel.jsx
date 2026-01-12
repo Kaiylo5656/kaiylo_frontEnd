@@ -124,6 +124,11 @@ const ExerciseLibraryPanel = ({
       return; // Don't add exercise if clicking on buttons
     }
     
+    // Remove focus immediately to prevent flash
+    if (e.currentTarget && e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.blur();
+    }
+    
     // Add exercise to session directly
     handleExerciseSelect(exercise);
   };
@@ -277,7 +282,15 @@ const ExerciseLibraryPanel = ({
                 }
               }}
               tabIndex={0}
-              className="w-full rounded-lg border-0 bg-black/25 hover:bg-[#404040] focus:outline-none focus:ring-2 focus:ring-[#e87c3e]/60 px-4 py-3 text-left cursor-pointer transition-all duration-200"
+              className="w-full rounded-lg border-0 bg-black/25 hover:bg-[#404040] focus:outline-none active:outline-none px-4 py-3 text-left cursor-pointer transition-all duration-200"
+              onMouseDown={(e) => {
+                // Prevent default focus behavior on mousedown to avoid flash
+                e.currentTarget.style.outline = 'none';
+              }}
+              onMouseUp={(e) => {
+                // Remove outline if it appears
+                e.currentTarget.style.outline = 'none';
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">

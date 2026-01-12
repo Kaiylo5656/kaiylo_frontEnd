@@ -1063,11 +1063,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                       >
                         <CardContent className="p-3" style={{ padding: "10px" }}>
                           <div className="flex items-end gap-1.5">
-                            <div className="text-xs font-light break-words whitespace-pre-wrap flex-1">{message.content}</div>
+                            <div className="text-xs font-normal break-words whitespace-pre-wrap flex-1">{message.content}</div>
                             {isOwnMessage && isSent && (
                               <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
                                 {isRead ? (
-                                  <CheckCheck className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                                  <CheckCheck className="w-3 h-3" style={{ color: '#34b7f1' }} />
                                 ) : (
                                   <Check className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
                                 )}
@@ -1288,7 +1288,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               value={newMessage}
               onChange={handleInputChange}
               placeholder="Tapez un message ici..."
-              className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-light text-white"
+              className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-normal text-white"
               style={{ 
                 borderStyle: 'none',
                 borderWidth: '0px',

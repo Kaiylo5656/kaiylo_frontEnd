@@ -56,8 +56,8 @@ const ExerciseLibraryModal = ({
           opacity: 0.95
         }}
       >
-        <div className="shrink-0 pt-6 pb-3 flex flex-col">
-          <div className="px-6 flex items-start justify-between gap-3">
+        <div className="shrink-0 px-6 pt-6 pb-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               {selectedExercise && (
                 <button
@@ -76,8 +76,8 @@ const ExerciseLibraryModal = ({
               </h2>
             </div>
           </div>
-          <div className="mx-6 mt-3 border-b border-white/10"></div>
         </div>
+        <div className="border-b border-white/10 mx-6"></div>
         
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain library-modal-scrollable-body px-3 pt-3 pb-6">
           {selectedExercise ? (

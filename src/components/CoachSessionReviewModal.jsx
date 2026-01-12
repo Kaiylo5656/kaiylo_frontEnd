@@ -897,7 +897,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
             >
               Annuler
             </button>

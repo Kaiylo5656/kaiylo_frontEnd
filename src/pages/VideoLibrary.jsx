@@ -1,16 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, Plus, MoreHorizontal, LayoutGrid, Trash2, FolderPlus, Filter, ChevronDown, ChevronRight, Clock, CheckCircle, X, Play, Video } from 'lucide-react';
+import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, CheckCircle, Play, Video } from 'lucide-react';
 import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
 import StudentVideoLibrary from '../components/StudentVideoLibrary';
-import StatusFilterChips from '../components/StatusFilterChips';
 import { Button } from '../components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
+import BaseModal from '../components/ui/modal/BaseModal';
+import { useModalManager } from '../components/ui/modal/ModalManager';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '../components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useVideoFilters } from '../hooks/useVideoFilters';
@@ -29,6 +35,9 @@ const VideoLibrary = () => {
   const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
   const [selectedCoachResource, setSelectedCoachResource] = useState(null);
   const [isCoachResourceModalOpen, setIsCoachResourceModalOpen] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState(null);
+  const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
 
   // Filter states
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -36,8 +45,35 @@ const VideoLibrary = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedFolder, setSelectedFolder] = useState(null); // For coach resources filtering
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
+  const [hoveredSessionId, setHoveredSessionId] = useState(null); // Track which session is hovered
+  const [folderMinWidths, setFolderMinWidths] = useState({}); // Store min widths for each folder to prevent size change
+
+  // Status filter dropdown states and refs
+  const statusFilterButtonRef = useRef(null);
+  const statusFilterTextRef = useRef(null);
+  const [statusFilterMinWidth, setStatusFilterMinWidth] = useState(170); // Default width in px
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+
+  // Exercise filter dropdown states and refs
+  const exerciseFilterButtonRef = useRef(null);
+  const exerciseFilterTextRef = useRef(null);
+  const [exerciseFilterMinWidth, setExerciseFilterMinWidth] = useState(120); // Default width in px
+  const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
+
+  // Date filter states and refs
+  const dateInputRef = useRef(null);
+  const dateFilterButtonRef = useRef(null);
+  const dateFilterTextRef = useRef(null);
+  const [dateFilterMinWidth, setDateFilterMinWidth] = useState(100); // Default width in px
+
+  // Student filter dropdown states and refs
+  const studentFilterButtonRef = useRef(null);
+  const studentFilterTextRef = useRef(null);
+  const [studentFilterMinWidth, setStudentFilterMinWidth] = useState(100); // Default width in px
+  const [isStudentFilterOpen, setIsStudentFilterOpen] = useState(false);
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
+  const { isTopMost } = useModalManager();
   
   // Count processing resources for auto-refresh dependency
   const processingResourcesCount = useMemo(() => {
@@ -48,6 +84,116 @@ const VideoLibrary = () => {
   
   // Status and sort filters with URL persistence
   const { status: statusFilter, setStatus, isInitialized } = useVideoFilters();
+
+  // Map status filter values to display labels
+  const getStatusFilterLabel = (value) => {
+    switch (value) {
+      case 'pending':
+        return 'À feedback';
+      case 'completed':
+        return 'Complété';
+      case 'all':
+      default:
+        return 'Tous les statuts';
+    }
+  };
+
+  // Calculate button width for status filter based on text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateButtonWidth = () => {
+      // Possible text values: 'Tous les statuts', 'À feedback', 'Complété'
+      const possibleTexts = ['Tous les statuts', 'À feedback', 'Complété'];
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
+      document.body.appendChild(tempSpan);
+      
+      // Find the widest text
+      let maxWidth = 0;
+      possibleTexts.forEach(text => {
+        tempSpan.textContent = text;
+        maxWidth = Math.max(maxWidth, tempSpan.offsetWidth);
+      });
+      
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setStatusFilterMinWidth(maxWidth + buttonPadding + gap + iconWidth);
+    };
+
+    // Calculate on mount
+    calculateButtonWidth();
+  }, []);
+
+  // Calculate button width for exercise filter based on text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateExerciseButtonWidth = () => {
+      // Use "Exercice" as base width to keep button size consistent
+      const text = 'Exercice';
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      tempSpan.textContent = text;
+      
+      document.body.appendChild(tempSpan);
+      const width = tempSpan.offsetWidth;
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setExerciseFilterMinWidth(width + buttonPadding + gap + iconWidth);
+    };
+
+    calculateExerciseButtonWidth();
+  }, []);
+
+  // Calculate button width for date filter based on text in bold (font-weight 400)
+  useLayoutEffect(() => {
+    const calculateDateButtonWidth = () => {
+      // Text is always "Date"
+      const text = 'Date';
+      
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      tempSpan.textContent = text;
+      
+      document.body.appendChild(tempSpan);
+      const width = tempSpan.offsetWidth;
+      document.body.removeChild(tempSpan);
+      
+      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
+      const buttonPadding = 30; // 15px * 2
+      const gap = 8; // gap-2
+      const iconWidth = 16; // h-4 w-4 = 16px
+      setDateFilterMinWidth(width + buttonPadding + gap + iconWidth);
+    };
+
+    calculateDateButtonWidth();
+  }, []);
 
   // Handle video click (for both student videos and coach resources)
   const handleVideoClick = (video) => {
@@ -187,6 +333,63 @@ const VideoLibrary = () => {
     }
   }, [activeTab]);
 
+  // Calculate fixed widths for folder buttons to prevent size change when font-weight changes
+  useLayoutEffect(() => {
+    if (activeTab !== 'coach' || folders.length === 0) return;
+
+    const calculateFolderWidths = () => {
+      const widths = {};
+      
+      // Create a temporary div to measure the exact button width with font-weight 400
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.visibility = 'hidden';
+      tempDiv.style.whiteSpace = 'nowrap';
+      tempDiv.style.display = 'inline-flex';
+      tempDiv.style.alignItems = 'center';
+      tempDiv.style.gap = '4px'; // gap-1
+      tempDiv.style.paddingLeft = '20px'; // px-5
+      tempDiv.style.paddingRight = '8px'; // pr-2
+      tempDiv.style.fontSize = '14px'; // text-sm
+      tempDiv.style.fontWeight = '400'; // font-normal
+      tempDiv.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
+      // Create span for text
+      const tempSpan = document.createElement('span');
+      tempSpan.style.fontSize = '14px';
+      tempSpan.style.fontWeight = '400';
+      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      
+      // Create button element for delete button (14px width)
+      const tempButton = document.createElement('button');
+      tempButton.style.width = '14px';
+      tempButton.style.height = '14px';
+      tempButton.style.flexShrink = '0';
+      
+      tempDiv.appendChild(tempSpan);
+      tempDiv.appendChild(tempButton);
+      document.body.appendChild(tempDiv);
+      
+      folders.forEach(folder => {
+        tempSpan.textContent = folder.name;
+        const buttonWidth = tempDiv.offsetWidth;
+        widths[folder.id] = buttonWidth;
+      });
+      
+      document.body.removeChild(tempDiv);
+      setFolderMinWidths(widths);
+    };
+
+    calculateFolderWidths();
+  }, [activeTab, folders]);
+
+  // Auto-select first folder when folders are loaded
+  useEffect(() => {
+    if (activeTab === 'coach' && folders.length > 0 && selectedFolder === null) {
+      setSelectedFolder(folders[0].id);
+    }
+  }, [activeTab, folders, selectedFolder]);
+
   // Auto-refresh coach resources if there are videos in processing
   useEffect(() => {
     if (activeTab !== 'coach') return;
@@ -279,46 +482,59 @@ const VideoLibrary = () => {
     }
   };
 
-  const handleDeleteFolder = async (folderId) => {
+  const handleDeleteFolder = (folderId) => {
     const folder = folders.find(f => f.id === folderId);
     if (!folder) return;
+    setFolderToDelete(folder);
+    setIsDeleteFolderModalOpen(true);
+  };
 
-    // Check if folder has resources
-    const folderResources = coachResources.filter(resource => resource.folderId === folderId);
-    
-    if (folderResources.length > 0) {
-      if (!window.confirm(`Le dossier "${folder.name}" contient ${folderResources.length} ressource(s). Voulez-vous vraiment le supprimer ? Les ressources seront déplacées vers "Non classé".`)) {
-        return;
-      }
-    } else {
-      if (!window.confirm(`Êtes-vous sûr de vouloir supprimer le dossier "${folder.name}" ?`)) {
-        return;
-      }
-    }
+  const confirmDeleteFolder = async () => {
+    if (!folderToDelete) return;
 
+    setIsDeletingFolder(true);
     try {
       let token = await getAuthToken();
       if (!token) {
         try { token = await refreshAuthToken(); } catch {}
       }
-      if (!token) return;
-      await axios.delete(buildApiUrl(`/resources/folders/${folderId}`), {
+      if (!token) {
+        setIsDeletingFolder(false);
+        return;
+      }
+      await axios.delete(buildApiUrl(`/resources/folders/${folderToDelete.id}`), {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Remove folder from state
-      setFolders(prev => prev.filter(f => f.id !== folderId));
+      const updatedFolders = folders.filter(f => f.id !== folderToDelete.id);
+      setFolders(updatedFolders);
       
-      // If this was the selected folder, clear the selection
-      if (selectedFolder === folderId) {
-        setSelectedFolder(null);
+      // If this was the selected folder, select the first remaining folder
+      if (selectedFolder === folderToDelete.id) {
+        if (updatedFolders.length > 0) {
+          setSelectedFolder(updatedFolders[0].id);
+        } else {
+          setSelectedFolder(null);
+        }
       }
       
       // Refresh resources to update folder assignments
       fetchCoachResources();
+      
+      // Close modal
+      setIsDeleteFolderModalOpen(false);
+      setFolderToDelete(null);
     } catch (err) {
       setError(err.message || 'Failed to delete folder.');
+    } finally {
+      setIsDeletingFolder(false);
     }
+  };
+
+  const cancelDeleteFolder = () => {
+    setIsDeleteFolderModalOpen(false);
+    setFolderToDelete(null);
   };
 
   const handleUpdateVideoFeedback = async (videoId, feedback, rating) => {
@@ -443,6 +659,30 @@ const VideoLibrary = () => {
     }));
   };
 
+  // Get weight and reps from video data
+  const getVideoWeightAndReps = (video) => {
+    // Try direct properties first
+    let weight = video.weight || video.target_weight || video.requested_weight;
+    let reps = video.reps || video.target_reps || video.requested_reps;
+    
+    // If not found, try to get from assignment workout session
+    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+      const exerciseName = video.exercise_name;
+      const setNumber = video.set_number || 1;
+      
+      for (const exercise of video.assignment.workout_session.exercises) {
+        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
+          const set = exercise.sets[setNumber - 1];
+          weight = weight || set.weight || set.target_weight;
+          reps = reps || set.reps || set.target_reps;
+          break;
+        }
+      }
+    }
+    
+    return { weight: weight || 0, reps: reps || 0 };
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending':
@@ -484,45 +724,68 @@ const VideoLibrary = () => {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-[7px]" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
         {groupedVideosBySession.map((session) => {
           const isOpen = openSessions[session.sessionId];
-          const sessionTitle = `${session.sessionName} - ${session.studentName} - ${format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr })}`;
+          const isHovered = hoveredSessionId === session.sessionId;
+          const sessionName = session.sessionName;
+          const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
+          const backgroundColor = isHovered 
+            ? 'rgba(255, 255, 255, 0.16)' 
+            : 'rgba(255, 255, 255, 0.04)';
           
           return (
             <div 
               key={session.sessionId}
-              className="border border-border/20 rounded-xl overflow-hidden bg-card hover:border-border/40 transition-colors"
+              className="px-5 py-4 transition-colors cursor-pointer rounded-2xl"
+              style={{ 
+                backgroundColor: backgroundColor,
+                borderWidth: '0px',
+                borderColor: 'rgba(0, 0, 0, 0)',
+                borderStyle: 'none',
+                borderImage: 'none'
+              }}
+              onMouseEnter={() => setHoveredSessionId(session.sessionId)}
+              onMouseLeave={() => setHoveredSessionId(null)}
+              onClick={() => toggleSession(session.sessionId)}
             >
-              {/* Session Header (Clickable) */}
-              <div 
-                className="flex items-center justify-between gap-4 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => toggleSession(session.sessionId)}
-              >
+              {/* Session Header */}
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
-                  <ChevronRight 
-                    size={20} 
-                    className={`text-muted-foreground transition-transform flex-shrink-0 ${
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 384 512" 
+                    className={`text-white/50 transition-transform flex-shrink-0 ${
                       isOpen ? 'rotate-90' : ''
-                    }`} 
-                  />
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-foreground font-light text-base">{sessionTitle}</h3>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {session.videos.length} vidéo{session.videos.length > 1 ? 's' : ''}
-                          </p>
-                        </div>
+                    }`}
+                    style={{ width: '20px', height: '20px' }}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                  </svg>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-white font-light text-base flex items-center gap-2">
+                      {sessionName} <span style={{ opacity: 0.5 }}>- {sessionDate} - {session.studentName}</span> 
+                      <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                          <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                        </svg>
+                        <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
+                      </span>
+                    </h3>
+                  </div>
                 </div>
                 
                 {/* Status indicator */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                      {session.videos.filter(v => v.status === 'pending').length} à feedback
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                      A feedback
                     </span>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
                       Complété
                     </span>
                   )}
@@ -531,69 +794,101 @@ const VideoLibrary = () => {
               
               {/* Session Videos (Collapsible) */}
               {isOpen && (
-                <div className="border-t border-border/20 bg-muted/20">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted/40">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
-                            Vidéo
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
-                            Exercice
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
-                            Série
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-light text-muted-foreground uppercase tracking-wider">
-                            Statut
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {session.videos.map((video) => (
-                          <tr 
-                            key={video.id} 
-                            className="border-t border-border/20 hover:bg-muted/30 cursor-pointer transition-colors"
-                            onClick={() => handleVideoClick(video)}
-                          >
-                            <td className="px-4 py-4">
-                              <div className="relative w-28 h-20 bg-muted rounded-lg overflow-hidden group">
+                <div className="mt-2 pt-2 pl-6">
+                  <div className="flex flex-col gap-[7px]">
+                    {session.videos.map((video) => (
+                      <div 
+                        key={video.id} 
+                        className="px-2 py-2 transition-colors cursor-pointer rounded-2xl hover:bg-white/8"
+                        style={{ 
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderWidth: '0px',
+                          borderColor: 'rgba(0, 0, 0, 0)',
+                          borderStyle: 'none',
+                          borderImage: 'none'
+                        }}
+                        onClick={() => handleVideoClick(video)}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Video Thumbnail */}
+                          <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                            {video?.video_url && video.video_url.trim() !== '' ? (
+                              <>
                                 <video 
-                                  src={video.video_url || undefined} 
+                                  src={video.video_url}
                                   className="w-full h-full object-cover"
                                   preload="metadata"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Play className="h-6 w-6 text-white" />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                  <PlayCircle size={24} className="text-white" />
                                 </div>
+                              </>
+                            ) : (
+                              <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                                <Video size={24} className="text-gray-500" />
                               </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-primary/15 text-primary border border-primary/30">
+                            )}
+                          </div>
+                          
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0">
+                            {/* Exercise Tag and Date */}
+                            <div className="flex items-center gap-1 mb-2">
+                              <span className="text-white font-light text-base">
                                 {video.exercise_name}
                               </span>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className="text-sm text-foreground">
-                                Série {video.set_number}/3
+                              <span className="text-white/50">-</span>
+                              <span className="text-white/50 text-base font-extralight">
+                                {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
                               </span>
-                            </td>
-                            <td className="px-4 py-4">
-                              {video.status === 'pending' ? (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                                  A feedback
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
-                                  Complété
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                            
+                            {/* Series */}
+                            <div className="text-white/75 text-sm font-extralight">
+                              {(() => {
+                                const { weight, reps } = getVideoWeightAndReps(video);
+                                const seriesText = `Série ${video.set_number || 1}/3`;
+                                const repsText = reps > 0 ? `${reps} reps` : null;
+                                const weightText = weight > 0 ? `${weight}kg` : null;
+                                
+                                if (repsText && weightText) {
+                                  return (
+                                    <>
+                                      {seriesText} • {repsText}{' '}
+                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                    </>
+                                  );
+                                } else if (repsText) {
+                                  return `${seriesText} • ${repsText}`;
+                                } else if (weightText) {
+                                  return (
+                                    <>
+                                      {seriesText} •{' '}
+                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                    </>
+                                  );
+                                }
+                                return seriesText;
+                              })()}
+                            </div>
+                          </div>
+                          
+                          {/* Status Badge */}
+                          <div className="flex-shrink-0">
+                            {video.status === 'pending' && (
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                A feedback
+                              </span>
+                            )}
+                            {(video.status === 'completed' || video.status === 'reviewed') && (
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                Complété
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -610,7 +905,7 @@ const VideoLibrary = () => {
         {filteredVideos.map((video) => (
             <div 
               key={video.id} 
-              className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:border-primary/30 hover:shadow-lg transition-all duration-200"
+              className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:shadow-lg transition-all duration-200"
               onClick={() => handleVideoClick(video)}
             >
             {/* Video Thumbnail */}
@@ -635,7 +930,9 @@ const VideoLibrary = () => {
               </div>
               {/* Play Icon Overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <PlayCircle size={48} className="text-white drop-shadow-lg" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
+                  <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z"/>
+                </svg>
               </div>
             </div>
             
@@ -695,7 +992,7 @@ const VideoLibrary = () => {
           const isProcessing = video.status === 'PROCESSING' || video.status === 'processing';
           
           return (
-          <div key={video.id} className={`bg-card border border-border/20 rounded-xl overflow-hidden group transition-all duration-200 ${isProcessing ? 'opacity-80' : 'cursor-pointer hover:border-primary/30 hover:shadow-lg'}`}>
+          <div key={video.id} className={`bg-card border border-border/20 rounded-xl overflow-hidden group transition-all duration-200 ${isProcessing ? 'opacity-80' : 'cursor-pointer hover:shadow-lg'}`}>
             <div 
               onClick={() => !isProcessing && handleCoachResourceClick(video)}
               className="block aspect-video bg-muted relative overflow-hidden"
@@ -709,14 +1006,17 @@ const VideoLibrary = () => {
                 <>
                   <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <PlayCircle size={48} className="text-white drop-shadow-lg" />
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
+                      <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z"/>
+                    </svg>
                   </div>
                 </>
               )}
             </div>
             <div className="p-4 space-y-2">
               <h3 
-                className={`font-medium text-base text-foreground truncate transition-colors ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
+                className={`font-normal text-base truncate transition-colors ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
+                style={{ color: 'var(--kaiylo-primary-hex)' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!isProcessing) handleCoachResourceClick(video);
@@ -724,10 +1024,10 @@ const VideoLibrary = () => {
               >
                 {video.title || video.fileName}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 200 }}>
                 {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
               </p>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-end items-center gap-2">
                 <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
                 {isProcessing && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Traitement</span>}
               </div>
@@ -744,40 +1044,49 @@ const VideoLibrary = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div 
+      className="min-h-screen text-foreground"
+      style={{ background: 'unset', backgroundColor: 'unset' }}
+    >
       {/* Main Content */}
-      <div className="px-10 pt-6 pb-20 w-full max-w-7xl mx-auto">
+      <div className="px-[50px] pt-3 pb-20 w-full">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-[32px] font-extralight text-foreground mb-6">Vidéothèque</h1>
           
           {/* Tabs */}
-          <div className="flex gap-8 border-b border-border/20 mb-6">
-            <button
+          <div 
+            className="flex gap-6 mt-1" 
+            style={{ 
+              paddingLeft: '0px',
+              borderTopWidth: '0px',
+              borderTopColor: 'rgba(0, 0, 0, 0)',
+              borderTopStyle: 'none',
+              borderRightWidth: '0px',
+              borderRightColor: 'rgba(0, 0, 0, 0)',
+              borderRightStyle: 'none',
+              borderBottomWidth: '1px',
+              borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+              borderBottomStyle: 'solid',
+              borderLeftWidth: '0px',
+              borderLeftColor: 'rgba(0, 0, 0, 0)',
+              borderLeftStyle: 'none'
+            }}
+          >
+            <button 
+              className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'clients' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
+              data-text="Vidéos clients"
+              style={activeTab !== 'clients' ? { fontWeight: 200 } : {}}
               onClick={() => setActiveTab('clients')}
-              className={`pb-3 text-base font-light transition-colors relative ${
-                activeTab === 'clients' 
-                  ? 'text-primary' 
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
             >
               Vidéos clients
-              {activeTab === 'clients' && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-              )}
             </button>
-            <button
+            <button 
+              className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'coach' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
+              data-text="Ressources coach"
+              style={activeTab !== 'coach' ? { fontWeight: 200 } : {}}
               onClick={() => setActiveTab('coach')}
-              className={`pb-3 text-base font-light transition-colors relative ${
-                activeTab === 'coach' 
-                  ? 'text-primary' 
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
             >
               Ressources coach
-              {activeTab === 'coach' && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-              )}
             </button>
           </div>
         </div>
@@ -785,77 +1094,546 @@ const VideoLibrary = () => {
         {activeTab === 'clients' && (
           <>
             {/* Filters Row */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                {/* Status Filter Chips */}
-                <StatusFilterChips value={statusFilter} onChange={setStatus} />
-                
-                <div className="w-px h-6 bg-border/40"></div>
-                
-                {/* Client Filter */}
-                <select
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+            <div className="flex items-center gap-4 mb-6">
+              {/* Status Filter */}
+              <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={statusFilterButtonRef}
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    style={{
+                      backgroundColor: isStatusFilterOpen || statusFilter !== 'all' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isStatusFilterOpen || statusFilter !== 'all' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : '200',
+                      width: `${statusFilterMinWidth}px`,
+                      minWidth: `${statusFilterMinWidth}px`
+                    }}
+                  >
+                    <span ref={statusFilterTextRef} style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{getStatusFilterLabel(statusFilter)}</span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform"
+                      style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    paddingRight: '28px'
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
                   }}
                 >
-                  <option value="">Tous</option>
-                  {uniqueStudents.map(studentEmail => (
-                    <option key={studentEmail} value={studentEmail}>
-                      {studentMap.get(studentEmail) || studentEmail}
-                    </option>
-                  ))}
-                </select>
+                  <DropdownMenuRadioGroup 
+                    value={statusFilter} 
+                    onValueChange={(value) => {
+                      setStatus(value);
+                      setIsStatusFilterOpen(false);
+                    }}
+                  >
+                    <DropdownMenuRadioItem
+                      value="all"
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === 'all' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === 'all'
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Tous les statuts</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === 'all' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="pending"
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === 'pending' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === 'pending'
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== 'pending') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== 'pending') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>À feedback</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === 'pending' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem
+                      value="completed"
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        statusFilter === 'completed' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        statusFilter === 'completed'
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (statusFilter !== 'completed') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (statusFilter !== 'completed') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Complété</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          statusFilter === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Student Filter */}
+              <DropdownMenu open={isStudentFilterOpen} onOpenChange={setIsStudentFilterOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={studentFilterButtonRef}
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    style={{
+                      backgroundColor: isStudentFilterOpen || selectedStudent !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isStudentFilterOpen || selectedStudent !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : '200',
+                      width: `${studentFilterMinWidth}px`,
+                      minWidth: `${studentFilterMinWidth}px`
+                    }}
+                  >
+                    <span ref={studentFilterTextRef} style={{ fontSize: '14px', fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedStudent ? (studentMap.get(selectedStudent) || selectedStudent) : 'Client'}</span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform"
+                      style={{ transform: isStudentFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
+                  style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                  }}
+                >
+                  <DropdownMenuRadioGroup 
+                    value={selectedStudent} 
+                    onValueChange={(value) => {
+                      setSelectedStudent(value);
+                      setIsStudentFilterOpen(false);
+                    }}
+                  >
+                    <DropdownMenuRadioItem
+                      value=""
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        selectedStudent === '' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        selectedStudent === ''
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (selectedStudent !== '') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedStudent !== '') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Client</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512"
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          selectedStudent === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    {uniqueStudents.map(studentEmail => (
+                      <DropdownMenuRadioItem
+                        key={studentEmail}
+                        value={studentEmail}
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                          selectedStudent === studentEmail 
+                            ? 'bg-primary/20 text-primary font-normal' 
+                            : 'text-foreground font-light'
+                        }`}
+                        style={
+                          selectedStudent === studentEmail
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (selectedStudent !== studentEmail) {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedStudent !== studentEmail) {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>{studentMap.get(studentEmail) || studentEmail}</span>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 448 512" 
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                            selectedStudent === studentEmail ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                          }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                        </svg>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-                {/* Exercice Filter */}
-                <select
-                  value={selectedExercise}
-                  onChange={(e) => setSelectedExercise(e.target.value)}
-                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+              {/* Exercise Filter */}
+              <DropdownMenu open={isExerciseFilterOpen} onOpenChange={setIsExerciseFilterOpen} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    ref={exerciseFilterButtonRef}
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    style={{
+                      backgroundColor: isExerciseFilterOpen || selectedExercise !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isExerciseFilterOpen || selectedExercise !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : '200',
+                      width: `${exerciseFilterMinWidth}px`,
+                      minWidth: `${exerciseFilterMinWidth}px`
+                    }}
+                  >
+                    <span ref={exerciseFilterTextRef} style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedExercise || 'Exercice'}</span>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform"
+                      style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    </svg>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  disablePortal={true}
+                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    paddingRight: '28px'
+                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                    backdropFilter: 'blur(10px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)'
                   }}
                 >
-                  <option value="">Exercice</option>
-                  {uniqueExercises.map(exercise => (
-                    <option key={exercise} value={exercise}>{exercise}</option>
-                  ))}
-                </select>
+                  <DropdownMenuRadioGroup 
+                    value={selectedExercise} 
+                    onValueChange={(value) => {
+                      setSelectedExercise(value);
+                      setIsExerciseFilterOpen(false);
+                    }}
+                  >
+                    <DropdownMenuRadioItem
+                      value=""
+                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                        selectedExercise === '' 
+                          ? 'bg-primary/20 text-primary font-normal' 
+                          : 'text-foreground font-light'
+                      }`}
+                      style={
+                        selectedExercise === ''
+                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                          : {}
+                      }
+                      onMouseEnter={(e) => {
+                        if (selectedExercise !== '') {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '#D48459';
+                            span.style.fontWeight = '400';
+                          }
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedExercise !== '') {
+                          e.currentTarget.style.backgroundColor = '';
+                          const span = e.currentTarget.querySelector('span');
+                          if (span) {
+                            span.style.color = '';
+                            span.style.fontWeight = '';
+                          }
+                        }
+                      }}
+                    >
+                      <span>Exercice</span>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 448 512" 
+                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                          selectedExercise === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                        }`}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                      </svg>
+                    </DropdownMenuRadioItem>
+                    {uniqueExercises.map(exercise => (
+                      <DropdownMenuRadioItem
+                        key={exercise}
+                        value={exercise}
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
+                          selectedExercise === exercise 
+                            ? 'bg-primary/20 text-primary font-normal' 
+                            : 'text-foreground font-light'
+                        }`}
+                        style={
+                          selectedExercise === exercise
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (selectedExercise !== exercise) {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedExercise !== exercise) {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>{exercise}</span>
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 448 512" 
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
+                            selectedExercise === exercise ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                          }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                        </svg>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-                {/* Date Filter */}
-                <select
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-2 bg-card border border-border/20 rounded-lg text-foreground text-sm hover:bg-muted/50 focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+              {/* Date Filter */}
+              <div className="relative">
+                <div 
+                  ref={dateFilterButtonRef}
+                  onClick={() => dateInputRef.current?.showPicker()}
+                  className="relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors gap-2"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='hsl(var(--muted-foreground))' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    paddingRight: '28px'
+                    backgroundColor: selectedDate ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
+                    fontWeight: selectedDate ? '400' : '200',
+                    width: `${dateFilterMinWidth}px`,
+                    minWidth: `${dateFilterMinWidth}px`
                   }}
                 >
-                  <option value="">Date</option>
-                  {/* Add date options here if needed */}
-                </select>
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 448 512" 
+                    className="h-4 w-4 pointer-events-none flex-shrink-0"
+                    style={{ color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
+                    fill="currentColor"
+                  >
+                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                  </svg>
+                  {/* Custom Display */}
+                  <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap" style={{ 
+                    fontSize: '14px',
+                    fontWeight: selectedDate ? '400' : 'inherit',
+                    flex: '1'
+                  }}>
+                    Date
+                  </span>
+                  
+                  {/* Native Input */}
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
               </div>
 
-              {/* Count */}
-              <div className="text-sm text-muted-foreground">
-                {filteredVideos.length} vidéo{filteredVideos.length !== 1 ? 's' : ''}
+              {/* Video Count */}
+              <div className="ml-auto text-sm font-normal" style={{ color: '#d4845a' }}>
+                {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
               </div>
             </div>
 
             {loading && (
               <div className="flex items-center justify-center py-12">
-                <div className="text-muted-foreground">Chargement des vidéos...</div>
+                <div 
+                  className="rounded-full border-2 border-transparent animate-spin"
+                  style={{
+                    borderTopColor: '#d4845a',
+                    borderRightColor: '#d4845a',
+                    width: '40px',
+                    height: '40px'
+                  }}
+                />
               </div>
             )}
             
@@ -869,24 +1647,45 @@ const VideoLibrary = () => {
               filteredVideos.length > 0 ? (
                 renderStudentVideosGrouped()
               ) : (
-                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-80">
-                  <Video size={48} className="mb-4 opacity-30" />
-                  {statusFilter === 'pending' ? (
-                    <>
-                      <p className="font-light text-base text-foreground">Aucune vidéo à traiter</p>
-                      <p className="text-sm text-muted-foreground/70">Toutes les vidéos ont reçu un feedback</p>
-                    </>
-                  ) : statusFilter === 'completed' ? (
-                    <>
-                      <p className="font-light text-base text-foreground">Aucune vidéo complétée</p>
-                      <p className="text-sm text-muted-foreground/70">Les vidéos avec feedback apparaîtront ici</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-light text-base text-foreground">Aucune vidéo trouvée</p>
-                      <p className="text-sm text-muted-foreground/70">Les vidéos de vos clients apparaîtront ici</p>
-                    </>
-                  )}
+                <div className="flex items-center justify-center min-h-[320px] py-8">
+                  <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                    <span>
+                      {statusFilter === 'pending' ? (
+                        <>
+                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo à traiter</span>
+                          <br />
+                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Toutes les vidéos ont reçu un feedback</span>
+                        </>
+                      ) : statusFilter === 'completed' ? (
+                        <>
+                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo complétée</span>
+                          <br />
+                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Les vidéos avec feedback apparaîtront ici</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
+                          <br />
+                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Aucune vidéo ne correspond aux filtres sélectionnés.</span>
+                        </>
+                      )}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        setStatus('all');
+                        setSelectedStudent('');
+                        setSelectedExercise('');
+                        setSelectedDate('');
+                      }}
+                      className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                      style={{
+                        backgroundColor: 'var(--kaiylo-primary-hex)',
+                        color: 'var(--tw-ring-offset-color)'
+                      }}
+                    >
+                      Effacer les filtres
+                    </button>
+                  </div>
                 </div>
               )
             )}
@@ -899,71 +1698,83 @@ const VideoLibrary = () => {
             <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {folders.map(folder => (
-                  <div key={folder.id} className="relative group">
-                    <Button 
-                      variant="outline"
-                      onClick={() => handleFolderSelect(folder.id)}
-                      className={`bg-card border-border/20 text-foreground hover:bg-muted pr-8 ${
-                        selectedFolder === folder.id 
-                          ? 'border-primary bg-primary/10 text-primary' 
-                          : ''
-                      }`}
-                    >
-                      {folder.name}
-                    </Button>
+                  <div
+                    key={folder.id}
+                    className={`relative group inline-flex items-center gap-1 rounded-full px-5 pr-2 py-[7px] hover:bg-muted cursor-pointer ${
+                      selectedFolder === folder.id 
+                        ? 'bg-primary/15 text-primary font-normal' 
+                        : 'bg-white/5 text-white/75 font-extralight'
+                    }`}
+                    style={folderMinWidths[folder.id] ? { width: `${folderMinWidths[folder.id]}px` } : {}}
+                    onClick={() => handleFolderSelect(folder.id)}
+                  >
+                    <span className="text-sm whitespace-nowrap">{folder.name}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteFolder(folder.id);
                       }}
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 p-1 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                      className="text-muted-foreground hover:text-[#d4845a] transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center"
                       title="Supprimer le dossier"
                     >
-                      <X size={14} />
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="14" height="14" fill="currentColor">
+                        <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/>
+                      </svg>
                     </button>
                   </div>
                 ))}
                 <Button 
                   variant="ghost" 
-                  className="text-muted-foreground hover:text-foreground" 
+                  className="rounded-full bg-white/5 text-white/50 font-extralight hover:text-foreground gap-1" 
                   onClick={() => setIsFolderModalOpen(true)}
+                  style={{ background: 'unset', backgroundColor: 'unset' }}
                 >
-                  <FolderPlus size={16} className="mr-2"/>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 mr-2" fill="currentColor">
+                    <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"/>
+                  </svg>
                   nouveau dossier
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                    <LayoutGrid size={20} />
-                </Button>
                 <Button 
                   onClick={() => setIsUploadModalOpen(true)} 
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="group bg-primary hover:bg-primary/90 text-primary-foreground pt-[7px] pb-[7px] pl-5 pr-5 rounded-[8px]"
                 >
-                  <Plus size={16} className="mr-2"/>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45 mr-2">
+                    <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+                  </svg>
                   Ajouter une vidéo
                 </Button>
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground mb-4">
-              {selectedFolder 
-                ? coachResources.filter(video => video.folderId === selectedFolder).length 
-                : coachResources.length
-              } ressources{selectedFolder ? ` dans ${folders.find(f => f.id === selectedFolder)?.name}` : ''}
-            </p>
-
-            {loading && <p className="text-muted-foreground">Chargement...</p>}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <div 
+                  className="rounded-full border-2 border-transparent animate-spin"
+                  style={{
+                    borderTopColor: '#d4845a',
+                    borderRightColor: '#d4845a',
+                    width: '40px',
+                    height: '40px'
+                  }}
+                />
+              </div>
+            )}
             {error && <p className="text-destructive">Erreur: {error}</p>}
             {!loading && !error && (
               (selectedFolder 
                 ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
                 : coachResources.length > 0
               ) ? renderCoachResources() : (
-                <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-80">
-                  <Video size={48} className="mb-4 opacity-30" />
-                  <p className="font-light text-base text-foreground">Aucune vidéo trouvée</p>
-                  <p className="text-sm text-muted-foreground/70">Vos ressources téléchargées apparaîtront ici.</p>
+                <div className="flex items-center justify-center min-h-[320px] py-8">
+                  <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                    <span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
+                      <br />
+                      <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Vos ressources téléchargées apparaîtront ici.</span>
+                    </span>
+                  </div>
                 </div>
               )
             )}
@@ -978,43 +1789,91 @@ const VideoLibrary = () => {
         folders={folders}
       />
 
-      <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Créer un nouveau dossier</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Entrez un nom pour votre nouveau dossier pour organiser vos ressources.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateFolder}>
-            <div className="py-4">
-              <Input
-                placeholder="Nom du dossier"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                autoFocus
-                className="bg-background border-border text-foreground"
-              />
+      {isFolderModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+          style={{ zIndex: 100 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsFolderModalOpen(false);
+              setNewFolderName('');
+            }
+          }}
+        >
+          <div 
+            className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+            style={{
+              background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+              opacity: 0.95
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                  <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"/>
+                </svg>
+                <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  Créer un nouveau dossier
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setIsFolderModalOpen(false);
+                  setNewFolderName('');
+                }}
+                className="text-white/50 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
+                  <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
+                </svg>
+              </button>
             </div>
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setIsFolderModalOpen(false)}
-                className="border-border"
-              >
-                Annuler
-              </Button>
-              <Button 
-                type="submit"
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                Créer le dossier
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div className="border-b border-white/10 mx-6"></div>
+
+            {/* Form */}
+            <form onSubmit={handleCreateFolder} className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
+              <div>
+                <label htmlFor="folderName" className="block text-sm font-extralight text-white/50 mb-2">
+                  Nom du dossier
+                </label>
+                <input
+                  type="text"
+                  id="folderName"
+                  placeholder="Entrez un nom pour votre nouveau dossier"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  autoFocus
+                  className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFolderModalOpen(false);
+                    setNewFolderName('');
+                  }}
+                  className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                  style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+                >
+                  Créer le dossier
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Video Detail Modal */}
       <VideoDetailModal 
@@ -1039,6 +1898,65 @@ const VideoLibrary = () => {
         video={selectedCoachResource}
         onFeedbackUpdate={handleFeedbackUpdate}
       />
+
+      {/* Delete Folder Modal */}
+      <BaseModal
+        isOpen={isDeleteFolderModalOpen}
+        onClose={cancelDeleteFolder}
+        modalId="delete-folder-modal"
+        zIndex={90}
+        closeOnEsc={isTopMost}
+        closeOnBackdrop={isTopMost}
+        size="md"
+        title="Supprimer le dossier"
+        titleClassName="text-xl font-normal text-white"
+      >
+        <div className="space-y-6">
+          {/* Warning Message */}
+          <div className="flex flex-col items-start space-y-4">
+            <div className="text-left space-y-2">
+              {folderToDelete && (() => {
+                const folderResources = coachResources.filter(resource => resource.folderId === folderToDelete.id);
+                return folderResources.length > 0 ? (
+                  <>
+                    <p className="text-sm font-extralight text-white/70">
+                      Le dossier <span className="font-normal text-white">"{folderToDelete.name}"</span> contient <span className="font-normal text-white">{folderResources.length}</span> ressource{folderResources.length > 1 ? 's' : ''}. Voulez-vous vraiment le supprimer ?
+                    </p>
+                    <p className="text-xs font-extralight text-white/50">
+                      Les ressources seront déplacées vers "Non classé".
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-extralight text-white/70">
+                    Êtes-vous sûr de vouloir supprimer le dossier <span className="font-normal text-white">"{folderToDelete.name}"</span> ?
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex justify-end gap-3 pt-0">
+            <button
+              type="button"
+              onClick={cancelDeleteFolder}
+              disabled={isDeletingFolder}
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeleteFolder}
+              disabled={isDeletingFolder}
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+            >
+              {isDeletingFolder ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
+        </div>
+      </BaseModal>
     </div>
   );
 };

@@ -79,13 +79,23 @@ const StudentSidebar = ({
       });
     }
     
+    // Sort: students with pending feedback first
+    filtered.sort((a, b) => {
+      const aHasPendingFeedback = studentVideoCounts[a.id] && Number(studentVideoCounts[a.id]) > 0;
+      const bHasPendingFeedback = studentVideoCounts[b.id] && Number(studentVideoCounts[b.id]) > 0;
+      
+      if (aHasPendingFeedback && !bHasPendingFeedback) return -1;
+      if (!aHasPendingFeedback && bHasPendingFeedback) return 1;
+      return 0;
+    });
+    
     return filtered;
   }, [students, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
   return (
     <div 
       className={`relative bg-[rgba(255,255,255,0.05)] transition-all duration-300 ease-in-out rounded-2xl ${
-        isCollapsed ? 'w-0' : 'w-80'
+        isCollapsed ? 'w-0' : 'w-80 border border-white/10'
       } flex flex-col overflow-hidden h-full`}
     >
       {!isCollapsed && (
