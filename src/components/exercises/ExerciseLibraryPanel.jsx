@@ -339,11 +339,6 @@ const ExerciseLibraryPanel = ({
                   </button>
                 </div>
               </div>
-              {exercise.instructions && (
-                <div className="text-white/40 text-xs mt-1 truncate">
-                  {exercise.instructions}
-                </div>
-              )}
             </div>
           ))}
 

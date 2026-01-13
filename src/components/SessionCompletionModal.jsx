@@ -132,7 +132,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
               onChange={(e) => setComment(e.target.value)}
               placeholder="Ajouter un commentaire..."
               disabled={isUploading || isValidating}
-              className="w-full h-24 bg-[#262626] border border-white/10 rounded-lg p-3 text-white text-xs font-light placeholder-gray-400 resize-none focus:outline-none focus:border-[#d4845a] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-24 bg-[#262626] border border-white/10 rounded-lg p-3 text-white text-xs font-normal placeholder-gray-400 resize-none focus:outline-none focus:border-[#d4845a] disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 

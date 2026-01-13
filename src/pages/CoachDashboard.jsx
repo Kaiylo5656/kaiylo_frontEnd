@@ -117,16 +117,55 @@ const CoachDashboard = () => {
   const sortStudents = (studentsList, sortBy, direction) => {
     if (!studentsList || studentsList.length === 0) return studentsList;
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return [...studentsList].sort((a, b) => {
-      // First, sort by pending feedback count (descending) - students with more feedback first
+      // Calculate priority scores
+      // Priority 1: Students with pending feedback (feedbackCount > 0)
       const feedbackCountA = studentVideoCounts[a.id] ? Number(studentVideoCounts[a.id]) : 0;
       const feedbackCountB = studentVideoCounts[b.id] ? Number(studentVideoCounts[b.id]) : 0;
+      const hasPendingFeedbackA = feedbackCountA > 0;
+      const hasPendingFeedbackB = feedbackCountB > 0;
+
+      // Priority 2: Students with no upcoming sessions
+      const nextSessionDateA = studentNextSessions[a.id];
+      const nextSessionDateB = studentNextSessions[b.id];
       
-      if (feedbackCountA !== feedbackCountB) {
-        return feedbackCountB - feedbackCountA; // Descending order
+      let hasNoUpcomingSessionA = false;
+      if (!nextSessionDateA) {
+        hasNoUpcomingSessionA = true;
+      } else {
+        const sessionDateA = new Date(nextSessionDateA);
+        sessionDateA.setHours(0, 0, 0, 0);
+        hasNoUpcomingSessionA = sessionDateA < today;
+      }
+      
+      let hasNoUpcomingSessionB = false;
+      if (!nextSessionDateB) {
+        hasNoUpcomingSessionB = true;
+      } else {
+        const sessionDateB = new Date(nextSessionDateB);
+        sessionDateB.setHours(0, 0, 0, 0);
+        hasNoUpcomingSessionB = sessionDateB < today;
       }
 
-      // If feedback counts are equal, sort by the selected criteria
+      // Priority comparison: first by pending feedback, then by no upcoming session
+      if (hasPendingFeedbackA !== hasPendingFeedbackB) {
+        return hasPendingFeedbackB ? 1 : -1; // Students with feedback first
+      }
+
+      // If both have or don't have feedback, check for no upcoming sessions
+      if (hasNoUpcomingSessionA !== hasNoUpcomingSessionB) {
+        return hasNoUpcomingSessionB ? 1 : -1; // Students with no upcoming session first
+      }
+
+      // If both have pending feedback, sort by feedback count (descending)
+      if (hasPendingFeedbackA && hasPendingFeedbackB && feedbackCountA !== feedbackCountB) {
+        return feedbackCountB - feedbackCountA;
+      }
+
+      // If feedback counts are equal (or both have no feedback), sort by the selected criteria
       let comparison = 0;
 
       if (sortBy === 'createdAt' || sortBy === 'joinedAt') {

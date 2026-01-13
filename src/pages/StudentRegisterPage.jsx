@@ -626,7 +626,7 @@ const StudentRegisterPage = () => {
               </p>
               <Link
                 to="/register"
-                className="w-full bg-primary text-primary-foreground font-light p-3 rounded-[10px] hover:bg-primary/90 transition-colors inline-block text-center"
+                className="w-full bg-primary text-primary-foreground font-normal p-3 rounded-[10px] hover:bg-primary/90 transition-colors inline-block text-center"
                 style={{
                   width: '384px',
                   maxWidth: '100%',

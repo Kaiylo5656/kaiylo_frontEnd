@@ -254,10 +254,10 @@ const ExerciseInfoModal = ({
               </div>
             ) : instructionList.length > 0 ? (
               <div className="bg-[#262626] rounded-lg border border-white/10 px-3 py-3 max-h-[150px] overflow-y-auto">
-                <ul className="list-disc text-[#d4845a] text-xs font-light space-y-1">
+                <ul className="text-[#d4845a] text-xs space-y-1 list-none">
                   {instructionList.map((instruction, index) => (
-                    <li key={index} className="ml-4 leading-relaxed">
-                      <span className="text-white/85">{instruction}</span>
+                    <li key={index} className="leading-relaxed">
+                      <span className="text-white font-normal">{instruction}</span>
                     </li>
                   ))}
                 </ul>
