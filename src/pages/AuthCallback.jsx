@@ -89,13 +89,32 @@ const AuthCallback = () => {
             const axios = (await import('axios')).default;
             axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
             
-            // Get user role and navigate
+            // Get user profile to check onboarding completion
             const userRole = session.user.user_metadata?.role || 'student';
-            const targetPath = 
-              userRole === 'admin' ? '/admin/dashboard' 
-              : userRole === 'coach' ? '/coach/dashboard'
-              : userRole === 'student' ? '/student/dashboard'
-              : '/dashboard';
+            let targetPath;
+            
+            if (userRole === 'student') {
+              // Fetch user profile to check onboarding completion
+              try {
+                const { getApiBaseUrlWithApi } = await import('../config/api');
+                const profileResponse = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
+                  headers: { 'Authorization': `Bearer ${accessToken}` },
+                  timeout: 5000
+                });
+                
+                const onboardingCompleted = profileResponse.data.user?.onboardingCompleted !== false;
+                targetPath = onboardingCompleted ? '/student/dashboard' : '/onboarding';
+              } catch (profileError) {
+                console.error('❌ Error fetching profile:', profileError);
+                // Default to onboarding if error (safer for new users)
+                targetPath = '/onboarding';
+              }
+            } else {
+              // For coaches and admins, use standard paths
+              targetPath = userRole === 'admin' ? '/admin/dashboard' 
+                : userRole === 'coach' ? '/coach/dashboard'
+                : '/dashboard';
+            }
             
             console.log('✅ Navigating to:', targetPath);
             

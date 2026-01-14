@@ -9,6 +9,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import StudentInvitationPage from './pages/StudentInvitationPage';
 import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import AuthCallback from './pages/AuthCallback';
+import RegistrationSuccessPage from './pages/RegistrationSuccessPage';
 import OnboardingPage from './pages/OnboardingPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
@@ -135,6 +136,7 @@ function App() {
             <Route path="/invite" element={<StudentInvitationPage />} />
             <Route path="/auth/confirm-email" element={<ConfirmEmailPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/registration/success" element={<RegistrationSuccessPage />} />
             <Route path="/onboarding" element={
               <ProtectedRoute allowedRoles={['student']} excludeLayout={true}>
                 <OnboardingPage />

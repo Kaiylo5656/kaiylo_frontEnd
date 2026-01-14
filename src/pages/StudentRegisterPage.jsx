@@ -133,17 +133,9 @@ const StudentRegisterPage = () => {
           // Use login function to properly initialize auth state
           await login(result.user.email, data.password, navigate, '/onboarding');
         } else {
-          // If no token (email confirmation required)
-          // Also handle cases where backend explicitly tells us confirmation is required
-          const message = result.message || 'Account created successfully. Please check your email to confirm your account before logging in.';
-          
-          setError('root', {
-            type: 'manual',
-            message: message
-          });
-          
-          // Optionally show a success UI state instead of an error field
-          // For now, sticking to the existing pattern but ensuring the message is clear
+          // If no token (email confirmation required), redirect to success page
+          // The user will need to confirm email before logging in
+          navigate(`/registration/success?email=${encodeURIComponent(data.email)}`);
         }
       } else {
         setError('root', {
