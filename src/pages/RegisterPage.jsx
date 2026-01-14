@@ -142,12 +142,9 @@ const RegisterPage = () => {
           // This will set up the user state and Supabase session
           await login(result.user.email, data.password, navigate);
         } else {
-          // If no token (email confirmation required), just show message
+          // If no token (email confirmation required), redirect to success page
           // The user will need to confirm email before logging in
-          setError('root', {
-            type: 'manual',
-            message: result.message || 'Account created successfully. Please check your email to confirm your account before logging in.'
-          });
+          navigate(`/registration/success?email=${encodeURIComponent(data.email)}`);
         }
       } else {
         // Set form error

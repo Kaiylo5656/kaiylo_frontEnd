@@ -84,6 +84,8 @@ export const AuthProvider = ({ children }) => {
   const authInitializedRef = useRef(false); // Flag pour ignorer le premier SIGNED_OUT au démarrage
   const isRefreshingRef = useRef(false); // Flag pour empêcher plusieurs refresh parallèles
   const refreshQueueRef = useRef([]); // File d'attente pour les requêtes en attente d'un nouveau token
+  const refreshFailureCountRef = useRef(0); // Compteur d'échecs de refresh consécutifs
+  const MAX_REFRESH_FAILURES = 3; // Nombre maximum d'échecs de refresh consécutifs avant déconnexion forcée
 
   // Gestion centralisée de la file d'attente de refresh (résout ou rejette toutes les promesses en attente)
   const resolveRefreshQueue = useCallback((errorValue, tokenValue) => {
@@ -246,10 +248,12 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${activeSession.access_token}`;
 
       console.log('✅ Token refreshed successfully');
+      refreshFailureCountRef.current = 0; // Réinitialiser le compteur en cas de succès
       resolveRefreshQueue(null, activeSession.access_token);
       return activeSession.access_token;
     } catch (error) {
       console.error('❌ Failed to refresh token:', error);
+      refreshFailureCountRef.current += 1; // Incrémenter le compteur d'échecs
       resolveRefreshQueue(error, null);
       
       // If refresh token is invalid, we MUST log out the user locally
@@ -260,12 +264,19 @@ export const AuthProvider = ({ children }) => {
           error.message.includes('Refresh Token Not Found') ||
           error.message.includes('Already Used'))) {
           console.log('🔒 Refresh token invalid or already used, forcing logout...');
+          refreshFailureCountRef.current = 0; // Reset counter before logout
           logout(true); // skipSignOut=true because session is likely gone
+      } else if (refreshFailureCountRef.current >= MAX_REFRESH_FAILURES) {
+          // Trop d'échecs consécutifs : forcer la déconnexion pour éviter les boucles infinies
+          console.error(`🔒 Too many refresh failures (${refreshFailureCountRef.current}), forcing logout to prevent infinite loop...`);
+          refreshFailureCountRef.current = 0; // Reset counter before logout
+          logout(true); // skipSignOut=true to avoid recursive calls
       } else {
           // Just clean up tokens for other errors
-      safeRemoveItem('authToken');
-      safeRemoveItem('supabaseRefreshToken');
-      delete axios.defaults.headers.common['Authorization'];
+          console.warn(`⚠️ Refresh failed (${refreshFailureCountRef.current}/${MAX_REFRESH_FAILURES}). Will retry on next attempt.`);
+          safeRemoveItem('authToken');
+          safeRemoveItem('supabaseRefreshToken');
+          delete axios.defaults.headers.common['Authorization'];
       }
       return null;
     } finally {
@@ -285,6 +296,12 @@ export const AuthProvider = ({ children }) => {
                                originalRequest.url?.includes('/auth/login');
         
         if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+          // Vérifier si on a déjà atteint le maximum d'échecs
+          if (refreshFailureCountRef.current >= MAX_REFRESH_FAILURES) {
+            console.error('🚨 Too many authentication failures. Request rejected to prevent infinite loop.');
+            return Promise.reject(error);
+          }
+
           console.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
           originalRequest._retry = true;
           const newToken = await refreshAuthToken();
@@ -294,10 +311,21 @@ export const AuthProvider = ({ children }) => {
               ...(originalRequest.headers || {}),
               Authorization: `Bearer ${newToken}`
             };
-            return axios(originalRequest);
+            // Réessayer la requête avec le nouveau token
+            try {
+              const retryResponse = await axios(originalRequest);
+              // Si la requête réussit, réinitialiser le compteur
+              if (retryResponse && retryResponse.status < 400) {
+                refreshFailureCountRef.current = 0;
+              }
+              return retryResponse;
+            } catch (retryError) {
+              // Si la requête échoue encore, le compteur sera incrémenté au prochain refresh
+              throw retryError;
+            }
           }
           console.warn('❌ Refresh failed or no session. Not retrying.');
-          // Ne pas appeler logout() ici, laisser l'application gérer l'état de déconnexion
+          // Ne pas appeler logout() ici, refreshAuthToken gère déjà la déconnexion après plusieurs échecs
           return Promise.reject(error);
         }
         return Promise.reject(error);
