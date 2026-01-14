@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { History } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
 import useSocket from '../hooks/useSocket';
@@ -16,6 +15,19 @@ const MessageIcon = ({ className, style }) => (
     fill="currentColor"
   >
     <path d="M64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L360 512C354.8 512 349.8 513.7 345.6 516.8L230.4 603.2C226.2 606.3 221.2 608 216 608C202.7 608 192 597.3 192 584L192 512L160 512C107 512 64 469 64 416z"/>
+  </svg>
+);
+
+// Custom History Icon Component
+const HistoryIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 576 512"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M288 64c106 0 192 86 192 192S394 448 288 448c-65.2 0-122.9-32.5-157.6-82.3-10.1-14.5-30.1-18-44.6-7.9s-18 30.1-7.9 44.6C124.1 468.6 201 512 288 512 429.4 512 544 397.4 544 256S429.4 0 288 0C202.3 0 126.5 42.1 80 106.7L80 80c0-17.7-14.3-32-32-32S16 62.3 16 80l0 112c0 17.7 14.3 32 32 32l24.6 0c.5 0 1 0 1.5 0l86 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-38.3 0C154.9 102.6 217 64 288 64zm24 88c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 104c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65 0-94.1z"/>
   </svg>
 );
 
@@ -104,7 +116,7 @@ const BottomNavBar = () => {
     if (user.role === 'student') {
       return [
         { to: "/student/dashboard", icon: HomeIcon, label: "Accueil" },
-        { to: "/student/history", icon: History, label: "Historique" },
+        { to: "/student/history", icon: HistoryIcon, label: "Historique" },
         { to: "/chat", icon: MessageIcon, label: "Messages" },
         { to: "/student/videos", icon: VideoIcon, label: "Vidéothèque" },
       ];
@@ -134,7 +146,7 @@ const BottomNavBar = () => {
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;
           const activeColor = 'rgba(255, 255, 255, 1)';
-          const inactiveColor = 'rgba(134, 134, 134, 1)';
+          const inactiveColor = 'rgba(255, 255, 255, 0.25)';
           
           return (
             <NavLink
@@ -160,7 +172,7 @@ const BottomNavBar = () => {
                 className="text-xs"
                 style={{ 
                   color: isActive ? activeColor : inactiveColor,
-                  fontWeight: 300
+                  fontWeight: 400
                 }}
               >
                 {item.label}

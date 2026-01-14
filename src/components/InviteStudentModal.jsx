@@ -10,6 +10,10 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
+  
+  const successGreenColor = '#22c55e';
 
   const onSubmit = async (data) => {
     setIsLoading(true);
@@ -31,9 +35,9 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
       );
 
       if (response.data.success) {
+        setSentEmail(data.email);
+        setShowSuccessModal(true);
         onInviteSent?.(response.data.data);
-        reset();
-        onClose();
       } else {
         setError(response.data.message || 'Erreur lors de l\'envoi de l\'invitation');
       }
@@ -51,6 +55,15 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   const handleClose = () => {
     reset();
     setError('');
+    setShowSuccessModal(false);
+    setSentEmail('');
+    onClose();
+  };
+
+  const handleSuccessClose = () => {
+    reset();
+    setShowSuccessModal(false);
+    setSentEmail('');
     onClose();
   };
 
@@ -61,6 +74,57 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   };
 
   if (!isOpen) return null;
+
+  // Success Modal
+  if (showSuccessModal) {
+    return (
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+        style={{ zIndex: 100 }}
+        onClick={handleSuccessClose}
+      >
+        <div 
+          className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+          style={{
+            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+            opacity: 0.95
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-center">
+            <h2 className="text-xl font-normal flex items-center gap-2" style={{ color: successGreenColor }}>
+              Invitation envoyée
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 448 512" 
+                className="h-5 w-5"
+                fill="currentColor"
+              >
+                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+              </svg>
+            </h2>
+          </div>
+          <div className="border-b border-white/10 mx-6"></div>
+
+          {/* Success Content */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-8">
+            <div className="text-center">
+              <p className="text-sm text-white/50 font-light mb-8">
+                Votre client <span className="font-normal text-white">{sentEmail}</span> va recevoir un email avec son code d'invitation.
+              </p>
+              <button
+                onClick={handleSuccessClose}
+                className="w-full px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

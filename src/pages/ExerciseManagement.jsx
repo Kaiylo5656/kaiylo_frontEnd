@@ -12,24 +12,6 @@ import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
 import { getTagColor, getTagColorMap } from '../utils/tagColors';
 import { Search, Check } from 'lucide-react';
 
-// Helper function to determine primary tag based on exercise data
-const getPrimaryTag = (exercise) => {
-  // Determine primary tag based on muscle groups or title
-  const title = exercise.title?.toLowerCase() || '';
-  const muscleGroups = exercise.muscleGroups || [];
-  
-  if (title.includes('traction') || title.includes('pull') || muscleGroups.includes('Back')) {
-    return 'Pull';
-  }
-  if (title.includes('dips') || title.includes('push') || muscleGroups.includes('Chest')) {
-    return 'Push';
-  }
-  if (title.includes('squat') || title.includes('leg') || muscleGroups.includes('Legs')) {
-    return 'Legs';
-  }
-  return 'Other';
-};
-
 const ExerciseManagement = () => {
   const { user } = useAuth();
   const [exercises, setExercises] = useState([]);
@@ -94,12 +76,7 @@ const ExerciseManagement = () => {
   // Create a color map for all unique tags to ensure no duplicate colors
   const tagColorMap = useMemo(() => {
     const allTags = exercises.flatMap(exercise => exercise.tags || []);
-    // Also include primary tags for exercises without tags
-    const primaryTags = exercises
-      .filter(exercise => !exercise.tags || exercise.tags.length === 0)
-      .map(exercise => getPrimaryTag(exercise));
-    const allTagsWithPrimaries = [...allTags, ...primaryTags];
-    return getTagColorMap(allTagsWithPrimaries);
+    return getTagColorMap(allTags);
   }, [exercises]);
 
   // Filter exercises based on search term and tag filter
@@ -658,7 +635,7 @@ const ExerciseManagement = () => {
 
                     {/* Tag Column - Centered */}
                     <div className="flex justify-center">
-                      {exercise.tags && exercise.tags.length > 0 ? (
+                      {exercise.tags && exercise.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center">
                           {exercise.tags.map(tag => {
                             const tagStyle = getTagColor(tag, tagColorMap);
@@ -673,13 +650,6 @@ const ExerciseManagement = () => {
                             );
                           })}
                         </div>
-                      ) : (
-                        <span 
-                          className="px-3 py-1 rounded-full text-xs font-light"
-                          style={getTagColor(getPrimaryTag(exercise), tagColorMap)}
-                        >
-                          {getPrimaryTag(exercise)}
-                        </span>
                       )}
                     </div>
 

@@ -11,11 +11,23 @@ import {
   MessageSquare, 
   Search,
   Filter,
-  ChevronDown,
   ChevronRight,
   Video,
   Folder
 } from 'lucide-react';
+
+// Custom ChevronDown Icon Component
+const ChevronDownIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 384 512"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+  </svg>
+);
 import { useNavigate } from 'react-router-dom';
 import StudentVideoDetailModal from '../components/StudentVideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
@@ -462,10 +474,10 @@ const StudentVideoLibrary = () => {
                   setIsStatusDropdownOpen(!isStatusDropdownOpen);
                   setIsExerciseDropdownOpen(false);
                 }}
-                className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-7 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span>{statusFilter === 'pending' ? 'Attente' : statusFilter === 'completed' ? 'Reçu' : 'Statuts'}</span>
-                <ChevronDown className={`h-3 w-3 ${statusFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`h-3 w-3 ${statusFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {isStatusDropdownOpen && (
                 <>
@@ -480,7 +492,7 @@ const StudentVideoLibrary = () => {
                         setStatusFilter('');
                         setIsStatusDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-left text-[13px] font-extralight transition-colors hover:bg-white/5 ${statusFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                      className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${statusFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                     >
                       Statuts
                     </button>
@@ -490,7 +502,7 @@ const StudentVideoLibrary = () => {
                         setStatusFilter('pending');
                         setIsStatusDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-left text-[13px] font-extralight transition-colors hover:bg-white/5 ${statusFilter === 'pending' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                      className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${statusFilter === 'pending' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                     >
                       Attente
                     </button>
@@ -500,7 +512,7 @@ const StudentVideoLibrary = () => {
                         setStatusFilter('completed');
                         setIsStatusDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-left text-[13px] font-extralight transition-colors hover:bg-white/5 ${statusFilter === 'completed' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                      className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${statusFilter === 'completed' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                     >
                       Reçu
                     </button>
@@ -517,10 +529,10 @@ const StudentVideoLibrary = () => {
                   setIsExerciseDropdownOpen(!isExerciseDropdownOpen);
                   setIsStatusDropdownOpen(false);
                 }}
-                className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-7 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span className="truncate">{exerciseFilter || 'Exercices'}</span>
-                <ChevronDown className={`h-3 w-3 flex-shrink-0 ml-2 ${exerciseFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isExerciseDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`h-3 w-3 flex-shrink-0 ml-2 ${exerciseFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isExerciseDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               {isExerciseDropdownOpen && (
                 <>
@@ -535,7 +547,7 @@ const StudentVideoLibrary = () => {
                         setExerciseFilter('');
                         setIsExerciseDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-left text-[13px] font-extralight transition-colors hover:bg-white/5 ${exerciseFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                      className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                     >
                       Exercices
                     </button>
@@ -547,7 +559,7 @@ const StudentVideoLibrary = () => {
                           setExerciseFilter(exercise);
                           setIsExerciseDropdownOpen(false);
                         }}
-                        className={`w-full px-3 py-2 text-left text-[13px] font-extralight transition-colors hover:bg-white/5 ${exerciseFilter === exercise ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                        className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === exercise ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                       >
                         {exercise}
                       </button>
@@ -569,7 +581,7 @@ const StudentVideoLibrary = () => {
               <button
                 type="button"
                 onClick={() => document.getElementById('date-filter')?.showPicker?.() || document.getElementById('date-filter')?.click()}
-                className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-extralight focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
               >
                 <span>{dateFilter ? format(new Date(dateFilter), 'dd/MM/yyyy', { locale: fr }) : 'Date'}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`h-4 w-4 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} pointer-events-none`} fill="currentColor" aria-hidden="true">

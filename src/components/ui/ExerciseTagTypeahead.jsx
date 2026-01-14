@@ -347,7 +347,7 @@ const ExerciseTagTypeahead = ({
                     }}
                     role="button"
                     tabIndex={0}
-                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 rounded"
+                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] focus:ring-offset-1 rounded"
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
@@ -395,7 +395,7 @@ const ExerciseTagTypeahead = ({
                     }}
                     role="button"
                     tabIndex={0}
-                    className="ml-0.5 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 rounded"
+                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] focus:ring-offset-1 rounded"
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />

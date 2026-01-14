@@ -10,7 +10,9 @@ export default function FeedbackModal({ isOpen, onClose }) {
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  const successGreenColor = '#22c55e';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,15 +60,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        setTitle('');
-        setDescription('');
-        setType('bug');
-        setSeverity('medium');
-        onClose();
-      }, 2000);
+      setShowSuccessModal(true);
 
     } catch (error) {
       console.error('Error submitting feedback:', error);
@@ -76,15 +70,84 @@ export default function FeedbackModal({ isOpen, onClose }) {
     }
   };
 
+  const handleClose = () => {
+    setTitle('');
+    setDescription('');
+    setType('bug');
+    setSeverity('medium');
+    setShowSuccessModal(false);
+    onClose();
+  };
+
+  const handleSuccessClose = () => {
+    setTitle('');
+    setDescription('');
+    setType('bug');
+    setSeverity('medium');
+    setShowSuccessModal(false);
+    onClose();
+  };
+
   // Handle backdrop click
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       if (isSubmitting) return;
-      onClose();
+      handleClose();
     }
   };
 
   if (!isOpen) return null;
+
+  // Success Modal
+  if (showSuccessModal) {
+    return (
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+        style={{ zIndex: 150 }}
+        onClick={handleSuccessClose}
+      >
+        <div 
+          className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+          style={{
+            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+            opacity: 0.95
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-center">
+            <h2 className="text-xl font-normal flex items-center gap-2" style={{ color: successGreenColor }}>
+              Feedback envoyé
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 448 512" 
+                className="h-5 w-5"
+                fill="currentColor"
+              >
+                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+              </svg>
+            </h2>
+          </div>
+          <div className="border-b border-white/10 mx-6"></div>
+
+          {/* Success Content */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-8">
+            <div className="text-center">
+              <p className="text-sm text-white/50 font-light mb-8">
+                Merci ! Votre feedback a été envoyé avec succès.
+              </p>
+              <button
+                onClick={handleSuccessClose}
+                className="w-full px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -109,7 +172,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
             Signaler un problème
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-white/50 hover:text-white transition-colors"
             aria-label="Close modal"
             disabled={isSubmitting}
@@ -123,17 +186,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
 
         {/* Content */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
-          {success ? (
-            <div className="text-center py-8">
-              <div className="flex justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-12 h-12" fill="currentColor" style={{ color: '#10b981' }}>
-                  <path d="M256 512a256 256 0 1 1 0-512 256 256 0 1 1 0 512zM374 145.7c-10.7-7.8-25.7-5.4-33.5 5.3L221.1 315.2 169 263.1c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l72 72c5 5 11.8 7.5 18.8 7s13.4-4.1 17.5-9.8L379.3 179.2c7.8-10.7 5.4-25.7-5.3-33.5z"/>
-                </svg>
-              </div>
-              <p className="text-sm font-normal" style={{ color: '#10b981' }}>Merci ! Votre feedback a été envoyé.</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
               {/* Type de feedback */}
               <div>
                 <p className="text-sm font-extralight text-white/50 mb-3 text-center">Type de feedback</p>
@@ -277,35 +330,32 @@ export default function FeedbackModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              {!success && (
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={isSubmitting}
-                    className={`px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] ${
-                      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !title.trim() || !description.trim()}
-                    className={`px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-                    style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
-                  >
-                    {isSubmitting ? (
-                      'Envoi...'
-                    ) : (
-                      'Envoyer'
-                    )}
-                  </button>
-                </div>
-              )}
-            </form>
-          )}
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className={`px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] ${
+                  isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !title.trim() || !description.trim()}
+                className={`px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
+                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+              >
+                {isSubmitting ? (
+                  'Envoi...'
+                ) : (
+                  'Envoyer'
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

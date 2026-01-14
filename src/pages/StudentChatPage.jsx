@@ -7,7 +7,7 @@ import Header from '../components/Header';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { ChevronLeft, MessageSquare, Search } from 'lucide-react';
+import { ChevronLeft, Search } from 'lucide-react';
 
 /**
  * Mobile-optimized chat page for students
@@ -499,11 +499,10 @@ const StudentChatPage = () => {
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 px-10 w-full max-w-6xl mx-auto">
               {filteredConversations.length === 0 ? (
                 <div className="p-6 text-center text-gray-400">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                  <div className="text-sm">
+                  <div className="text-sm text-white/50">
                     {searchTerm ? 'Aucune conversation trouvée' : 'Aucune conversation'}
                   </div>
-                  <div className="text-xs mt-2">
+                  <div className="text-xs mt-2 text-white/50 font-light">
                     {searchTerm ? 'Essayez un autre terme de recherche' : 'Commencez une nouvelle conversation'}
                   </div>
                 </div>

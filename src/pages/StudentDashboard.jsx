@@ -740,7 +740,7 @@ const StudentDashboard = () => {
                           <div key={exIndex} className="flex justify-between items-center gap-4">
                             <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
                             <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
-                              {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
+                              {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
                             </p>
                           </div>
                         ))}
@@ -812,7 +812,7 @@ const StudentDashboard = () => {
                         <div key={exIndex} className="flex justify-between items-center gap-4">
                           <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
                           <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
-                            {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight || 'N/A'} kg</span>
+                            {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
                           </p>
                         </div>
                       ))}
