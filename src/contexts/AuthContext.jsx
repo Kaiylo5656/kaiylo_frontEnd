@@ -670,16 +670,21 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       console.log('🔐 User state updated:', user?.email);
       
-      // Navigate based on user role
+      // Navigate based on user role and onboarding completion
       let targetPath;
       
       if (redirectPath) {
         targetPath = redirectPath;
       } else {
-        targetPath = user.role === 'admin' ? '/admin/dashboard' 
-        : user.role === 'coach' ? '/coach/dashboard'
-        : user.role === 'student' ? '/student/dashboard'
-        : '/dashboard';
+        if (user.role === 'student') {
+          // Check if onboarding is completed
+          const onboardingCompleted = user.onboardingCompleted !== false; // Default to true if not specified
+          targetPath = onboardingCompleted ? '/student/dashboard' : '/onboarding';
+        } else {
+          targetPath = user.role === 'admin' ? '/admin/dashboard' 
+          : user.role === 'coach' ? '/coach/dashboard'
+          : '/dashboard';
+        }
       }
       
       console.log('🔐 Navigating to:', targetPath);
@@ -725,6 +730,16 @@ export const AuthProvider = ({ children }) => {
         });
       } else {
         throw new Error('Invalid registration data');
+      }
+      
+      // Check if email confirmation is required
+      if (response.data.success && response.data.requiresEmailConfirmation) {
+        // Account created but email confirmation required
+        const userEmail = response.data.user?.email || userData.email;
+        if (navigate) {
+          navigate(`/registration/success?email=${encodeURIComponent(userEmail)}`);
+        }
+        return { success: true, requiresEmailConfirmation: true };
       }
       
       // Check if the response has the expected structure

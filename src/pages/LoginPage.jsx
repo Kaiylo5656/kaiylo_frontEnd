@@ -20,12 +20,14 @@ const LoginPage = () => {
   const urlError = searchParams.get('error');
   const displayError = authError || urlError;
 
-  const getTargetPath = (role) => {
+  const getTargetPath = (role, onboardingCompleted) => {
     switch (role) {
       case 'coach':
         return '/coach/dashboard';
       case 'student':
-        return '/student/dashboard';
+        // Check if onboarding is completed
+        const isOnboardingCompleted = onboardingCompleted !== false; // Default to true if not specified
+        return isOnboardingCompleted ? '/student/dashboard' : '/onboarding';
       case 'admin':
         return '/admin/dashboard';
       default:
@@ -35,7 +37,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(getTargetPath(user.role), { replace: true });
+      navigate(getTargetPath(user.role, user.onboardingCompleted), { replace: true });
     }
   }, [loading, user, navigate]);
 
