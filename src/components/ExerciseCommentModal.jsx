@@ -95,7 +95,7 @@ const ExerciseCommentModal = ({
               value={comment}
               onChange={handleCommentChange}
               placeholder="Ajouter un commentaire..."
-              className="w-full h-24 bg-transparent border-none outline-none resize-none text-white text-xs font-light placeholder:text-gray-400 leading-relaxed focus:outline-none"
+              className="w-full h-24 bg-transparent border-none outline-none resize-none text-white text-xs font-normal placeholder:text-gray-400 leading-relaxed focus:outline-none"
               autoFocus
             />
           </div>

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Send } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { buildApiUrl } from '../config/api';
 import axios from 'axios';
@@ -126,8 +125,12 @@ export default function FeedbackModal({ isOpen, onClose }) {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
           {success ? (
             <div className="text-center py-8">
-              <div className="text-green-500 text-4xl mb-4">✅</div>
-              <p className="text-white text-sm font-light">Merci ! Votre feedback a été envoyé.</p>
+              <div className="flex justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-12 h-12" fill="currentColor" style={{ color: '#10b981' }}>
+                  <path d="M256 512a256 256 0 1 1 0-512 256 256 0 1 1 0 512zM374 145.7c-10.7-7.8-25.7-5.4-33.5 5.3L221.1 315.2 169 263.1c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l72 72c5 5 11.8 7.5 18.8 7s13.4-4.1 17.5-9.8L379.3 179.2c7.8-10.7 5.4-25.7-5.3-33.5z"/>
+                </svg>
+              </div>
+              <p className="text-sm font-normal" style={{ color: '#10b981' }}>Merci ! Votre feedback a été envoyé.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -296,10 +299,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     {isSubmitting ? (
                       'Envoi...'
                     ) : (
-                      <>
-                        <Send size={16} />
-                        Envoyer
-                      </>
+                      'Envoyer'
                     )}
                   </button>
                 </div>

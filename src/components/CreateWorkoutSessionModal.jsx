@@ -1234,7 +1234,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           e.currentTarget.blur();
                         }
                       }}
-                      className={`flex items-center flex-1 py-1 px-2 rounded-lg border-0 cursor-pointer transition-colors ${
+                      className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors ${
                         replacingExerciseIndex === exerciseIndex 
                           ? 'bg-[rgba(255,255,255,0.10)]' 
                           : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
@@ -1276,12 +1276,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
                             : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
                         }`}
-                        title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RIR"}
+                        title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3.5 h-3.5 flex-shrink-0 fill-current">
                           <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"/>
                         </svg>
-                        <span>{exercise.useRir ? 'RIR' : 'Charge'}</span>
+                        <span>{exercise.useRir ? 'RPE' : 'Charge'}</span>
                       </button>
                     </div>
                     <div className="flex items-center gap-0 px-0">
@@ -1332,7 +1332,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           <thead className="sticky top-0 z-10">
                             <tr className="text-white/50 text-xs font-extralight">
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RIR' : 'Charge'}</th>
+                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Reps</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
                               <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
@@ -1370,7 +1370,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       onChange={(e) => {
                                         let value = e.target.value;
                                         if (exercise.useRir) {
-                                          // En mode RIR, seulement des nombres entiers (pas de virgule/point)
+                                          // En mode RPE, seulement des nombres entiers (pas de virgule/point)
                                           // Limité à 2 chiffres maximum (99)
                                           value = value.replace(/[,.]/g, '');
                                           if (value === '' || value === '-') {
@@ -1867,7 +1867,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 onClick={handleSaveDraft}
                 className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
               >
-                Enregistrer comme brouillon
+                Publier comme brouillon
               </button>
               <button
                 type="button"

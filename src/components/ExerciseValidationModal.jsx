@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, MessageCircle, Info } from 'lucide-react';
+import { X } from 'lucide-react';
 import ExerciseCommentModal from './ExerciseCommentModal';
 import ExerciseInfoModal from './ExerciseInfoModal';
 
@@ -82,10 +82,26 @@ const ExerciseValidationModal = ({
     
     // Vérifier si l'exercice a des instructions (non vides)
     const hasInstructions = exercise.instructions && 
+      typeof exercise.instructions === 'string' &&
       exercise.instructions.trim().length > 0;
     
-    // L'exercice a des informations seulement s'il a des instructions
-    return hasInstructions;
+    // Vérifier si l'exercice a une description (non vide)
+    const hasDescription = exercise.description && 
+      typeof exercise.description === 'string' &&
+      exercise.description.trim().length > 0;
+    
+    // Vérifier si l'exercice a une vidéo démo
+    const hasVideo = exercise.demoVideoURL && 
+      typeof exercise.demoVideoURL === 'string' &&
+      exercise.demoVideoURL.trim().length > 0;
+    
+    // Vérifier si l'exercice a un exerciseId (permet de récupérer les instructions depuis l'API)
+    // Si l'exercice a un exerciseId, il peut avoir des instructions dans la base de données
+    const hasExerciseId = exercise.exerciseId || exercise.exercise_id;
+    
+    // L'exercice a des informations s'il a des instructions/description, une vidéo, ou un exerciseId
+    // (car ExerciseInfoModal peut récupérer les instructions depuis l'API via l'exerciseId)
+    return (hasInstructions || hasDescription) || hasVideo || !!hasExerciseId;
   };
 
   const exerciseHasInfo = hasExerciseInfo();
@@ -695,14 +711,19 @@ const ExerciseValidationModal = ({
                     ? "Voir les instructions et la vidéo de l'exercice" 
                     : "Aucune information disponible pour cet exercice"}
                 >
-                  <Info 
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 512 512"
                     className={`w-5 h-5 ${
                       exerciseHasInfo 
                         ? 'text-[#d4845a]' 
                         : 'text-white/25'
-                    }`} 
-                    strokeWidth={1.5} 
-                  />
+                    }`}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/>
+                  </svg>
                 </button>
                 <button
                   onClick={(e) => {
@@ -712,10 +733,15 @@ const ExerciseValidationModal = ({
                   className="cursor-pointer relative w-5 h-5 flex items-center justify-center hover:opacity-80 transition-opacity"
                   title="Ajouter un commentaire pour le coach"
                 >
-                  <MessageCircle 
-                    className={`w-5 h-5 ${studentComment ? 'text-[#d4845a]' : 'text-white/25'}`} 
-                    strokeWidth={1.5}
-                  />
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 512 512"
+                    className={`w-5 h-5 ${studentComment ? 'text-[#d4845a]' : 'text-white/25'}`}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
+                  </svg>
                 </button>
               </div>
             </div>
@@ -748,7 +774,7 @@ const ExerciseValidationModal = ({
             <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
               <div className="flex items-center w-full gap-3">
                 <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                  <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RIR' : 'Charge (kg)'}</p>
+                  <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RPE' : 'Charge'}</p>
                 </div>
                 <div className="w-[40px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>
@@ -790,7 +816,7 @@ const ExerciseValidationModal = ({
                   <div className="flex items-center w-full gap-3">
                     {/* Colonne Charge - Centrée */}
                     <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                      <span className="text-[15px] text-[#d4845a] leading-none">{weight}</span>
+                      <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{weight}<span className="text-[12px] font-normal">kg</span></span>
                     </div>
                     {/* Colonne Rep - Centrée */}
                     <div className="w-[40px] flex justify-center items-center flex-shrink-0">
@@ -847,17 +873,17 @@ const ExerciseValidationModal = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!isFailed) {
+                            if (isCompleted) {
                               handleRpeClick(setIndex);
                             }
                           }}
-                          disabled={isFailed}
+                          disabled={!isCompleted}
                           className={`bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${
-                            isFailed 
+                            !isCompleted 
                               ? 'opacity-50 cursor-not-allowed' 
                               : 'cursor-pointer hover:bg-white/10'
                           }`}
-                          title={isFailed ? "RPE non disponible pour une série en échec" : "Évaluer l'effort (RPE)"}
+                          title={!isCompleted ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
                         >
                           <span className={`text-[9px] font-medium leading-none ${
                             rpeRating ? 'text-[#d4845a]' : 'text-white/50'

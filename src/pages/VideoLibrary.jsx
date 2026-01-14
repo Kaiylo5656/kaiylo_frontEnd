@@ -38,6 +38,14 @@ const VideoLibrary = () => {
   const [folderToDelete, setFolderToDelete] = useState(null);
   const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [openVideoMenuId, setOpenVideoMenuId] = useState(null);
+  const [videoMenuPosition, setVideoMenuPosition] = useState(null);
+  const [isEditVideoModalOpen, setIsEditVideoModalOpen] = useState(false);
+  const [videoToEdit, setVideoToEdit] = useState(null);
+  const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [isDeleteVideoModalOpen, setIsDeleteVideoModalOpen] = useState(false);
+  const [videoToDelete, setVideoToDelete] = useState(null);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
   // Filter states
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -325,6 +333,91 @@ const VideoLibrary = () => {
     }
   };
 
+  // Handle delete video click - opens confirmation modal
+  const handleDeleteCoachResourceClick = (video) => {
+    setVideoToDelete(video);
+    setIsDeleteVideoModalOpen(true);
+    setOpenVideoMenuId(null);
+    setVideoMenuPosition(null);
+  };
+
+  // Delete coach resource - actual deletion
+  const handleDeleteCoachResource = async () => {
+    if (!videoToDelete) return;
+
+    setIsDeletingVideo(true);
+    try {
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        setError('Non authentifié. Veuillez vous reconnecter.');
+        setIsDeletingVideo(false);
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(buildApiUrl(`/resources/coach/${videoToDelete.id}`), { headers });
+      
+      // Remove video from list
+      setCoachResources(prev => prev.filter(v => v.id !== videoToDelete.id));
+      setIsDeleteVideoModalOpen(false);
+      setVideoToDelete(null);
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la suppression de la vidéo');
+    } finally {
+      setIsDeletingVideo(false);
+    }
+  };
+
+  // Handle edit video click
+  const handleEditVideoClick = (video) => {
+    setVideoToEdit(video);
+    setEditVideoTitle(video.title || video.fileName || '');
+    setIsEditVideoModalOpen(true);
+    setOpenVideoMenuId(null);
+    setVideoMenuPosition(null);
+  };
+
+  // Update coach resource title
+  const handleUpdateVideoTitle = async () => {
+    if (!videoToEdit || !editVideoTitle.trim()) {
+      return;
+    }
+
+    try {
+      let token = await getAuthToken();
+      if (!token) {
+        try { token = await refreshAuthToken(); } catch {}
+      }
+      if (!token) {
+        setError('Non authentifié. Veuillez vous reconnecter.');
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.patch(
+        buildApiUrl(`/resources/coach/${videoToEdit.id}`),
+        { title: editVideoTitle.trim() },
+        { headers }
+      );
+      
+      // Update video in list
+      setCoachResources(prev => prev.map(v => 
+        v.id === videoToEdit.id 
+          ? { ...v, title: editVideoTitle.trim() }
+          : v
+      ));
+      
+      setIsEditVideoModalOpen(false);
+      setVideoToEdit(null);
+      setEditVideoTitle('');
+    } catch (err) {
+      setError(err.message || 'Erreur lors de la mise à jour du titre');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'clients') {
       fetchStudentVideos();
@@ -332,6 +425,49 @@ const VideoLibrary = () => {
       fetchCoachResources();
     }
   }, [activeTab]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openVideoMenuId && !event.target.closest('.video-menu-container')) {
+        setOpenVideoMenuId(null);
+        setVideoMenuPosition(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [openVideoMenuId]);
+
+  // Close dropdown on scroll
+  useEffect(() => {
+    if (!openVideoMenuId) return;
+
+    const handleScroll = () => {
+      setOpenVideoMenuId(null);
+      setVideoMenuPosition(null);
+    };
+
+    // Listen to scroll events on window and all scrollable containers
+    window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scroll events
+    document.addEventListener('scroll', handleScroll, true);
+    
+    // Also listen to scroll events on all scrollable containers
+    const scrollableContainers = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
+    scrollableContainers.forEach(container => {
+      container.addEventListener('scroll', handleScroll, true);
+    });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      document.removeEventListener('scroll', handleScroll, true);
+      scrollableContainers.forEach(container => {
+        container.removeEventListener('scroll', handleScroll, true);
+      });
+    };
+  }, [openVideoMenuId]);
 
   // Calculate fixed widths for folder buttons to prevent size change when font-weight changes
   useLayoutEffect(() => {
@@ -1021,16 +1157,88 @@ const VideoLibrary = () => {
               )}
             </div>
             <div className="p-4 space-y-2">
-              <h3 
-                className={`font-normal text-base truncate transition-colors ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
-                style={{ color: 'var(--kaiylo-primary-hex)' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isProcessing) handleCoachResourceClick(video);
-                }}
-              >
-                {video.title || video.fileName}
-              </h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 
+                  className={`font-normal text-base truncate transition-colors flex-1 ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isProcessing) handleCoachResourceClick(video);
+                  }}
+                >
+                  {video.title || video.fileName}
+                </h3>
+                <div className="relative video-menu-container">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (openVideoMenuId === video.id) {
+                        setOpenVideoMenuId(null);
+                        setVideoMenuPosition(null);
+                      } else {
+                        setOpenVideoMenuId(video.id);
+                        const button = e.currentTarget;
+                        const rect = button.getBoundingClientRect();
+                        // Position the menu below and aligned to the right of the button, shifted 14px to the right
+                        setVideoMenuPosition({
+                          top: rect.bottom + 4,
+                          right: window.innerWidth - rect.right - 14
+                        });
+                      }
+                    }}
+                    className={`transition-colors flex items-center justify-center ${
+                      openVideoMenuId === video.id 
+                        ? 'text-[var(--kaiylo-primary-hex)]' 
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                    title="Options de la vidéo"
+                  >
+                    <MoreHorizontal className="h-[14px] w-[14px]" />
+                  </button>
+
+                  {openVideoMenuId === video.id && (
+                    <div
+                      className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
+                      style={{
+                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                        backdropFilter: 'blur(10px)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        top: videoMenuPosition?.top || 0,
+                        right: videoMenuPosition?.right || 0
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenVideoMenuId(null);
+                          setVideoMenuPosition(null);
+                          handleEditVideoClick(video);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
+                          <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z"/>
+                        </svg>
+                        Modifier
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCoachResourceClick(video);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                          <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                        </svg>
+                        Supprimer
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 200 }}>
                 {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
               </p>
@@ -1908,6 +2116,131 @@ const VideoLibrary = () => {
         video={selectedCoachResource}
         onFeedbackUpdate={handleFeedbackUpdate}
       />
+
+      {/* Edit Video Title Modal */}
+      <BaseModal
+        isOpen={isEditVideoModalOpen}
+        onClose={() => {
+          setIsEditVideoModalOpen(false);
+          setVideoToEdit(null);
+          setEditVideoTitle('');
+        }}
+        modalId="edit-video-modal"
+        zIndex={90}
+        closeOnEsc={true}
+        closeOnBackdrop={true}
+        size="md"
+        title={
+          <>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" fill="currentColor">
+              <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z"/>
+            </svg>
+            Modifier le titre
+          </>
+        }
+        titleClassName="text-xl font-normal text-white"
+      >
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+              Titre *
+            </label>
+            <input
+              type="text"
+              value={editVideoTitle}
+              onChange={(e) => setEditVideoTitle(e.target.value)}
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+              placeholder="ex: Comment effectuer un squat"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleUpdateVideoTitle();
+                }
+              }}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditVideoModalOpen(false);
+                setVideoToEdit(null);
+                setEditVideoTitle('');
+              }}
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdateVideoTitle}
+              disabled={!editVideoTitle.trim()}
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+            >
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* Delete Video Confirmation Modal */}
+      <BaseModal
+        isOpen={isDeleteVideoModalOpen}
+        onClose={() => {
+          if (!isDeletingVideo) {
+            setIsDeleteVideoModalOpen(false);
+            setVideoToDelete(null);
+          }
+        }}
+        modalId="delete-video-modal"
+        zIndex={90}
+        closeOnEsc={!isDeletingVideo}
+        closeOnBackdrop={!isDeletingVideo}
+        size="md"
+        title="Supprimer la vidéo"
+        titleClassName="text-xl font-normal text-white"
+      >
+        <div className="space-y-6">
+          {/* Warning Message */}
+          <div className="flex flex-col items-start space-y-4">
+            <div className="text-left space-y-2">
+              <p className="text-sm font-extralight text-white/70">
+                Êtes-vous sûr de vouloir supprimer {videoToDelete ? (
+                  <>la vidéo <span className="font-normal text-white">"{videoToDelete.title || videoToDelete.fileName}"</span> ?</>
+                ) : (
+                  <>cette vidéo ?</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex justify-end gap-3 pt-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDeleteVideoModalOpen(false);
+                setVideoToDelete(null);
+              }}
+              disabled={isDeletingVideo}
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteCoachResource}
+              disabled={isDeletingVideo}
+              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+            >
+              {isDeletingVideo ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
+        </div>
+      </BaseModal>
 
       {/* Delete Folder Modal */}
       <BaseModal
