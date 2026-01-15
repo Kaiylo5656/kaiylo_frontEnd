@@ -40,7 +40,8 @@ const CoachDashboard = () => {
   const [filterPendingFeedback, setFilterPendingFeedback] = useState(false);
   const [filterPendingMessages, setFilterPendingMessages] = useState(false);
   const [filterNoUpcomingSessions, setFilterNoUpcomingSessions] = useState(false);
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [isFilterDropdownOpenDesktop, setIsFilterDropdownOpenDesktop] = useState(false);
+  const [isFilterDropdownOpenMobile, setIsFilterDropdownOpenMobile] = useState(false);
   const { socket } = useSocket();
   
   // Sort state from URL
@@ -567,35 +568,77 @@ const CoachDashboard = () => {
     <div className="h-full text-foreground flex flex-col">
       <div className="flex-shrink-0 pt-3 px-6 pb-0">
         {/* Search and Filter Bar */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex flex-col gap-3 flex-1">
-            <div className="flex items-center space-x-3">
-              {/* Search Input */}
-              <div className="relative font-light">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un client"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                />
-              </div>
-              
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-3">
+          {/* Mobile: Search + Action Buttons on same line */}
+          <div className="flex flex-row items-center gap-3 md:hidden">
+            {/* Search Input */}
+            <div className="relative font-light flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Rechercher un client"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              />
+            </div>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleOpenPendingInvitationsModal}
+                className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"
+                title="View pending invitations"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 576 512" fill="currentColor" aria-hidden="true">
+                  <path d="M536.4-26.3c9.8-3.5 20.6-1 28 6.3s9.8 18.2 6.3 28l-178 496.9c-5 13.9-18.1 23.1-32.8 23.1-14.2 0-27-8.6-32.3-21.7l-64.2-158c-4.5-11-2.5-23.6 5.2-32.6l94.5-112.4c5.1-6.1 4.7-15-.9-20.6s-14.6-6-20.6-.9L229.2 276.1c-9.1 7.6-21.6 9.6-32.6 5.2L38.1 216.8c-13.1-5.3-21.7-18.1-21.7-32.3 0-14.7 9.2-27.8 23.1-32.8l496.9-178z"/>
+                </svg>
+              </button>
+              <button 
+                onClick={handleOpenInviteModal}
+                className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-normal p-2.5 rounded-[8px] transition-colors flex items-center justify-center"
+                title="Nouveau"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
+                  <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop: Search + Filters */}
+          <div className="hidden md:flex flex-col md:flex-row gap-3 flex-1 order-2 md:order-1">
+            {/* Search Input */}
+            <div className="relative font-light w-full md:w-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Rechercher un client"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              />
+            </div>
+            
+            {/* Filters and Sort - Desktop only, inline with search */}
+            <div className="flex flex-row items-center gap-3">
               {/* Filters Button with Dropdown */}
-              <DropdownMenu open={isFilterDropdownOpen} onOpenChange={setIsFilterDropdownOpen} modal={false}>
+              <DropdownMenu open={isFilterDropdownOpenDesktop} onOpenChange={setIsFilterDropdownOpenDesktop} modal={false}>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
-                      isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
+                    className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none ${
+                      isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
                     }`}
                     style={{
-                      backgroundColor: isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                      color: isFilterDropdownOpen || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
+                      backgroundColor: isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
                     }}
                     title="Filtres"
                   >
@@ -608,15 +651,13 @@ const CoachDashboard = () => {
                         {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
                       </span>
                     )}
-                    <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpenDesktop ? 'rotate-180' : ''}`} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   side="bottom"
                   align="start"
                   sideOffset={8}
-                  alignOffset={-15}
-                  disablePortal={true}
                   className="w-56 rounded-xl p-1"
                   style={{
                     backgroundColor: 'rgba(0, 0, 0, 0.75)',
@@ -774,7 +815,7 @@ const CoachDashboard = () => {
               {selectedStudents.size > 0 && (
                 <button 
                   onClick={handleDeleteSelected}
-                  className="flex items-center gap-[10px] bg-white/[0.03] border-[0.5px] border-white/0 px-[15px] py-[8px] rounded-[25px] hover:bg-white/[0.05] transition-colors"
+                  className="flex items-center justify-center md:justify-start gap-[10px] bg-white/[0.03] border-[0.5px] border-white/0 px-[15px] py-[8px] rounded-[25px] hover:bg-white/[0.05] transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-[16px] w-[16px] text-[#d4845a]">
                     <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
@@ -785,8 +826,194 @@ const CoachDashboard = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center space-x-3">
+          {/* Filters and Sort - Mobile only, below search row */}
+          <div className="flex md:hidden flex-row items-center gap-3">
+            {/* Filters Button with Dropdown */}
+            <DropdownMenu open={isFilterDropdownOpenMobile} onOpenChange={setIsFilterDropdownOpenMobile}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center flex-1 ${
+                    isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
+                  }`}
+                  style={{
+                    backgroundColor: isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    color: isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
+                  }}
+                  title="Filtres"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                    <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
+                  </svg>
+                  <span>Filtres</span>
+                  {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
+                    <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                      {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpenMobile ? 'rotate-180' : ''}`} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="bottom"
+                align="start"
+                sideOffset={8}
+                disablePortal={true}
+                className="w-56 rounded-xl p-1"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(10px)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                <div 
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    filterPendingFeedback 
+                      ? 'bg-primary/20 text-primary font-normal' 
+                      : 'font-light'
+                  }`}
+                  style={
+                    !filterPendingFeedback 
+                      ? {}
+                      : {}
+                  }
+                  onMouseEnter={(e) => {
+                    if (!filterPendingFeedback) {
+                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '#D48459';
+                        span.style.fontWeight = '400';
+                      }
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!filterPendingFeedback) {
+                      e.currentTarget.style.backgroundColor = '';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '';
+                        span.style.fontWeight = '';
+                      }
+                    }
+                  }}
+                  onClick={() => setFilterPendingFeedback(!filterPendingFeedback)}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    filterPendingFeedback 
+                      ? 'bg-[#d4845a] border-[#d4845a]' 
+                      : 'bg-transparent border-white/20'
+                  }`}>
+                    {filterPendingFeedback && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>Feedback en attente</span>
+                </div>
+                
+                <div 
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    filterPendingMessages 
+                      ? 'bg-primary/20 text-primary font-normal' 
+                      : 'font-light'
+                  }`}
+                  onMouseEnter={(e) => {
+                    if (!filterPendingMessages) {
+                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '#D48459';
+                        span.style.fontWeight = '400';
+                      }
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!filterPendingMessages) {
+                      e.currentTarget.style.backgroundColor = '';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '';
+                        span.style.fontWeight = '';
+                      }
+                    }
+                  }}
+                  onClick={() => setFilterPendingMessages(!filterPendingMessages)}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    filterPendingMessages 
+                      ? 'bg-[#d4845a] border-[#d4845a]' 
+                      : 'bg-transparent border-white/20'
+                  }`}>
+                    {filterPendingMessages && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>Messages en attente</span>
+                </div>
+                
+                <div 
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    filterNoUpcomingSessions 
+                      ? 'bg-primary/20 text-primary font-normal' 
+                      : 'font-light'
+                  }`}
+                  onMouseEnter={(e) => {
+                    if (!filterNoUpcomingSessions) {
+                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '#D48459';
+                        span.style.fontWeight = '400';
+                      }
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!filterNoUpcomingSessions) {
+                      e.currentTarget.style.backgroundColor = '';
+                      const span = e.currentTarget.querySelector('span');
+                      if (span) {
+                        span.style.color = '';
+                        span.style.fontWeight = '';
+                      }
+                    }
+                  }}
+                  onClick={() => setFilterNoUpcomingSessions(!filterNoUpcomingSessions)}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    filterNoUpcomingSessions 
+                      ? 'bg-[#d4845a] border-[#d4845a]' 
+                      : 'bg-transparent border-white/20'
+                  }`}>
+                    {filterNoUpcomingSessions && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>Aucune séance à venir</span>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Sort Control - Mobile */}
+            <SortControl 
+              sort={sort} 
+              dir={dir} 
+              onChange={handleSortChange}
+              sortOptions={[
+                { value: 'joinedAt', dir: 'asc', label: 'Arrivée (Plus ancien)' },
+                { value: 'joinedAt', dir: 'desc', label: 'Arrivée (Plus récent)' },
+                { value: 'name', dir: 'asc', label: 'Nom (A–Z)' },
+                { value: 'name', dir: 'desc', label: 'Nom (Z–A)' }
+              ]}
+            />
+          </div>
+
+          {/* Action Buttons - Desktop: Right side */}
+          <div className="hidden md:flex items-center space-x-3 order-3">
             <button 
               onClick={handleOpenPendingInvitationsModal}
               className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"
@@ -818,12 +1045,12 @@ const CoachDashboard = () => {
             <div className={`flex flex-col ${filteredStudents.length === 0 && !loading ? 'w-full min-h-full justify-center' : 'gap-[7px]'}`}>
           {/* Header */}
           {!loading && filteredStudents.length > 0 && (
-            <div className="w-full h-[40px] rounded-[16px] grid grid-cols-[1fr_auto] items-center px-9 gap-8">
+            <div className="w-full h-[40px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 md:gap-8">
               {/* Checkbox & Name Group */}
-              <div className="flex items-center gap-6 min-w-0">
+              <div className="flex items-center gap-4 md:gap-6 min-w-0 flex-1">
                 {/* Select All Checkbox */}
                 <div 
-                  className="shrink-0"
+                  className="shrink-0 hidden md:block"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSelectAll();
@@ -845,7 +1072,7 @@ const CoachDashboard = () => {
                 </div>
 
                 {/* Avatar placeholder (transparent) to match student row */}
-                <div className="w-[42px] h-[42px] shrink-0 opacity-0"></div>
+                <div className="w-[42px] h-[42px] shrink-0 opacity-0 hidden md:block"></div>
                 
                 {/* Clients text */}
                 <span className="text-[12px] text-white/50 font-light">
@@ -853,14 +1080,14 @@ const CoachDashboard = () => {
                 </span>
                 {/* Selection Info */}
                 {selectedStudents.size > 0 && (
-                  <span className="text-[12px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  <span className="text-[12px] font-normal hidden md:inline" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                     {selectedStudents.size} sélectionné{selectedStudents.size > 1 ? 's' : ''}
                   </span>
                 )}
               </div>
 
               {/* Activity / Messages Center Section Header */}
-              <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
+              <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
                 {/* Feedback en attente Text */}
                 <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
                   Feedback en attente
@@ -940,7 +1167,7 @@ const CoachDashboard = () => {
             filteredStudents.map((student) => (
               <div 
                 key={student.id} 
-                className={`group relative w-full h-[60px] rounded-[16px] grid grid-cols-[1fr_auto] items-center px-9 gap-8 cursor-pointer transition-all duration-200 ${
+                className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 md:gap-8 cursor-pointer transition-all duration-200 ${
                   selectedStudents.has(student.id) 
                     ? 'bg-white/10' 
                     : 'bg-white/[0.04] hover:bg-white/10'
@@ -948,48 +1175,69 @@ const CoachDashboard = () => {
                 onClick={() => handleStudentClick(student)}
               >
                 {/* Checkbox & Name Group */}
-                <div className="flex items-center gap-6 min-w-0">
-                  {/* Checkbox */}
-                  <div 
-                    className="shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectStudent(student.id);
-                    }}
-                  >
+                <div className="flex items-center gap-4 md:gap-6 min-w-0 flex-1 justify-between md:justify-start">
+                  <div className="flex items-center gap-4 md:gap-6 min-w-0">
+                    {/* Checkbox */}
                     <div 
-                      className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors ${
-                        selectedStudents.has(student.id) 
-                          ? 'bg-[#d4845a]' 
-                          : 'bg-transparent border border-white/20 group-hover:border-white/40'
-                      }`}
+                      className="shrink-0 hidden md:block"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectStudent(student.id);
+                      }}
                     >
-                      {selectedStudents.has(student.id) && (
-                        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <div 
+                        className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors ${
+                          selectedStudents.has(student.id) 
+                            ? 'bg-[#d4845a]' 
+                            : 'bg-transparent border border-white/20 group-hover:border-white/40'
+                        }`}
+                      >
+                        {selectedStudents.has(student.id) && (
+                          <svg width="16" height="16" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Avatar & Name */}
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-[42px] h-[42px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
+                        <svg 
+                          className="w-[18px] h-[18px] text-white/80" 
+                          viewBox="0 0 448 512" 
+                          fill="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
                         </svg>
-                      )}
+                      </div>
+                      <span className="text-[18px] text-white font-light truncate">{student.name}</span>
                     </div>
                   </div>
 
-                  {/* Avatar & Name */}
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-[42px] h-[42px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
-                      <svg 
-                        className="w-[18px] h-[18px] text-white/80" 
-                        viewBox="0 0 448 512" 
-                        fill="currentColor"
-                        xmlns="http://www.w3.org/2000/svg"
+                  {/* Feedback Badge - Mobile only */}
+                  <div className="md:hidden flex items-center justify-center">
+                    {(studentVideoCounts[student.id] || 0) > 0 && (
+                      <div 
+                        className="h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer hover:bg-[#d4845a]/90"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStudent(student);
+                          setSelectedStudentInitialTab('analyse');
+                        }}
+                        title="Voir les vidéos en attente de feedback"
                       >
-                        <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
-                      </svg>
-                    </div>
-                    <span className="text-[18px] text-white font-light truncate">{student.name}</span>
+                        <span className="text-[13px] text-white font-normal leading-none">
+                          {studentVideoCounts[student.id] || 0}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Activity / Messages Center Section */}
-                <div className="flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
+                <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
                   {/* Count Badge - Always displayed */}
                   <div className="w-[111px] flex items-center justify-center">
                     <div 

@@ -47,7 +47,7 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <button
-          className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
+          className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none ${
             isActive ? 'bg-primary/90' : ''
           }`}
           style={{
@@ -68,8 +68,6 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
         side="bottom"
         align="start"
         sideOffset={8}
-        alignOffset={-15}
-        disablePortal={true}
         className="w-56 rounded-xl [&_span.absolute.left-2]:hidden transition-all duration-200 ease-out"
         style={{
           backgroundColor: 'rgba(0, 0, 0, 0.75)',

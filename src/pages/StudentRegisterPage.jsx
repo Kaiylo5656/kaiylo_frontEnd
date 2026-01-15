@@ -27,11 +27,20 @@ const StudentRegisterPage = () => {
     formState: { errors, dirtyFields },
     setError,
     setValue,
-    reset
+    reset,
+    trigger
   } = useForm();
 
   // Watch password for confirmation validation
   const password = watch('password');
+  const confirmPassword = watch('confirmPassword');
+
+  // Trigger validation of confirmPassword when password changes
+  useEffect(() => {
+    if (confirmPassword) {
+      trigger('confirmPassword');
+    }
+  }, [password, trigger, confirmPassword]);
 
   // Reset form when component unmounts or navigates away
   useEffect(() => {
@@ -82,6 +91,16 @@ const StudentRegisterPage = () => {
     setIsLoading(true);
     
     try {
+      // Validate that passwords match
+      if (data.password !== data.confirmPassword) {
+        setError('confirmPassword', {
+          type: 'manual',
+          message: 'Les mots de passe ne correspondent pas'
+        });
+        setIsLoading(false);
+        return;
+      }
+
       // Combine firstName and lastName into name for backend
       const fullName = `${data.firstName} ${data.lastName}`.trim();
 

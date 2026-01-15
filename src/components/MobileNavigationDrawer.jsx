@@ -1,21 +1,17 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Logo from './Logo';
 import { 
-  Users, 
-  Dumbbell, 
-  Video, 
-  MessageSquare, 
-  FileText, 
-  DollarSign,
   LogOut,
   ChevronRight
 } from 'lucide-react';
+import useSocket from '../hooks/useSocket';
+import { buildApiUrl } from '../config/api';
 
-// Custom User Icon Component
-const UserIcon = ({ className, style }) => (
+// Custom Users Icon Component (Font Awesome) - same as Navigation.jsx
+const UsersIcon = ({ className, style }) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
     viewBox="0 0 640 640"
@@ -23,12 +19,12 @@ const UserIcon = ({ className, style }) => (
     style={style}
     fill="currentColor"
   >
-    <path d="M320 312C386.3 312 440 258.3 440 192C440 125.7 386.3 72 320 72C253.7 72 200 125.7 200 192C200 258.3 253.7 312 320 312zM290.3 368C191.8 368 112 447.8 112 546.3C112 562.7 125.3 576 141.7 576L498.3 576C514.7 576 528 562.7 528 546.3C528 447.8 448.2 368 349.7 368L290.3 368z"/>
+    <path d="M320 80C377.4 80 424 126.6 424 184C424 241.4 377.4 288 320 288C262.6 288 216 241.4 216 184C216 126.6 262.6 80 320 80zM96 152C135.8 152 168 184.2 168 224C168 263.8 135.8 296 96 296C56.2 296 24 263.8 24 224C24 184.2 56.2 152 96 152zM0 480C0 409.3 57.3 352 128 352C140.8 352 153.2 353.9 164.9 357.4C132 394.2 112 442.8 112 496L112 512C112 523.4 114.4 534.2 118.7 544L32 544C14.3 544 0 529.7 0 512L0 480zM521.3 544C525.6 534.2 528 523.4 528 512L528 496C528 442.8 508 394.2 475.1 357.4C486.8 353.9 499.2 352 512 352C582.7 352 640 409.3 640 480L640 512C640 529.7 625.7 544 608 544L521.3 544zM472 224C472 184.2 504.2 152 544 152C583.8 152 616 184.2 616 224C616 263.8 583.8 296 544 296C504.2 296 472 263.8 472 224zM160 496C160 407.6 231.6 336 320 336C408.4 336 480 407.6 480 496L480 512C480 529.7 465.7 544 448 544L192 544C174.3 544 160 529.7 160 512L160 496z"/>
   </svg>
 );
 
-// Custom Payment Icon Component
-const PaymentIcon = ({ className, style }) => (
+// Custom Dumbbell Icon Component (Font Awesome) - same as Navigation.jsx
+const DumbbellIcon = ({ className, style }) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
     viewBox="0 0 640 640"
@@ -36,12 +32,12 @@ const PaymentIcon = ({ className, style }) => (
     style={style}
     fill="currentColor"
   >
-    <path d="M64 192L64 224L576 224L576 192C576 156.7 547.3 128 512 128L128 128C92.7 128 64 156.7 64 192zM64 272L64 448C64 483.3 92.7 512 128 512L512 512C547.3 512 576 483.3 576 448L576 272L64 272zM128 424C128 410.7 138.7 400 152 400L200 400C213.3 400 224 410.7 224 424C224 437.3 213.3 448 200 448L152 448C138.7 448 128 437.3 128 424zM272 424C272 410.7 282.7 400 296 400L360 400C373.3 400 384 410.7 384 424C384 437.3 373.3 448 360 448L296 448C282.7 448 272 437.3 272 424z"/>
+    <path d="M96 176C96 149.5 117.5 128 144 128C170.5 128 192 149.5 192 176L192 288L448 288L448 176C448 149.5 469.5 128 496 128C522.5 128 544 149.5 544 176L544 192L560 192C586.5 192 608 213.5 608 240L608 288C625.7 288 640 302.3 640 320C640 337.7 625.7 352 608 352L608 400C608 426.5 586.5 448 560 448L544 448L544 464C544 490.5 522.5 512 496 512C469.5 512 448 490.5 448 464L448 352L192 352L192 464C192 490.5 170.5 512 144 512C117.5 512 96 490.5 96 464L96 448L80 448C53.5 448 32 426.5 32 400L32 352C14.3 352 0 337.7 0 320C0 302.3 14.3 288 32 288L32 240C32 213.5 53.5 192 80 192L96 192L96 176z"/>
   </svg>
 );
 
-// Custom Settings Icon Component
-const SettingsIcon = ({ className, style }) => (
+// Custom Video Icon Component (Font Awesome) - same as Navigation.jsx
+const VideoIcon = ({ className, style }) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
     viewBox="0 0 640 640"
@@ -49,11 +45,24 @@ const SettingsIcon = ({ className, style }) => (
     style={style}
     fill="currentColor"
   >
-    <path d="M259.1 73.5C262.1 58.7 275.2 48 290.4 48L350.2 48C365.4 48 378.5 58.7 381.5 73.5L396 143.5C410.1 149.5 423.3 157.2 435.3 166.3L503.1 143.8C517.5 139 533.3 145 540.9 158.2L570.8 210C578.4 223.2 575.7 239.8 564.3 249.9L511 297.3C511.9 304.7 512.3 312.3 512.3 320C512.3 327.7 511.8 335.3 511 342.7L564.4 390.2C575.8 400.3 578.4 417 570.9 430.1L541 481.9C533.4 495 517.6 501.1 503.2 496.3L435.4 473.8C423.3 482.9 410.1 490.5 396.1 496.6L381.7 566.5C378.6 581.4 365.5 592 350.4 592L290.6 592C275.4 592 262.3 581.3 259.3 566.5L244.9 496.6C230.8 490.6 217.7 482.9 205.6 473.8L137.5 496.3C123.1 501.1 107.3 495.1 99.7 481.9L69.8 430.1C62.2 416.9 64.9 400.3 76.3 390.2L129.7 342.7C128.8 335.3 128.4 327.7 128.4 320C128.4 312.3 128.9 304.7 129.7 297.3L76.3 249.8C64.9 239.7 62.3 223 69.8 209.9L99.7 158.1C107.3 144.9 123.1 138.9 137.5 143.7L205.3 166.2C217.4 157.1 230.6 149.5 244.6 143.4L259.1 73.5zM320.3 400C364.5 399.8 400.2 363.9 400 319.7C399.8 275.5 363.9 239.8 319.7 240C275.5 240.2 239.8 276.1 240 320.3C240.2 364.5 276.1 400.2 320.3 400z"/>
+    <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z"/>
   </svg>
 );
 
-const NavLink = ({ to, icon: Icon, children, onClick, onLinkClick, disabled = false }) => {
+// Custom MessageSquare Icon Component (Font Awesome) - same as Navigation.jsx
+const MessageSquareIcon = ({ className, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 640 640"
+    className={className}
+    style={style}
+    fill="currentColor"
+  >
+    <path d="M64 416L64 192C64 139 107 96 160 96L480 96C533 96 576 139 576 192L576 416C576 469 533 512 480 512L360 512C354.8 512 349.8 513.7 345.6 516.8L230.4 603.2C226.2 606.3 221.2 608 216 608C202.7 608 192 597.3 192 584L192 512L160 512C107 512 64 469 64 416z"/>
+  </svg>
+);
+
+const NavLink = ({ to, icon: Icon, children, onClick, onLinkClick, disabled = false, badge }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
 
@@ -84,16 +93,77 @@ const NavLink = ({ to, icon: Icon, children, onClick, onLinkClick, disabled = fa
       }`}
       style={disabled ? { pointerEvents: 'none' } : {}}
     >
-      <Icon className="h-6 w-6" style={{ color: 'inherit' }} />
-      <span className="font-normal text-base" style={{ fontWeight: 300, color: 'inherit' }}>{children}</span>
+      <div className="relative flex items-center justify-center">
+        <Icon className="h-6 w-6" style={{ color: 'inherit', minWidth: '24px' }} />
+        {badge > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--kaiylo-primary-hex)] text-[9px] font-bold text-white shadow-sm ring-1 ring-background">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </div>
+      <span className="font-normal text-base flex-1 flex items-center justify-between" style={{ fontWeight: 300, color: 'inherit' }}>
+        {children}
+        {badge > 0 && (
+          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--kaiylo-primary-hex)] px-1.5 text-xs font-medium text-white">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </span>
     </Link>
   );
 };
 
 const MobileNavigationDrawer = ({ isOpen, onClose }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, getAuthToken } = useAuth();
   const navigate = useNavigate();
   const drawerRef = useRef(null);
+  const { socket } = useSocket();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = async () => {
+    if (!user) return;
+    
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const conversations = data.data || [];
+        const totalUnread = conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0);
+        setUnreadCount(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadCount();
+
+    if (socket) {
+      const handleNewMessage = () => {
+        fetchUnreadCount();
+      };
+
+      const handleMessagesRead = () => {
+        fetchUnreadCount();
+      };
+
+      socket.on('new_message', handleNewMessage);
+      socket.on('messages_read', handleMessagesRead);
+
+      return () => {
+        socket.off('new_message', handleNewMessage);
+        socket.off('messages_read', handleMessagesRead);
+      };
+    }
+  }, [user, socket, getAuthToken]);
 
   const handleLogout = () => {
     logout();
@@ -110,11 +180,10 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
   const getNavItems = () => {
     if (user?.role === 'coach') {
       return [
-        { name: 'Clients', path: '/coach/dashboard', icon: Users, onClick: handleClientsClick },
-        { name: 'Exercices', path: '/coach/exercises', icon: Dumbbell },
-        { name: 'Vidéothèque', path: '/coach/videotheque', icon: Video },
-        { name: 'Messages', path: '/chat', icon: MessageSquare },
-        { name: 'Suivi Financier', path: '/coach/financial', icon: FileText },
+        { name: 'Clients', path: '/coach/dashboard', icon: UsersIcon, onClick: handleClientsClick },
+        { name: 'Exercices', path: '/coach/exercises', icon: DumbbellIcon },
+        { name: 'Vidéothèque', path: '/coach/videotheque', icon: VideoIcon },
+        { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
       ];
     }
     return [];
@@ -189,19 +258,11 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
               icon={item.icon}
               onClick={item.onClick}
               onLinkClick={onClose}
+              badge={item.badge}
             >
               {item.name}
             </NavLink>
           ))}
-          <NavLink to="/profile" icon={UserIcon} onLinkClick={onClose}>
-            Profil
-          </NavLink>
-          <NavLink to="/payment" icon={PaymentIcon} onLinkClick={onClose} disabled>
-            Paiement
-          </NavLink>
-          <NavLink to="/settings" icon={SettingsIcon} onLinkClick={onClose} disabled>
-            Paramètres
-          </NavLink>
         </nav>
 
         {/* Footer with Facturation and User Info */}

@@ -323,8 +323,11 @@ const TagTypeahead = ({
                     {selectedTags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/20 rounded-full text-xs text-primary cursor-pointer hover:bg-primary/30 transition-colors group"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/20 rounded-full text-xs text-primary cursor-pointer hover:bg-primary/30 transition-colors group focus:outline-none"
                         onClick={(e) => handleTagRemove(tag, e)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                        }}
                         title="Cliquer pour supprimer"
                       >
                         {tag}
@@ -333,8 +336,13 @@ const TagTypeahead = ({
                             e.stopPropagation();
                             handleTagRemove(tag, e);
                           }}
-                          className="hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className="transition-colors opacity-70 group-hover:opacity-100 focus:outline-none"
                           type="button"
+                          tabIndex={-1}
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -429,8 +437,11 @@ const TagTypeahead = ({
               {selectedTags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded-full text-sm text-white cursor-pointer hover:bg-white/15 transition-colors group"
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-white/10 border border-white/15 rounded-full text-sm text-white cursor-pointer hover:bg-white/15 transition-colors group focus:outline-none"
                   onClick={() => handleTagRemove(tag)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
                   title="Cliquer pour supprimer ce tag"
                 >
                   {tag}
@@ -439,8 +450,13 @@ const TagTypeahead = ({
                       e.stopPropagation();
                       handleTagRemove(tag, e);
                     }}
-                    className="ml-1 hover:text-red-400 transition-colors opacity-70 group-hover:opacity-100"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    className="ml-1 transition-colors opacity-70 group-hover:opacity-100 focus:outline-none"
                     type="button"
+                    tabIndex={-1}
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />

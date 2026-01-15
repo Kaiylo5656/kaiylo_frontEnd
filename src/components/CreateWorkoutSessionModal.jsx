@@ -407,12 +407,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const lastSet = currentSets[currentSets.length - 1];
     const previousWeight = lastSet?.weight || '';
     const previousReps = lastSet?.reps || '';
+    const previousRest = lastSet?.rest || '03:00';
     
     updatedExercises[exerciseIndex].sets.push({
       serie: newSetNumber,
       weight: previousWeight,
       reps: previousReps,
-      rest: '03:00',
+      rest: previousRest,
       video: false
     });
     setExercises(updatedExercises);
@@ -608,7 +609,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         sets: ex.sets.map(set => ({
           serie: set.serie,
           weight: parseFloat(set.weight) || 0,
-          reps: parseInt(set.reps) || 0,
+          reps: (set.reps && set.reps.includes('-')) ? set.reps : (parseInt(set.reps) || 0),
           rest: set.rest,
           video: set.video
         })),
@@ -887,8 +888,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
       const result = await response.json();
       
-      // Add the new exercise to the available exercises list
-      setAvailableExercises(prev => [...prev, result.exercise]);
+      // Add the new exercise to the top of the available exercises list
+      // (it will appear at the top when no filters are active)
+      setAvailableExercises(prev => [result.exercise, ...prev]);
       
       // Close the modal
       setIsAddExerciseModalOpen(false);
@@ -1448,26 +1450,98 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     }}
                                   >
                                     <Input
-                                      type="number"
-                                      min="0"
-                                      max="99"
-                                      value={set.reps}
+                                      type="text"
+                                      value={set.reps || ''}
                                       onChange={(e) => {
                                         const inputValue = e.target.value;
-                                        // Only allow numbers and limit to 2 digits
-                                        if (inputValue === '' || inputValue === '0') {
+                                        
+                                        // Allow empty string
+                                        if (inputValue === '') {
                                           handleSetChange(exerciseIndex, setIndex, 'reps', '');
                                           return;
                                         }
-                                        const numericValue = parseInt(inputValue, 10);
-                                        if (!isNaN(numericValue) && numericValue >= 0) {
-                                          // Limit to 99 (2 digits max)
-                                          const limitedValue = Math.min(99, numericValue);
-                                          handleSetChange(exerciseIndex, setIndex, 'reps', limitedValue.toString());
+                                        
+                                        // Check if it contains a dash (range format)
+                                        if (inputValue.includes('-')) {
+                                          const parts = inputValue.split('-');
+                                          
+                                          // Only allow one dash
+                                          if (parts.length > 2) {
+                                            return; // Invalid format
+                                          }
+                                          
+                                          const firstPart = parts[0].trim();
+                                          const secondPart = parts[1]?.trim() || '';
+                                          
+                                          // Validate first part (must be a number)
+                                          if (firstPart === '' || !/^\d+$/.test(firstPart)) {
+                                            // Allow typing if user is still entering the first number
+                                            if (inputValue.endsWith('-') && /^\d+-$/.test(inputValue)) {
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', inputValue);
+                                              return;
+                                            }
+                                            return; // Invalid
+                                          }
+                                          
+                                          const firstNum = parseInt(firstPart, 10);
+                                          if (isNaN(firstNum) || firstNum < 0 || firstNum > 99) {
+                                            return; // Invalid number
+                                          }
+                                          
+                                          // If second part exists, validate it
+                                          if (secondPart !== '') {
+                                            if (!/^\d+$/.test(secondPart)) {
+                                              return; // Invalid
+                                            }
+                                            const secondNum = parseInt(secondPart, 10);
+                                            if (isNaN(secondNum) || secondNum < 0 || secondNum > 99) {
+                                              return; // Invalid number
+                                            }
+                                            // Both numbers valid, save the range
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', `${firstNum}-${secondNum}`);
+                                          } else {
+                                            // User is typing after dash, allow partial input
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', `${firstNum}-`);
+                                          }
+                                        } else {
+                                          // No dash, single number format
+                                          // Only allow digits
+                                          if (!/^\d+$/.test(inputValue)) {
+                                            return; // Invalid
+                                          }
+                                          
+                                          const numericValue = parseInt(inputValue, 10);
+                                          if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 99) {
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', numericValue.toString());
+                                          }
                                         }
                                       }}
+                                      onKeyDown={(e) => {
+                                        // Allow: digits, dash, backspace, delete, arrow keys, tab
+                                        const allowedKeys = [
+                                          'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 
+                                          'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
+                                        ];
+                                        
+                                        if (allowedKeys.includes(e.key)) {
+                                          return; // Allow these keys
+                                        }
+                                        
+                                        // Allow digits
+                                        if (/^\d$/.test(e.key)) {
+                                          return; // Allow digits
+                                        }
+                                        
+                                        // Allow dash only if there's no dash already and there's at least one digit before
+                                        if (e.key === '-' && !e.target.value.includes('-') && e.target.value.length > 0 && /^\d+$/.test(e.target.value)) {
+                                          return; // Allow dash
+                                        }
+                                        
+                                        // Block all other keys
+                                        e.preventDefault();
+                                      }}
                                       placeholder=""
-                                      className="text-white text-sm text-center h-8 w-12 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
+                                      className="text-white text-sm text-center h-8 w-16 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
                                       onFocus={(e) => {
                                         e.target.style.borderStyle = 'solid';
                                         e.target.style.borderWidth = '0.5px';

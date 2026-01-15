@@ -36,9 +36,9 @@ export const validateTagName = (normalizedName) => {
     return { isValid: false, error: 'Tag name must be 24 characters or less' };
   }
   
-  // Allow only alphanumeric characters and spaces
-  if (!/^[a-z0-9\s]+$/.test(normalizedName)) {
-    return { isValid: false, error: 'Tag name can only contain letters, numbers, and spaces' };
+  // Allow alphanumeric characters (including accented letters), spaces, and hyphens
+  if (!/^[\p{L}0-9\s-]+$/u.test(normalizedName)) {
+    return { isValid: false, error: 'Tag name can only contain letters, numbers, spaces, and hyphens' };
   }
   
   return { isValid: true };

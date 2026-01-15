@@ -324,11 +324,14 @@ const ExerciseTagTypeahead = ({
               return (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light focus:outline-none"
                   style={tagStyle}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTagRemove(tag);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                   }}
                   title="Cliquez pour supprimer ce tag"
                 >
@@ -346,8 +349,12 @@ const ExerciseTagTypeahead = ({
                       }
                     }}
                     role="button"
-                    tabIndex={0}
-                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] focus:ring-offset-1 rounded"
+                    tabIndex={-1}
+                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none rounded"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
@@ -372,11 +379,14 @@ const ExerciseTagTypeahead = ({
               return (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer group font-light focus:outline-none"
                   style={tagStyle}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleTagRemove(tag);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                   }}
                   title="Cliquez pour supprimer ce tag"
                 >
@@ -394,8 +404,12 @@ const ExerciseTagTypeahead = ({
                       }
                     }}
                     role="button"
-                    tabIndex={0}
-                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] focus:ring-offset-1 rounded"
+                    tabIndex={-1}
+                    className="ml-0.5 hover:text-[var(--kaiylo-primary-hex)] transition-colors opacity-70 group-hover:opacity-100 focus:outline-none rounded"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
                     title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
