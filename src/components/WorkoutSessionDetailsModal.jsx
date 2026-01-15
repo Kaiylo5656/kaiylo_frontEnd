@@ -130,7 +130,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                           <thead>
                             <tr className="text-gray-400 text-xs border-b border-[#262626]">
                               <th className="text-left pb-3">Série</th>
-                              <th className="text-center pb-3 font-extralight">Charge (kg)</th>
+                              <th className="text-center pb-3 font-extralight">{exercise.useRir ? 'RPE' : 'Charge (kg)'}</th>
                               <th className="text-center pb-3">Reps</th>
                               <th className="text-center pb-3">Repos</th>
                               <th className="text-center pb-3">Vidéo</th>
@@ -140,7 +140,15 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                             {exercise.sets.map((set, setIndex) => (
                               <tr key={setIndex} className="border-b border-[#262626]">
                                 <td className="py-3 text-white font-medium">{set.serie || setIndex + 1}</td>
-                                <td className="py-3 text-center text-white">{set.weight || '-'}</td>
+                                <td className="py-3 text-center text-white">
+                                  {exercise.useRir ? (
+                                    // Mode RPE : afficher le RPE demandé
+                                    set.weight || '-'
+                                  ) : (
+                                    // Mode Charge : afficher le poids avec "kg"
+                                    set.weight ? `${set.weight} kg` : '-'
+                                  )}
+                                </td>
                                 <td className="py-3 text-center text-white">{set.reps || '-'}</td>
                                 <td className="py-3 text-center text-white">{set.rest || '-'}</td>
                                 <td className="py-3 text-center">

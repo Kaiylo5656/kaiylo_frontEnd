@@ -762,9 +762,19 @@ const ExerciseValidationModal = ({
                   style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                 >
                   <div className="flex items-center w-full gap-3">
-                    {/* Colonne Charge - Centrée */}
+                    {/* Colonne Charge/RPE - Centrée */}
                     <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                      <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{weight}<span className="text-[12px] font-normal">kg</span></span>
+                      {exercise.useRir ? (
+                        // Mode RPE : afficher le RPE demandé (stocké dans set.weight en mode RPE)
+                        <span className="text-[15px] text-[#d4845a] leading-none">
+                          {weight || '-'}
+                        </span>
+                      ) : (
+                        // Mode Charge : afficher le poids en kg
+                        <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">
+                          {weight}<span className="text-[12px] font-normal">kg</span>
+                        </span>
+                      )}
                     </div>
                     {/* Colonne Rep - Centrée */}
                     <div className="w-[40px] flex justify-center items-center flex-shrink-0">
