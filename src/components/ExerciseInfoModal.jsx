@@ -195,9 +195,43 @@ const ExerciseInfoModal = ({
                   }
                 }}
                 onCanPlay={() => setIsVideoLoading(false)}
-                onError={(error) => {
-                  console.error('Video error:', error);
-                  setVideoError('Erreur lors du chargement de la vidéo');
+                onError={(e) => {
+                  const videoElement = e.target;
+                  const error = videoElement?.error;
+                  if (error) {
+                    let errorMessage = 'Erreur lors du chargement de la vidéo';
+                    switch (error.code) {
+                      case error.MEDIA_ERR_ABORTED:
+                        errorMessage = 'Le chargement de la vidéo a été interrompu';
+                        break;
+                      case error.MEDIA_ERR_NETWORK:
+                        errorMessage = 'Erreur réseau lors du chargement de la vidéo';
+                        break;
+                      case error.MEDIA_ERR_DECODE:
+                        errorMessage = 'Erreur de décodage de la vidéo';
+                        break;
+                      case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                        // Détecter si c'est un format .mov (non supporté par les navigateurs web)
+                        const videoUrl = videoElement?.src || '';
+                        if (videoUrl.toLowerCase().endsWith('.mov')) {
+                          errorMessage = 'Format .mov non supporté par le navigateur. Veuillez utiliser MP4.';
+                        } else {
+                          errorMessage = 'Format de vidéo non supporté ou URL invalide';
+                        }
+                        break;
+                      default:
+                        errorMessage = `Erreur vidéo: ${error.message || 'Erreur inconnue'}`;
+                    }
+                    console.error('Video error:', {
+                      code: error.code,
+                      message: error.message,
+                      src: videoElement?.src
+                    });
+                    setVideoError(errorMessage);
+                  } else {
+                    console.error('Video error: Unable to load video');
+                    setVideoError('Erreur lors du chargement de la vidéo');
+                  }
                   setIsVideoLoading(false);
                 }}
                 tabIndex={-1}
@@ -218,18 +252,31 @@ const ExerciseInfoModal = ({
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
                   <div className="text-red-400 text-center px-4">
                     <p className="text-sm mb-3">{videoError}</p>
-                    <button
-                      onClick={() => {
-                        setVideoError(null);
-                        setIsVideoLoading(true);
-                        if (videoRef.current) {
-                          videoRef.current.load();
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded text-sm touch-target"
-                    >
-                      Réessayer
-                    </button>
+                    {exerciseDetails?.demoVideoURL && (
+                      <div className="flex flex-col gap-2">
+                        <a
+                          href={exerciseDetails.demoVideoURL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm touch-target transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Ouvrir la vidéo dans un nouvel onglet
+                        </a>
+                        <button
+                          onClick={() => {
+                            setVideoError(null);
+                            setIsVideoLoading(true);
+                            if (videoRef.current) {
+                              videoRef.current.load();
+                            }
+                          }}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm touch-target transition-colors"
+                        >
+                          Réessayer
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

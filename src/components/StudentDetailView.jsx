@@ -2880,7 +2880,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
                             </span>
                             {' '}
-                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                            {exercise.useRir ? (
+                              <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
+                            ) : (
+                              <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
+                            )} - <span className="font-light text-white/75">{exercise.name}</span>
                           </div>
                         );
                       })}
@@ -3069,7 +3073,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
                           </span>
                           {' '}
-                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                          {exercise.useRir ? (
+                            <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
+                          ) : (
+                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
+                          )} - <span className="font-light text-white/75">{exercise.name}</span>
                         </div>
                       ))}
                       {copiedSession.session.exercises?.length > 3 && (
@@ -3323,7 +3331,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
                           </span>
                           {' '}
-                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                          {exercise.useRir ? (
+                            <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
+                          ) : (
+                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
+                          )} - <span className="font-light text-white/75">{exercise.name}</span>
                         </div>
                       ))}
                       {copiedSession.session.exercises?.length > 2 && (
@@ -4872,7 +4884,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                         {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
                                                       </span>
                                                       {' '}
-                                                      <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span> - <span className="font-light text-white/75">{exercise.name}</span>
+                                                      {exercise.useRir ? (
+                                                        <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
+                                                      ) : (
+                                                        <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
+                                                      )} - <span className="font-light text-white/75">{exercise.name}</span>
                                                     </div>
                                                   ))}
                                                   {copiedSession.session.exercises.length > 2 && (

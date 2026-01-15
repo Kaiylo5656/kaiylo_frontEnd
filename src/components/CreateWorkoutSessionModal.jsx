@@ -615,7 +615,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         })),
         notes: ex.notes,
         tempo: ex.tempo,
-        per_side: ex.per_side || false
+        per_side: ex.per_side || false,
+        useRir: ex.useRir || false
       })),
       scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,

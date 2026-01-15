@@ -914,7 +914,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   /**
-   * Build the compact summary displayed under the exercise name (e.g. "4x8 @35 kg")
+   * Build the compact summary displayed under the exercise name (e.g. "4x8 @35 kg" or "4x8 RPE 8")
    * so that we can mirror the Figma card layout.
    */
   const getExerciseSummary = (exercise) => {
@@ -928,10 +928,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const weight = firstSet?.weight;
 
     const scheme = reps ? `${totalSets}x${reps}` : `${totalSets} séries`;
-    const weightLabel =
-      weight !== undefined && weight !== null && weight !== ''
-        ? `@${weight} kg`
-        : null;
+    let weightLabel = null;
+    
+    if (weight !== undefined && weight !== null && weight !== '') {
+      if (exercise.useRir) {
+        // Mode RPE : afficher "RPE X"
+        weightLabel = `RPE ${weight}`;
+      } else {
+        // Mode Charge : afficher "@X kg"
+        weightLabel = `@${weight} kg`;
+      }
+    }
 
     return { scheme, weight: weightLabel };
   };
