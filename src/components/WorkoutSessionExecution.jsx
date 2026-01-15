@@ -14,7 +14,7 @@ import { useWorkoutSession } from './MainLayout';
 import { safeGetItem, safeSetItem, safeRemoveItem, isStorageAvailable } from '../utils/storage';
 import axios from 'axios';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
@@ -58,6 +58,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
       setIsWorkoutSessionOpen(false);
     };
   }, [setIsWorkoutSessionOpen]);
+
+  // Close completion modal when requested from parent
+  useEffect(() => {
+    if (shouldCloseCompletionModal) {
+      setIsCompletionModalOpen(false);
+    }
+  }, [shouldCloseCompletionModal]);
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
@@ -1728,14 +1735,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     
     console.log('🧹 Cleaned localStorage and localVideos after session completion');
     
-    // Ensure validation indicator is visible for at least 2 seconds
-    // This gives user feedback that validation is happening, even if it's very fast
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Close modal after successful completion
-    setIsCompletionModalOpen(false);
+    // Keep modal open - don't close it here
+    // The parent component (StudentDashboard) will handle closing this modal
+    // and opening the success modal after API call completes
     setIsValidatingSession(false);
     
+    // Call onCompleteSession - parent will handle closing modal and showing success
     onCompleteSession({
       ...session,
       completionData,
@@ -1880,6 +1885,44 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
     }
     
     setIsVideoModalOpen(false);
+  }, [currentExerciseIndex, selectedSetForVideo]);
+
+  // Handle video deletion - completely remove video from localVideos
+  const handleVideoDelete = useCallback((exerciseInfo, setInfo) => {
+    const exerciseIndex = exerciseInfo?.exerciseIndex !== undefined 
+      ? exerciseInfo.exerciseIndex 
+      : currentExerciseIndex;
+    const setIndex = setInfo?.setIndex !== undefined
+      ? setInfo.setIndex
+      : (setInfo?.setNumber ? setInfo.setNumber - 1 : (selectedSetForVideo[exerciseIndex] ?? 0));
+
+    console.log('🗑️ Deleting video for:', { exerciseIndex, setIndex });
+
+    // Remove video from localVideos completely (not just mark as 'no-video')
+    setLocalVideos(prev => {
+      return prev.filter(
+        v => !(
+          (v.exerciseIndex === exerciseIndex && v.setIndex === setIndex) ||
+          (v.exerciseInfo?.exerciseIndex === exerciseIndex && v.setInfo?.setIndex === setIndex) ||
+          (v.exerciseIndex === exerciseIndex && v.setInfo?.setIndex === setIndex)
+        )
+      );
+    });
+
+    // Remove video status from completedSets
+    setCompletedSets(prev => {
+      const key = `${exerciseIndex}-${setIndex}`;
+      const currentSetData = prev[key] || {};
+      const updatedSetData = {
+        ...currentSetData,
+        hasVideo: false,
+        videoStatus: undefined // Remove videoStatus completely
+      };
+      return {
+        ...prev,
+        [key]: updatedSetData
+      };
+    });
   }, [currentExerciseIndex, selectedSetForVideo]);
 
   // Handle back button - show warning modal before leaving
@@ -2096,7 +2139,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-0">
               {session.workout_sessions?.title || 'Séance'}
             </h1>
-            <p className="text-[10px] font-light text-white/50 mr-[30px]">
+            <p className="text-[12px] font-light text-white/50 mr-[30px]">
               Durée estimée : {estimatedDuration}
             </p>
             {/* Progress bar - Barre d'avancement de la séance */}
@@ -2318,7 +2361,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
                   transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
                   disabled:pointer-events-none disabled:opacity-50 
                   [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
-                  shadow h-9 px-4 w-full py-2 rounded-lg font-light 
+                  shadow h-9 px-4 w-full py-2 rounded-lg font-normal 
                   bg-[#e87c3e] hover:bg-[#d66d35] text-white
                 "
               >
@@ -2440,6 +2483,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession }) => {
             isOpen={isVideoModalOpen}
             onClose={() => setIsVideoModalOpen(false)}
             onUploadSuccess={handleVideoUploadSuccess}
+            onDeleteVideo={handleVideoDelete}
             exerciseInfo={{
               exerciseName: activeExercise?.name || 'Exercice',
               exerciseId: activeExercise?.exerciseId,

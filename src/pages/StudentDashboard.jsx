@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { buildApiUrl } from '../config/api';
 import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import SessionSuccessModal from '../components/SessionSuccessModal';
 
 const StudentDashboard = () => {
   const { user, getAuthToken, refreshAuthToken } = useAuth();
@@ -38,6 +39,8 @@ const StudentDashboard = () => {
   const [currentView, setCurrentView] = useState('planning'); // 'planning' or 'execution'
   const [executingSession, setExecutingSession] = useState(null);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [shouldCloseCompletionModal, setShouldCloseCompletionModal] = useState(false);
   const scrollContainerRef = useRef(null);
   const weekSwipeRef = useRef({ startX: null, startY: null });
 
@@ -62,100 +65,6 @@ const StudentDashboard = () => {
     const monthName = format(date, 'MMMM', { locale: fr });
     return monthName.charAt(0).toUpperCase() + monthName.slice(1);
   };
-
-  // Track scroll attempts when at bottom (forcing scroll)
-  const forceScrollAttempts = useRef(0);
-  const isAtBottom = useRef(false);
-  const lastScrollTop = useRef(0);
-
-  // Handle scroll to navigate to monthly view - based on forcing scroll at bottom
-  // Only active when in planning view, not in execution view
-  useEffect(() => {
-    // Don't attach scroll handlers when in execution view
-    if (currentView !== 'planning') {
-      return;
-    }
-
-    const handleScroll = (e) => {
-      // Find the scrollable container (from MainLayout)
-      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                              document.querySelector('.overflow-y-auto');
-      
-      if (!scrollContainer) return;
-      
-      const scrollTop = scrollContainer.scrollTop;
-      const scrollHeight = scrollContainer.scrollHeight;
-      const clientHeight = scrollContainer.clientHeight;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      
-      // Check if we're at or very close to the bottom (within 5px)
-      const atBottom = distanceFromBottom <= 5;
-      
-      // Check if user is trying to scroll down
-      const isScrollingDown = scrollTop >= lastScrollTop.current;
-      lastScrollTop.current = scrollTop;
-      
-      if (atBottom && isScrollingDown) {
-        // User is at bottom and trying to scroll down (forcing)
-        isAtBottom.current = true;
-        forceScrollAttempts.current += 1;
-        
-        // Require multiple force attempts (user trying to scroll when already at bottom)
-        // This indicates intentional "pull" to navigate
-        // Increased from 5 to 12 to make it less sensitive
-        if (forceScrollAttempts.current >= 12) {
-          navigate('/student/monthly');
-          forceScrollAttempts.current = 0;
-          isAtBottom.current = false;
-        }
-      } else {
-        // Reset if user scrolls away from bottom or scrolls up
-        if (!atBottom || !isScrollingDown) {
-          forceScrollAttempts.current = 0;
-          isAtBottom.current = false;
-        }
-      }
-    };
-
-    // Also handle wheel events when at bottom to detect "forcing"
-    const handleWheel = (e) => {
-      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                              document.querySelector('.overflow-y-auto');
-      
-      if (!scrollContainer) return;
-      
-      const scrollTop = scrollContainer.scrollTop;
-      const scrollHeight = scrollContainer.scrollHeight;
-      const clientHeight = scrollContainer.clientHeight;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      
-      // If at bottom and user scrolls down with wheel, count as force attempt
-      if (distanceFromBottom <= 5 && e.deltaY > 0) {
-        forceScrollAttempts.current += 1;
-        
-        // Increased from 3 to 10 to make it less sensitive
-        if (forceScrollAttempts.current >= 10) {
-          navigate('/student/monthly');
-          forceScrollAttempts.current = 0;
-        }
-      } else {
-        // Reset if not at bottom or scrolling up
-        forceScrollAttempts.current = 0;
-      }
-    };
-
-    const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                            document.querySelector('.overflow-y-auto');
-    
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-      scrollContainer.addEventListener('wheel', handleWheel, { passive: true });
-      return () => {
-        scrollContainer.removeEventListener('scroll', handleScroll);
-        scrollContainer.removeEventListener('wheel', handleWheel);
-      };
-    }
-  }, [navigate, currentView]);
 
   const week = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
@@ -420,11 +329,18 @@ const StudentDashboard = () => {
       }
 
       if (response.ok) {
+        // Call onSuccess callback if provided (to close completion modal)
+        if (session.onSuccess) {
+          session.onSuccess();
+        }
+        
         // Refresh assignments to show updated status
         await fetchAssignments();
         setCurrentView('planning');
         setExecutingSession(null);
-        alert('Séance terminée avec succès !');
+        
+        // Show success modal instead of alert
+        setIsSuccessModalOpen(true);
       } else {
         const errorData = await response.json().catch(() => ({}));
         
@@ -460,6 +376,7 @@ const StudentDashboard = () => {
           session={executingSession}
           onBack={handleBackToPlanning}
           onCompleteSession={handleCompleteSession}
+          shouldCloseCompletionModal={shouldCloseCompletionModal}
         />
       </div>
     );
@@ -587,9 +504,11 @@ const StudentDashboard = () => {
         }}
       >
         {/* Titre du mois */}
-        <h1 className="text-[28px] font-light text-center text-white mb-6">
-          {capitalizeMonth(displayMonth)}
-        </h1>
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <h1 className="text-[28px] font-light text-center text-white">
+            {capitalizeMonth(displayMonth)}
+          </h1>
+        </div>
 
         {/* Planning de la semaine - Design Figma */}
         <div 
@@ -749,7 +668,7 @@ const StudentDashboard = () => {
                         {assignment.workout_sessions?.exercises?.length || 0} exercices
                       </p>
                       <Button 
-                        className={`w-full py-2 rounded-lg font-light ${
+                        className={`w-full py-2 rounded-lg font-normal ${
                           assignment.status === 'completed'
                             ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
                             : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
@@ -821,7 +740,7 @@ const StudentDashboard = () => {
                       {assignment.workout_sessions?.exercises?.length || 0} exercices
                     </p>
                     <Button 
-                      className={`w-full py-2 rounded-lg font-light ${
+                      className={`w-full py-2 rounded-lg font-normal ${
                         assignment.status === 'completed'
                           ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
                           : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
@@ -848,6 +767,12 @@ const StudentDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Success Modal */}
+      <SessionSuccessModal 
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+      />
     </div>
   );
 };

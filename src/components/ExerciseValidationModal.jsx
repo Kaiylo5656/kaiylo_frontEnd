@@ -26,12 +26,12 @@ const ExerciseValidationModal = ({
   const [touchStart, setTouchStart] = useState({ x: null, y: null });
   const [touchEnd, setTouchEnd] = useState({ x: null, y: null });
   const [studentComment, setStudentComment] = useState(initialStudentComment);
-  const [showMissingVideoModal, setShowMissingVideoModal] = useState(false);
-  const [pendingExerciseIndex, setPendingExerciseIndex] = useState(null);
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [isRpeModalOpen, setIsRpeModalOpen] = useState(false);
   const [selectedSetForRpe, setSelectedSetForRpe] = useState(null);
+  const [swipeProgress, setSwipeProgress] = useState(0); // 0 à 1, pourcentage du swipe
+  const [swipeDirection, setSwipeDirection] = useState(null); // 'left' ou 'right'
   const modalRef = useRef(null);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
@@ -53,25 +53,6 @@ const ExerciseValidationModal = ({
     }
   }, [isRpeModalOpen]);
 
-  // Empêcher la fermeture automatique de la modal d'erreur
-  useEffect(() => {
-    if (showMissingVideoModal) {
-      // Empêcher la propagation des événements qui pourraient fermer la modal
-      const handleClickOutside = (e) => {
-        // Si on clique sur l'overlay, empêcher la fermeture
-        const target = e.target;
-        if (target && target.classList.contains('fixed') && target.classList.contains('inset-0')) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      };
-      
-      document.addEventListener('mousedown', handleClickOutside, true);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside, true);
-      };
-    }
-  }, [showMissingVideoModal]);
 
   // Minimum swipe distance (in pixels)
   const minSwipeDistance = 50;
@@ -108,87 +89,42 @@ const ExerciseValidationModal = ({
 
   if (!isOpen || !exercise) return null;
 
-  // Modal d'erreur pour vidéos manquantes
-  const MissingVideoErrorModal = () => {
-    if (!showMissingVideoModal) return null;
-
-    return createPortal(
-      <div 
-        className="fixed inset-0 z-[111] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-        onClick={(e) => {
-          // Empêcher la fermeture au clic sur l'overlay
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onKeyDown={(e) => {
-          // Empêcher la fermeture avec Escape
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-      >
-        <div 
-          className="bg-[#1b1b1b] border border-[#262626] rounded-[20px] w-[270px] flex flex-col overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="missing-video-title"
-          aria-describedby="missing-video-description"
-        >
-          {/* Content */}
-          <div className="px-[5px] pt-[17px] pb-[10px] flex flex-col gap-[15px] items-center">
-            <h2 id="missing-video-title" className="text-[17px] font-light text-[#d4845a] leading-normal text-center whitespace-pre-wrap">
-              Vidéos manquantes
-            </h2>
-            <p id="missing-video-description" className="text-[12px] font-light text-white/75 leading-normal text-center w-[227px] whitespace-pre-wrap">
-              Certaines séries demandent une vidéo.{' '}
-              Si vous quittez votre séance ne sera pas complète.
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="px-[27px] pb-[10px] flex flex-col gap-[8px]">
-            <button
-              type="button"
-              onClick={() => {
-                setShowMissingVideoModal(false);
-                // Réinitialiser l'index en attente
-                setPendingExerciseIndex(null);
-              }}
-              className="bg-[#d4845a] border-[0.5px] border-white/10 h-[25px] rounded-[5px] flex items-center justify-center px-[14px] py-[4px] transition-colors hover:bg-[#c47850]"
-            >
-              <span className="text-[10px] font-normal text-white">Rester sur la page</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowMissingVideoModal(false);
-                // Permettre le changement d'exercice si un index est en attente
-                if (pendingExerciseIndex !== null && onExerciseChange) {
-                  onExerciseChange(pendingExerciseIndex);
-                  setPendingExerciseIndex(null);
-                }
-              }}
-              className="bg-white/2 border-[0.5px] border-white/10 h-[25px] rounded-[5px] flex items-center justify-center px-[14px] py-[4px] transition-colors hover:bg-white/5"
-            >
-              <span className="text-[10px] font-normal text-white">Quitter quand même</span>
-            </button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  };
-
-  // Handle swipe detection
+  // Handle swipe detection avec preview en temps réel
   const onTouchStart = (e) => {
     setTouchEnd({ x: null, y: null });
     setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+    setSwipeProgress(0);
+    setSwipeDirection(null);
   };
 
   const onTouchMove = (e) => {
-    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+    if (!touchStart.x) return;
+    
+    const currentX = e.targetTouches[0].clientX;
+    const currentY = e.targetTouches[0].clientY;
+    setTouchEnd({ x: currentX, y: currentY });
+    
+    const distanceX = touchStart.x - currentX;
+    const distanceY = touchStart.y - currentY;
+    
+    // Seulement si le mouvement horizontal est plus important que vertical
+    if (Math.abs(distanceX) > Math.abs(distanceY)) {
+      const modalWidth = modalRef.current?.offsetWidth || 550;
+      const progress = Math.min(Math.abs(distanceX) / modalWidth, 1);
+      setSwipeProgress(progress);
+      
+      // Déterminer la direction
+      if (distanceX > 0 && exerciseIndex < allExercises.length - 1) {
+        // Swipe gauche : exercice suivant
+        setSwipeDirection('left');
+      } else if (distanceX < 0 && exerciseIndex > 0) {
+        // Swipe droite : exercice précédent
+        setSwipeDirection('right');
+      } else {
+        setSwipeDirection(null);
+        setSwipeProgress(0);
+      }
+    }
   };
 
   // Vérifier si toutes les séries avec vidéo obligatoire ont une vidéo ou "pas de vidéo"
@@ -246,31 +182,39 @@ const ExerciseValidationModal = ({
   };
 
   const onTouchEnd = () => {
-    if (!touchStart.x || !touchEnd.x || !onExerciseChange || allExercises.length === 0) return;
+    if (!touchStart.x || !touchEnd.x || !onExerciseChange || allExercises.length === 0) {
+      setSwipeProgress(0);
+      setSwipeDirection(null);
+      return;
+    }
     
     const distanceX = touchStart.x - touchEnd.x;
     const distanceY = touchStart.y - touchEnd.y;
     
-    // Only trigger swipe if horizontal movement is greater than vertical (to avoid conflicts with scrolling)
-    if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(distanceX) > minSwipeDistance) {
-      const isLeftSwipe = distanceX > minSwipeDistance;
-      const isRightSwipe = distanceX < -minSwipeDistance;
-
-      // Déterminer l'index de l'exercice cible
+    // Seuil pour déclencher le changement (30% du swipe)
+    const threshold = 0.3;
+    
+    // Only trigger swipe if horizontal movement is greater than vertical
+    if (Math.abs(distanceX) > Math.abs(distanceY) && swipeProgress > threshold) {
       let targetExerciseIndex = null;
-      if (isLeftSwipe && exerciseIndex < allExercises.length - 1) {
-        // Swipe left: go to next exercise
+      
+      if (swipeDirection === 'left' && exerciseIndex < allExercises.length - 1) {
+        // Swipe gauche : exercice suivant
         targetExerciseIndex = exerciseIndex + 1;
-      } else if (isRightSwipe && exerciseIndex > 0) {
-        // Swipe right: go to previous exercise
+      } else if (swipeDirection === 'right' && exerciseIndex > 0) {
+        // Swipe droite : exercice précédent
         targetExerciseIndex = exerciseIndex - 1;
       }
 
-      // Si un exercice cible est identifié, utiliser handleExerciseChange qui vérifie les vidéos
+      // Changer d'exercice si un index cible est identifié
       if (targetExerciseIndex !== null) {
-        handleExerciseChange(targetExerciseIndex);
+        onExerciseChange(targetExerciseIndex);
       }
     }
+    
+    // Réinitialiser le swipe
+    setSwipeProgress(0);
+    setSwipeDirection(null);
   };
 
   // Calculer la durée estimée (par exemple 15 min par exercice)
@@ -527,18 +471,6 @@ const ExerciseValidationModal = ({
     }
   };
 
-  // Fonction wrapper pour changer d'exercice avec validation des vidéos
-  const handleExerciseChange = (newExerciseIndex) => {
-    // Vérifier les vidéos manquantes avant de permettre le changement
-    if (!checkVideoRequirements()) {
-      // Stocker l'index de l'exercice cible pour permettre le changement si l'utilisateur choisit "Quitter quand même"
-      setPendingExerciseIndex(newExerciseIndex);
-      setShowMissingVideoModal(true);
-      return;
-    }
-    // Si tout est OK, changer d'exercice
-    onExerciseChange(newExerciseIndex);
-  };
 
   // Gérer la fermeture : simplement fermer le modal sans modifier l'état des sets
   const handleClose = () => {
@@ -628,20 +560,36 @@ const ExerciseValidationModal = ({
 
   return (
     <>
-      <MissingVideoErrorModal />
       {createPortal(
         <div 
           className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-[5px]"
           onClick={handleClose}
         >
       <div 
-        ref={modalRef}
-            className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] text-white rounded-[27px] w-full max-w-[550px] max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl"
+        className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] w-full max-w-[550px] max-h-[85vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
       >
+        {/* Conteneur pour le swipe avec preview */}
+        <div 
+          ref={modalRef}
+          className="relative w-full h-full"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{
+            transform: swipeProgress > 0 && swipeDirection 
+              ? `translateX(${swipeDirection === 'left' ? -swipeProgress * 100 : swipeProgress * 100}%)`
+              : 'translateX(0)',
+            transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : 'none'
+          }}
+        >
+          {/* Exercice actuel */}
+          <div 
+            className="text-white rounded-[27px] w-full max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl"
+            style={{
+              opacity: 1 - swipeProgress * 0.5
+            }}
+          >
         {/* Header avec titre */}
         <div className="px-12 pt-8 pb-0">
           <div className="mb-6">
@@ -759,7 +707,7 @@ const ExerciseValidationModal = ({
                 {coachFeedback}
               </p>
             ) : (
-              <p className="text-[10px] text-white/25 leading-normal italic">
+              <p className="text-[10px] text-white/25 leading-normal">
                 Aucun commentaire pour le moment
               </p>
             )}
@@ -1017,6 +965,66 @@ const ExerciseValidationModal = ({
               )}
             </div>
           )}
+        </div>
+          </div>
+          
+          {/* Preview de l'exercice suivant/précédent pendant le swipe */}
+          {swipeProgress > 0 && swipeDirection && (() => {
+            let previewExerciseIndex = null;
+            if (swipeDirection === 'left' && exerciseIndex < allExercises.length - 1) {
+              previewExerciseIndex = exerciseIndex + 1;
+            } else if (swipeDirection === 'right' && exerciseIndex > 0) {
+              previewExerciseIndex = exerciseIndex - 1;
+            }
+            
+            if (previewExerciseIndex === null || !allExercises[previewExerciseIndex]) return null;
+            
+            const previewExercise = allExercises[previewExerciseIndex];
+            const previewSets = previewExercise.sets || [];
+            
+            return (
+              <div 
+                className="absolute inset-0 text-white rounded-[27px] w-full max-h-[85vh] overflow-y-auto overflow-x-hidden shadow-xl bg-[#1b1b1b]"
+                style={{
+                  left: swipeDirection === 'left' ? '100%' : '-100%',
+                  transform: swipeDirection === 'left' 
+                    ? `translateX(${(1 - swipeProgress) * 100}%)` 
+                    : `translateX(${-(1 - swipeProgress) * 100}%)`,
+                  opacity: swipeProgress * 0.8
+                }}
+              >
+                {/* Header avec titre */}
+                <div className="px-12 pt-8 pb-0">
+                  <div className="mb-6">
+                    <div className="flex items-center justify-start gap-4 mb-[7px]">
+                      <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-left flex-1">
+                        {previewExercise.name}
+                      </h1>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Liste des séries (simplifiée pour la preview) */}
+                <div className="pl-6 pr-12 space-y-3 pb-6">
+                  {previewSets.map((set, setIndex) => (
+                    <div key={setIndex} className="flex items-center">
+                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setIndex + 1}</span>
+                      <div className="bg-white/10 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] flex-1 min-w-[200px] max-w-[400px]">
+                        <div className="flex items-center w-full gap-3">
+                          <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                            <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{set.weight ?? 0}<span className="text-[12px] font-normal">kg</span></span>
+                          </div>
+                          <div className="w-[40px] flex justify-center items-center flex-shrink-0">
+                            <span className="text-[15px] text-white leading-none">{set.reps || '?'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

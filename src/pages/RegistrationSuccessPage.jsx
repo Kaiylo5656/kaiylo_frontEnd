@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Mail } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Logo from '../components/Logo';
 
 const RegistrationSuccessPage = () => {
@@ -88,90 +88,76 @@ const RegistrationSuccessPage = () => {
         }}
       />
 
-      <main className="flex-grow flex items-start justify-center p-4 relative z-10 overflow-y-auto">
+      <main className="flex-grow flex items-center justify-center p-4 relative z-10 overflow-y-auto">
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
-          <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
-            <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Compte créé avec succès
-            </h1>
-
+          <div className="w-full" style={{ paddingLeft: '0px', paddingRight: '0px' }}>
             {/* Success Card */}
             <div 
-              className="w-full rounded-[20px] p-6 text-center"
+              className="w-full rounded-[20px] text-center flex flex-col items-center justify-center"
               style={{
-                backgroundColor: 'rgba(18, 18, 18, 0.85)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                padding: '32px 26px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                borderStyle: 'solid',
+                borderWidth: '1px',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'none',
+                boxShadow: 'none',
                 marginBottom: '30px'
               }}
             >
-              {/* Success Icon */}
-              <div className="flex justify-center mb-6">
-                <CheckCircle className="h-16 w-16 text-green-500" strokeWidth={1.5} />
-              </div>
-
               {/* Message */}
-              <div className="space-y-4 mb-6">
-                <p 
-                  className="text-base leading-relaxed"
-                  style={{ color: 'rgba(255, 255, 255, 0.9)' }}
-                >
-                  Votre compte a été créé avec succès.
-                </p>
+              <div className="space-y-4 mb-0">
+                <div className="flex items-center justify-center">
+                  <p 
+                    className="text-xl leading-relaxed"
+                    style={{ color: 'rgb(74, 222, 128)' }}
+                  >
+                    Votre compte a été créé avec succès !
+                  </p>
+                </div>
                 
                 <div 
-                  className="rounded-lg p-4 flex items-start gap-3"
-                  style={{
-                    backgroundColor: 'rgba(212, 132, 90, 0.1)',
-                    border: '1px solid rgba(212, 132, 90, 0.3)'
-                  }}
+                  className="rounded-lg p-0 flex items-start gap-3"
                 >
-                  <Mail 
-                    size={18} 
-                    style={{ 
-                      color: '#d4845a', 
-                      marginTop: '2px',
-                      flexShrink: 0
-                    }} 
-                  />
                   <p 
-                    className="text-sm leading-relaxed text-left"
-                    style={{ color: 'rgba(255, 255, 255, 0.9)' }}
+                    className="text-xs leading-relaxed text-center font-light"
+                    style={{ color: 'rgba(255, 255, 255, 0.75)' }}
                   >
-                    Veuillez vérifier votre boîte de réception{email ? ` (${email})` : ''} et cliquer sur le lien de confirmation pour activer votre compte avant de vous connecter.
+                    Vérifiez votre boîte de réception{email ? (
+                      <span style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}> ({email})</span>
+                    ) : ''} et confirmez votre compte.
                   </p>
                 </div>
               </div>
-
-              {/* Action Button */}
-              <div className="pt-4">
-                <Link
-                  to="/login"
-                  className="inline-block w-full"
-                >
-                  <button
-                    type="button"
-                    className="w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 hover:opacity-90"
-                    style={{
-                      backgroundColor: '#d4845a',
-                      color: '#ffffff',
-                      border: 'none'
-                    }}
-                  >
-                    Aller à la page de connexion
-                  </button>
-                </Link>
-              </div>
-
-              {/* Help Text */}
-              <p 
-                className="text-xs mt-6"
-                style={{ color: 'rgba(255, 255, 255, 0.5)' }}
-              >
-                Vous n'avez pas reçu l'email ? Vérifiez votre dossier spam ou contactez le support.
-              </p>
             </div>
+
+            {/* Action Button */}
+            <div className="pt-4">
+              <Link
+                to="/login"
+                className="inline-block w-full"
+              >
+                <button
+                  type="button"
+                  className="w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 hover:opacity-90 flex items-center justify-center gap-2"
+                  style={{
+                    color: 'var(--kaiylo-primary-hex)',
+                    border: 'none'
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Retourner à la page de connexion
+                </button>
+              </Link>
+            </div>
+
+            {/* Help Text */}
+            <p 
+              className="text-xs mt-4 font-extralight"
+              style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+            >
+              Vous n'avez pas reçu l'email ? Vérifiez votre dossier spam ou contactez le support.
+            </p>
           </div>
         </div>
       </main>

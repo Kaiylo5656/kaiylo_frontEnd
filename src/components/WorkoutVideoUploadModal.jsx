@@ -3,10 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
 import { useVideoUpload } from '../hooks/useVideoUpload';
 
-const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInfo, setInfo, existingVideo }) => {
+const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVideo, exerciseInfo, setInfo, existingVideo }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
-  const [showMissingVideoModal, setShowMissingVideoModal] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { uploadVideo, progress, status, error: uploadError, videoId, retry, reset } = useVideoUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
@@ -176,9 +175,17 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
     // Don't call onUploadSuccess or onClose here - wait for "Terminer" button
   };
 
+  const handleDeleteVideo = () => {
+    if (onDeleteVideo) {
+      onDeleteVideo(exerciseInfo, setInfo);
+      onClose();
+    }
+  };
+
   const handleSubmit = async () => {
+    // Allow closing even without video selection
     if (videoFile === null || videoFile === undefined) {
-      setShowMissingVideoModal(true);
+      onClose();
       return;
     }
 
@@ -291,31 +298,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
   };
 
   return (
-    <React.Fragment>
-       {/* Modal d'erreur pour vidéos manquantes - Same as before */}
-       <Dialog open={showMissingVideoModal} onOpenChange={setShowMissingVideoModal}>
-        <DialogContent 
-          className="!grid-cols-1 !gap-0 bg-[#1b1b1b] border-[#262626] rounded-[20px] w-[270px] flex flex-col overflow-hidden !p-0 !translate-x-[-50%] !translate-y-[-50%]"
-          overlayZIndex={96}
-          contentZIndex={111}
-        >
-          <DialogHeader className="absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0">
-            <DialogTitle>Vidéos manquantes</DialogTitle>
-          </DialogHeader>
-          <div className="px-[5px] pt-[17px] pb-[10px] flex flex-col gap-[15px] items-center">
-            <h2 className="text-[17px] font-light text-[#d4845a] leading-normal text-center whitespace-pre-wrap">Vidéos manquantes</h2>
-            <p className="text-[12px] font-light text-white/75 leading-normal text-center w-[227px] whitespace-pre-wrap">
-              Certaines séries demandent une vidéo. Si vous quittez, votre séance ne sera pas complète.
-            </p>
-          </div>
-          <div className="px-[27px] pb-[10px] flex flex-col gap-[8px]">
-            <button onClick={() => setShowMissingVideoModal(false)} className="bg-[#d4845a] border-[0.5px] border-white/10 h-[25px] rounded-[5px] flex items-center justify-center px-[14px] py-[4px] text-[10px] text-white">Rester sur la page</button>
-            <button onClick={() => { setShowMissingVideoModal(false); onClose(); }} className="bg-white/2 border-[0.5px] border-white/10 h-[25px] rounded-[5px] flex items-center justify-center px-[14px] py-[4px] text-[10px] text-white">Quitter quand même</button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="!grid-cols-1 !gap-0 bg-[#1b1b1b] border-[#262626] rounded-[20px] w-[320px] max-h-[90vh] flex flex-col overflow-hidden !p-0 !translate-x-[-50%] !translate-y-[-50%]" overlayZIndex={95} contentZIndex={110}>
           <DialogHeader className="absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0">
             <DialogTitle>Ajouter une vidéo</DialogTitle>
@@ -323,7 +306,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           </DialogHeader>
 
           <div className="px-[28px] pt-[22px] pb-0 flex flex-col gap-[9px] items-center">
-            <h2 className="text-[20px] font-light text-[#d4845a] leading-normal text-center">Ajouter une vidéo</h2>
+            <h2 className="text-[20px] font-normal text-[#d4845a] leading-normal text-center">Ajouter une vidéo</h2>
             <p className="text-[11px] font-light text-white/50 leading-normal text-center">{getExerciseSubtitle()}</p>
           </div>
 
@@ -400,21 +383,51 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
                             />
                           );
                         })()}
-                        <div className="px-[12px] py-[8px]">
-                           {typeof videoFile === 'object' ? (
-                             <>
-                               <p className="text-[11px] font-normal text-white truncate">{videoFile.name}</p>
-                               <p className="text-[9px] font-light text-white/40">{formatFileSize(videoFile.size)}</p>
-                             </>
-                           ) : (
-                             <p className="text-[11px] font-normal text-white truncate">Vidéo uploadée</p>
-                           )}
+                        <div className="px-[12px] py-[8px] flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            {typeof videoFile === 'object' ? (
+                              <>
+                                <p className="text-[11px] font-normal text-white truncate">{videoFile.name}</p>
+                                <p className="text-[9px] font-light text-white/40">{formatFileSize(videoFile.size)}</p>
+                              </>
+                            ) : (
+                              <p className="text-[11px] font-normal text-white truncate">Vidéo uploadée</p>
+                            )}
+                          </div>
+                          {onDeleteVideo && (
+                            <button
+                              type="button"
+                              onClick={handleDeleteVideo}
+                              className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-full transition-colors"
+                              title="Supprimer la vidéo"
+                              disabled={status === 'UPLOADING' || status === 'PENDING'}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-[14px] h-[14px]" fill="#d4845a">
+                                <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+                              </svg>
+                            </button>
+                          )}
                         </div>
                     </div>
                 ) : (
                     typeof videoFile === 'object' && (
-                      <div className="bg-white/5 border border-white/10 rounded-[5px] px-[12px] py-[8px]">
+                      <div className="bg-white/5 border border-white/10 rounded-[5px] px-[12px] py-[8px] flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-normal text-white truncate">{videoFile.name}</p>
+                        </div>
+                        {onDeleteVideo && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteVideo}
+                            className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-full transition-colors"
+                            title="Supprimer la vidéo"
+                            disabled={status === 'UPLOADING' || status === 'PENDING'}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-[14px] h-[14px]" fill="#d4845a">
+                              <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     )
                 )}
@@ -443,19 +456,18 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, exerciseInf
           )}
 
           <div className="px-[28px] pt-[25px] pb-[22px] flex gap-[10px] items-center justify-center">
-            <button type="button" onClick={onClose} className="bg-white/2 border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white" disabled={status === 'UPLOADING'}>Quitter</button>
+            <button type="button" onClick={onClose} className="bg-white/2 border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white" disabled={status === 'UPLOADING' || status === 'PENDING'}>Quitter</button>
             <button 
                 type="button" 
                 onClick={handleSubmit} 
                 className="bg-[#d4845a] border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white disabled:opacity-50"
-                disabled={status === 'UPLOADING' || status === 'PENDING' || !videoFile}
+                disabled={status === 'UPLOADING' || status === 'PENDING'}
             >
                 {status === 'UPLOADING' ? 'Envoi...' : (status === 'READY' || status === 'UPLOADED_RAW' || isSubmitted ? 'Terminé' : 'Terminer')}
             </button>
           </div>
         </DialogContent>
       </Dialog>
-    </React.Fragment>
   );
 };
 

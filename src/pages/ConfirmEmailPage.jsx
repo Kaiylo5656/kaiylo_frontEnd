@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { CheckCircle, XCircle } from 'lucide-react';
 
 const ConfirmEmailPage = () => {
   const [searchParams] = useSearchParams();
@@ -205,12 +205,24 @@ const ConfirmEmailPage = () => {
         }}
       />
 
-      <main className="flex-grow flex items-center justify-center p-4 relative overflow-y-auto" style={{ zIndex: 20, position: 'relative' }}>
-        <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center px-4" style={{ position: 'relative', zIndex: 21 }}>
-          <div className="w-full" style={{ position: 'relative', zIndex: 22 }}>
+      <main className="flex-grow flex items-center justify-center p-4 relative z-10 overflow-y-auto">
+        <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
+          <div className="w-full" style={{ paddingLeft: '0px', paddingRight: '0px' }}>
             
             {status === 'loading' && (
-              <div className="text-center bg-black/20 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-xl">
+              <div 
+                className="w-full rounded-[20px] text-center flex flex-col items-center justify-center"
+                style={{
+                  padding: '32px 26px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  borderStyle: 'solid',
+                  borderWidth: '1px',
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'none',
+                  boxShadow: 'none',
+                  marginBottom: '30px'
+                }}
+              >
                 <LoadingSpinner />
                 <h2 className="mt-6 text-2xl font-light text-white">
                   Confirmation en cours...
@@ -222,10 +234,19 @@ const ConfirmEmailPage = () => {
             )}
 
             {status === 'success' && (
-              <div className="text-center bg-black/20 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-xl">
-                <div className="flex justify-center mb-6">
-                  <CheckCircle className="h-16 w-16 text-green-500" strokeWidth={1.5} />
-                </div>
+              <div 
+                className="w-full rounded-[20px] text-center flex flex-col items-center justify-center"
+                style={{
+                  padding: '32px 26px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  borderStyle: 'solid',
+                  borderWidth: '1px',
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'none',
+                  boxShadow: 'none',
+                  marginBottom: '30px'
+                }}
+              >
                 <h2 className="text-2xl font-light text-white mb-4">
                   Email confirmé avec succès !
                 </h2>
@@ -237,42 +258,58 @@ const ConfirmEmailPage = () => {
                 </p>
                 <button
                   onClick={() => navigate('/login', { replace: true })}
-                  className="w-full bg-[#D48459] text-white font-light p-3 rounded-[10px] hover:bg-[#D48459]/90 transition-colors"
+                  className="w-full font-normal p-3 rounded-[10px] transition-colors flex items-center justify-center gap-2 text-center"
                   style={{
+                    color: 'var(--kaiylo-primary-hex)',
+                    background: 'unset',
+                    backgroundColor: 'unset',
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 >
+                  <ArrowLeft className="h-4 w-4" />
                   Aller à la page de connexion
                 </button>
               </div>
             )}
 
             {status === 'error' && (
-              <div className="text-center bg-black/20 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-xl">
-                <div className="flex justify-center mb-6">
-                  <XCircle className="h-16 w-16 text-red-500" strokeWidth={1.5} />
-                </div>
-                <h2 className="text-2xl font-light text-white mb-4">
-                  Erreur de confirmation
-                </h2>
-                <p className="text-white/70 font-light mb-8">
-                  {message}
-                </p>
-                <div className="space-y-4">
-                  <button
-                    onClick={() => navigate('/login', { replace: true })}
-                    className="w-full bg-[#D48459] text-white font-light p-3 rounded-[10px] hover:bg-[#D48459]/90 transition-colors"
+              <>
+                <div 
+                  className="w-full rounded-[20px] text-center flex flex-col items-center justify-center"
+                  style={{
+                    padding: '32px 26px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    borderStyle: 'solid',
+                    borderWidth: '1px',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'none',
+                    boxShadow: 'none',
+                    marginBottom: '30px'
+                  }}
+                >
+                  <h2 
+                    className="text-2xl font-normal mb-4"
+                    style={{ color: 'rgb(239, 68, 68)' }}
                   >
-                    Aller à la page de connexion
-                  </button>
-                  <button
-                    onClick={() => navigate('/register', { replace: true })}
-                    className="w-full bg-white/5 text-white font-light p-3 rounded-[10px] hover:bg-white/10 transition-colors border border-white/10"
-                  >
-                    Créer un nouveau compte
-                  </button>
+                    Erreur de confirmation
+                  </h2>
+                  <p className="text-white/70 font-light mb-0 text-sm">
+                    {message}
+                  </p>
                 </div>
-              </div>
+                <button
+                  onClick={() => navigate('/login', { replace: true })}
+                  className="w-full font-normal p-3 rounded-[10px] transition-colors flex items-center justify-center gap-2 text-center"
+                  style={{
+                    color: 'var(--kaiylo-primary-hex)',
+                    background: 'unset',
+                    backgroundColor: 'unset'
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Aller à la page de connexion
+                </button>
+              </>
             )}
 
           </div>

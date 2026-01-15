@@ -135,29 +135,6 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
               className="w-full h-24 bg-[#262626] border border-white/10 rounded-lg p-3 text-white text-xs font-normal placeholder-gray-400 resize-none focus:outline-none focus:border-[#d4845a] disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
-
-          {/* Upload Progress Indicator */}
-          {isUploading && uploadProgress && (
-            <div className="bg-[#262626] rounded-lg p-3 border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <Loader2 className="h-4 w-4 text-[#d4845a] animate-spin" />
-                <span className="text-white text-xs font-light">Upload des vidéos en cours...</span>
-              </div>
-              <div className="text-gray-400 text-xs font-light">
-                {uploadProgress.current} / {uploadProgress.total} vidéos uploadées
-              </div>
-            </div>
-          )}
-
-          {/* Validation Indicator */}
-          {isValidating && !isUploading && (
-            <div className="bg-[#262626] rounded-lg p-3 border border-white/10">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 text-[#d4845a] animate-spin" />
-                <span className="text-white text-xs font-light">Validation de la séance en cours...</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -165,12 +142,12 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
           <button
             onClick={handleComplete}
             disabled={isUploading || isValidating || !difficulty || !comment.trim()}
-            className={`flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-light text-[13px] transition-colors flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors flex items-center justify-center gap-2 ${
               (isUploading || isValidating || !difficulty || !comment.trim()) ? 'opacity-50 cursor-not-allowed bg-[var(--surface-600)] hover:bg-[var(--surface-600)]' : ''
             }`}
           >
-            {(isUploading || isValidating) && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isValidating ? 'Validation...' : 'Terminer'}
+            {(isUploading || isValidating) && <Loader2 className="h-4 w-4 animate-smooth-spin" />}
+            {(isUploading || isValidating) ? 'Validation en cours...' : 'Terminer'}
           </button>
           <button
             onClick={handleClose}
