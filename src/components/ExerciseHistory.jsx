@@ -245,7 +245,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                 align="end"
                 sideOffset={8}
                 disablePortal={true}
-                className="w-56 rounded-xl p-1"
+                className="w-56 rounded-xl px-0 py-1"
                 style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.75)',
                   backdropFilter: 'blur(10px)',
@@ -257,7 +257,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                   return (
                     <div 
                       key={athlete.id}
-                      className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                      className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-none ${
                         isSelected 
                           ? 'bg-primary/20 text-primary font-normal' 
                           : 'font-light'
@@ -355,7 +355,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
               align="end"
               sideOffset={8}
               disablePortal={true}
-              className="w-56 rounded-xl p-1"
+              className="w-56 rounded-xl px-0 py-1"
               style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                 backdropFilter: 'blur(10px)',
@@ -367,7 +367,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                 return (
                   <div 
                     key={athlete.id}
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-none ${
                       isSelected 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'

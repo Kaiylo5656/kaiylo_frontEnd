@@ -13,7 +13,7 @@ const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 const DropdownMenuGroup = React.forwardRef(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Group
     ref={ref}
-    className={cn("flex flex-col gap-[2px]", className)}
+    className={cn("flex flex-col gap-0.5 px-1 py-1", className)}
     {...props} />
 ))
 DropdownMenuGroup.displayName = DropdownMenuPrimitive.Group.displayName
@@ -25,7 +25,7 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub
 const DropdownMenuRadioGroup = React.forwardRef(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.RadioGroup
     ref={ref}
-    className={cn("flex flex-col gap-[2px]", className)}
+    className={cn("flex flex-col gap-0.5 px-1 py-1", className)}
     {...props} />
 ))
 DropdownMenuRadioGroup.displayName = DropdownMenuPrimitive.RadioGroup.displayName
@@ -64,7 +64,7 @@ const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, disab
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 flex flex-col gap-[2px]",
+        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-0 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 flex flex-col gap-[2px]",
         className
       )}
       {...props} />
@@ -78,7 +78,7 @@ const DropdownMenuItem = React.forwardRef(({ className, inset, ...props }, ref) 
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal",
+      "relative flex cursor-default select-none items-center rounded-none px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal",
       inset && "pl-8",
       className
     )}
@@ -90,7 +90,7 @@ const DropdownMenuCheckboxItem = React.forwardRef(({ className, children, checke
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
       className
     )}
     checked={checked}
@@ -110,7 +110,7 @@ const DropdownMenuRadioItem = React.forwardRef(({ className, children, ...props 
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light",
+      "relative flex cursor-default select-none items-center rounded-md gap-0.5 py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
       className
     )}
     {...props}>

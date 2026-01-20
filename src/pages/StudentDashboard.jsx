@@ -495,7 +495,7 @@ const StudentDashboard = () => {
         }}
       />
       <div 
-        className="px-10 pt-6 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center"
+        className="px-10 pt-4 md:pt-6 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center"
         style={{ 
           scrollBehavior: 'auto',
           minHeight: '100vh',
@@ -504,15 +504,15 @@ const StudentDashboard = () => {
         }}
       >
         {/* Titre du mois */}
-        <div className="flex items-center justify-center gap-4 mb-6">
-          <h1 className="text-[28px] font-light text-center text-white">
+        <div className="flex items-center justify-center gap-4 mb-4 md:mb-6">
+          <h1 className="text-2xl md:text-[28px] font-light text-center text-white">
             {capitalizeMonth(displayMonth)}
           </h1>
         </div>
 
         {/* Planning de la semaine - Design Figma */}
         <div 
-          className="relative mb-6 -mx-10 px-5"
+          className="relative mb-6 md:mb-8 -mx-4 md:-mx-10 px-2 md:px-5"
           onTouchStart={handleWeekSwipeStart}
           onTouchMove={handleWeekSwipeMove}
           onTouchEnd={handleWeekSwipeEnd}
@@ -521,11 +521,10 @@ const StudentDashboard = () => {
             {/* Flèche gauche */}
             <button
               onClick={() => changeWeek('prev')}
-              className="flex items-center justify-center min-w-[44px] min-h-[44px] w-[44px] h-[44px] flex-shrink-0 touch-target"
+              className="flex items-center justify-center min-w-[36px] md:min-w-[44px] min-h-[36px] md:min-h-[44px] w-[36px] md:w-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pl-3 md:pl-[25px]"
               aria-label="Semaine précédente"
-              style={{ paddingLeft: '25px' }}
             >
-              <ChevronLeft className="w-5 h-5 sm:w-[17px] sm:h-[15px] text-white/50" style={{ strokeWidth: 2.5 }} />
+              <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
             
             {/* Jours de la semaine - 7 jours visibles */}
@@ -545,10 +544,10 @@ const StudentDashboard = () => {
                 const hasAssignments = totalCount > 0;
                 
                 return (
-                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '45px' }}>
+                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '40px' }}>
                     <button
                       onClick={() => setSelectedDate(day)}
-                      className={`flex flex-col items-center gap-1 px-1 sm:px-2 pt-2 pb-[10px] rounded-[7px] text-[10px] font-normal transition-colors ${
+                      className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1 sm:px-2 pt-1.5 md:pt-2 pb-[8px] md:pb-[10px] rounded-[7px] text-[9px] md:text-[10px] font-normal transition-colors ${
                         isSelected 
                           ? 'bg-[#d4845a] text-white' 
                           : hasAssignments && !allCompleted
@@ -593,11 +592,10 @@ const StudentDashboard = () => {
             {/* Flèche droite */}
             <button
               onClick={() => changeWeek('next')}
-              className="flex items-center justify-center min-w-[44px] min-h-[44px] w-[44px] h-[44px] flex-shrink-0 touch-target"
+              className="flex items-center justify-center min-w-[36px] md:min-w-[44px] min-h-[36px] md:min-h-[44px] w-[36px] md:w-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pr-3 md:pr-[25px]"
               aria-label="Semaine suivante"
-              style={{ paddingRight: '25px' }}
             >
-              <ChevronRight className="w-5 h-5 sm:w-[17px] sm:h-[15px] text-white/50" style={{ strokeWidth: 2.5 }} />
+              <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
           </div>
         </div>
@@ -605,7 +603,7 @@ const StudentDashboard = () => {
         {selectedAssignments.length > 0 ? (
           selectedAssignments.length > 1 ? (
             // Mode horizontal avec scroll pour plusieurs séances
-            <div className="w-full max-w-xl mx-auto px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
+            <div className="w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
               <div 
                 ref={scrollContainerRef}
                 className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
@@ -632,7 +630,7 @@ const StudentDashboard = () => {
               >
                 {selectedAssignments.map((assignment, index) => (
                   <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)', 
+                    backgroundColor: 'rgba(255, 255, 255, 0.07)', 
                     borderImage: 'none', 
                     borderColor: 'transparent',
                     marginBottom: '10px',
@@ -721,7 +719,7 @@ const StudentDashboard = () => {
             </div>
           ) : (
             // Mode vertical pour une seule séance
-            <div className="space-y-4 w-full max-w-xl mx-auto px-4 flex-1 flex flex-col">
+            <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
               {selectedAssignments.map((assignment, index) => (
                 <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
                   <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
@@ -766,7 +764,7 @@ const StudentDashboard = () => {
             </div>
           )
         ) : (
-          <div className="space-y-4 w-full max-w-xl mx-auto px-4 flex-1 flex flex-col">
+          <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
             <Card className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
               <CardContent className="px-4 mx-5 flex-1 flex items-center justify-center">
                 <p className="text-white/25 font-light text-sm text-center" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 100, fontSize: '13px' }}>

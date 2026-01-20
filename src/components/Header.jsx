@@ -503,7 +503,7 @@ const Header = () => {
         <Input
           type="search"
           placeholder="Search"
-          className="pl-10 border-none placeholder:text-muted-foreground rounded-[15px] font-light"
+          className="pl-10 border-none placeholder:text-muted-foreground rounded-[99px] font-light"
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
         />
       </div>

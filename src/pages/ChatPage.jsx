@@ -33,6 +33,9 @@ const ChatPage = () => {
   
   // Get studentId from URL parameters
   const studentId = searchParams.get('studentId');
+  
+  // Mobile state: show conversation list or chat window
+  const [showConversationList, setShowConversationList] = useState(true);
 
   // Fetch user's conversations
   const fetchConversations = async () => {
@@ -147,6 +150,7 @@ const ChatPage = () => {
       
       if (existingConversation) {
         setSelectedConversation(existingConversation);
+        setShowConversationList(false); // Hide list on mobile when auto-opening
       } else {
         // Create new conversation with this student
         createConversation(studentId);
@@ -184,6 +188,7 @@ const ChatPage = () => {
       });
 
       setSelectedConversation(newConversation);
+      setShowConversationList(false); // Hide list on mobile when creating new conversation
     } catch (err) {
       console.error('Error creating conversation:', err);
     }
@@ -192,6 +197,8 @@ const ChatPage = () => {
   // Handle conversation selection
   const handleSelectConversation = async (conversation) => {
     setSelectedConversation(conversation);
+    // On mobile, hide conversation list and show chat window
+    setShowConversationList(false);
     
     // Mark messages as read when conversation is selected
     // Check if there are unread messages (either via count or timestamp check)
@@ -335,8 +342,8 @@ const ChatPage = () => {
       {!loading && !error && (
         <>
       <div className="flex-1 flex overflow-hidden">
-        {/* Contact List - Desktop: Always visible, fixed width */}
-        <div className="w-80 lg:w-96 flex flex-col flex-shrink-0">
+        {/* Contact List - Mobile: Hidden when chat is open, Desktop: Always visible */}
+        <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 flex-col flex-shrink-0`}>
           <ChatList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -347,18 +354,21 @@ const ChatPage = () => {
           />
         </div>
 
-        {/* Chat Window - Desktop: Takes remaining space */}
-        <div className="flex-1 flex flex-col min-w-0 pr-6">
+        {/* Chat Window - Mobile: Hidden when list is shown, Desktop: Takes remaining space */}
+        <div className={`${selectedConversation && !showConversationList ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-w-0 md:pr-6`}>
           {selectedConversation ? (
             <ChatWindow
               conversation={selectedConversation}
               currentUser={user}
               onNewMessage={handleNewMessage}
               onMessageSent={handleMessageSent}
-              onBack={() => setSelectedConversation(null)} // Pass back handler
+              onBack={() => {
+                setSelectedConversation(null);
+                setShowConversationList(true);
+              }}
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="hidden md:flex flex-1 items-center justify-center">
               <div className="text-center">
                 <div className="w-20 h-20 mx-auto mb-2 rounded-full flex items-center justify-center">
                   <MessageSquareIcon className="w-10 h-10" style={{ color: 'rgba(255, 255, 255, 0.25)' }} />

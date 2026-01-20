@@ -247,7 +247,7 @@ const StudentHistoryPage = () => {
       />
 
       {/* Header */}
-      <div className="px-[47px] pt-[40px] pb-2 relative z-10">
+      <div className="px-[47px] pt-[40px] pb-[40px] relative z-10">
         {/* Month title and navigation */}
         <div className="flex items-center justify-center gap-4 mb-1">
           <button

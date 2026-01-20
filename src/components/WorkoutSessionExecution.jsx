@@ -776,7 +776,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return false;
   };
 
-  // Vérifier si des RPE sont manquants pour toute la séance
+  // Vérifier si des RPE ou charges sont manquants pour toute la séance
   const hasMissingRpeForSession = () => {
     if (!exercises || exercises.length === 0) {
       return false;
@@ -790,15 +790,26 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       }
 
       for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
-        // Vérifier les RPE manquants pour les sets complétés
+        // Vérifier les RPE/charges manquants pour les sets complétés
+        // Si useRir === true : vérifier la charge (studentWeight)
+        // Si useRir === false : vérifier le RPE (rpeRating)
         const status = getSetStatus(exerciseIndex, setIndex);
         if (status === 'completed') {
           const key = `${exerciseIndex}-${setIndex}`;
           const setData = completedSets[key];
-          const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
           
-          if (!hasRpe) {
-            return true;
+          if (exercise.useRir) {
+            // Si coach demande RPE : vérifier la charge (studentWeight)
+            const hasWeight = setData && typeof setData === 'object' && 'studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined && setData.studentWeight !== '';
+            if (!hasWeight) {
+              return true;
+            }
+          } else {
+            // Si coach demande charge : vérifier le RPE
+            const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
+            if (!hasRpe) {
+              return true;
+            }
           }
         }
       }
@@ -807,13 +818,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return false;
   };
 
-  // Compter les vidéos et RPE manquants pour toute la séance
+  // Compter les vidéos et RPE/charges manquants pour toute la séance
   const getMissingVideosAndRpeCount = () => {
     let missingVideosCount = 0;
     let missingRpeCount = 0;
+    let missingWeightCount = 0;
 
     if (!exercises || exercises.length === 0) {
-      return { missingVideosCount: 0, missingRpeCount: 0 };
+      return { missingVideosCount: 0, missingRpeCount: 0, missingWeightCount: 0 };
     }
 
     exercises.forEach((exercise, exerciseIndex) => {
@@ -837,21 +849,32 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           }
         }
 
-        // Compter les RPE manquants pour les sets complétés
+        // Compter les RPE/charges manquants pour les sets complétés
+        // Si useRir === true : vérifier la charge (studentWeight)
+        // Si useRir === false : vérifier le RPE (rpeRating)
         const status = getSetStatus(exerciseIndex, setIndex);
         if (status === 'completed') {
           const key = `${exerciseIndex}-${setIndex}`;
           const setData = completedSets[key];
-          const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
           
-          if (!hasRpe) {
-            missingRpeCount++;
+          if (exercise.useRir) {
+            // Si coach demande RPE : vérifier la charge (studentWeight)
+            const hasWeight = setData && typeof setData === 'object' && 'studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined && setData.studentWeight !== '';
+            if (!hasWeight) {
+              missingWeightCount++;
+            }
+          } else {
+            // Si coach demande charge : vérifier le RPE
+            const hasRpe = setData && typeof setData === 'object' && 'rpeRating' in setData && setData.rpeRating !== null && setData.rpeRating !== undefined;
+            if (!hasRpe) {
+              missingRpeCount++;
+            }
           }
         }
       });
     });
 
-    return { missingVideosCount, missingRpeCount };
+    return { missingVideosCount, missingRpeCount, missingWeightCount };
   };
   
   // Handle exercise selection - Ouvre la modale de validation
@@ -1075,6 +1098,35 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
         ? { ...currentSetData, rpeRating }
         : { rpeRating };
+      
+      return {
+        ...prev,
+        [key]: updatedSetData
+      };
+    });
+  };
+
+  // Gérer la mise à jour de la charge saisie par l'élève (quand coach demande RPE)
+  const handleWeightUpdate = (exerciseIndex, setIndex, weight) => {
+    const exercise = exercises[exerciseIndex];
+    
+    if (!exercise || !Array.isArray(exercise.sets)) {
+      return;
+    }
+
+    if (setIndex >= exercise.sets.length) {
+      return; // Invalid set index
+    }
+
+    // Mettre à jour la charge dans completedSets
+    const key = `${exerciseIndex}-${setIndex}`;
+    setCompletedSets(prev => {
+      const currentSetData = prev[key];
+      
+      // Préserver les données existantes et ajouter/mettre à jour la charge
+      const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
+        ? { ...currentSetData, studentWeight: weight }
+        : { studentWeight: weight };
       
       return {
         ...prev,
@@ -2402,14 +2454,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               Valider la séance
             </button>
             {(() => {
-              const { missingVideosCount, missingRpeCount } = getMissingVideosAndRpeCount();
-              const hasMissingItems = missingVideosCount > 0 || missingRpeCount > 0;
+              const { missingVideosCount, missingRpeCount, missingWeightCount } = getMissingVideosAndRpeCount();
+              const hasMissingItems = missingVideosCount > 0 || missingRpeCount > 0 || missingWeightCount > 0;
               
               if (!hasMissingItems) return null;
               
               const messages = [];
               if (missingVideosCount > 0) {
                 messages.push(`${missingVideosCount} vidéo${missingVideosCount > 1 ? 's' : ''} manquante${missingVideosCount > 1 ? 's' : ''}`);
+              }
+              if (missingWeightCount > 0) {
+                messages.push(`${missingWeightCount} charge${missingWeightCount > 1 ? 's' : ''} manquante${missingWeightCount > 1 ? 's' : ''}`);
               }
               if (missingRpeCount > 0) {
                 messages.push(`${missingRpeCount} RPE manquant${missingRpeCount > 1 ? 's' : ''}`);
@@ -2546,6 +2601,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           completedSets={completedSets}
           onValidateSet={handleSetValidation}
           onRpeUpdate={handleRpeUpdate}
+          onWeightUpdate={handleWeightUpdate}
           onVideoUpload={(exerciseIndex, setIndex) => {
             const exercise = exercises[exerciseIndex];
             if (exercise && exercise.sets && exercise.sets[setIndex] && exercise.sets[setIndex].video === true) {
@@ -2597,6 +2653,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         missingRpeCount={(() => {
           const { missingRpeCount } = getMissingVideosAndRpeCount();
           return missingRpeCount;
+        })()}
+        missingWeightCount={(() => {
+          const { missingWeightCount } = getMissingVideosAndRpeCount();
+          return missingWeightCount;
         })()}
         onClose={() => {
           // "Rester sur la page" - fermer le modal et annuler l'action en attente

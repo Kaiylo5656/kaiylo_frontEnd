@@ -13,6 +13,7 @@ const ExerciseValidationModal = ({
   completedSets,
   onValidateSet,
   onRpeUpdate,
+  onWeightUpdate,
   onVideoUpload,
   coachFeedback,
   localVideos = [],
@@ -32,6 +33,7 @@ const ExerciseValidationModal = ({
   const [selectedSetForRpe, setSelectedSetForRpe] = useState(null);
   const [swipeProgress, setSwipeProgress] = useState(0); // 0 à 1, pourcentage du swipe
   const [swipeDirection, setSwipeDirection] = useState(null); // 'left' ou 'right'
+  const [studentWeights, setStudentWeights] = useState({}); // Store student weights locally
   const modalRef = useRef(null);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
@@ -315,8 +317,13 @@ const ExerciseValidationModal = ({
     return null;
   };
 
-  // Gérer le clic sur le bouton RPE
+  // Gérer le clic sur le bouton RPE (seulement si coach ne demande pas RPE)
   const handleRpeClick = (setIndex) => {
+    // Si le coach demande un RPE (useRir = true), ne pas ouvrir le modal RPE
+    // L'élève doit saisir une charge à la place
+    if (exercise.useRir) {
+      return;
+    }
     setSelectedSetForRpe(setIndex);
     setIsRpeModalOpen(true);
   };
@@ -329,6 +336,57 @@ const ExerciseValidationModal = ({
     setIsRpeModalOpen(false);
     setSelectedSetForRpe(null);
   };
+
+  // Gérer la mise à jour de la charge saisie par l'élève (quand coach demande RPE)
+  const handleWeightUpdate = (setIndex, weight) => {
+    const key = `${exerciseIndex}-${setIndex}`;
+    // Mettre à jour le state local
+    setStudentWeights(prev => ({
+      ...prev,
+      [key]: weight
+    }));
+    // Sauvegarder dans completedSets via le callback parent
+    if (onWeightUpdate) {
+      onWeightUpdate(exerciseIndex, setIndex, weight);
+    }
+  };
+
+  // Récupérer la charge saisie par l'élève (quand coach demande RPE)
+  const getStudentWeightForSet = (setIndex) => {
+    const key = `${exerciseIndex}-${setIndex}`;
+    // Priorité 1: Vérifier dans studentWeights (state local)
+    if (studentWeights[key]) {
+      return studentWeights[key];
+    }
+    // Priorité 2: Vérifier dans completedSets (persisté)
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'studentWeight' in setData) {
+      return setData.studentWeight || '';
+    }
+    return '';
+  };
+
+  // Initialiser studentWeights depuis completedSets quand l'exercice change
+  useEffect(() => {
+    if (!sets || !Array.isArray(sets)) return;
+    
+    const weightsFromCompletedSets = {};
+    sets.forEach((_, setIndex) => {
+      const key = `${exerciseIndex}-${setIndex}`;
+      const setData = completedSets[key];
+      if (setData && typeof setData === 'object' && 'studentWeight' in setData) {
+        weightsFromCompletedSets[key] = setData.studentWeight || '';
+      }
+    });
+    
+    // Fusionner avec les valeurs existantes dans studentWeights
+    if (Object.keys(weightsFromCompletedSets).length > 0) {
+      setStudentWeights(prev => ({
+        ...prev,
+        ...weightsFromCompletedSets
+      }));
+    }
+  }, [exerciseIndex, sets, completedSets]);
 
   // Vérifier si une série a une vidéo
   // IMPORTANT: Vérifier d'abord localVideos avec une correspondance STRICTE par setIndex
@@ -529,8 +587,9 @@ const ExerciseValidationModal = ({
     return missingCount;
   };
 
-  // Compter les RPE manquants pour l'exercice actuel uniquement
-  // Principe : si le bouton RPE est vide (pas de valeur affichée), c'est un RPE manquant
+  // Compter les RPE/charges manquants pour l'exercice actuel uniquement
+  // Si useRir === true : vérifier la charge (studentWeight)
+  // Si useRir === false : vérifier le RPE (rpeRating)
   const countMissingRpe = () => {
     if (!sets || !Array.isArray(sets)) return 0;
     
@@ -543,15 +602,20 @@ const ExerciseValidationModal = ({
       // Obtenir le statut de la série
       const status = getSetStatus(setIndex);
       
-      // Seulement les séries validées (completed) doivent avoir un RPE
+      // Seulement les séries validées (completed) doivent avoir un RPE ou une charge
       if (status === 'completed') {
-        // Obtenir le RPE de la série - même logique que dans getRpeForSet
-        const rpeRating = getRpeForSet(setIndex);
-        
-        // Si le bouton RPE serait vide (pas de valeur), c'est un RPE manquant
-        // Le bouton affiche {rpeRating || ''}, donc si rpeRating est null/undefined, le bouton est vide
-        if (!rpeRating || rpeRating === null || rpeRating === undefined) {
-          missingCount++;
+        if (exercise.useRir) {
+          // Si coach demande RPE : vérifier la charge (studentWeight)
+          const studentWeight = getStudentWeightForSet(setIndex);
+          if (!studentWeight || studentWeight === '' || studentWeight === null || studentWeight === undefined) {
+            missingCount++;
+          }
+        } else {
+          // Si coach demande charge : vérifier le RPE
+          const rpeRating = getRpeForSet(setIndex);
+          if (!rpeRating || rpeRating === null || rpeRating === undefined) {
+            missingCount++;
+          }
         }
       }
     }
@@ -715,24 +779,36 @@ const ExerciseValidationModal = ({
         </div>
 
         {/* Liste des séries */}
-        <div className="pl-6 pr-12 space-y-3 pb-6">
+        <div className="pl-6 pr-12 space-y-[10px] pb-6">
           {/* Headers - Positionnés au-dessus des séries */}
           <div className="flex items-center mb-2">
             <div className="w-[20px] flex-shrink-0 mr-1" />
             <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
               <div className="flex items-center w-full gap-3">
+                <div className="w-[40px] flex justify-center items-center flex-shrink-0">
+                  <p className="text-[8px] font-normal text-white/25 leading-none">
+                    {(() => {
+                      const repType = sets[0]?.repType || 'reps';
+                      if (repType === 'amrap') {
+                        return 'AMRAP';
+                      } else if (repType === 'hold') {
+                        return 'Hold';
+                      }
+                      return 'Rep.';
+                    })()}
+                  </p>
+                </div>
                 <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                   <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RPE' : 'Charge'}</p>
-                </div>
-                <div className="w-[40px] flex justify-center items-center flex-shrink-0">
-                  <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>
                 </div>
                 <div className="flex-1 flex justify-center items-center gap-[15px]">
                   <div className="w-[17px] h-[17px]" />
                   <div className="w-[17px] h-[17px]" />
                 </div>
                 <div className="w-[24px] flex justify-center items-center flex-shrink-0">
-                  <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">RPE</p>
+                  <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
+                    {exercise.useRir ? 'Charge' : 'RPE'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -749,12 +825,29 @@ const ExerciseValidationModal = ({
             const hasVideoOrNoVideo = hasVideo || videoChoice === 'no-video'; // True si vidéo uploadée OU "pas de vidéo" choisi
             const setNumber = setIndex + 1;
             const weight = set.weight ?? 0;
-            const reps = set.reps || '?';
+            const repType = set.repType || 'reps';
+            // Handle different rep types
+            let reps = '?';
+            if (repType === 'amrap') {
+              reps = 'AMRAP';
+            } else if (repType === 'hold') {
+              // For hold, display with 's' suffix if it's not already there and not MM:SS format
+              const repsValue = set.reps || '';
+              if (repsValue.includes(':')) {
+                reps = repsValue; // MM:SS format
+              } else {
+                reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
+              }
+            } else {
+              reps = set.reps || '?';
+            }
             const videoEnabled = set.video === true || set.video === 1 || set.video === 'true';
             const rpeRating = getRpeForSet(setIndex);
+            const restTime = set.rest; // Temps de repos configuré par le coach
 
             return (
-              <div key={setIndex} className="flex items-center">
+              <React.Fragment key={setIndex}>
+                <div className="flex items-center">
                 {/* Numéro de série - À l'extérieur de la box */}
                 <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
                 <div 
@@ -762,6 +855,10 @@ const ExerciseValidationModal = ({
                   style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                 >
                   <div className="flex items-center w-full gap-3">
+                    {/* Colonne Rep - Centrée */}
+                    <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                      <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
+                    </div>
                     {/* Colonne Charge/RPE - Centrée */}
                     <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                       {exercise.useRir ? (
@@ -775,10 +872,6 @@ const ExerciseValidationModal = ({
                           {weight}<span className="text-[12px] font-normal">kg</span>
                         </span>
                       )}
-                    </div>
-                    {/* Colonne Rep - Centrée */}
-                    <div className="w-[40px] flex justify-center items-center flex-shrink-0">
-                      <span className="text-[15px] text-white leading-none">{reps}</span>
                     </div>
                     {/* Boutons de validation - Centrés */}
                     <div className="flex-1 flex justify-center items-center gap-[15px]">
@@ -825,30 +918,93 @@ const ExerciseValidationModal = ({
                         </svg>
                       </button>
                     </div>
-                    {/* Bouton RPE - Centré */}
-                    <div className="w-[24px] flex justify-center items-center">
+                    {/* Bouton RPE / Input Charge - Centré */}
+                    <div className={`${exercise.useRir ? 'w-auto min-w-[45px]' : 'w-[24px]'} flex justify-center items-center`}>
                       <div className="flex justify-center items-center w-full">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isCompleted) {
-                              handleRpeClick(setIndex);
-                            }
-                          }}
-                          disabled={!isCompleted}
-                          className={`bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${
-                            !isCompleted 
-                              ? 'opacity-50 cursor-not-allowed' 
-                              : 'cursor-pointer hover:bg-white/10'
-                          }`}
-                          title={!isCompleted ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
-                        >
-                          <span className={`text-[9px] font-medium leading-none ${
-                            rpeRating ? 'text-[#d4845a]' : 'text-white/50'
-                          }`}>
-                            {rpeRating || ''}
-                          </span>
-                        </button>
+                        {exercise.useRir ? (
+                          // Si coach demande RPE : l'élève saisit une charge
+                          <div className="relative flex items-center gap-[2px]">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={getStudentWeightForSet(setIndex) || ''}
+                              onChange={(e) => {
+                                const weightValue = e.target.value;
+                                if (weightValue === '' || weightValue === '-') {
+                                  handleWeightUpdate(setIndex, '');
+                                  return;
+                                }
+                                // Allow only digits
+                                if (/^\d+$/.test(weightValue)) {
+                                  const numValue = parseInt(weightValue, 10);
+                                  if (!isNaN(numValue) && numValue >= 1) {
+                                    // Limit to 99 (2 digits)
+                                    const limitedValue = Math.min(99, numValue);
+                                    handleWeightUpdate(setIndex, limitedValue.toString());
+                                  }
+                                } else if (weightValue === '') {
+                                  handleWeightUpdate(setIndex, '');
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                const currentValue = e.target.value;
+                                // Allow digits
+                                if (/^\d$/.test(e.key)) {
+                                  // If current value has 2 digits, prevent adding more
+                                  if (currentValue.length >= 2) {
+                                    e.preventDefault();
+                                  }
+                                  return;
+                                }
+                                // Allow backspace, delete, arrows, etc.
+                                const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
+                                if (allowedKeys.includes(e.key)) {
+                                  return;
+                                }
+                                // Block all other keys
+                                e.preventDefault();
+                              }}
+                              disabled={!isCompleted}
+                              className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[22px] h-[18px] text-[9px] font-medium text-center transition-colors focus:outline-none focus:border-[#d4845a] ${
+                                !isCompleted 
+                                  ? 'opacity-50 cursor-not-allowed text-white/50' 
+                                  : 'cursor-text text-[#d4845a]'
+                              }`}
+                              style={{ 
+                                padding: '0',
+                                fontSize: '9px',
+                                lineHeight: 1
+                              }}
+                              placeholder=""
+                              maxLength={2}
+                              title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - max 99"}
+                            />
+                            <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                          </div>
+                        ) : (
+                          // Si coach demande charge : l'élève saisit un RPE
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isCompleted) {
+                                handleRpeClick(setIndex);
+                              }
+                            }}
+                            disabled={!isCompleted}
+                            className={`bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${
+                              !isCompleted 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : 'cursor-pointer hover:bg-white/10'
+                            }`}
+                            title={!isCompleted ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
+                          >
+                            <span className={`text-[9px] font-medium leading-none ${
+                              rpeRating ? 'text-[#d4845a]' : 'text-white/50'
+                            }`}>
+                              {rpeRating || ''}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -943,7 +1099,19 @@ const ExerciseValidationModal = ({
                   )}
                 </div>
               </div>
-            );
+              {/* Affichage du temps de repos après chaque série complétée ou en échec */}
+              {(isCompleted || isFailed) && restTime && (
+                <div className="flex items-center mt-[5px] mb-[5px] pl-6 pr-12">
+                  <div className="w-[20px] flex-shrink-0 mr-1" />
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="text-[10px] font-light text-white/40">
+                      Repos : {restTime}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          );
           })}
         </div>
 
@@ -968,9 +1136,15 @@ const ExerciseValidationModal = ({
               )}
               {countMissingRpe() > 0 && (
                 <p className="text-[9px] font-medium leading-normal text-center" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                  {countMissingRpe() === 1 
-                    ? '1 RPE manquant' 
-                    : `${countMissingRpe()} RPE manquants`}
+                  {exercise.useRir ? (
+                    countMissingRpe() === 1 
+                      ? '1 charge manquante' 
+                      : `${countMissingRpe()} charges manquantes`
+                  ) : (
+                    countMissingRpe() === 1 
+                      ? '1 RPE manquant' 
+                      : `${countMissingRpe()} RPE manquants`
+                  )}
                 </p>
               )}
             </div>
@@ -1015,7 +1189,7 @@ const ExerciseValidationModal = ({
                 </div>
                 
                 {/* Liste des séries (simplifiée pour la preview) */}
-                <div className="pl-6 pr-12 space-y-3 pb-6">
+                <div className="pl-6 pr-12 space-y-[10px] pb-6">
                   {previewSets.map((set, setIndex) => (
                     <div key={setIndex} className="flex items-center">
                       <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setIndex + 1}</span>
@@ -1024,8 +1198,25 @@ const ExerciseValidationModal = ({
                           <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                             <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{set.weight ?? 0}<span className="text-[12px] font-normal">kg</span></span>
                           </div>
-                          <div className="w-[40px] flex justify-center items-center flex-shrink-0">
-                            <span className="text-[15px] text-white leading-none">{set.reps || '?'}</span>
+                          <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                            {(() => {
+                              const repType = set.repType || 'reps';
+                              let reps = '?';
+                              if (repType === 'amrap') {
+                                reps = 'AMRAP';
+                              } else if (repType === 'hold') {
+                                const repsValue = set.reps || '';
+                                if (repsValue.includes(':')) {
+                                  reps = repsValue;
+                                } else {
+                                  reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
+                                }
+                              } else {
+                                reps = set.reps || '?';
+                              }
+                              const fontSize = reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px';
+                              return <span className="text-white leading-none whitespace-nowrap" style={{ fontSize }}>{reps}</span>;
+                            })()}
                           </div>
                         </div>
                       </div>

@@ -128,6 +128,29 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
 
         {/* Form */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
+          {/* Email (read-only) */}
+          <div>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Email</label>
+            <div className="relative flex items-center">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 512 512" 
+                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
+                style={{ color: '#d4845a' }}
+                fill="currentColor"
+              >
+                <path d="M48 64c-26.5 0-48 21.5-48 48 0 15.1 7.1 29.3 19.2 38.4l208 156c17.1 12.8 40.5 12.8 57.6 0l208-156c12.1-9.1 19.2-23.3 19.2-38.4 0-26.5-21.5-48-48-48L48 64zM0 196L0 384c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-188-198.4 148.8c-34.1 25.6-81.1 25.6-115.2 0L0 196z"/>
+              </svg>
+              <input
+                type="email"
+                value={studentData?.email || ''}
+                readOnly
+                disabled
+                className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white/70 text-sm cursor-not-allowed opacity-60"
+              />
+            </div>
+          </div>
+
           {/* Gender Selection */}
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Genre</label>

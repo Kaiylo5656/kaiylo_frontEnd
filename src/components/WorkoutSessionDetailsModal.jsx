@@ -130,16 +130,35 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                           <thead>
                             <tr className="text-gray-400 text-xs border-b border-[#262626]">
                               <th className="text-left pb-3">Série</th>
-                              <th className="text-center pb-3 font-extralight">{exercise.useRir ? 'RPE' : 'Charge (kg)'}</th>
                               <th className="text-center pb-3">Reps</th>
+                              <th className="text-center pb-3 font-extralight">{exercise.useRir ? 'RPE' : 'Charge (kg)'}</th>
                               <th className="text-center pb-3">Repos</th>
                               <th className="text-center pb-3">Vidéo</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {exercise.sets.map((set, setIndex) => (
+                            {exercise.sets.map((set, setIndex) => {
+                              const repType = set.repType || 'reps';
+                              let repsDisplay = '-';
+                              if (repType === 'amrap') {
+                                repsDisplay = 'AMRAP';
+                              } else if (repType === 'hold') {
+                                const repsValue = set.reps || '';
+                                if (repsValue.includes(':')) {
+                                  repsDisplay = repsValue;
+                                } else {
+                                  repsDisplay = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
+                                }
+                              } else {
+                                repsDisplay = set.reps || '-';
+                              }
+                              
+                              return (
                               <tr key={setIndex} className="border-b border-[#262626]">
                                 <td className="py-3 text-white font-medium">{set.serie || setIndex + 1}</td>
+                                <td className="py-3 text-center text-white overflow-hidden">
+                                  <span className="whitespace-nowrap inline-block" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '14px' }}>{repsDisplay}</span>
+                                </td>
                                 <td className="py-3 text-center text-white">
                                   {exercise.useRir ? (
                                     // Mode RPE : afficher le RPE demandé
@@ -149,7 +168,6 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                                     set.weight ? `${set.weight} kg` : '-'
                                   )}
                                 </td>
-                                <td className="py-3 text-center text-white">{set.reps || '-'}</td>
                                 <td className="py-3 text-center text-white">{set.rest || '-'}</td>
                                 <td className="py-3 text-center">
                                   {set.video ? (
@@ -159,7 +177,8 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                                   )}
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

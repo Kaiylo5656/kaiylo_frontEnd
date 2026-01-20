@@ -465,7 +465,7 @@ const ChatList = ({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 pt-3 px-6 pb-0">
+      <div className="flex-shrink-0 pt-3 px-4 md:px-6 pb-0">
         {/* Search and Filter Bar */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex flex-col gap-3 flex-1">
@@ -606,10 +606,10 @@ const ChatList = ({
       </div>
 
       {/* Conversations List Container - Scrollable */}
-      <div className="flex-1 min-h-0 px-6 pb-6">
+      <div className="flex-1 min-h-0 px-4 md:px-6 pb-4 md:pb-6">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 pt-0 pb-2 shrink-0" style={{ borderBottom: 'none' }}>
+          <div className="px-4 md:px-6 pt-0 pb-2 shrink-0" style={{ borderBottom: 'none' }}>
             <div className="flex items-center">
               <div className="flex items-center space-x-6 flex-1">
                 <h3 className="text-xs font-light text-foreground" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
@@ -622,7 +622,7 @@ const ChatList = ({
           {/* Conversations List - Scrollable */}
           <div className="overflow-y-auto flex-1 min-h-0">
             {filteredConversations.length === 0 && !showUserList ? (
-              <div className="px-6 py-8 text-center font-light" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+              <div className="px-4 md:px-6 py-6 md:py-8 text-center font-light" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                 <div className="text-xl md:text-2xl mb-2">💬</div>
                 <div className="text-xs md:text-sm">
                   {searchTerm ? 'Aucune conversation correspondante' : 'Aucune conversation pour le moment'}
@@ -789,7 +789,7 @@ const ChatList = ({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+            <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3 flex items-center justify-between">
               <h2 className="text-xl font-normal flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 Supprimer la conversation
               </h2>
@@ -803,10 +803,10 @@ const ChatList = ({
                 </svg>
               </button>
             </div>
-            <div className="border-b border-white/10 mx-6"></div>
+            <div className="border-b border-white/10 mx-4 md:mx-6"></div>
 
             {/* Body */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-6 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 md:py-6 space-y-5">
               <div className="space-y-6">
                 {/* Warning Message */}
                 <div className="flex flex-col items-start space-y-4">

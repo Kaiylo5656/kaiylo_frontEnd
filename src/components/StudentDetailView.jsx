@@ -84,6 +84,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
   const [exerciseFilter, setExerciseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
   const dateInputRef = useRef(null);
   const statusFilterButtonRef = useRef(null);
   const statusFilterTextRef = useRef(null);
@@ -2305,6 +2306,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return exercises;
   };
 
+  // Get filtered exercises based on search term
+  const filteredExercises = useMemo(() => {
+    const uniqueExercises = getUniqueExercises();
+    if (!exerciseSearchTerm.trim()) {
+      return uniqueExercises;
+    }
+    const searchLower = exerciseSearchTerm.toLowerCase().trim();
+    return uniqueExercises.filter(exercise => 
+      exercise.toLowerCase().includes(searchLower)
+    );
+  }, [studentVideos, exerciseSearchTerm]);
+
   // Get weight and reps from video data
   const getVideoWeightAndReps = (video) => {
     // Try direct properties first
@@ -2750,7 +2763,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           style={{
                             backgroundColor: 'rgba(0, 0, 0, 0.75)',
                             backdropFilter: 'blur(10px)',
-                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderColor: 'rgba(255, 255, 255, 0.15)',
                             borderWidth: '1px',
                             borderStyle: 'solid',
                             top: dropdownPosition?.top || 0,
@@ -2841,9 +2854,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 {(hasMultipleSessions || hasMoreThanTwoSessions) && (
                   <>
                     <div className="border-b border-white/10 mb-2"></div>
-                    <div className="flex items-center justify-between text-[11px] text-white/75">
-                      <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
-                    </div>
+                                              <div className="flex items-center justify-between text-[9px] md:text-[11px] text-white/75">
+                                                <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
+                                              </div>
                   </>
                 )}
 
@@ -2852,7 +2865,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     <div className="border-b border-white/10 mb-2"></div>
 
                     <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
-                      {exercises.map((exercise, index) => {
+                      {exercises.slice(0, 5).map((exercise, index) => {
                         // Déterminer la couleur du nombre de séries basée sur les statuts de validation
                         const getSetsColor = () => {
                           // Seulement pour les séances terminées
@@ -2888,14 +2901,19 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           </div>
                         );
                       })}
+                      {exercises.length > 5 && (
+                        <div className="text-[11px] text-white/50 font-extralight">
+                          + {exercises.length - 5} exercice{(exercises.length - 5) > 1 ? 's' : ''}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
 
-                <div className="flex items-center justify-between pt-0 text-[11px]">
-                  <div className="flex items-center gap-2 flex-1">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1.5 ${
+                                          <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
+                                            <div className="flex items-center gap-1 md:gap-2 flex-1">
+                                              <span
+                                                className={`px-1.5 md:px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1 md:gap-1.5 ${
                         session.status === 'completed'
                           ? 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20'
                           : session.status === 'in_progress'
@@ -3215,7 +3233,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         style={{
                           backgroundColor: 'rgba(0, 0, 0, 0.75)',
                           backdropFilter: 'blur(10px)',
-                          borderColor: 'rgba(255, 255, 255, 0.1)',
+                          borderColor: 'rgba(255, 255, 255, 0.15)',
                           borderWidth: '1px',
                           borderStyle: 'solid',
                           top: dropdownPosition?.top || 0,
@@ -3419,9 +3437,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   return (
     <div className="min-h-screen bg-transparent text-white flex">
-      {/* Sidebar */}
+      {/* Sidebar - Hidden on mobile */}
       {students.length > 0 && (
-        <div className="ml-6 mt-3 self-stretch flex items-stretch">
+        <div className="hidden md:flex ml-6 mt-3 self-stretch items-end">
           <StudentSidebar
             students={students}
             currentStudentId={student?.id}
@@ -3450,12 +3468,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           <>
         {/* Header */}
         <div className="relative">
-        <div className="p-4 relative mt-3">
-          {/* Toggle Sidebar Button */}
+        <div className="p-3 md:p-4 relative mt-3">
+          {/* Toggle Sidebar Button - Hidden on mobile */}
           {students.length > 0 && (
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="absolute top-0 left-4 z-50 w-5 h-5 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+              className="hidden md:flex absolute top-0 left-4 z-50 w-5 h-5 items-center justify-center text-white/80 hover:text-white transition-colors"
               aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {isSidebarCollapsed ? (
@@ -3465,10 +3483,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               )}
             </button>
           )}
-          <div className="flex items-start gap-6 border-b border-b-[rgba(255,255,255,0.1)] ml-0 mt-3">
-            <div className="w-[60px] h-[60px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
+          <div className="flex items-center md:items-start gap-4 md:gap-6 border-b border-b-[rgba(255,255,255,0.1)] ml-0 mt-3">
+            <div className="w-[50px] h-[50px] md:w-[60px] md:h-[60px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
               <svg 
-                className="w-[28px] h-[28px] text-white/80" 
+                className="w-[24px] h-[24px] md:w-[28px] md:h-[28px] text-white/80" 
                 viewBox="0 0 448 512" 
                 fill="currentColor"
                 xmlns="http://www.w3.org/2000/svg"
@@ -3476,11 +3494,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
               </svg>
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-xl font-light" style={{ fontWeight: 200 }}>
-                {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
-              </h1>
-              <div className="flex gap-6 mt-1" style={{ paddingLeft: '24px' }}>
+            <div className="flex flex-col md:flex-col">
+              {/* Ligne avec titre et menu déroulant sur mobile */}
+              <div className="flex flex-row md:flex-col items-center md:items-start gap-3 md:gap-0">
+                <h1 className="text-lg md:text-xl font-light flex-shrink-0" style={{ fontWeight: 200 }}>
+                  {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
+                </h1>
+                {/* Menu déroulant sur mobile */}
+                <div className="md:hidden relative flex-shrink-0" style={{ minWidth: '120px' }}>
+                  <select
+                    value={activeTab}
+                    onChange={(e) => setActiveTab(e.target.value)}
+                    className="w-full bg-transparent border-0 px-2 py-1 pr-6 text-sm text-white focus:outline-none focus:ring-0 transition-colors"
+                    style={{ 
+                      color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none'
+                    }}
+                  >
+                    <option value="overview">Tableau de bord</option>
+                    <option value="training">Entraînement</option>
+                    <option value="analyse">Analyse vidéo</option>
+                    <option value="suivi">Suivi Financier</option>
+                  </select>
+                  {/* Flèche du dropdown */}
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)' }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Onglets sur desktop */}
+              <div className="hidden md:flex gap-6 mt-1" style={{ paddingLeft: '24px' }}>
                 <button 
                   className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                   data-text="Tableau de bord"
@@ -3847,7 +3895,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             </div>
 
             {/* Evolution des Kg/Reps, Notes et Limitations Section */}
-            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-3 mt-3 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-0 mt-3 items-stretch">
               {/* Evolution des Kg/Reps - Left Section (2/3 width) */}
               <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 h-full">
                 <div className="mb-4 border-b border-white/10 pb-2">
@@ -4358,42 +4406,42 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         {activeTab === 'training' && (
           <div className="relative">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-3 md:gap-0" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+              <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                 <div className="flex items-center gap-0">
                   <button 
                     onClick={() => changeTrainingWeek('prev')} 
-                    className="bg-primary hover:bg-primary/90 font-normal py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
+                    className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
                     style={{
                       backgroundColor: 'transparent',
                       color: 'rgba(255, 255, 255, 0.75)',
                       fontWeight: '400'
                     }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors" style={{ transform: 'scaleX(-1)' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 md:h-4 md:w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors" style={{ transform: 'scaleX(-1)' }}>
                       <path fill="currentColor" d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
                     </svg>
                   </button>
-                  <span className="text-sm font-light text-white/75 min-w-[180px] text-center">
+                  <span className="text-xs md:text-sm font-light text-white/75 min-w-[140px] md:min-w-[180px] text-center">
                     {format(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), 'd MMM', { locale: fr })} - {format(addDays(startOfWeek(trainingWeekDate, { weekStartsOn: 1 }), (weekViewFilter * 7) - 1), 'd MMM yyyy', { locale: fr })}
                   </span>
                   <button 
                     onClick={() => changeTrainingWeek('next')} 
-                    className="bg-primary hover:bg-primary/90 font-normal py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
+                    className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-0 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground group"
                     style={{
                       backgroundColor: 'transparent',
                       color: 'rgba(255, 255, 255, 0.75)',
                       fontWeight: '400'
                     }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 md:h-4 md:w-4 text-white/75 group-hover:text-white group-active:text-white transition-colors">
                       <path fill="currentColor" d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
                     </svg>
                   </button>
                 </div>
                 <button 
                   onClick={() => setTrainingWeekDate(new Date())}
-                  className="bg-primary hover:bg-primary/90 font-normal py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-1 text-primary-foreground text-sm"
+                  className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1 text-primary-foreground text-xs md:text-sm"
                   style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                     color: 'rgba(250, 250, 250, 0.5)',
@@ -4414,12 +4462,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 </button>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                 {/* Status Filter - Using buttons instead of select for better Kaiylo theme */}
-                <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+                <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
                   <button
                     onClick={() => setTrainingFilter('all')}
-                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       trainingFilter === 'all'
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
@@ -4431,7 +4479,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </button>
                   <button
                     onClick={() => setTrainingFilter('assigned')}
-                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       trainingFilter === 'assigned'
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
@@ -4443,7 +4491,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </button>
                   <button
                     onClick={() => setTrainingFilter('draft')}
-                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       trainingFilter === 'draft'
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
@@ -4455,13 +4503,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </button>
                 </div>
 
-                <div className="h-5 w-[1px] bg-white/10"></div>
+                <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
                 {/* Week View Filter - Using buttons instead of select */}
-                <div className="flex items-center gap-1 bg-white/5 rounded-full p-1">
+                <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
                   <button
                     onClick={() => setWeekViewFilter(2)}
-                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       weekViewFilter === 2
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
@@ -4469,11 +4517,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     style={{ fontWeight: weekViewFilter === 2 ? 400 : 200 }}
                   >
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 semaines</span>
-                    <span>2 semaines</span>
+                    <span>2 sem.</span>
                   </button>
                   <button
                     onClick={() => setWeekViewFilter(4)}
-                    className={`text-xs font-light px-3 py-2 rounded-full transition-all ${
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       weekViewFilter === 4
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
@@ -4481,7 +4529,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     style={{ fontWeight: weekViewFilter === 4 ? 400 : 200 }}
                   >
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
-                    <span>4 semaines</span>
+                    <span>4 sem.</span>
                   </button>
                 </div>
               </div>
@@ -4490,11 +4538,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             <div className="border-b border-white/10 mb-3"></div>
             
             {/* Calendar Grid */}
-            <div className="pr-14">
+            <div className="pr-0 md:pr-14">
               {/* Day Headers */}
-              <div className="grid grid-cols-7 gap-2 mb-2">
+              <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
                 {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
-                  <div key={day} className="text-center text-[12px] text-white/75 font-extralight">
+                  <div key={day} className="text-center text-[10px] md:text-[12px] text-white/75 font-extralight">
                     {day}
                   </div>
                 ))}
@@ -4523,8 +4571,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     
                     return (
                       <div key={weekKey} className="relative week-group group/week">
-                        {/* Week Actions - Side Buttons */}
-                        <div className="absolute -right-12 top-0 bottom-0 flex flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0">
+                        {/* Week Actions - Side Buttons - Hidden on mobile */}
+                        <div className="hidden md:flex absolute -right-12 top-0 bottom-0 flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -4553,7 +4601,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         </div>
 
                         {/* The Grid for this week */}
-                        <div className="grid grid-cols-7 gap-2">
+                        <div className="grid grid-cols-7 gap-1 md:gap-2">
                           {weekDays.map(({ day, index }) => {
                             const dateKey = format(day, 'yyyy-MM-dd');
                             const sessionsOnDay = (workoutSessions[dateKey] || []).filter(session => {
@@ -4567,7 +4615,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             return (
                               <div
                                 key={dateKey}
-                                className="bg-[rgba(255,255,255,0.05)] rounded-xl p-2 flex flex-col h-[200px] transition-all duration-300 relative group cursor-pointer"
+                                className="bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col h-[120px] md:h-[200px] transition-all duration-300 relative group cursor-pointer"
                                 style={{ 
                                   backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)'
                                 }}
@@ -4584,17 +4632,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   }
                                 }}
                               >
-                                <div className="text-sm text-white/75 mb-1.5 flex justify-end items-center gap-1">
+                                <div className="text-xs md:text-sm text-white/75 mb-1 md:mb-1.5 flex justify-end items-center gap-0.5 md:gap-1">
                                   <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDayClick(day);
                                     }} 
-                                    className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95 pointer-events-none group-hover:pointer-events-auto"
+                                    className="hidden md:block p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95 pointer-events-none group-hover:pointer-events-auto"
                                   >
-                                    <Plus className="h-4 w-4 text-[#BFBFBF] transition-opacity" />
+                                    <Plus className="h-3 w-3 md:h-4 md:w-4 text-[#BFBFBF] transition-opacity" />
                                   </button>
-                                  <span className={`text-[12px] font-extralight ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 text-white' : 'text-white/75'}`}>
+                                  <span className={`text-[10px] md:text-[12px] font-extralight ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-4 w-4 md:h-5 md:w-5 text-white' : 'text-white/75'}`}>
                                     {format(day, 'd')}
                                   </span>
                                 </div>
@@ -4633,13 +4681,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                           handleSessionClick(session, day);
                                         }}
                                       >
-                                        <div className="pt-2 pb-2 px-2 space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
-                                          <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-1 min-w-0 flex-1">
-                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                        <div className="pt-1 md:pt-2 pb-1 md:pb-2 px-1 md:px-2 space-y-1 md:space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                                          <div className="flex items-start justify-between gap-1 md:gap-2">
+                                            <div className="flex items-center gap-0.5 md:gap-1 min-w-0 flex-1">
+                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                                                 <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z"/>
                                               </svg>
-                                              <span className="truncate text-[12px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{sessionTitle}</span>
+                                              <span className="truncate text-[10px] md:text-[12px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{sessionTitle}</span>
                                             </div>
 
                                             {((session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed') && (
@@ -4656,7 +4704,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                   }`}
                                                   title="Options de la séance"
                                                 >
-                                                  <MoreHorizontal className="h-[14px] w-[14px]" />
+                                                  <MoreHorizontal className="h-3 w-3 md:h-[14px] md:w-[14px]" />
                                                 </button>
 
                                                 {dropdownOpen === dropdownKey && (
@@ -4665,7 +4713,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                     style={{
                                                       backgroundColor: 'rgba(0, 0, 0, 0.75)',
                                                       backdropFilter: 'blur(10px)',
-                                                      borderColor: 'rgba(255, 255, 255, 0.1)',
+                                                      borderColor: 'rgba(255, 255, 255, 0.15)',
                                                       borderWidth: '1px',
                                                       borderStyle: 'solid',
                                                       top: dropdownPosition?.top || 0,
@@ -4755,12 +4803,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                             <>
                                               <div className="border-b border-white/10 mb-1"></div>
                                               <div className="flex items-center justify-between text-[11px] text-white/75">
-                                                <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
+                                                <span className="font-light text-[9px] md:text-[11px]">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
                                               </div>
                                             </>
                                           )}
 
-                                          <div className="flex items-center justify-between pt-0 text-[11px]">
+                                          <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
                                             <div className="flex items-center gap-2 flex-1">
                                               <span
                                                 className={`px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1.5 ${
@@ -4776,29 +4824,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                 }`}
                                               >
                                                 {session.status === 'completed' && (
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#2FA064]"></span>
+                                                  <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-[#2FA064]"></span>
                                                 )}
                                                 {session.status === 'assigned' && (
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#5B85B1]"></span>
+                                                  <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-[#5B85B1]"></span>
                                                 )}
                                                 {session.status === 'draft' && (
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-[#4a4a47]"></span>
+                                                  <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-[#4a4a47]"></span>
                                                 )}
-                                                {session.status === 'completed'
-                                                  ? 'Terminé'
-                                                  : session.status === 'in_progress'
-                                                  ? 'En cours'
-                                                  : session.status === 'draft'
-                                                  ? 'Brouillon'
-                                                  : session.status === 'assigned'
-                                                  ? 'Assigné'
-                                                  : 'Pas commencé'}
+                                                <span className="hidden md:inline">
+                                                  {session.status === 'completed'
+                                                    ? 'Terminé'
+                                                    : session.status === 'in_progress'
+                                                    ? 'En cours'
+                                                    : session.status === 'draft'
+                                                    ? 'Brouillon'
+                                                    : session.status === 'assigned'
+                                                    ? 'Assigné'
+                                                    : 'Pas commencé'}
+                                                </span>
                                               </span>
                                               {session.status === 'completed' && (
                                                 <svg 
                                                   xmlns="http://www.w3.org/2000/svg" 
                                                   viewBox="0 0 640 640" 
-                                                  className="w-4 h-4"
+                                                  className="w-3 h-3 md:w-4 md:h-4"
                                                   style={{ 
                                                     fill: session.difficulty?.toLowerCase() === 'facile'
                                                       ? '#2FA064'
@@ -4971,7 +5021,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               className="bg-[#d4845a] hover:bg-[#c47850] text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110"
                               title="Coller la semaine copiée ici"
                             >
-                              Copier
+                              Coller
                             </button>
                             <button
                               onClick={(e) => {
@@ -4998,7 +5048,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         {activeTab === 'analyse' && (
           <div className="p-4">
             {/* Filters */}
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-[14px] mb-6">
               {/* Status Filter */}
               <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
                 <DropdownMenuTrigger asChild>
@@ -5044,6 +5094,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       setStatusFilter(value);
                       setIsStatusFilterOpen(false);
                     }}
+                    className="flex flex-col gap-0.5 p-0"
                   >
                     <DropdownMenuRadioItem
                       value=""
@@ -5188,17 +5239,27 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               </DropdownMenu>
 
               {/* Exercise Filter */}
-              <DropdownMenu open={isExerciseFilterOpen} onOpenChange={setIsExerciseFilterOpen} modal={false}>
+              <DropdownMenu 
+                open={isExerciseFilterOpen} 
+                onOpenChange={(open) => {
+                  setIsExerciseFilterOpen(open);
+                  if (!open) {
+                    setExerciseSearchTerm('');
+                  }
+                }} 
+                modal={false}
+              >
                 <DropdownMenuTrigger asChild>
                   <button
                     ref={exerciseFilterButtonRef}
-                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm focus:outline-none focus-visible:outline-none"
                     style={{
                       backgroundColor: isExerciseFilterOpen || exerciseFilter !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       color: isExerciseFilterOpen || exerciseFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                       fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : '200',
                       width: `${exerciseFilterMinWidth}px`,
-                      minWidth: `${exerciseFilterMinWidth}px`
+                      minWidth: `${exerciseFilterMinWidth}px`,
+                      outline: 'none'
                     }}
                   >
                     <span ref={exerciseFilterTextRef} style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exerciseFilter || 'Exercice'}</span>
@@ -5219,20 +5280,40 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   align="start"
                   sideOffset={8}
                   disablePortal={true}
-                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
+                  className="w-56 rounded-xl p-0 [&_span.absolute.left-2]:hidden flex flex-col border-0"
                   style={{
                     backgroundColor: 'rgba(0, 0, 0, 0.75)',
                     backdropFilter: 'blur(10px)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
+                    border: 'none'
                   }}
                 >
-                  <DropdownMenuRadioGroup 
-                    value={exerciseFilter} 
-                    onValueChange={(value) => {
-                      setExerciseFilter(value);
-                      setIsExerciseFilterOpen(false);
-                    }}
-                  >
+                  {/* Search bar */}
+                  <div className="pt-3 px-3 pb-2 border-border">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Rechercher un exercice..."
+                        value={exerciseSearchTerm}
+                        onChange={(e) => setExerciseSearchTerm(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          borderColor: 'rgba(255, 255, 255, 0.1)'
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {/* Exercise list */}
+                  <div className="overflow-y-auto max-h-48 exercise-dropdown-scrollbar">
+                    <DropdownMenuRadioGroup 
+                      value={exerciseFilter} 
+                      onValueChange={(value) => {
+                        setExerciseFilter(value);
+                        setIsExerciseFilterOpen(false);
+                        setExerciseSearchTerm('');
+                      }}
+                    >
                     <DropdownMenuRadioItem
                       value=""
                       className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
@@ -5279,7 +5360,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
                       </svg>
                     </DropdownMenuRadioItem>
-                    {getUniqueExercises().map(exercise => (
+                    {filteredExercises.length > 0 ? (
+                      filteredExercises.map(exercise => (
                       <DropdownMenuRadioItem
                         key={exercise}
                         value={exercise}
@@ -5327,8 +5409,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
                         </svg>
                       </DropdownMenuRadioItem>
-                    ))}
+                      ))
+                    ) : (
+                      <div className="px-5 py-2 text-sm text-white/25 text-center font-extralight">
+                        Aucun exercice trouvé
+                      </div>
+                    )}
                   </DropdownMenuRadioGroup>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 

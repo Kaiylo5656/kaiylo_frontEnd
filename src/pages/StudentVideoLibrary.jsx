@@ -49,6 +49,7 @@ const StudentVideoLibrary = () => {
   // Dropdown states
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [isExerciseDropdownOpen, setIsExerciseDropdownOpen] = useState(false);
+  const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
   
   // Tab state
   const [activeTab, setActiveTab] = useState('mes-videos'); // 'mes-videos' or 'ressource'
@@ -181,6 +182,18 @@ const StudentVideoLibrary = () => {
   const getUniqueExercises = () => {
     const exercises = [...new Set(videos.map(video => video.exercise_name))];
     return exercises;
+  };
+
+  // Get filtered exercises based on search term
+  const getFilteredExercises = () => {
+    const exercises = getUniqueExercises();
+    if (!exerciseSearchTerm.trim()) {
+      return exercises;
+    }
+    const searchLower = exerciseSearchTerm.toLowerCase().trim();
+    return exercises.filter(exercise => 
+      exercise.toLowerCase().includes(searchLower)
+    );
   };
 
   // Group videos by workout session (using useMemo for performance)
@@ -443,7 +456,7 @@ const StudentVideoLibrary = () => {
       </div>
 
       {/* Ligne de démarcation */}
-      <div className="w-full max-w-6xl mx-auto px-10 relative z-10">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-10 relative z-10">
         <div className="border-t border-white/10"></div>
       </div>
 
@@ -460,12 +473,12 @@ const StudentVideoLibrary = () => {
               placeholder="Rechercher une vidéo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-[rgba(255,255,255,0.05)] border border-white/10 rounded-[15px] text-white/50 placeholder-gray-400 focus:outline-none focus:border-white/20 text-[13px] font-extralight"
+              className="w-full pl-10 pr-4 py-2 bg-[rgba(255,255,255,0.05)] border border-white/10 rounded-[99px] text-white/50 placeholder-gray-400 focus:outline-none focus:border-white/20 text-xs sm:text-[13px] font-extralight"
             />
           </div>
 
           {/* Filters */}
-          <div className="flex gap-3 flex-nowrap">
+          <div className="flex flex-row gap-3 items-center">
             {/* Status Filter */}
             <div className="relative flex-1 min-w-0">
               <button
@@ -474,7 +487,7 @@ const StudentVideoLibrary = () => {
                   setIsStatusDropdownOpen(!isStatusDropdownOpen);
                   setIsExerciseDropdownOpen(false);
                 }}
-                className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
               >
                 <span>{statusFilter === 'pending' ? 'Attente' : statusFilter === 'completed' ? 'Reçu' : 'Statuts'}</span>
                 <ChevronDownIcon className={`h-3 w-3 ${statusFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
@@ -529,7 +542,7 @@ const StudentVideoLibrary = () => {
                   setIsExerciseDropdownOpen(!isExerciseDropdownOpen);
                   setIsStatusDropdownOpen(false);
                 }}
-                className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
               >
                 <span className="truncate">{exerciseFilter || 'Exercices'}</span>
                 <ChevronDownIcon className={`h-3 w-3 flex-shrink-0 ml-2 ${exerciseFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isExerciseDropdownOpen ? 'rotate-180' : ''}`} />
@@ -538,32 +551,63 @@ const StudentVideoLibrary = () => {
                 <>
                   <div 
                     className="fixed inset-0 z-10" 
-                    onClick={() => setIsExerciseDropdownOpen(false)}
+                    onClick={() => {
+                      setIsExerciseDropdownOpen(false);
+                      setExerciseSearchTerm('');
+                    }}
                   />
-                  <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-[rgba(26,26,26,0.95)] backdrop-blur-md border border-white/10 rounded-[15px] overflow-hidden shadow-xl max-h-60 overflow-y-auto">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExerciseFilter('');
-                        setIsExerciseDropdownOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
-                    >
-                      Exercices
-                    </button>
-                    {getUniqueExercises().map(exercise => (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-[rgba(26,26,26,0.95)] backdrop-blur-md border border-white/10 rounded-[15px] overflow-hidden shadow-xl max-h-60 flex flex-col">
+                    {/* Search bar */}
+                    <div className="pt-3 px-3 pb-2 border-border">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Rechercher un exercice..."
+                          value={exerciseSearchTerm}
+                          onChange={(e) => setExerciseSearchTerm(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {/* Exercise list */}
+                    <div className="overflow-y-auto max-h-48 exercise-dropdown-scrollbar">
                       <button
-                        key={exercise}
                         type="button"
                         onClick={() => {
-                          setExerciseFilter(exercise);
+                          setExerciseFilter('');
                           setIsExerciseDropdownOpen(false);
+                          setExerciseSearchTerm('');
                         }}
-                        className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === exercise ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                        className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
                       >
-                        {exercise}
+                        Exercices
                       </button>
-                    ))}
+                      {getFilteredExercises().length > 0 ? (
+                        getFilteredExercises().map(exercise => (
+                          <button
+                            key={exercise}
+                            type="button"
+                            onClick={() => {
+                              setExerciseFilter(exercise);
+                              setIsExerciseDropdownOpen(false);
+                              setExerciseSearchTerm('');
+                            }}
+                            className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${exerciseFilter === exercise ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                          >
+                            {exercise}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-[13px] text-white/30 text-center">
+                          Aucun exercice trouvé
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -581,7 +625,7 @@ const StudentVideoLibrary = () => {
               <button
                 type="button"
                 onClick={() => document.getElementById('date-filter')?.showPicker?.() || document.getElementById('date-filter')?.click()}
-                className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between`}
+                className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
               >
                 <span>{dateFilter ? format(new Date(dateFilter), 'dd/MM/yyyy', { locale: fr }) : 'Date'}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`h-4 w-4 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} pointer-events-none`} fill="currentColor" aria-hidden="true">
@@ -592,14 +636,14 @@ const StudentVideoLibrary = () => {
           </div>
 
           {/* Video Count */}
-          <div className="text-xs text-[#D4845A] font-normal">
+          <div className="text-xs text-[#D4845A] font-normal text-left">
             {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} trouvée{filteredVideos.length > 1 ? 's' : ''}
           </div>
         </div>
       )}
 
       {/* Content based on active tab */}
-      <div className="px-4 pb-20">
+      <div className="px-4 sm:px-4 pt-4 pb-20">
         {activeTab === 'mes-videos' ? (
           // Mes vidéos tab content - Grouped by session
           groupedVideosBySession.length > 0 ? (
@@ -626,17 +670,17 @@ const StudentVideoLibrary = () => {
                           }`} 
                         />
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
+                          <h3 className="text-white font-light text-sm sm:text-base flex items-center gap-2 flex-wrap">
                             <span className="flex items-center gap-2 flex-wrap">
                               <span>{session.sessionName}</span>
-                              <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                              <span className="text-xs sm:text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-3 w-3 sm:h-4 sm:w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                                   <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
                                 </svg>
                                 <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                               </span>
                             </span>
-                            <span className="text-white/50" style={{ fontSize: '13px' }}>{sessionDate}</span>
+                            <span className="text-white/50 text-xs sm:text-[13px]">{sessionDate}</span>
                           </h3>
                         </div>
                       </div>
@@ -644,12 +688,12 @@ const StudentVideoLibrary = () => {
                       {/* Status indicator */}
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {session.videos.some(v => v.status === 'pending') && (
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                          <span className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
                             {session.videos.filter(v => v.status === 'pending').length} en attente
                           </span>
                         )}
                         {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                          <span className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
                             Complété
                           </span>
                         )}
@@ -664,68 +708,68 @@ const StudentVideoLibrary = () => {
                             <div 
                               key={video.id} 
                               className="bg-white/5 rounded-[15px] p-4 hover:bg-white/10 transition-colors cursor-pointer"
-                              onClick={() => handleVideoClick(video)}
-                            >
-                              <div className="flex items-start gap-4 pl-[5px]">
-                                {/* Video Thumbnail */}
-                                <div className="relative w-24 h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
-                                  {video.video_url ? (
-                                    <video 
-                                      src={video.video_url}
-                                      className="w-full h-full object-cover"
-                                      preload="metadata"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Video className="w-8 h-8 text-white/30" />
-                                    </div>
-                                  )}
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30">
-                                    <PlayCircle size={20} className="text-white" />
-                                  </div>
+                        onClick={() => handleVideoClick(video)}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 pl-[5px]">
+                          {/* Video Thumbnail */}
+                          <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
+                            {video.video_url ? (
+                              <video 
+                                src={video.video_url}
+                                className="w-full h-full object-cover"
+                                preload="metadata"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Video className="w-8 h-8 text-white/30" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/30">
+                              <PlayCircle size={20} className="text-white" />
+                            </div>
+                          </div>
+                          
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <h3 className="text-white font-light text-sm sm:text-base flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                  <span>{video.exercise_name}</span>
+                                  <span className="text-white/50 text-xs sm:text-[13px]">{format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}</span>
+                                </h3>
+                                <div className="flex items-center gap-2 text-white/50 text-xs sm:text-[13px] font-light mt-1">
+                                  <span>№ {video.set_number || 1}/3</span>
+                                  {(() => {
+                                    const { weight, reps } = getVideoWeightAndReps(video);
+                                    if (weight > 0 || reps > 0) {
+                                      return (
+                                        <>
+                                          <span>•</span>
+                                          <span>
+                                            {reps > 0 && <span>{reps} reps </span>}
+                                            {weight > 0 && (
+                                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: '400' }}>
+                                                @{weight}kg
+                                              </span>
+                                            )}
+                                          </span>
+                                        </>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                                 
-                                {/* Video Info */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1 min-w-0 overflow-hidden">
-                                      <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
-                                        <span>{video.exercise_name}</span>
-                                        <span className="text-white/50" style={{ fontSize: '13px' }}>{format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}</span>
-                                      </h3>
-                                      <div className="flex items-center gap-2 text-white/50 text-[13px] font-light mt-1">
-                                        <span>№ {video.set_number || 1}/3</span>
-                                        {(() => {
-                                          const { weight, reps } = getVideoWeightAndReps(video);
-                                          if (weight > 0 || reps > 0) {
-                                            return (
-                                              <>
-                                                <span>•</span>
-                                                <span>
-                                                  {reps > 0 && <span>{reps} reps </span>}
-                                                  {weight > 0 && (
-                                                    <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: '400' }}>
-                                                      @{weight}kg
-                                                    </span>
-                                                  )}
-                                                </span>
-                                              </>
-                                            );
-                                          }
-                                          return null;
-                                        })()}
-                                      </div>
-                                      
-                                      {/* Status Badge */}
-                                      {!video.coach_feedback && (
-                                        <div className="mt-2">
-                                          {getStatusBadge(video.status, video.coach_feedback)}
-                                        </div>
-                                      )}
-                                    </div>
+                                {/* Status Badge */}
+                                {!video.coach_feedback && (
+                                  <div className="mt-2">
+                                    {getStatusBadge(video.status, video.coach_feedback)}
                                   </div>
-                                </div>
+                                )}
                               </div>
+                            </div>
+                          </div>
+                        </div>
 
                               {/* Coach Feedback - Full width below video */}
                               {video.coach_feedback && (
@@ -792,7 +836,7 @@ const StudentVideoLibrary = () => {
               />
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {(() => {
                 // Group resources by their folders
                 const folderMap = new Map();
@@ -845,11 +889,11 @@ const StudentVideoLibrary = () => {
                           }`} 
                         />
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
+                          <h3 className="text-white font-light text-sm sm:text-base flex items-center gap-2 flex-wrap">
                             <span className="flex items-center gap-2 flex-wrap">
                               <span>{folder.name}</span>
-                              <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                              <span className="text-xs sm:text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-3 w-3 sm:h-4 sm:w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                                   <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
                                 </svg>
                                 <span style={{ fontWeight: '400' }}>x{folder.resources.length}</span>
@@ -870,9 +914,9 @@ const StudentVideoLibrary = () => {
                             className="bg-white/5 rounded-[15px] p-4 hover:bg-white/10 transition-colors cursor-pointer"
                             onClick={() => handleCoachResourceClick(resource)}
                           >
-                            <div className="flex items-start gap-4 pl-[5px]">
+                            <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 pl-[5px]">
                               {/* Video Thumbnail */}
-                              <div className="relative w-24 h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
+                              <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                 {resource.fileUrl ? (
                                   <video 
                                     src={resource.fileUrl}
@@ -890,12 +934,12 @@ const StudentVideoLibrary = () => {
                               </div>
                               
                               {/* Resource Info */}
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-white font-light text-base flex items-center gap-2 flex-wrap">
+                              <div className="flex-1 min-w-0 w-full sm:w-auto">
+                                <h3 className="text-white font-light text-sm sm:text-base flex items-center gap-2 flex-wrap">
                                   <span>{resource.title || resource.fileName}</span>
                                 </h3>
                                 {resource.description && (
-                                  <p className="text-white/50 text-[13px] font-light mt-1">
+                                  <p className="text-white/50 text-xs sm:text-[13px] font-light mt-1">
                                     {resource.description}
                                   </p>
                                 )}

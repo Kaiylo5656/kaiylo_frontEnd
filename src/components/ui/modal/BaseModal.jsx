@@ -149,13 +149,13 @@ const BaseModal = forwardRef(({
           {/* Header */}
           {title && (
             <>
-              <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
+              <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3 flex items-center justify-between">
                 <h2 id={`${modalId}-title`} className={`${titleClassName} flex items-center gap-2`} style={{ color: 'var(--kaiylo-primary-hex)' }}>
                   {title}
                 </h2>
                 <button
                   onClick={onClose}
-                  className="text-white/50 hover:text-white transition-colors"
+                  className="text-white/50 hover:text-white transition-colors shrink-0"
                   aria-label="Close modal"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
@@ -163,14 +163,14 @@ const BaseModal = forwardRef(({
                   </svg>
                 </button>
               </div>
-              <div className="border-b border-white/10 mx-6"></div>
+              <div className="border-b border-white/10 mx-4 md:mx-6"></div>
             </>
           )}
 
           {/* Scrollable Body */}
           <div
             className={`flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body ${
-              noPadding ? '' : 'px-6 py-6 space-y-5'
+              noPadding ? '' : 'px-4 md:px-6 py-4 md:py-6 space-y-5'
             } ${footer ? 'pb-4' : ''}`}
             style={{ 
               scrollbarGutter: 'stable',
@@ -196,7 +196,7 @@ const BaseModal = forwardRef(({
 
           {/* Footer */}
           {footer && (
-            <div className="shrink-0 px-6 py-4 border-t border-white/10 bg-[#0f0f10]/95 backdrop-blur pb-[max(0px,env(safe-area-inset-bottom))]">
+            <div className="shrink-0 px-4 md:px-6 py-4 border-t border-white/10 bg-[#0f0f10]/95 backdrop-blur pb-[max(0px,env(safe-area-inset-bottom))]">
               {footer}
             </div>
           )}

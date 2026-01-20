@@ -11,11 +11,6 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
       return;
     }
 
-    if (!comment.trim()) {
-      alert('Veuillez ajouter un commentaire global');
-      return;
-    }
-
     // Don't proceed if already validating
     if (isUploading || isValidating) {
       return;
@@ -23,7 +18,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
 
     onComplete({
       difficulty,
-      comment: comment.trim(),
+      comment: comment.trim() || '', // Le commentaire est optionnel
       sessionData
     });
   };
@@ -141,9 +136,9 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
         <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px]">
           <button
             onClick={handleComplete}
-            disabled={isUploading || isValidating || !difficulty || !comment.trim()}
+            disabled={isUploading || isValidating || !difficulty}
             className={`flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors flex items-center justify-center gap-2 ${
-              (isUploading || isValidating || !difficulty || !comment.trim()) ? 'opacity-50 cursor-not-allowed bg-[var(--surface-600)] hover:bg-[var(--surface-600)]' : ''
+              (isUploading || isValidating || !difficulty) ? 'opacity-50 cursor-not-allowed bg-[var(--surface-600)] hover:bg-[var(--surface-600)]' : ''
             }`}
           >
             {(isUploading || isValidating) && <Loader2 className="h-4 w-4 animate-smooth-spin" />}

@@ -12,8 +12,8 @@ const VideoPlayer = forwardRef(({ src, poster, onLoadedMetadata, onPlay, onPause
         bg-black/90 rounded-md
         border border-white/10
         overflow-hidden
+        max-h-[30vh] md:max-h-[70vh]
       "
-      style={{ maxHeight: "70vh" }}
     >
       <video
         ref={(el) => { 
@@ -31,7 +31,7 @@ const VideoPlayer = forwardRef(({ src, poster, onLoadedMetadata, onPlay, onPause
         onError={onError}
         className="
           w-full h-auto
-          max-h-[70vh]
+          max-h-[30vh] md:max-h-[70vh]
           object-contain
         "
       />

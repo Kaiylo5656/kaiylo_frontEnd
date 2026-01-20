@@ -390,25 +390,95 @@ const ExerciseManagement = () => {
       )}
       <div className="flex-shrink-0 pt-3 px-6 pb-0">
         {/* Search and Filter Bar */}
-          <div className="flex justify-between items-center mb-6">
-          <div className="flex flex-col gap-3 flex-1">
-            <div className="flex items-center space-x-3">
-              {/* Search Input */}
-              <div className="relative font-light">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un exercice"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                />
-              </div>
-              
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-3">
+          {/* Mobile: Search + Action Buttons on same line */}
+          <div className="flex flex-row items-center gap-3 md:hidden">
+            {/* Search Input */}
+            <div className="relative font-light flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Rechercher un exercice"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              />
+            </div>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              {/* Delete Button - appears when exercises are selected */}
+              {selectedExercises.length > 0 && (
+                <button
+                  onClick={handleDeleteMultiple}
+                  className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"
+                  title="Supprimer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-[18px] w-[18px] text-[#d4845a]">
+                    <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                  </svg>
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setEditingExercise(null);
+                  setShowModal(true);
+                }}
+                className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-normal p-2.5 rounded-[8px] transition-colors flex items-center justify-center"
+                title="Nouveau"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
+                  <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Filters and Sort - Mobile only, below search row */}
+          <div className="flex md:hidden flex-row items-center gap-3">
+            {/* Filters Button */}
+            <div className="flex-1 [&_button]:w-full [&_button]:justify-center">
+              <TagFilterDropdown
+                tags={availableTags}
+                selectedTags={selectedTagFilters}
+                onTagsChange={handleTagSelection}
+                placeholder="Rechercher un tag..."
+              />
+            </div>
+
+            {/* Sort Control */}
+            <div className="flex-1 [&_button]:w-full">
+              <SortControl 
+                sort={sort} 
+                dir={dir} 
+                onChange={handleSortChange}
+              />
+            </div>
+          </div>
+
+          {/* Desktop: Search + Filters */}
+          <div className="hidden md:flex flex-col md:flex-row gap-3 flex-1 order-2 md:order-1">
+            {/* Search Input */}
+            <div className="relative font-light w-full md:w-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Rechercher un exercice"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  borderColor: 'rgba(255, 255, 255, 0.1)'
+                }}
+              />
+            </div>
+            
+            {/* Filters and Sort - Desktop only, inline with search */}
+            <div className="flex flex-row items-center gap-3">
               {/* Filters Button */}
               <TagFilterDropdown
                 tags={availableTags}
@@ -439,13 +509,13 @@ const ExerciseManagement = () => {
             </div>
           </div>
 
-          {/* New Button */}
+          {/* New Button - Desktop */}
           <button
             onClick={() => {
               setEditingExercise(null); // Clear any editing state
               setShowModal(true);
             }}
-            className="group bg-primary hover:bg-primary/90 text-primary-foreground font-normal pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors flex items-center gap-2"
+            className="hidden md:flex group bg-primary hover:bg-primary/90 text-primary-foreground font-normal pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors items-center gap-2 order-3"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
               <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
@@ -457,41 +527,45 @@ const ExerciseManagement = () => {
       </div>
 
       {/* Exercise List Container - Scrollable */}
-      <div className="flex-1 min-h-0 px-6 pb-6">
+      <div className="flex-1 min-h-0 px-4 md:px-6 pb-6">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header */}
-          <div className="px-6 py-3 shrink-0" style={{ borderBottom: 'none', maxWidth: '978px' }}>
-            <div className="grid grid-cols-[400px_287px_1fr] items-center gap-6">
-              <div className="flex items-center space-x-6">
-                {/* Select All Checkbox */}
-                <button
-                  onClick={handleSelectAll}
-                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    selectedExercises.length === filteredExercises.length && filteredExercises.length > 0
-                      ? 'bg-primary border-primary text-primary-foreground'
-                      : 'border-border hover:border-primary'
-                  }`}
-                >
-                  {selectedExercises.length === filteredExercises.length && filteredExercises.length > 0 && (
-                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+          {!loading && filteredExercises.length > 0 && (
+            <div className="px-4 md:px-6 py-3 shrink-0" style={{ borderBottom: 'none', maxWidth: '978px' }}>
+              <div className="flex md:grid md:grid-cols-[400px_287px_1fr] items-center gap-4 md:gap-[100px]">
+                <div className="flex items-center gap-4 md:gap-6 min-w-0 flex-1">
+                  {/* Select All Checkbox */}
+                  <div className="shrink-0 hidden md:block">
+                    <button
+                      onClick={handleSelectAll}
+                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                        selectedExercises.length === filteredExercises.length && filteredExercises.length > 0
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : 'border-border hover:border-primary'
+                      }`}
+                    >
+                      {selectedExercises.length === filteredExercises.length && filteredExercises.length > 0 && (
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      )}
+                    </button>
+                  </div>
+                  <h3 className="text-xs font-light text-foreground" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                    Exercices ({filteredExercises.length})
+                  </h3>
+                  {/* Selection Info */}
+                  {selectedExercises.length > 0 && (
+                    <span className="text-xs hidden md:inline" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                      {selectedExercises.length} sélectionné{selectedExercises.length > 1 ? 's' : ''}
+                    </span>
                   )}
-                </button>
-                <h3 className="text-xs font-light text-foreground" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                  Exercices ({filteredExercises.length})
-                </h3>
-                {/* Selection Info */}
-                {selectedExercises.length > 0 && (
-                  <span className="text-xs" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    {selectedExercises.length} sélectionné{selectedExercises.length > 1 ? 's' : ''}
-                  </span>
-                )}
+                </div>
+                <div className="hidden md:flex justify-center">
+                  <span className="text-xs font-extralight text-muted-foreground pr-0 text-center" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
+                </div>
+                <div className="hidden md:block"></div>
               </div>
-              <div className="flex justify-center">
-                <span className="text-xs font-extralight text-muted-foreground pr-0 text-center" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Tags</span>
-              </div>
-              <div></div>
             </div>
-          </div>
+          )}
 
           {/* Exercise List - Scrollable */}
           <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar">
@@ -547,7 +621,7 @@ const ExerciseManagement = () => {
                 return (
                 <div 
                   key={exercise.id} 
-                  className="px-6 py-2 transition-colors cursor-pointer rounded-2xl"
+                  className="px-4 md:px-6 py-3 md:py-2 transition-colors cursor-pointer rounded-2xl"
                   style={{ 
                     backgroundColor: backgroundColor,
                     borderWidth: '0px',
@@ -572,7 +646,98 @@ const ExerciseManagement = () => {
                   role="button"
                   aria-label={`View details for ${exercise.title}`}
                 >
-                  <div className="grid grid-cols-[400px_287px_1fr] items-center gap-6">
+                  {/* Mobile Layout */}
+                  <div className="flex md:hidden flex-col gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        {/* Exercise Name with Indicators */}
+                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                          <h4 className="text-foreground font-light truncate">
+                            {exercise.title}
+                          </h4>
+                          {/* Instructions Indicator */}
+                          <div className="flex items-center shrink-0" title={exercise.instructions && exercise.instructions.trim() ? "Instructions renseignées" : "Aucune instruction"}>
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              viewBox="0 0 384 512" 
+                              className="h-4 w-4"
+                              style={{ 
+                                fill: exercise.instructions && exercise.instructions.trim() 
+                                  ? 'rgba(212, 132, 89, 0.8)' 
+                                  : 'rgba(255, 255, 255, 0.2)' 
+                              }}
+                            >
+                              <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
+                            </svg>
+                          </div>
+                          {/* Video Indicator */}
+                          <div className="flex items-center shrink-0" title={exercise.demoVideoURL ? "Vidéo renseignée" : "Aucune vidéo"}>
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              viewBox="0 0 640 640" 
+                              className="h-4 w-4"
+                              style={{ 
+                                fill: exercise.demoVideoURL 
+                                  ? 'rgba(212, 132, 89, 0.8)' 
+                                  : 'rgba(255, 255, 255, 0.2)' 
+                              }}
+                            >
+                              <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Actions Column - Mobile */}
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(exercise);
+                          }}
+                          className="p-1 transition-colors group"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                          title="Edit exercise"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                            <path fill="currentColor" d="M535.6 85.7C513.7 63.8 478.3 63.8 456.4 85.7L432 110.1L529.9 208L554.3 183.6C576.2 161.7 576.2 126.3 554.3 104.4L535.6 85.7zM236.4 305.7C230.3 311.8 225.6 319.3 222.9 327.6L193.3 416.4C190.4 425 192.7 434.5 199.1 441C205.5 447.5 215 449.7 223.7 446.8L312.5 417.2C320.7 414.5 328.2 409.8 334.4 403.7L496 241.9L398.1 144L236.4 305.7zM160 128C107 128 64 171 64 224L64 480C64 533 107 576 160 576L416 576C469 576 512 533 512 480L512 384C512 366.3 497.7 352 480 352C462.3 352 448 366.3 448 384L448 480C448 497.7 433.7 512 416 512L160 512C142.3 512 128 497.7 128 480L128 224C128 206.3 142.3 192 160 192L256 192C273.7 192 288 177.7 288 160C288 142.3 273.7 128 256 128L160 128z"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(exercise.id);
+                          }}
+                          className="p-1 transition-colors group"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                          title="Delete exercise"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                            <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {/* Tags - Mobile */}
+                    {exercise.tags && exercise.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {exercise.tags.map(tag => {
+                          const tagStyle = getTagColor(tag, tagColorMap);
+                          return (
+                            <span 
+                              key={tag} 
+                              className="px-3 py-1 rounded-full text-xs font-light"
+                              style={tagStyle}
+                            >
+                              {tag}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop Layout */}
+                  <div className="hidden md:grid md:grid-cols-[400px_287px_1fr] items-center gap-[100px]">
                     <div className="flex items-center space-x-6">
                       {/* Checkbox */}
                       <button

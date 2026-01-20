@@ -5,6 +5,7 @@ import { X, Plus, MoreHorizontal, User, GripVertical, BookOpen, Check } from 'lu
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
 import ContainedSideSheet from './ui/ContainedSideSheet';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import AddExerciseModal from './AddExerciseModal';
@@ -14,6 +15,7 @@ import UnsavedChangesWarningModal from './UnsavedChangesWarningModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import ModalPortal from './ui/modal/ModalPortal';
+import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import { getApiBaseUrlWithApi } from '../config/api';
 import { getTagColor } from '../utils/tagColors';
 
@@ -25,14 +27,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const exerciseRefs = useRef({});
   const [animatingIndex, setAnimatingIndex] = useState(null);
   
   // Exercise Library Side Sheet State
-  const [openSheet, setOpenSheet] = useState(false);
+  const [openSheet, setOpenSheet] = useState(true);
   const [libraryMode, setLibraryMode] = useState('browse'); // 'browse' or 'create'
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [isAddExerciseModalOpen, setIsAddExerciseModalOpen] = useState(false);
@@ -67,12 +69,21 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // State for tracking initial values to detect changes
   const [initialState, setInitialState] = useState(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [showStudentPreview, setShowStudentPreview] = useState(false);
+  
+  // Video modal state for student preview
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [selectedSetForVideo, setSelectedSetForVideo] = useState({});
+  const [videoUploadExerciseIndex, setVideoUploadExerciseIndex] = useState(null);
 
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       fetchExercises();
+      // Force les deux panneaux à être toujours ouverts
+      setShowSidebar(true);
+      setOpenSheet(true);
     } else {
       document.body.style.overflow = '';
     }
@@ -102,12 +113,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             weight: set.weight?.toString() || '',
             reps: set.reps?.toString() || '',
             rest: set.rest || '03:00',
-            video: set.video || false
+            video: set.video || false,
+            repType: set.repType || 'reps'
           }));
         } else {
           // Default sets if none exist or not an array
           sets = [
-            { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
+            { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
           ];
         }
 
@@ -380,7 +392,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       exerciseId: selectedExercise.id,
       description: selectedExercise.description || '',
       sets: [
-        { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
       ],
       notes: '',
       isExpanded: true,
@@ -409,12 +421,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const previousReps = lastSet?.reps || '';
     const previousRest = lastSet?.rest || '03:00';
     
+    const previousRepType = lastSet?.repType || 'reps';
     updatedExercises[exerciseIndex].sets.push({
       serie: newSetNumber,
       weight: previousWeight,
       reps: previousReps,
       rest: previousRest,
-      video: false
+      video: false,
+      repType: previousRepType
     });
     setExercises(updatedExercises);
   };
@@ -432,6 +446,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const handleSetChange = (exerciseIndex, setIndex, field, value) => {
     const updatedExercises = [...exercises];
     updatedExercises[exerciseIndex].sets[setIndex][field] = value;
+    setExercises(updatedExercises);
+  };
+
+  const handleChangeAllRepTypes = (exerciseIndex, repType) => {
+    const updatedExercises = [...exercises];
+    updatedExercises[exerciseIndex].sets.forEach(set => {
+      set.repType = repType;
+      // Reset reps and weight if switching to hold
+      if (repType === 'hold') {
+        set.reps = '0s';
+        set.weight = '';
+      }
+      // Reset reps value if switching to reps
+      if (repType === 'reps') {
+        set.reps = '';
+      }
+    });
     setExercises(updatedExercises);
   };
 
@@ -608,10 +639,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tags: ex.tags,
         sets: ex.sets.map(set => ({
           serie: set.serie,
-          weight: parseFloat(set.weight) || 0,
-          reps: (set.reps && set.reps.includes('-')) ? set.reps : (parseInt(set.reps) || 0),
+          weight: ex.useRir ? (parseFloat(set.weight) || 0) : (set.weight || ''),
+          reps: set.repType === 'hold' ? set.reps : (set.reps || ''),
           rest: set.rest,
-          video: set.video
+          video: set.video,
+          repType: set.repType || 'reps'
         })),
         notes: ex.notes,
         tempo: ex.tempo,
@@ -804,7 +836,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   };
 
   const handleCloseLibrary = () => {
-    setOpenSheet(false);
+    // Les panneaux doivent toujours rester ouverts - ne rien faire
+    // setOpenSheet(false);
     setLibraryMode('browse');
     setReplacingExerciseIndex(null);
   };
@@ -818,7 +851,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       exerciseId: exercise.id,
       description: exercise.instructions || '',
       sets: [
-        { serie: 1, weight: '', reps: '', rest: '03:00', video: false }
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
       ],
       notes: '',
       isExpanded: true,
@@ -965,7 +998,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       onBackdropClick={handleBackdropClick}
       size="2xl"
       noPadding={true}
-      className="!p-0 relative mx-auto w-full max-w-[700px] max-h-[92vh] overflow-visible flex flex-col"
+      className="!p-0 relative mx-auto w-full max-w-[700px] md:max-w-[700px] max-h-[92vh] overflow-visible flex flex-col"
       borderRadius={openSheet ? "0px 16px 16px 0px" : "16px"}
       externalContent={
         isOpen ? (
@@ -991,15 +1024,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Bouton agencement cliqué!', showSidebar);
-                setShowSidebar((prev) => {
-                  const next = !prev;
-                  console.log('Toggle sidebar:', prev, '->', next);
-                  if (next) {
-                    setTimeout(() => updateArrangementPosition(), 0);
-                  }
-                  return next;
-                });
+                // Le panneau doit toujours rester ouvert - ne rien faire
+                // console.log('Bouton agencement cliqué!', showSidebar);
+                // setShowSidebar((prev) => {
+                //   const next = !prev;
+                //   console.log('Toggle sidebar:', prev, '->', next);
+                //   if (next) {
+                //     setTimeout(() => updateArrangementPosition(), 0);
+                //   }
+                //   return next;
+                // });
               }}
               aria-expanded={showSidebar}
               aria-label={showSidebar ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
@@ -1043,7 +1077,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             {showSidebar && (
               <ExerciseArrangementModal
                 isOpen={showSidebar}
-                onClose={() => setShowSidebar(false)}
+                onClose={() => {
+                  // Le panneau doit toujours rester ouvert - ne rien faire
+                  // setShowSidebar(false);
+                }}
                 exercises={exercises}
                 position={{
                   ...arrangementPosition,
@@ -1069,13 +1106,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             {/* Library button - arrow on the left side of modal */}
             <button
               onClick={() => {
-                setOpenSheet((prev) => {
-                  const next = !prev;
-                  if (next) {
-                    setTimeout(() => updateLibraryPosition(), 0);
-                  }
-                  return next;
-                });
+                // Le panneau doit toujours rester ouvert - ne rien faire
+                // setOpenSheet((prev) => {
+                //   const next = !prev;
+                //   if (next) {
+                //     setTimeout(() => updateLibraryPosition(), 0);
+                //   }
+                //   return next;
+                // });
               }}
               aria-expanded={openSheet}
               aria-label={openSheet ? "Masquer la bibliothèque" : "Afficher la bibliothèque d'exercices"}
@@ -1102,18 +1140,23 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             </button>
 
             {/* Fixed Header */}
-            <div className="shrink-0 px-6 pt-6 pb-3">
+            <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                     <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/>
                   </svg>
-                  <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    {existingSession ? 'Modifier la séance' : 'Nouvelle séance'} - <span className="font-light">
+                  <h2 className="text-base md:text-xl font-normal text-white flex items-center gap-1 md:gap-2 min-w-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    <span className="truncate">{existingSession ? 'Modifier la séance' : 'Nouvelle séance'}</span>
+                    <span className="hidden sm:inline font-light"> - </span>
+                    <span className="font-light truncate hidden sm:inline">
                       {(() => {
                         const formattedDate = format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr });
                         return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
                       })()}
+                    </span>
+                    <span className="font-light truncate sm:hidden text-xs">
+                      {format(selectedDate, 'd MMM', { locale: fr })}
                     </span>
                   </h2>
                 </div>
@@ -1130,25 +1173,25 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 </div>
               </div>
             </div>
-            <div className="border-b border-white/10 mx-6"></div>
+            <div className="border-b border-white/10 mx-4 md:mx-6"></div>
 
         {/* Scrollable Body */}
         <div 
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-6"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 md:py-6"
           style={{ scrollbarGutter: 'stable' }}
         >
           <div className="workout-modal-content w-full flex min-h-0">
             {/* Main Content */}
-            <div className="workout-modal-main flex-1 min-h-0 space-y-6">
+            <div className="workout-modal-main flex-1 min-h-0 space-y-4 md:space-y-6">
               <div className="space-y-2">
-                <label className="block text-sm font-extralight text-white/50">
+                <label className="block text-xs md:text-sm font-extralight text-white/50">
                   Nom de la séance
                 </label>
                 <div className="relative flex items-center">
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 448 512" 
-                    className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
+                    className="absolute left-3 md:left-[14px] h-3.5 w-3.5 md:h-4 md:w-4 pointer-events-none flex-shrink-0"
                     style={{ color: '#d4845a' }}
                     fill="currentColor"
                   >
@@ -1158,30 +1201,30 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     placeholder="Saisir le nom de la séance"
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
-                    className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] border-0 bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0 h-[44px]"
+                    className="w-full pl-9 md:pl-[42px] pr-3 md:pr-[14px] py-2.5 md:py-3 rounded-[10px] border-0 bg-[rgba(0,0,0,0.5)] text-white text-xs md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0 h-10 md:h-[44px]"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-extralight text-white/50">
+                <label className="block text-xs md:text-sm font-extralight text-white/50">
                   Date de la séance
                 </label>
                 <div 
                   onClick={() => dateInputRef.current?.showPicker()}
-                  className="relative rounded-[10px] flex items-center cursor-pointer w-full px-[14px] py-3 bg-[rgba(0,0,0,0.5)] h-[44px]"
+                  className="relative rounded-[10px] flex items-center cursor-pointer w-full px-3 md:px-[14px] py-2.5 md:py-3 bg-[rgba(0,0,0,0.5)] h-10 md:h-[44px]"
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 448 512" 
-                    className="h-4 w-4 pointer-events-none mr-3 flex-shrink-0"
+                    className="h-3.5 w-3.5 md:h-4 md:w-4 pointer-events-none mr-2 md:mr-3 flex-shrink-0"
                     style={{ color: 'rgba(255, 255, 255, 0.5)' }}
                     fill="currentColor"
                   >
                     <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
                   </svg>
                   {/* Custom Display */}
-                  <div className="flex-1 text-sm text-white font-normal">
+                  <div className="flex-1 text-xs md:text-sm text-white font-normal">
                     {sessionDate ? (
                       (() => {
                         const [year, month, day] = format(sessionDate, 'yyyy-MM-dd').split('-');
@@ -1228,7 +1271,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   }}
                 >
                   {/* Exercise Header */}
-                  <div className="flex items-center justify-between p-4 bg-[rgba(0,0,0,0.2)]">
+                  <div className="flex items-center justify-between p-3 md:p-4 bg-[rgba(0,0,0,0.2)]">
                     <div 
                       onClick={(e) => {
                         handleReplaceExercise(exerciseIndex);
@@ -1237,17 +1280,17 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           e.currentTarget.blur();
                         }
                       }}
-                      className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors ${
+                      className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors min-w-0 ${
                         replacingExerciseIndex === exerciseIndex 
                           ? 'bg-[rgba(255,255,255,0.10)]' 
                           : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
                       }`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                         <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
                       </svg>
-                      <span className="text-[var(--tw-ring-offset-color)] font-normal text-lg ml-3">{exercise.name}</span>
-                      <div className="flex gap-1.5 flex-wrap ml-[14px]">
+                      <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
+                      <div className="flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px] hidden sm:flex">
                         {exercise.tags && exercise.tags.map((tag, tagIndex) => {
                           const tagStyle = getTagColor(tag);
                           return (
@@ -1274,17 +1317,17 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           }));
                           setExercises(updatedExercises);
                         }}
-                        className={`ml-auto py-1 px-3 rounded-[8px] text-sm font-normal transition-colors flex items-center gap-1.5 ${
+                        className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${
                           exercise.useRir
                             ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
                             : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
                         }`}
                         title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3.5 h-3.5 flex-shrink-0 fill-current">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
                           <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"/>
                         </svg>
-                        <span>{exercise.useRir ? 'RPE' : 'Charge'}</span>
+                        <span className="hidden sm:inline">{exercise.useRir ? 'RPE' : 'Charge'}</span>
                       </button>
                     </div>
                     <div className="flex items-center gap-0 px-0">
@@ -1328,25 +1371,247 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
                   {/* Exercise Table */}
                   {exercise.isExpanded && (
-                    <div className="bg-[rgba(0,0,0,0.2)] p-4">
+                    <div className="bg-[rgba(0,0,0,0.2)] p-3 md:p-4">
                       {/* Table Container with Scroll */}
-                      <div className="exercise-sets-container overflow-x-auto">
-                        <table className="w-full text-sm min-w-[500px]">
+                      <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
+                        <table className="w-full text-xs md:text-sm min-w-[500px]">
                           <thead className="sticky top-0 z-10">
                             <tr className="text-white/50 text-xs font-extralight">
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Reps</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
-                              <th className="text-center pb-[10px] font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
+                              <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
+                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                                <DropdownMenu modal={false}>
+                                  <DropdownMenuTrigger asChild>
+                                    <button 
+                                      type="button"
+                                      className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
+                                      style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                    >
+                                      <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                        <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                                      </svg>
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent 
+                                    align="start" 
+                                    sideOffset={5} 
+                                    disablePortal={true}
+                                    className="rounded-lg shadow-2xl z-[9999]"
+                                    style={{
+                                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                      backdropFilter: 'blur(10px)',
+                                      borderColor: 'rgba(255, 255, 255, 0.15)',
+                                      borderWidth: '1px',
+                                      borderStyle: 'solid',
+                                      marginLeft: '12px'
+                                    }}
+                                  >
+                                    <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
+                                      Reps
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
+                                      Hold
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </th>
+                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
+                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                              <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
                               <th className="pb-3"></th>
                             </tr>
                           </thead>
                           <tbody>
                             {exercise.sets.map((set, setIndex) => (
                               <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
-                                <td className="py-1.5 text-sm text-center font-normal text-white/25">{set.serie}</td>
-                                <td className="py-1.5">
+                                <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
+                                <td className="py-1.5 min-w-24">
+                                  {set.repType === 'hold' ? (
+                                    <div 
+                                      className="relative flex items-center justify-center mx-auto w-[82px]"
+                                      onMouseEnter={(e) => {
+                                        const input = e.currentTarget.querySelector('input');
+                                        if (input) {
+                                          input.style.borderStyle = 'solid';
+                                          input.style.borderWidth = '0.5px';
+                                          input.style.borderColor = '#d4845a';
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        const input = e.currentTarget.querySelector('input');
+                                        if (input && document.activeElement !== input) {
+                                          input.style.borderStyle = 'none';
+                                          input.style.borderWidth = '0px';
+                                          input.style.borderColor = 'transparent';
+                                        }
+                                      }}
+                                    >
+                                      <Input
+                                        type="text"
+                                        value={set.reps || ''}
+                                        maxLength={8}
+                                        onChange={(e) => {
+                                          const inputValue = e.target.value.slice(0, 8);
+                                          const previousValue = set.reps || '';
+                                          
+                                          // Allow empty string
+                                          if (inputValue === '') {
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', '');
+                                            return;
+                                          }
+                                          
+                                          // Prevent deleting 's' at the end - if user tries to delete 's', restore it
+                                          let cleanValue = inputValue.replace(/s/gi, '');
+                                          
+                                          // If previous value was "0s" or "0" and user types a digit, replace the 0
+                                          if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                            return;
+                                          }
+                                          
+                                          // Check if it contains colon (MM:SS format) - don't add 's' for this format
+                                          if (cleanValue.includes(':')) {
+                                            const parts = cleanValue.split(':');
+                                            if (parts.length === 2) {
+                                              const minutes = parseInt(parts[0], 10);
+                                              const seconds = parseInt(parts[1], 10);
+                                              if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
+                                                handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
+                                              }
+                                            }
+                                            return;
+                                          }
+                                          
+                                          // Allow only digits - always add 's' at the end
+                                          if (/^\d+$/.test(cleanValue)) {
+                                            const numValue = parseInt(cleanValue, 10);
+                                            if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
+                                              // Store with 's' appended
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                            }
+                                          }
+                                        }}
+                                        onKeyDown={(e) => {
+                                          const input = e.target;
+                                          const cursorPosition = input.selectionStart;
+                                          const value = input.value;
+                                          
+                                          const allowedKeys = [
+                                            'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 
+                                            'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
+                                          ];
+                                          
+                                          // Prevent deleting 's' at the end
+                                          if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
+                                            e.preventDefault();
+                                            // Move cursor before 's' to allow deleting the number
+                                            input.setSelectionRange(value.length - 1, value.length - 1);
+                                            return;
+                                          }
+                                          
+                                          // Prevent typing at the end if it would overwrite 's'
+                                          if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
+                                            if (/^\d$/.test(e.key)) {
+                                              // Allow digits but insert before 's', limit to 8 characters
+                                              e.preventDefault();
+                                              const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
+                                              setTimeout(() => {
+                                                input.setSelectionRange(newValue.length - 1, newValue.length - 1);
+                                              }, 0);
+                                              return;
+                                            }
+                                          }
+                                          
+                                          if (allowedKeys.includes(e.key)) {
+                                            return;
+                                          }
+                                          
+                                          // Allow digits and ':' (but not 's')
+                                          if (/^\d$/.test(e.key) || e.key === ':') {
+                                            return;
+                                          }
+                                          
+                                          e.preventDefault();
+                                        }}
+                                        placeholder="40s"
+                                        className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
+                                        onFocus={(e) => {
+                                          const input = e.target;
+                                          const value = input.value;
+                                          // If value is "0s", select the "0" so it can be easily replaced
+                                          if (value === '0s') {
+                                            setTimeout(() => {
+                                              input.setSelectionRange(0, 1);
+                                            }, 0);
+                                          } else if (value.endsWith('s') && !value.includes(':')) {
+                                            // If value ends with 's' (but not "0s"), position cursor before 's'
+                                            setTimeout(() => {
+                                              input.setSelectionRange(value.length - 1, value.length - 1);
+                                            }, 0);
+                                          }
+                                          e.target.style.borderStyle = 'solid';
+                                          e.target.style.borderWidth = '0.5px';
+                                          e.target.style.borderColor = '#d4845a';
+                                        }}
+                                        onBlur={(e) => {
+                                          e.target.style.borderStyle = 'none';
+                                          e.target.style.borderWidth = '0px';
+                                          e.target.style.borderColor = 'transparent';
+                                          // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
+                                          const value = e.target.value;
+                                          if (value && !value.includes(':') && !value.endsWith('s')) {
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="flex items-center justify-center w-[82px] mx-auto"
+                                      onMouseEnter={(e) => {
+                                        const input = e.currentTarget.querySelector('input');
+                                        if (input) {
+                                          input.style.borderStyle = 'solid';
+                                          input.style.borderWidth = '0.5px';
+                                          input.style.borderColor = '#d4845a';
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        const input = e.currentTarget.querySelector('input');
+                                        if (input && document.activeElement !== input) {
+                                          input.style.borderStyle = 'none';
+                                          input.style.borderWidth = '0px';
+                                          input.style.borderColor = 'transparent';
+                                        }
+                                      }}
+                                    >
+                                      <Input
+                                        type="text"
+                                        value={set.reps || ''}
+                                        maxLength={8}
+                                        onChange={(e) => {
+                                          // Allow any character - free text input, limit to 8 characters
+                                          const value = e.target.value.slice(0, 8);
+                                          handleSetChange(exerciseIndex, setIndex, 'reps', value);
+                                        }}
+                                        placeholder=""
+                                        className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
+                                        onFocus={(e) => {
+                                          e.target.style.borderStyle = 'solid';
+                                          e.target.style.borderWidth = '0.5px';
+                                          e.target.style.borderColor = '#d4845a';
+                                        }}
+                                        onBlur={(e) => {
+                                          e.target.style.borderStyle = 'none';
+                                          e.target.style.borderWidth = '0px';
+                                          e.target.style.borderColor = 'transparent';
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-1.5 min-w-24">
                                   <div 
                                     className="relative flex items-center justify-center mx-auto w-20"
                                     onMouseEnter={(e) => {
@@ -1367,48 +1632,62 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     }}
                                   >
                                     <Input
-                                      type="number"
-                                      step={exercise.useRir ? "1" : "1"}
+                                      type={exercise.useRir ? "number" : "text"}
+                                      step={exercise.useRir ? "1" : undefined}
+                                      maxLength={exercise.useRir ? undefined : 5}
                                       value={set.weight}
                                       onChange={(e) => {
                                         let value = e.target.value;
                                         if (exercise.useRir) {
                                           // En mode RPE, seulement des nombres entiers (pas de virgule/point)
-                                          // Limité à 2 chiffres maximum (99)
+                                          // Limité entre 1 et 10
                                           value = value.replace(/[,.]/g, '');
                                           if (value === '' || value === '-') {
                                             handleSetChange(exerciseIndex, setIndex, 'weight', value);
                                             return;
                                           }
                                           const numValue = parseInt(value, 10);
-                                          if (!isNaN(numValue) && numValue >= 0) {
-                                            // Limiter à 99 (2 chiffres)
-                                            const limitedValue = Math.min(99, numValue);
+                                          if (!isNaN(numValue) && numValue >= 1) {
+                                            // Limiter entre 1 et 10
+                                            const limitedValue = Math.min(10, Math.max(1, numValue));
                                             handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
-                                          } else if (value === '') {
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', '');
+                                          } else if (numValue === 0 || value === '') {
+                                            // Allow empty but don't allow 0
+                                            if (value === '') {
+                                              handleSetChange(exerciseIndex, setIndex, 'weight', '');
+                                            }
+                                            // If user typed 0, don't update (invalid RPE)
                                           }
                                         } else {
-                                          // En mode Charge, limiter à 999 (3 chiffres)
-                                          if (value === '' || value === '-') {
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', value);
-                                            return;
-                                          }
-                                          const numValue = parseFloat(value);
-                                          if (!isNaN(numValue) && numValue >= 0) {
-                                            // Limiter à 999 (3 chiffres)
-                                            const limitedValue = Math.min(999, numValue);
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
-                                          } else if (value === '') {
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', '');
-                                          }
+                                          // En mode Charge, permettre texte libre, limité à 5 caractères
+                                          const limitedValue = value.slice(0, 5);
+                                          handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue);
                                         }
                                       }}
                                       onKeyDown={(e) => {
                                         if (exercise.useRir) {
+                                          const input = e.target;
+                                          const currentValue = input.value || '';
+                                          
                                           // Empêcher la saisie de virgule, point et autres caractères non numériques
                                           if (e.key === ',' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
                                             e.preventDefault();
+                                            return;
+                                          }
+                                          
+                                          // Empêcher la saisie de 0 seul
+                                          if (e.key === '0' && currentValue === '') {
+                                            e.preventDefault();
+                                            return;
+                                          }
+                                          
+                                          // Si l'input a déjà une valeur, empêcher d'ajouter des chiffres qui dépasseraient 10
+                                          if (/^\d$/.test(e.key) && currentValue !== '') {
+                                            const newValue = parseInt(currentValue + e.key, 10);
+                                            if (newValue > 10) {
+                                              e.preventDefault();
+                                              return;
+                                            }
                                           }
                                         }
                                       }}
@@ -1430,133 +1709,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     )}
                                   </div>
                                 </td>
-                                <td className="py-1.5">
-                                  <div
-                                    className="flex items-center justify-center"
-                                    onMouseEnter={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input) {
-                                        input.style.borderStyle = 'solid';
-                                        input.style.borderWidth = '0.5px';
-                                        input.style.borderColor = '#d4845a';
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input && document.activeElement !== input) {
-                                        input.style.borderStyle = 'none';
-                                        input.style.borderWidth = '0px';
-                                        input.style.borderColor = 'transparent';
-                                      }
-                                    }}
-                                  >
-                                    <Input
-                                      type="text"
-                                      value={set.reps || ''}
-                                      onChange={(e) => {
-                                        const inputValue = e.target.value;
-                                        
-                                        // Allow empty string
-                                        if (inputValue === '') {
-                                          handleSetChange(exerciseIndex, setIndex, 'reps', '');
-                                          return;
-                                        }
-                                        
-                                        // Check if it contains a dash (range format)
-                                        if (inputValue.includes('-')) {
-                                          const parts = inputValue.split('-');
-                                          
-                                          // Only allow one dash
-                                          if (parts.length > 2) {
-                                            return; // Invalid format
-                                          }
-                                          
-                                          const firstPart = parts[0].trim();
-                                          const secondPart = parts[1]?.trim() || '';
-                                          
-                                          // Validate first part (must be a number)
-                                          if (firstPart === '' || !/^\d+$/.test(firstPart)) {
-                                            // Allow typing if user is still entering the first number
-                                            if (inputValue.endsWith('-') && /^\d+-$/.test(inputValue)) {
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', inputValue);
-                                              return;
-                                            }
-                                            return; // Invalid
-                                          }
-                                          
-                                          const firstNum = parseInt(firstPart, 10);
-                                          if (isNaN(firstNum) || firstNum < 0 || firstNum > 99) {
-                                            return; // Invalid number
-                                          }
-                                          
-                                          // If second part exists, validate it
-                                          if (secondPart !== '') {
-                                            if (!/^\d+$/.test(secondPart)) {
-                                              return; // Invalid
-                                            }
-                                            const secondNum = parseInt(secondPart, 10);
-                                            if (isNaN(secondNum) || secondNum < 0 || secondNum > 99) {
-                                              return; // Invalid number
-                                            }
-                                            // Both numbers valid, save the range
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', `${firstNum}-${secondNum}`);
-                                          } else {
-                                            // User is typing after dash, allow partial input
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', `${firstNum}-`);
-                                          }
-                                        } else {
-                                          // No dash, single number format
-                                          // Only allow digits
-                                          if (!/^\d+$/.test(inputValue)) {
-                                            return; // Invalid
-                                          }
-                                          
-                                          const numericValue = parseInt(inputValue, 10);
-                                          if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 99) {
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', numericValue.toString());
-                                          }
-                                        }
-                                      }}
-                                      onKeyDown={(e) => {
-                                        // Allow: digits, dash, backspace, delete, arrow keys, tab
-                                        const allowedKeys = [
-                                          'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 
-                                          'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
-                                        ];
-                                        
-                                        if (allowedKeys.includes(e.key)) {
-                                          return; // Allow these keys
-                                        }
-                                        
-                                        // Allow digits
-                                        if (/^\d$/.test(e.key)) {
-                                          return; // Allow digits
-                                        }
-                                        
-                                        // Allow dash only if there's no dash already and there's at least one digit before
-                                        if (e.key === '-' && !e.target.value.includes('-') && e.target.value.length > 0 && /^\d+$/.test(e.target.value)) {
-                                          return; // Allow dash
-                                        }
-                                        
-                                        // Block all other keys
-                                        e.preventDefault();
-                                      }}
-                                      placeholder=""
-                                      className="text-white text-sm text-center h-8 w-16 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
-                                      onFocus={(e) => {
-                                        e.target.style.borderStyle = 'solid';
-                                        e.target.style.borderWidth = '0.5px';
-                                        e.target.style.borderColor = '#d4845a';
-                                      }}
-                                      onBlur={(e) => {
-                                        e.target.style.borderStyle = 'none';
-                                        e.target.style.borderWidth = '0px';
-                                        e.target.style.borderColor = 'transparent';
-                                      }}
-                                    />
-                                  </div>
-                                </td>
-                                <td className="py-1.5">
+                                <td className="py-1.5 min-w-24">
                                   <div
                                     className="flex items-center justify-center"
                                     onMouseEnter={(e) => {
@@ -1581,7 +1734,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       value={set.rest}
                                       onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
                                       placeholder="03:00"
-                                      className="text-white text-sm text-center h-8 w-16 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
+                                      className="text-white text-sm text-center h-8 w-20 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
                                       onKeyDown={(e) => {
                                         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                                           e.preventDefault();
@@ -1619,7 +1772,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     />
                                   </div>
                                 </td>
-                                <td className="py-1.5" style={{ textAlign: 'center' }}>
+                                <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
                                   <div className="flex items-center justify-center">
                                     <button
                                       type="button"
@@ -1643,7 +1796,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     </button>
                                   </div>
                                 </td>
-                                <td className="py-1.5 text-center">
+                                <td className="py-1.5 text-center pr-[10px]">
                                   {exercise.sets.length > 1 && (
                                     <button
                                       type="button"
@@ -1663,11 +1816,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       </div>
 
                       {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
-                      <div className="flex items-center justify-between mt-4 pt-0">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
                         {/* Left side: Charge par main checkbox and Tempo input */}
-                        <div className="flex items-center gap-[12px]">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
                           {/* Charge par main checkbox */}
-                          <div className="flex items-center gap-[8px] h-[29px]">
+                          <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1697,7 +1850,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                 updatedExercises[exerciseIndex].per_side = !exercise.per_side;
                                 setExercises(updatedExercises);
                               }}
-                              className="text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
+                              className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
                             >
                               Charge par main
                             </label>
@@ -1805,7 +1958,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         <button
                           type="button"
                           onClick={() => handleAddSet(exerciseIndex)}
-                          className="text-[11px] font-normal py-1 px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap ml-auto hover:bg-[rgba(212,132,90,0.25)]"
+                          className="text-[10px] md:text-[11px] font-normal py-1.5 md:py-1 px-3 md:px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap sm:ml-auto hover:bg-[rgba(212,132,90,0.25)] w-full sm:w-auto"
                           style={{ 
                             fontFamily: "'Inter', sans-serif",
                             color: 'var(--kaiylo-primary-hex)',
@@ -1857,7 +2010,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       placeholder="Choisir un exercice"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 bg-transparent border-none text-white placeholder:text-white/30 h-12 text-sm"
+                      className="pl-10 pr-4 bg-transparent border-none text-white placeholder:text-white/30 h-12 text-sm focus-visible:ring-0 focus-visible:outline-none"
                     />
                     <button
                       type="button"
@@ -1871,45 +2024,47 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     </button>
                   </div>
 
-                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                    {filteredExercises.map(exercise => (
-                      <div
-                        key={exercise.id}
-                        onClick={() => handleAddExercise(exercise)}
-                        className="px-4 py-3 hover:bg-[rgba(255,255,255,0.05)] cursor-pointer transition-colors border-b border-white/5 last:border-b-0"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-normal text-white text-sm">{exercise.title}</div>
-                          {exercise.tags && exercise.tags.length > 0 && (
-                            <div className="flex gap-1.5">
-                              {exercise.tags.map(tag => {
-                                const tagStyle = getTagColor(tag);
-                                return (
-                                  <span
-                                    key={tag}
-                                    className="px-2 py-0.5 rounded-full text-xs font-light"
-                                    style={tagStyle}
-                                  >
-                                    {tag}
-                                  </span>
-                                );
-                              })}
+                  {searchTerm.trim() === '' && (
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                      {filteredExercises.map(exercise => (
+                        <div
+                          key={exercise.id}
+                          onClick={() => handleAddExercise(exercise)}
+                          className="px-4 py-3 hover:bg-[rgba(255,255,255,0.05)] cursor-pointer transition-colors border-b border-white/5 last:border-b-0"
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="font-normal text-white text-sm">{exercise.title}</div>
+                            {exercise.tags && exercise.tags.length > 0 && (
+                              <div className="flex gap-1.5">
+                                {exercise.tags.map(tag => {
+                                  const tagStyle = getTagColor(tag);
+                                  return (
+                                    <span
+                                      key={tag}
+                                      className="px-2 py-0.5 rounded-full text-xs font-light"
+                                      style={tagStyle}
+                                    >
+                                      {tag}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          {exercise.description && (
+                            <div className="text-xs text-white/50 mt-1 font-extralight">
+                              {exercise.description}
                             </div>
                           )}
                         </div>
-                        {exercise.description && (
-                          <div className="text-xs text-white/50 mt-1 font-extralight">
-                            {exercise.description}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {filteredExercises.length === 0 && (
-                      <div className="p-4 text-center text-white/40 text-sm font-extralight">
-                        Aucun exercice trouvé
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                      {filteredExercises.length === 0 && (
+                        <div className="p-4 text-center text-white/40 text-sm font-extralight">
+                          Aucun exercice trouvé
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1920,34 +2075,35 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <button
                   type="button"
                   onClick={() => setShowExerciseSelector(true)}
-                  className="w-auto px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-sm"
+                  className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
                   Ajouter exercice
                 </button>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-0">
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-0">
               <button
                 type="button"
                 onClick={() => handleClose(false)}
-                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-3 sm:order-1"
               >
                 Annuler
               </button>
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-2"
               >
-                Publier comme brouillon
+                <span className="hidden sm:inline">Publier comme brouillon</span>
+                <span className="sm:hidden">Brouillon</span>
               </button>
               <button
                 type="button"
                 onClick={handlePublish}
-                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors order-1 sm:order-3"
                 style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
               >
                 Publier
@@ -1993,6 +2149,371 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       onClose={handleCancelQuit}
       onConfirm={handleConfirmQuit}
     />
+
+    {/* Student Preview Modal */}
+    {showStudentPreview && exercises.length > 0 && (() => {
+      const firstExercise = exercises[0];
+      const sets = firstExercise.sets || [];
+      
+      return (
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10000]" onClick={() => setShowStudentPreview(false)}>
+            <div 
+              className="text-white rounded-[27px] w-full max-w-[375px] max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-xl bg-[#0a0a0a]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header avec titre */}
+              <div className="px-12 pt-8 pb-0">
+                <div className="mb-6">
+                  {/* Navigation et titre */}
+                  <div className="flex items-center justify-between mb-[7px]">
+                    <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-left flex-1">
+                      {firstExercise.name}
+                    </h1>
+                    <button
+                      onClick={() => setShowStudentPreview(false)}
+                      className="text-white/50 hover:text-white transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-[15px] items-start w-full">
+                    {/* Tempo et Charge par main - Affichés si définis par le coach */}
+                    {(firstExercise.tempo || firstExercise.per_side) && (
+                      <div className="flex flex-col gap-[15px] items-start">
+                        <p className="text-[12px] font-light text-white/50">
+                          {firstExercise.tempo ? `Tempo : ${firstExercise.tempo}` : ''}
+                          {firstExercise.tempo && firstExercise.per_side ? ' | ' : ''}
+                          {firstExercise.per_side ? 'Charge par main' : ''}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Points d'avancement */}
+                    {exercises.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        {exercises.map((_, exIndex) => (
+                          <div
+                            key={exIndex}
+                            className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
+                              exIndex === 0 ? 'bg-[#d4845a]' : 'bg-white/30'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Progress bar */}
+                    <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#d4845a] transition-all duration-300"
+                        style={{ width: `${(1 / exercises.length) * 100}%` }}
+                      />
+                    </div>
+                    
+                    {/* Icônes information et commentaire */}
+                    <div className="flex gap-[10px] items-center">
+                      <div className="w-5 h-5 flex items-center justify-center rounded-full cursor-not-allowed opacity-50">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 512 512"
+                          className="w-5 h-5 text-white/25"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/>
+                        </svg>
+                      </div>
+                      <div className="cursor-pointer relative w-5 h-5 flex items-center justify-center opacity-50">
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 512 512"
+                          className="w-5 h-5 text-white/25"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M51.9 384.9C19.3 344.6 0 294.4 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240 397.4 480 256 480c-36.5 0-71.2-7.2-102.6-20L37 509.9c-3.7 1.6-7.5 2.1-11.5 2.1-14.1 0-25.5-11.4-25.5-25.5 0-4.3 1.1-8.5 3.1-12.2l48.8-89.4zm37.3-30.2c12.2 15.1 14.1 36.1 4.8 53.2l-18 33.1 58.5-25.1c11.8-5.1 25.2-5.2 37.1-.3 25.7 10.5 54.2 16.4 84.3 16.4 117.8 0 208-88.8 208-192S373.8 48 256 48 48 136.8 48 240c0 42.8 15.1 82.4 41.2 114.7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commentaire coach */}
+              <div className="px-12 mb-6">
+                <div className="flex flex-col gap-[7px] items-start w-full">
+                  <p className="text-[10px] font-normal text-white/35 leading-normal">
+                    Commentaire coach :
+                  </p>
+                  <p className="text-[10px] text-white/25 leading-normal">
+                    Aucun commentaire pour le moment
+                  </p>
+                </div>
+              </div>
+
+              {/* Liste des séries */}
+              <div className="pl-6 pr-12 space-y-[10px] pb-6">
+                {/* Headers - Positionnés au-dessus des séries */}
+                <div className="flex items-center mb-2">
+                  <div className="w-[20px] flex-shrink-0 mr-1" />
+                  <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
+                    <div className="flex items-center w-full gap-3">
+                      <div className="w-[42px] flex justify-center items-center flex-shrink-0">
+                        <p className="text-[8px] font-normal text-white/25 leading-none">
+                          {(() => {
+                            const repType = sets[0]?.repType || 'reps';
+                            if (repType === 'hold') {
+                              return 'Hold';
+                            }
+                            return 'Rep.';
+                          })()}
+                        </p>
+                      </div>
+                      <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                        <p className="text-[8px] font-normal text-white/25 leading-none">{firstExercise.useRir ? 'RPE' : 'Charge'}</p>
+                      </div>
+                      <div className="flex-1 flex justify-center items-center gap-[15px]">
+                        <div className="w-[17px] h-[17px]" />
+                        <div className="w-[17px] h-[17px]" />
+                      </div>
+                      <div className="w-[24px] flex justify-center items-center flex-shrink-0">
+                        <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
+                          {firstExercise.useRir ? 'Charge' : 'RPE'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                </div>
+                {/* Header icône vidéo */}
+                <div className="flex items-center mb-2">
+                  <div className="w-[20px] flex-shrink-0 mr-1" />
+                  <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]" />
+                  <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                </div>
+
+                {/* Séries */}
+                {sets.map((set, setIndex) => {
+                  const setNumber = setIndex + 1;
+                  const weight = set.weight ?? '';
+                  const repType = set.repType || 'reps';
+                  let reps = '?';
+                  if (repType === 'hold') {
+                    const repsValue = set.reps || '';
+                    if (repsValue.includes(':')) {
+                      reps = repsValue;
+                    } else {
+                      reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
+                    }
+                  } else {
+                    reps = set.reps || '?';
+                  }
+
+                  return (
+                    <div key={setIndex} className="flex items-center">
+                      {/* Numéro de série - À l'extérieur de la box */}
+                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
+                      <div 
+                        className="bg-white/10 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors"
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                      >
+                        <div className="flex items-center w-full gap-3">
+                          {/* Colonne Rep - Centrée */}
+                          <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                            <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
+                          </div>
+                          {/* Colonne Charge/RPE - Centrée */}
+                          <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                            {firstExercise.useRir ? (
+                              <span className="text-[15px] text-[#d4845a] leading-none">
+                                {weight || '-'}
+                              </span>
+                            ) : (
+                              <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">
+                                {weight}
+                                {weight && weight.toString().match(/^\d+\.?\d*$/) ? <span className="text-[12px] font-normal">kg</span> : null}
+                              </span>
+                            )}
+                          </div>
+                          {/* Boutons de validation - Centrés */}
+                          <div className="flex-1 flex justify-center items-center gap-[15px]">
+                            <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
+                              <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0">
+                                <path 
+                                  d="M1 3.5L3.5 6L9 1" 
+                                  stroke="#FFF" 
+                                  strokeWidth="1.5" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                  strokeOpacity="0.25"
+                                />
+                              </svg>
+                            </div>
+                            <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
+                              <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0">
+                                <path 
+                                  d="M5 12L12 5M5 5L12 12" 
+                                  stroke="white" 
+                                  strokeOpacity="0.25" 
+                                  strokeWidth="1.5" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                          {/* Input RPE / Charge */}
+                          <div className={`${firstExercise.useRir ? 'w-auto min-w-[45px]' : 'w-[24px]'} flex justify-center items-center`}>
+                            <div className="flex justify-center items-center w-full">
+                              {firstExercise.useRir ? (
+                                // Si coach demande RPE : l'élève saisit une charge
+                                <div className="relative flex items-center gap-[2px]">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value=""
+                                    readOnly
+                                    disabled
+                                    className="w-[22px] h-[18px] bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none text-[9px] font-medium text-center transition-colors focus:outline-none focus:border-[#d4845a] cursor-not-allowed text-white/50"
+                                    style={{ 
+                                      padding: '0',
+                                      fontSize: '9px',
+                                      lineHeight: 1
+                                    }}
+                                  />
+                                  <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                                </div>
+                              ) : (
+                                // Si coach demande charge : l'élève saisit un RPE
+                                <button
+                                  disabled
+                                  className="bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
+                                >
+                                  <span className="text-[9px] font-medium leading-none text-white/50">
+                                    {''}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Icône vidéo - À l'extérieur de la box - 4 états */}
+                      <div className="relative flex-shrink-0 ml-[10px]">
+                        {(() => {
+                          const videoEnabled = set.video === true || set.video === 1 || set.video === 'true';
+                          // En prévisualisation, on simule qu'aucune vidéo n'a été uploadée
+                          const hasVideoOrNoVideo = false;
+                          
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (videoEnabled) {
+                                  setSelectedSetForVideo(prev => ({
+                                    ...prev,
+                                    0: setIndex
+                                  }));
+                                  setVideoUploadExerciseIndex(0);
+                                  setIsVideoModalOpen(true);
+                                }
+                              }}
+                              disabled={!videoEnabled}
+                              className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
+                                // État 1: Coach ne demande pas de vidéo - visible mais disabled
+                                !videoEnabled
+                                  ? 'bg-white/5 opacity-50 cursor-not-allowed'
+                                  : // État 2: Vidéo requise mais pas renseignée - orange
+                                  !hasVideoOrNoVideo
+                                  ? 'bg-[#d4845a] hover:bg-[#e87c3e] cursor-pointer'
+                                  : // État 3 & 4: Vidéo renseignée (uploadée ou "pas de vidéo") - grisé mais cliquable
+                                  'bg-white/10 hover:bg-white/20 cursor-pointer'
+                              }`}
+                              title={
+                                !videoEnabled
+                                  ? "Vidéo non requise"
+                                  : "⚠️ Vidéo requise - Cliquez pour ajouter"
+                              }
+                            >
+                              {/* Icône caméra barrée */}
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" 
+                                  fill={!videoEnabled ? "#9CA3AF" : !hasVideoOrNoVideo ? "white" : "#9CA3AF"} 
+                                  fillOpacity={!videoEnabled ? "0.4" : !hasVideoOrNoVideo ? "1" : "0.6"}
+                                />
+                                {/* Ligne de barré - affichée pour les états 1, 3 et 4 */}
+                                {(!videoEnabled || hasVideoOrNoVideo) && (
+                                  <line 
+                                    x1="1" 
+                                    y1="1" 
+                                    x2="11" 
+                                    y2="11" 
+                                    stroke={!videoEnabled ? "#9CA3AF" : "#9CA3AF"} 
+                                    strokeWidth="1.5" 
+                                    strokeOpacity={!videoEnabled ? "0.4" : "0.6"} 
+                                    strokeLinecap="round"
+                                  />
+                                )}
+                              </svg>
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bouton Fermer */}
+              <div className="px-12 pb-8">
+                <button
+                  onClick={() => setShowStudentPreview(false)}
+                  className="w-full py-3 bg-white/10 hover:bg-white/15 text-white font-normal text-sm rounded-[10px] transition-colors"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      );
+    })()}
+
+    {/* Video Upload Modal for Student Preview */}
+    {showStudentPreview && exercises.length > 0 && (() => {
+      const activeExerciseIndex = videoUploadExerciseIndex ?? 0;
+      const activeSetIndex = selectedSetForVideo[activeExerciseIndex] ?? 0;
+      const activeExercise = exercises[activeExerciseIndex];
+      const activeSet = activeExercise?.sets?.[activeSetIndex];
+      
+      return (
+        <WorkoutVideoUploadModal
+          key={`upload-modal-preview-${activeExerciseIndex}-${activeSetIndex}`}
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          onUploadSuccess={() => {
+            // En prévisualisation, on ne fait rien mais on ferme la modale
+            setIsVideoModalOpen(false);
+          }}
+          onDeleteVideo={() => {
+            // En prévisualisation, on ne fait rien mais on ferme la modale
+            setIsVideoModalOpen(false);
+          }}
+          exerciseInfo={{
+            exerciseName: activeExercise?.name || 'Exercice',
+            exerciseId: activeExercise?.exerciseId,
+            exerciseIndex: activeExerciseIndex
+          }}
+          setInfo={{
+            setIndex: activeSetIndex,
+            setNumber: activeSetIndex + 1
+          }}
+          existingVideo={null}
+        />
+      );
+    })()}
 
     </>
   );

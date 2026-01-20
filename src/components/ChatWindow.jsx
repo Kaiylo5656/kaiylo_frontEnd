@@ -461,10 +461,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
         if (response.ok) {
           const data = await response.json();
-          const users = data.data || [];
+          const responseData = data.data || [];
           
-          // Find the user matching the participant ID
-          const participant = users.find(user => user.id === conversation.other_participant_id);
+          // For students, /api/coach returns a single object, not an array
+          // For coaches, /api/coach/students returns an array
+          let participant = null;
+          if (Array.isArray(responseData)) {
+            participant = responseData.find(user => user.id === conversation.other_participant_id);
+          } else if (responseData.id === conversation.other_participant_id) {
+            // Single object response (for students)
+            participant = responseData;
+          }
           
           if (participant) {
             setParticipantInfo({
@@ -796,6 +803,26 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     return `User ${userId.substring(0, 8)}`;
   };
 
+  // Get participant display name formatted for display
+  // For students: "Coach [Prénom]", for coaches: full name
+  const getParticipantDisplayName = () => {
+    const displayName = participantInfo.name || getUserDisplayName(conversation?.other_participant_id);
+    
+    // For students, format as "Coach [Prénom]"
+    if (currentUser?.role === 'student') {
+      // If it looks like an email, return just "Coach"
+      if (displayName.includes('@')) {
+        return 'Coach';
+      }
+      // Extract first name (first word) from full name
+      const firstName = displayName.split(' ')[0] || displayName;
+      return `Coach ${firstName}`;
+    }
+    
+    // For coaches, return full name
+    return displayName;
+  };
+
   // Handle reply to message
   const handleReplyToMessage = (message) => {
     setReplyingTo(message);
@@ -856,10 +883,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     <div className="flex flex-col h-full md:h-full">
       {/* Chat Header */}
       <div 
-        className="pt-3 pb-1 flex-shrink-0"
+        className="pt-2 pb-1 flex-shrink-0"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          background: 'unset'
+          background: 'unset',
+          paddingLeft: '8px',
+          paddingRight: '8px'
         }}
       >
         <div 
@@ -868,8 +897,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             backgroundColor: 'rgba(255, 255, 255, 0.05)',
             paddingLeft: '4px',
             paddingRight: '24px',
-            paddingTop: '7px',
-            paddingBottom: '7px',
+            paddingTop: '4px',
+            paddingBottom: '4px',
             borderRadius: '50px'
           }}
         >
@@ -882,15 +911,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           </button>
           
           <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-medium">
-            {(participantInfo.name || getUserDisplayName(conversation.other_participant_id)).charAt(0).toUpperCase()}
+            {getParticipantDisplayName().charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="font-normal text-white">
-                {participantInfo.name || getUserDisplayName(conversation.other_participant_id)}
+                {getParticipantDisplayName()}
               </div>
               {participantInfo.email && currentUser?.role !== 'student' && (
-                <div className="text-sm text-gray-400" style={{ fontWeight: 200 }}>
+                <div className="hidden md:block text-sm text-gray-400" style={{ fontWeight: 200 }}>
                   ({participantInfo.email})
                 </div>
               )}
@@ -909,14 +938,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       {/* Messages Area */}
       <div 
         ref={messagesContainerRef}
-        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-2"
+        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-2 min-h-0"
         onScroll={handleScroll}
         style={{ 
           scrollBehavior: 'auto',
           display: 'flex',
           flexDirection: 'column',
           background: 'unset',
-          backgroundColor: 'unset'
+          backgroundColor: 'unset',
+          minHeight: 0
         }}
       >
         {/* Load more messages indicator/button at the TOP (where older messages load) */}
@@ -1305,7 +1335,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       )}
 
       {/* Message Input */}
-      <div className="pt-0 px-2 pb-2 md:px-4 md:pb-4 flex-shrink-0">
+      <div className="pt-1 px-2 pb-2 md:px-4 md:pb-4 flex-shrink-0">
         <div className="bg-muted rounded-full flex items-center p-1.5 md:px-2 md:py-[5px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
           <input
             ref={fileInputRef}

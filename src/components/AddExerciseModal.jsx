@@ -288,13 +288,13 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       closeOnBackdrop={isTopMost}
       size="lg"
       title={editingExercise ? 'Modifier l\'exercice' : 'Nouvel exercice'}
-      titleClassName="text-xl font-normal text-white"
-      className="!w-[448px] !max-w-[448px] !min-w-[448px]"
+      titleClassName="text-lg md:text-xl font-normal text-white"
+      className="!w-full md:!w-[448px] !max-w-full md:!max-w-[448px] !min-w-0 md:!min-w-[448px]"
       borderRadius="16px"
     >
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           {/* Exercise Name */}
           <div className="space-y-2">
             <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
@@ -413,18 +413,18 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-0">
+          <div className="flex flex-col-reverse md:flex-row justify-end gap-3 pt-0">
             <button
               type="button"
               onClick={handleCancel}
-              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+              className="w-full md:w-auto px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
             >
               Annuler
             </button>
             <button
               type="submit"
               disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise)}
-              className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full md:w-auto px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
             >
               {uploadingVideo ? 'Téléchargement...' : loading ? 'Enregistrement...' : (editingExercise ? 'Mettre à jour & fermer' : 'Créer & fermer')}

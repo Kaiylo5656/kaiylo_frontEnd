@@ -147,7 +147,7 @@ const StudentSidebar = ({
                   }}
                 >
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterPendingFeedback 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
@@ -189,7 +189,7 @@ const StudentSidebar = ({
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterPendingMessages 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
@@ -231,7 +231,7 @@ const StudentSidebar = ({
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterNoUpcomingSessions 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'

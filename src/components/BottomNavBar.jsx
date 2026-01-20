@@ -57,7 +57,7 @@ const HomeIcon = ({ className, style }) => (
   </svg>
 );
 
-const BottomNavBar = () => {
+const BottomNavBar = ({ relative = false }) => {
   const { user, getAuthToken } = useAuth();
   const location = useLocation();
   const { socket } = useSocket();
@@ -133,7 +133,7 @@ const BottomNavBar = () => {
 
   return (
     <nav 
-      className="md:hidden fixed bottom-0 left-0 right-0 bg-background z-50"
+      className={relative ? "md:hidden relative bg-background" : "md:hidden fixed bottom-0 left-0 right-0 bg-background z-50"}
       style={{
         backgroundColor: 'rgba(13, 13, 13, 1)',
         borderTopWidth: '0px',

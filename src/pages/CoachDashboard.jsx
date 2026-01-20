@@ -666,7 +666,7 @@ const CoachDashboard = () => {
                   }}
                 >
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterPendingFeedback 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
@@ -713,7 +713,7 @@ const CoachDashboard = () => {
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterPendingMessages 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
@@ -755,7 +755,7 @@ const CoachDashboard = () => {
                   </div>
                   
                   <div 
-                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                    className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                       filterNoUpcomingSessions 
                         ? 'bg-primary/20 text-primary font-normal' 
                         : 'font-light'
@@ -866,7 +866,7 @@ const CoachDashboard = () => {
                 }}
               >
                 <div 
-                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                     filterPendingFeedback 
                       ? 'bg-primary/20 text-primary font-normal' 
                       : 'font-light'
@@ -913,7 +913,7 @@ const CoachDashboard = () => {
                 </div>
                 
                 <div 
-                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                     filterPendingMessages 
                       ? 'bg-primary/20 text-primary font-normal' 
                       : 'font-light'
@@ -955,7 +955,7 @@ const CoachDashboard = () => {
                 </div>
                 
                 <div 
-                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded ${
+                  className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${
                     filterNoUpcomingSessions 
                       ? 'bg-primary/20 text-primary font-normal' 
                       : 'font-light'
@@ -1087,7 +1087,7 @@ const CoachDashboard = () => {
               </div>
 
               {/* Activity / Messages Center Section Header */}
-              <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
+              <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56 4xl:!gap-72 5xl:!gap-96">
                 {/* Feedback en attente Text */}
                 <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
                   Feedback en attente
@@ -1167,7 +1167,7 @@ const CoachDashboard = () => {
             filteredStudents.map((student) => (
               <div 
                 key={student.id} 
-                className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 md:gap-8 cursor-pointer transition-all duration-200 ${
+                className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-14 2xl:gap-32 3xl:gap-56 4xl:gap-72 5xl:gap-96 cursor-pointer transition-all duration-200 ${
                   selectedStudents.has(student.id) 
                     ? 'bg-white/10' 
                     : 'bg-white/[0.04] hover:bg-white/10'
@@ -1237,7 +1237,7 @@ const CoachDashboard = () => {
                 </div>
 
                 {/* Activity / Messages Center Section */}
-                <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56">
+                <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56 4xl:!gap-72 5xl:!gap-96">
                   {/* Count Badge - Always displayed */}
                   <div className="w-[111px] flex items-center justify-center">
                     <div 

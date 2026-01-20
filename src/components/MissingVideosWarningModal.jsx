@@ -5,7 +5,7 @@ import React from 'react';
  * alors que des vidéos requises ne sont pas uploadées ou des RPE sont manquants
  * Design basé sur Figma node-id: 348-730
  */
-const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm, missingVideosCount = 0, missingRpeCount = 0 }) => {
+const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm, missingVideosCount = 0, missingRpeCount = 0, missingWeightCount = 0 }) => {
   // Empêcher la fermeture par clic sur le backdrop
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -42,11 +42,13 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm, missingVideosCo
         {/* Header */}
         <div className="flex items-center justify-center px-4 text-center" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
           <h2 className="text-[var(--kaiylo-primary-hex)] text-xl font-normal">
-            {missingVideosCount > 0 && missingRpeCount > 0 
+            {missingVideosCount > 0 && (missingRpeCount > 0 || missingWeightCount > 0)
               ? 'Éléments manquants'
               : missingVideosCount > 0 
                 ? 'Vidéos manquantes'
-                : 'RPE manquants'
+                : missingWeightCount > 0
+                  ? 'Charges manquantes'
+                  : 'RPE manquants'
             }
           </h2>
         </div>
@@ -54,11 +56,13 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm, missingVideosCo
         {/* Content */}
         <div className="px-[25px] py-0 space-y-4">
           <p className="text-gray-400 text-xs font-light leading-relaxed text-center">
-            {missingVideosCount > 0 && missingRpeCount > 0 
-              ? `Pour valider la séance, vous devez ajouter ${missingVideosCount} ${missingVideosCount === 1 ? 'vidéo manquante' : 'vidéos manquantes'} et compléter ${missingRpeCount} ${missingRpeCount === 1 ? 'RPE manquant' : 'RPE manquants'}.`
+            {missingVideosCount > 0 && (missingRpeCount > 0 || missingWeightCount > 0)
+              ? `Pour valider la séance, vous devez ajouter ${missingVideosCount} ${missingVideosCount === 1 ? 'vidéo manquante' : 'vidéos manquantes'}${missingWeightCount > 0 ? ` et renseigner ${missingWeightCount} ${missingWeightCount === 1 ? 'charge manquante' : 'charges manquantes'}` : ''}${missingRpeCount > 0 ? `${missingWeightCount > 0 ? ' et' : ' et'} compléter ${missingRpeCount} ${missingRpeCount === 1 ? 'RPE manquant' : 'RPE manquants'}` : ''}.`
               : missingVideosCount > 0
                 ? `Pour valider la séance, toutes les vidéos demandées doivent être ajoutées.`
-                : `Pour valider la séance, tous les RPE doivent être complétés pour les séries validées.`
+                : missingWeightCount > 0
+                  ? `Pour valider la séance, toutes les charges doivent être renseignées pour les séries validées.`
+                  : `Pour valider la séance, tous les RPE doivent être complétés pour les séries validées.`
             }
           </p>
         </div>
@@ -69,7 +73,7 @@ const MissingVideosWarningModal = ({ isOpen, onClose, onConfirm, missingVideosCo
             onClick={onClose}
             className="flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors"
           >
-            {missingVideosCount > 0 && missingRpeCount > 0 
+            {missingVideosCount > 0 && (missingRpeCount > 0 || missingWeightCount > 0)
               ? 'Compris'
               : missingVideosCount > 0
                 ? 'Ajouter les vidéos'

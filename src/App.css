@@ -999,6 +999,36 @@ html {
   height: 0;
 }
 
+/* Exercise dropdown scrollbar - transparent track, only thumb visible */
+.exercise-dropdown-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.exercise-dropdown-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.exercise-dropdown-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.exercise-dropdown-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.exercise-dropdown-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.exercise-dropdown-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Notification sidebar scrollbar - transparent track */
 .notification-sidebar-scrollbar {
   scrollbar-width: thin;

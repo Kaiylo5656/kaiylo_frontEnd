@@ -24,6 +24,7 @@ const StudentChatPage = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showConversationList, setShowConversationList] = useState(true);
+  const [coachNamesMap, setCoachNamesMap] = useState({});
   
   // Get studentId from URL parameters (for coaches linking to chat)
   const studentId = searchParams.get('studentId');
@@ -71,6 +72,51 @@ const StudentChatPage = () => {
   useEffect(() => {
     fetchConversations();
   }, []);
+
+  // Fetch coach information to display names instead of emails
+  useEffect(() => {
+    const fetchCoachInfo = async () => {
+      if (!user || user.role !== 'student') return;
+      
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/coach'), {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Handle both array and object responses
+          const coachData = Array.isArray(data.data) ? data.data[0] : (data.data || {});
+          
+          // Create a map of coach ID to coach name
+          // For students, there's only one coach, so we map all conversation IDs to this coach's name
+          if (coachData.id && coachData.name) {
+            // Store the coach info - we'll use it for all conversations since there's only one coach
+            const newMap = {
+              [coachData.id]: coachData.name,
+              // Also add a special key to access the coach name directly
+              'coach': coachData.name
+            };
+            // Also map all conversation participant IDs to this coach's name
+            conversations.forEach(conv => {
+              if (conv.other_participant_id) {
+                newMap[conv.other_participant_id] = coachData.name;
+              }
+            });
+            setCoachNamesMap(newMap);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching coach info:', error);
+      }
+    };
+
+    fetchCoachInfo();
+  }, [user, getAuthToken, conversations]);
 
   // Listen for socket events (new_message, messages_read)
   useEffect(() => {
@@ -266,10 +312,66 @@ const StudentChatPage = () => {
     );
   };
 
+  // Extract potential first name from email (e.g., "tchomarat2001@gmail.com" -> "Tchomarat")
+  const extractNameFromEmail = (email) => {
+    if (!email || !email.includes('@')) return null;
+    
+    const emailPart = email.split('@')[0];
+    // Remove numbers and special characters, keep only letters
+    const namePart = emailPart.replace(/\d+/g, '').trim();
+    
+    if (namePart.length > 0) {
+      // Capitalize first letter
+      return namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase();
+    }
+    
+    return null;
+  };
+
+  // Get coach display name (Coach [Prénom] format)
+  const getCoachDisplayName = (conversation) => {
+    // For students, there's only one coach, so try to get it from coachNamesMap
+    // Try with the special 'coach' key first, then with any ID in the map
+    let coachName = null;
+    
+    if (coachNamesMap['coach']) {
+      // Use the stored coach name directly (for students, there's only one coach)
+      coachName = coachNamesMap['coach'];
+    } else if (Object.keys(coachNamesMap).length > 0) {
+      // If there's any entry in the map, use the first one (for students, there's only one coach)
+      const firstCoachId = Object.keys(coachNamesMap).find(key => key !== 'coach');
+      if (firstCoachId) {
+        coachName = coachNamesMap[firstCoachId];
+      } else {
+        // If only 'coach' key exists or no valid ID, use the first value
+        const values = Object.values(coachNamesMap);
+        if (values.length > 0) {
+          coachName = values[0];
+        }
+      }
+    }
+    
+    // If we have the coach name from the API, extract first name (same logic as ChatWindow)
+    if (coachName) {
+      // If it looks like an email, return just "Coach" (shouldn't happen if API returns correctly)
+      if (coachName.includes('@')) {
+        return 'Coach';
+      }
+      // Extract first name (first word) from full name - same as ChatWindow
+      const firstName = coachName.split(' ')[0] || coachName;
+      return `Coach ${firstName}`;
+    }
+    
+    // Fallback: if coach name is not yet loaded from API, don't use email extraction
+    // Just return "Coach" until the API call completes
+    return 'Coach';
+  };
+
   // Filter conversations based on search term
-  const filteredConversations = conversations.filter(conv =>
-    conv.other_participant_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredConversations = conversations.filter(conv => {
+    const displayName = getCoachDisplayName(conv);
+    return displayName.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   // Format last message preview
   const formatLastMessage = (message) => {
@@ -302,10 +404,12 @@ const StudentChatPage = () => {
   return (
     <>
       <div 
-        className="text-foreground w-full min-h-full relative overflow-hidden flex flex-col"
+        className="text-foreground w-full h-full relative overflow-hidden flex flex-col"
         style={{
           background: 'unset',
-          backgroundImage: 'none'
+          backgroundImage: 'none',
+          height: '100vh',
+          overflow: 'hidden'
         }}
       >
         {/* Image de fond */}
@@ -413,7 +517,7 @@ const StudentChatPage = () => {
         />
 
         {/* Content wrapper */}
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-hidden">
         {loading ? (
           <>
             {/* Header Component */}
@@ -489,7 +593,7 @@ const StudentChatPage = () => {
                   placeholder="Rechercher..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[15px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[99px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                   style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
                 />
               </div>
@@ -524,7 +628,7 @@ const StudentChatPage = () => {
                         {/* Avatar */}
                         <div className="flex-shrink-0 relative">
                           <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-medium text-lg">
-                            {conversation.other_participant_name?.charAt(0).toUpperCase() || 'C'}
+                            {getCoachDisplayName(conversation).charAt(0).toUpperCase() || 'C'}
                           </div>
                           {conversation.unread_count > 0 && (
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#d4845a] rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#0a0a0a]">
@@ -537,7 +641,7 @@ const StudentChatPage = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <h4 className="font-medium text-white truncate text-sm">
-                              {conversation.other_participant_name || 'Coach'}
+                              {getCoachDisplayName(conversation)}
                             </h4>
                             <time className="text-xs text-gray-400 flex-shrink-0 ml-2">
                               {formatTimestamp(conversation.last_message_at)}
@@ -555,8 +659,8 @@ const StudentChatPage = () => {
             </div>
           </>
         ) : (
-          /* Chat Window - Full Screen on Mobile with padding for bottom nav */
-          <div className="flex-1 overflow-hidden" style={{ paddingBottom: '64px' }}>
+          /* Chat Window - Full Screen on Mobile with flex layout */
+          <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
             <ChatWindow
               conversation={selectedConversation}
               currentUser={user}
@@ -568,8 +672,8 @@ const StudentChatPage = () => {
           )}
         </div>
       </div>
-      {/* Bottom Navigation Bar - Always visible for students, fixed at bottom */}
-      <BottomNavBar />
+      {/* Bottom Navigation Bar - Show on other views (not in chat) */}
+      {showConversationList && <BottomNavBar />}
     </>
   );
 };

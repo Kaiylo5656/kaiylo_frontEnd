@@ -620,6 +620,31 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                   const repsPerSet = selectedExercise.sets?.[0]?.reps;
                   const weight = selectedExercise.sets?.[0]?.weight;
                   
+                  // Si useRir === true, on doit afficher le RPE au lieu de la charge
+                  let displayValue = null;
+                  let displayLabel = '';
+                  
+                  if (selectedExercise.useRir || selectedExercise.use_rir) {
+                    // Quand useRir === true, le champ weight contient le RPE demandé par le coach
+                    const firstSet = selectedExercise.sets?.[0];
+                    const requestedRpe = firstSet?.weight;
+                    
+                    if (requestedRpe !== undefined && requestedRpe !== null && requestedRpe !== '') {
+                      // Convertir en nombre si nécessaire
+                      const rpeNumber = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
+                      if (!isNaN(rpeNumber) && rpeNumber >= 1 && rpeNumber <= 10) {
+                        displayValue = Math.round(rpeNumber);
+                        displayLabel = 'RPE';
+                      }
+                    }
+                  } else {
+                    // Si useRir === false, afficher la charge normale
+                    if (weight !== undefined && weight !== null) {
+                      displayValue = weight;
+                      displayLabel = 'kg';
+                    }
+                  }
+                  
                   return (
                     <>
                       <span className="font-normal">{selectedExercise.name}</span>
@@ -628,8 +653,10 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           {' '}{setsCount}x{repsPerSet}
                         </span>
                       )}
-                      {weight !== undefined && weight !== null && (
-                        <span className="text-[#D4845A] font-normal"> @{weight}kg</span>
+                      {displayValue !== null && (
+                        <span className="text-[#D4845A] font-normal">
+                          {displayLabel === 'kg' ? ` @${displayValue}${displayLabel}` : ` RPE ${displayValue}`}
+                        </span>
                       )}
                     </>
                   );
@@ -697,23 +724,19 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     const isFailed = setStatus === 'failed';
                     const hasVideo = setVideo && setVideo.video_url;
                     
-                    // Debug RPE for this set - show full set object
-                    if (setIndex === 0) {
-                      console.log('🔍 RPE Debug for first set:', {
+                    // Debug RPE and weight for this set - show full set object
+                    if (setIndex === 0 && (selectedExercise.useRir || selectedExercise.use_rir)) {
+                      console.log('🔍 Charge/RPE Debug for first set (useRir=true):', {
                         setIndex,
                         set: JSON.parse(JSON.stringify(set)), // Deep clone to see all properties
                         setKeys: Object.keys(set), // Show all keys in the set object
                         setVideo: setVideo,
+                        studentWeight: set.studentWeight || set.student_weight,
+                        studentWeightFromCompletedSets: set.completedSets?.studentWeight,
+                        videoStudentWeight: setVideo?.student_weight || setVideo?.studentWeight,
+                        requestedRpe: set.weight,
                         rpeValue: rpeValue,
-                        setRpe: set.rpe,
-                        setRpeRating: set.rpe_rating,
-                        setRpeRating2: set.rpeRating,
-                        setRPE: set.RPE, // Sometimes uppercase
-                        videoRpeRating: setVideo?.rpe_rating,
-                        videoRpe: setVideo?.rpe,
-                        exerciseVideos: exerciseVideos,
-                        allVideos: sessionVideos,
-                        allSets: selectedExercise?.sets?.map(s => ({ keys: Object.keys(s), rpe: s.rpe, rpe_rating: s.rpe_rating, rpeRating: s.rpeRating, RPE: s.RPE }))
+                        useRir: selectedExercise.useRir || selectedExercise.use_rir
                       });
                     }
                     
@@ -741,18 +764,81 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             </span>
                           </div>
                           <span className={`text-[14px] ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white'}`}>
-                            {set.reps || '?'} reps
-                            <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
-                              {' @'}{set.weight || 0}kg
-                            </span>
+                            {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
+                            {(() => {
+                              // Si useRir === true, afficher le RPE demandé au lieu de la charge
+                              if (selectedExercise.useRir || selectedExercise.use_rir) {
+                                const requestedRpe = set.weight;
+                                if (requestedRpe !== undefined && requestedRpe !== null && requestedRpe !== '') {
+                                  const rpeNumber = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
+                                  if (!isNaN(rpeNumber) && rpeNumber >= 1 && rpeNumber <= 10) {
+                                    return (
+                                      <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
+                                        {' RPE '}{Math.round(rpeNumber)}
+                                      </span>
+                                    );
+                                  }
+                                }
+                              } else {
+                                // Si useRir === false, afficher la charge normale
+                                return (
+                                  <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
+                                    {' @'}{set.weight || 0}kg
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </span>
                         </div>
                         <div className="flex items-end gap-[15px]">
-                          {rpeValue && (
-                            <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
-                              <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
-                            </div>
-                          )}
+                          {(() => {
+                            // Si useRir === true, afficher la charge renseignée par l'élève au lieu du RPE
+                            if (selectedExercise.useRir || selectedExercise.use_rir) {
+                              // Récupérer la charge (studentWeight) depuis plusieurs sources possibles
+                              let studentWeight = set.studentWeight || 
+                                                set.student_weight ||
+                                                set.studentWeightValue ||
+                                                (set.completedSets && typeof set.completedSets === 'object' && set.completedSets.studentWeight) ||
+                                                (set.data && typeof set.data === 'object' && set.data.studentWeight) ||
+                                                setVideo?.student_weight ||
+                                                setVideo?.studentWeight ||
+                                                setVideo?.weight ||
+                                                null;
+                              
+                              // Si toujours null, chercher dans les données de session complétée
+                              if (!studentWeight && session?.exercises?.[selectedExerciseIndex]?.sets?.[setIndex]) {
+                                const completedSet = session.exercises[selectedExerciseIndex].sets[setIndex];
+                                studentWeight = completedSet.studentWeight || 
+                                             completedSet.student_weight ||
+                                             (completedSet.completedSets && typeof completedSet.completedSets === 'object' && completedSet.completedSets.studentWeight) ||
+                                             null;
+                              }
+                              
+                              // Convertir en string si nécessaire et afficher
+                              if (studentWeight !== null && studentWeight !== undefined && studentWeight !== '') {
+                                const weightValue = String(studentWeight).trim();
+                                if (weightValue) {
+                                  return (
+                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
+                                      <span className="text-[12px] font-light text-white/50">Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{weightValue}kg</span></span>
+                                    </div>
+                                  );
+                                }
+                              }
+                              return null;
+                            } else {
+                              // Si useRir === false, afficher le RPE normal
+                              if (rpeValue) {
+                                return (
+                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
+                                    <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }
+                          })()}
                           {setStatus === 'completed' && (
                             <svg 
                               width="20" 
