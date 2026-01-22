@@ -114,12 +114,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             reps: set.reps?.toString() || '',
             rest: set.rest || '03:00',
             video: set.video || false,
-            repType: set.repType || 'reps'
+            repType: set.repType || 'reps',
+            // Store previous RPE if the session was completed
+            previousRpe: set.rpe_rating || set.rpeRating || set.previousRpe || null
           }));
         } else {
           // Default sets if none exist or not an array
           sets = [
-            { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
+            { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps', previousRpe: null }
           ];
         }
 
@@ -428,7 +430,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       reps: previousReps,
       rest: previousRest,
       video: false,
-      repType: previousRepType
+      repType: previousRepType,
+      previousRpe: null // New sets don't have previous RPE
     });
     setExercises(updatedExercises);
   };
@@ -441,6 +444,15 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       set.serie = idx + 1;
     });
     setExercises(updatedExercises);
+  };
+
+  // Helper function to check if session was copied from a completed session
+  const hasPreviousRpeData = () => {
+    return exercises.some(exercise => 
+      exercise.sets?.some(set => 
+        set.previousRpe !== null && set.previousRpe !== undefined
+      )
+    );
   };
 
   const handleSetChange = (exerciseIndex, setIndex, field, value) => {
@@ -836,8 +848,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   };
 
   const handleCloseLibrary = () => {
-    // Les panneaux doivent toujours rester ouverts - ne rien faire
-    // setOpenSheet(false);
+    setOpenSheet(false);
     setLibraryMode('browse');
     setReplacingExerciseIndex(null);
   };
@@ -1024,16 +1035,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // Le panneau doit toujours rester ouvert - ne rien faire
-                // console.log('Bouton agencement cliqué!', showSidebar);
-                // setShowSidebar((prev) => {
-                //   const next = !prev;
-                //   console.log('Toggle sidebar:', prev, '->', next);
-                //   if (next) {
-                //     setTimeout(() => updateArrangementPosition(), 0);
-                //   }
-                //   return next;
-                // });
+                setShowSidebar((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    setTimeout(() => updateArrangementPosition(), 0);
+                  }
+                  return next;
+                });
               }}
               aria-expanded={showSidebar}
               aria-label={showSidebar ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
@@ -1078,8 +1086,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               <ExerciseArrangementModal
                 isOpen={showSidebar}
                 onClose={() => {
-                  // Le panneau doit toujours rester ouvert - ne rien faire
-                  // setShowSidebar(false);
+                  setShowSidebar(false);
                 }}
                 exercises={exercises}
                 position={{
@@ -1106,14 +1113,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             {/* Library button - arrow on the left side of modal */}
             <button
               onClick={() => {
-                // Le panneau doit toujours rester ouvert - ne rien faire
-                // setOpenSheet((prev) => {
-                //   const next = !prev;
-                //   if (next) {
-                //     setTimeout(() => updateLibraryPosition(), 0);
-                //   }
-                //   return next;
-                // });
+                setOpenSheet((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    setTimeout(() => updateLibraryPosition(), 0);
+                  }
+                  return next;
+                });
               }}
               aria-expanded={openSheet}
               aria-label={openSheet ? "Masquer la bibliothèque" : "Afficher la bibliothèque d'exercices"}
@@ -1177,8 +1183,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
         {/* Scrollable Body */}
         <div 
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 md:py-6"
-          style={{ scrollbarGutter: 'stable' }}
+          className="flex-1 min-h-0 px-4 md:px-6 py-4 md:py-6"
         >
           <div className="workout-modal-content w-full flex min-h-0">
             {/* Main Content */}
@@ -1416,6 +1421,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                 </DropdownMenu>
                               </th>
                               <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
+                              {hasPreviousRpeData() && (
+                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>RPE précédent</th>
+                              )}
                               <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
                               <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
                               <th className="pb-3"></th>
@@ -1709,6 +1717,22 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     )}
                                   </div>
                                 </td>
+                                {hasPreviousRpeData() && (
+                                  <td className="py-1.5 min-w-24">
+                                    <div className="flex items-center justify-center">
+                                      {set.previousRpe && set.previousRpe !== null && set.previousRpe !== undefined ? (
+                                        <div 
+                                          className="flex items-center justify-center px-2 py-1 rounded"
+                                          title={`RPE renseigné lors de la séance précédente: ${set.previousRpe}`}
+                                        >
+                                          <span className="text-[#d4845a] text-sm font-normal">{set.previousRpe}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-white/25 text-sm font-light">-</span>
+                                    )}
+                                  </div>
+                                </td>
+                                )}
                                 <td className="py-1.5 min-w-24">
                                   <div
                                     className="flex items-center justify-center"
