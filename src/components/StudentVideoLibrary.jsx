@@ -132,7 +132,7 @@ const StudentVideoLibrary = () => {
     setIsCoachResourceModalOpen(true);
   };
 
-  const handleFeedbackUpdate = (videoId, feedback, rating, deleted = false, status = 'completed') => {
+  const handleFeedbackUpdate = (videoId, feedback, rating, deleted = false, status = 'completed', audioUrl = null) => {
     if (deleted) {
       setMyVideos(prev => prev.filter(v => v.id !== videoId));
       setIsVideoDetailModalOpen(false);
@@ -140,7 +140,7 @@ const StudentVideoLibrary = () => {
     } else {
       setMyVideos(prev => prev.map(v => 
         v.id === videoId 
-          ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
+          ? { ...v, coach_feedback: feedback, coach_feedback_audio_url: audioUrl, coach_rating: rating, status: status }
           : v
       ));
     }

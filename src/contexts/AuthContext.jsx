@@ -546,6 +546,13 @@ export const AuthProvider = ({ children }) => {
         if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
           return;
         }
+
+        // Handle PASSWORD_RECOVERY event specifically
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('🔄 Auth state changed: PASSWORD_RECOVERY');
+          // Treat PASSWORD_RECOVERY exactly like SIGNED_IN to ensure user state is updated
+          // This is crucial for the ResetPasswordPage to detect the authenticated session
+        }
         
         // Ignorer si on est déjà en train de traiter un événement
         if (isProcessing) {
@@ -556,7 +563,7 @@ export const AuthProvider = ({ children }) => {
         console.log('🔄 Auth state changed:', event, session?.user?.email);
         
         try {
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
             if (session) {
               console.log('✅ Supabase auto-refresh completed, persisting new tokens...');
               // Synchroniser le token avec localStorage et axios
@@ -1013,6 +1020,42 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Reset password for email
+  const resetPasswordForEmail = async (email, redirectTo) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTo || `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update password (for logged in user)
+  const updatePassword = async (newPassword) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Update password error:', error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Value object to provide to consumers
   const value = {
     user,
@@ -1030,7 +1073,9 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus,
     getAuthToken,
     refreshAuthToken,
-    signInWithGoogle
+    signInWithGoogle,
+    resetPasswordForEmail,
+    updatePassword
   };
 
   return (

@@ -7,6 +7,8 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resendingId, setResendingId] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -60,12 +62,35 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
 
   const handleResendInvitation = async (invitationId) => {
     try {
-      // You can implement resend functionality here
-      console.log('Resending invitation:', invitationId);
-      // For now, just refresh the list
-      await fetchInvitations();
+      setResendingId(invitationId);
+      setError('');
+      setSuccessMessage('');
+      const response = await axios.post(
+        `${getApiBaseUrlWithApi()}/invitations/resend/${invitationId}`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data.success) {
+        // Refresh the list to update timestamps
+        await fetchInvitations();
+        setSuccessMessage('Invitation renvoyée avec succès');
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(response.data.message || 'Erreur lors du renvoi de l\'invitation');
+      }
     } catch (err) {
       console.error('Error resending invitation:', err);
+      const errorMessage = err.response?.data?.message || 'Erreur lors du renvoi de l\'invitation';
+      setError(errorMessage);
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -233,6 +258,10 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
             <div className="bg-red-500/20 text-red-400 p-4 rounded-lg text-center border border-red-500/30">
               {error}
             </div>
+          ) : successMessage ? (
+            <div className="bg-green-500/20 text-green-400 p-4 rounded-lg text-center border border-green-500/30">
+              {successMessage}
+            </div>
           ) : invitations.length === 0 ? (
             <div className="text-center py-8 text-white/50 font-light text-sm">
               Aucune invitation en attente
@@ -271,11 +300,12 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
                         <>
                           <button
                             onClick={() => handleResendInvitation(invitation.id)}
-                            className="text-sm transition-colors font-normal whitespace-nowrap"
+                            className="text-sm transition-colors font-normal whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{ color: 'var(--kaiylo-primary-hex)' }}
                             title="Renvoyer l'invitation"
+                            disabled={resendingId === invitation.id}
                           >
-                            Renvoyer
+                            {resendingId === invitation.id ? 'Envoi...' : 'Renvoyer'}
                           </button>
                           <button
                             onClick={() => handleCancelInvitation(invitation.id)}

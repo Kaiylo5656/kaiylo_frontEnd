@@ -193,19 +193,6 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
             )}
           </div>
 
-          <div>
-            <label htmlFor="message" className="block text-sm font-extralight text-white/50 mb-2">
-              Message (optionnel)
-            </label>
-            <textarea
-              {...register('message')}
-              id="message"
-              rows={3}
-              placeholder="Message personnalisé pour l'invitation..."
-              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
-            />
-          </div>
-
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-0">
             <button

@@ -7,8 +7,9 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, Send, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
+import { Paperclip, Send, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video, Mic } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
+import VoiceRecorder from './VoiceRecorder';
 
 // Custom MessageSquare Icon Component (Font Awesome)
 const MessageSquareIcon = ({ className, style }) => (
@@ -60,6 +61,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [otherParticipantReadAt, setOtherParticipantReadAt] = useState(null);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
@@ -171,6 +173,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setUploadingFile(true);
 
     try {
+      console.log('📤 Uploading file:', { 
+        name: file.name, 
+        type: file.type, 
+        size: file.size,
+        conversationId: conversation.id 
+      });
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', conversation.id);
@@ -184,19 +193,31 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Upload error response:', errorData);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       
       const responseData = await response.json();
       console.log('✅ File uploaded successfully:', responseData);
       
       // Add the file message to the messages list if returned
+      // Check for duplicates before adding (message might also arrive via WebSocket)
       if (responseData.data) {
-        setMessages(prev => [...prev, responseData.data]);
+        setMessages(prev => {
+          // Check if message already exists (might have arrived via WebSocket first)
+          const existingIndex = prev.findIndex(msg => msg.id === responseData.data.id);
+          if (existingIndex !== -1) {
+            console.log('⚠️ Message already exists in list, skipping duplicate:', responseData.data.id);
+            return prev; // Return unchanged array to prevent duplicate
+          }
+          return [...prev, responseData.data];
+        });
       }
     } catch (error) {
       console.error('❌ File upload failed:', error);
-      alert('Failed to upload file. Please try again.');
+      alert(error.message || 'Échec de l\'envoi du fichier. Veuillez réessayer.');
     } finally {
       setUploadingFile(false);
     }
@@ -264,6 +285,19 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  }, []);
+
+  // Handle voice message send
+  const handleVoiceMessageSend = useCallback((audioFile) => {
+    if (audioFile && conversation?.id) {
+      handleFileUpload(audioFile);
+      setShowVoiceRecorder(false);
+    }
+  }, [conversation?.id, handleFileUpload]);
+
+  // Handle voice recorder cancel
+  const handleVoiceRecorderCancel = useCallback(() => {
+    setShowVoiceRecorder(false);
   }, []);
 
   const handleDeleteMessage = useCallback((messageId) => {
@@ -1108,7 +1142,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   </div>
                   
                   <div className="relative">
-                    {message.message_type === 'file' ? (
+                    {message.message_type === 'file' || message.message_type === 'audio' ? (
                       <FileMessage 
                         message={message} 
                         isOwnMessage={isOwnMessage}
@@ -1238,6 +1272,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             >
               {replyingTo.message_type === 'file' 
                 ? `📎 ${replyingTo.file_name || 'Fichier'}`
+                : replyingTo.message_type === 'audio'
+                ? `🎤 ${replyingTo.file_name || 'Message vocal'}`
                 : replyingTo.content
               }
             </div>
@@ -1334,62 +1370,86 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         </div>
       )}
 
-      {/* Message Input */}
-      <div className="pt-1 px-2 pb-2 md:px-4 md:pb-4 flex-shrink-0">
-        <div className="bg-muted rounded-full flex items-center p-1.5 md:px-2 md:py-[5px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/mov,video/avi,video/quicktime,video/webm"
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-            disabled={sending || uploadingFile}
+      {/* Voice Recorder */}
+      {showVoiceRecorder && (
+        <div className="pt-1 px-2 pb-2 md:px-4 md:pb-2 flex-shrink-0">
+          <VoiceRecorder
+            onSend={handleVoiceMessageSend}
+            onCancel={handleVoiceRecorderCancel}
+            conversationId={conversation?.id}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || uploadingFile}
-            title="Attach file"
-            className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
-          >
-            <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
-          </Button>
-          <form onSubmit={sendMessage} className="flex-1 flex items-center">
-            <Input
-              ref={messageInputRef}
-              type="text"
-              value={newMessage}
-              onChange={handleInputChange}
-              placeholder="Tapez un message ici..."
-              className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-normal text-white"
-              style={{ 
-                borderStyle: 'none',
-                borderWidth: '0px',
-                borderColor: 'rgba(0, 0, 0, 0)',
-                borderImage: 'none',
-                backgroundColor: 'unset',
-                background: 'unset',
-                fontWeight: currentUser?.role === 'student' ? 400 : undefined
-              }}
+        </div>
+      )}
+
+      {/* Message Input */}
+      {!showVoiceRecorder && (
+        <div className="pt-1 px-2 pb-2 md:px-4 md:pb-4 flex-shrink-0">
+          <div className="bg-muted rounded-full flex items-center p-1.5 md:px-2 md:py-[5px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/mov,video/avi,video/quicktime,video/webm"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
               disabled={sending || uploadingFile}
             />
             <Button
-              type="submit"
-              disabled={!newMessage.trim() || sending || uploadingFile}
+              type="button"
+              variant="ghost"
               size="icon"
-              className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 text-[var(--kaiylo-primary-hex)] disabled:text-white/50"
-              style={{
-                backgroundColor: 'unset',
-                background: 'unset'
-              }}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || uploadingFile}
+              title="Attach file"
+              className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
             >
-              <Send className="h-4 w-4 md:h-5 md:w-5" />
+              <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
-          </form>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowVoiceRecorder(true)}
+              disabled={sending || uploadingFile || showVoiceRecorder}
+              title="Enregistrer un message vocal"
+              className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
+            >
+              <Mic className="h-4 w-4 md:h-5 md:w-5" />
+            </Button>
+            <form onSubmit={sendMessage} className="flex-1 flex items-center">
+              <Input
+                ref={messageInputRef}
+                type="text"
+                value={newMessage}
+                onChange={handleInputChange}
+                placeholder="Tapez un message ici..."
+                className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-normal text-white"
+                style={{ 
+                  borderStyle: 'none',
+                  borderWidth: '0px',
+                  borderColor: 'rgba(0, 0, 0, 0)',
+                  borderImage: 'none',
+                  backgroundColor: 'unset',
+                  background: 'unset',
+                  fontWeight: currentUser?.role === 'student' ? 400 : undefined
+                }}
+                disabled={sending || uploadingFile}
+              />
+              <Button
+                type="submit"
+                disabled={!newMessage.trim() || sending || uploadingFile}
+                size="icon"
+                className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 text-[var(--kaiylo-primary-hex)] disabled:text-white/50"
+                style={{
+                  backgroundColor: 'unset',
+                  background: 'unset'
+                }}
+              >
+                <Send className="h-4 w-4 md:h-5 md:w-5" />
+              </Button>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Delete Message Modal */}
       <DeleteMessageModal

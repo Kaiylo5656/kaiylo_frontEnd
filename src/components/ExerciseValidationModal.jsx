@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { buildApiUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 import ExerciseCommentModal from './ExerciseCommentModal';
 import ExerciseInfoModal from './ExerciseInfoModal';
 
@@ -23,6 +25,7 @@ const ExerciseValidationModal = ({
   onStudentComment,
   onCompleteSession
 }) => {
+  const { getAuthToken } = useAuth();
   const [selectedSetIndex, setSelectedSetIndex] = useState(0);
   const [touchStart, setTouchStart] = useState({ x: null, y: null });
   const [touchEnd, setTouchEnd] = useState({ x: null, y: null });
@@ -34,7 +37,57 @@ const ExerciseValidationModal = ({
   const [swipeProgress, setSwipeProgress] = useState(0); // 0 à 1, pourcentage du swipe
   const [swipeDirection, setSwipeDirection] = useState(null); // 'left' ou 'right'
   const [studentWeights, setStudentWeights] = useState({}); // Store student weights locally
+  const [fetchedDetails, setFetchedDetails] = useState(null);
   const modalRef = useRef(null);
+
+  // Reset fetched details when exercise changes
+  useEffect(() => {
+    setFetchedDetails(null);
+  }, [exercise?.id, exercise?.exerciseId, exercise?.exercise_id]);
+
+  // Fetch exercise details to check if info exists
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!exercise) return;
+
+      const hasDirectInstructions = exercise.instructions && exercise.instructions.trim().length > 0;
+      const hasDirectDescription = exercise.description && exercise.description.trim().length > 0;
+      const hasDirectVideo = (exercise.demoVideoURL && exercise.demoVideoURL.trim().length > 0) ||
+                           (exercise.demo_video_url && exercise.demo_video_url.trim().length > 0) ||
+                           (exercise.videoUrl && exercise.videoUrl.trim().length > 0) ||
+                           (exercise.video_url && exercise.video_url.trim().length > 0);
+
+      const exerciseId = exercise.exerciseId || exercise.exercise_id || exercise.id;
+      
+      // If missing info but has ID, fetch
+      if (exerciseId && (!hasDirectInstructions && !hasDirectDescription && !hasDirectVideo)) {
+        try {
+          const token = await getAuthToken();
+          if (!token) return;
+
+          const response = await fetch(buildApiUrl(`/exercises/public/${exerciseId}`), {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.exercise) {
+              setFetchedDetails(data.exercise);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching details:', error);
+        }
+      }
+    };
+
+    if (isOpen && exercise) {
+      fetchDetails();
+    }
+  }, [isOpen, exercise, getAuthToken]);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
   useEffect(() => {
@@ -60,31 +113,60 @@ const ExerciseValidationModal = ({
   const minSwipeDistance = 50;
 
   // Vérifier si l'exercice a des informations disponibles (instructions ou vidéo)
+  // Le bouton sera actif seulement si des informations sont vraiment présentes
   const hasExerciseInfo = () => {
     if (!exercise) return false;
     
-    // Vérifier si l'exercice a des instructions (non vides)
-    const hasInstructions = exercise.instructions && 
+    // 1. Vérifier l'exercice direct
+    const hasDirectInstructions = exercise.instructions && 
       typeof exercise.instructions === 'string' &&
       exercise.instructions.trim().length > 0;
     
-    // Vérifier si l'exercice a une description (non vide)
-    const hasDescription = exercise.description && 
+    const hasDirectDescription = exercise.description && 
       typeof exercise.description === 'string' &&
       exercise.description.trim().length > 0;
     
-    // Vérifier si l'exercice a une vidéo démo
-    const hasVideo = exercise.demoVideoURL && 
+    const hasDirectVideo = (exercise.demoVideoURL && 
       typeof exercise.demoVideoURL === 'string' &&
-      exercise.demoVideoURL.trim().length > 0;
+      exercise.demoVideoURL.trim().length > 0) ||
+      (exercise.demo_video_url && 
+      typeof exercise.demo_video_url === 'string' &&
+      exercise.demo_video_url.trim().length > 0) ||
+      (exercise.videoUrl && 
+      typeof exercise.videoUrl === 'string' &&
+      exercise.videoUrl.trim().length > 0) ||
+      (exercise.video_url && 
+      typeof exercise.video_url === 'string' &&
+      exercise.video_url.trim().length > 0);
     
-    // Vérifier si l'exercice a un exerciseId (permet de récupérer les instructions depuis l'API)
-    // Si l'exercice a un exerciseId, il peut avoir des instructions dans la base de données
-    const hasExerciseId = exercise.exerciseId || exercise.exercise_id;
+    if (hasDirectInstructions || hasDirectDescription || hasDirectVideo) {
+      return true;
+    }
+
+    // 2. Vérifier les détails récupérés (fetchedDetails)
+    if (fetchedDetails) {
+      const hasFetchedInstructions = fetchedDetails.instructions && 
+        typeof fetchedDetails.instructions === 'string' &&
+        fetchedDetails.instructions.trim().length > 0;
+        
+      const hasFetchedDescription = fetchedDetails.description && 
+        typeof fetchedDetails.description === 'string' &&
+        fetchedDetails.description.trim().length > 0;
+      
+      const hasFetchedVideo = (fetchedDetails.demoVideoURL && 
+        typeof fetchedDetails.demoVideoURL === 'string' &&
+        fetchedDetails.demoVideoURL.trim().length > 0) ||
+        (fetchedDetails.demoVideoUrl && 
+        typeof fetchedDetails.demoVideoUrl === 'string' &&
+        fetchedDetails.demoVideoUrl.trim().length > 0);
+                            
+      if (hasFetchedInstructions || hasFetchedDescription || hasFetchedVideo) {
+        return true;
+      }
+    }
     
-    // L'exercice a des informations s'il a des instructions/description, une vidéo, ou un exerciseId
-    // (car ExerciseInfoModal peut récupérer les instructions depuis l'API via l'exerciseId)
-    return (hasInstructions || hasDescription) || hasVideo || !!hasExerciseId;
+    // Si toujours rien, le bouton reste grisé
+    return false;
   };
 
   const exerciseHasInfo = hasExerciseInfo();
@@ -1249,7 +1331,7 @@ const ExerciseValidationModal = ({
       <ExerciseInfoModal
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}
-        exercise={exercise}
+        exercise={fetchedDetails ? { ...exercise, ...fetchedDetails } : exercise}
       />
 
       {/* RPE Selection Modal */}

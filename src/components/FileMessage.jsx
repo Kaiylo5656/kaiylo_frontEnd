@@ -1,5 +1,6 @@
 // frontend/src/components/FileMessage.jsx
 import React, { useState } from 'react';
+import VoiceMessage from './VoiceMessage';
 
 const FileMessage = ({ message, isOwnMessage = false }) => {
   const [imageError, setImageError] = useState(false);
@@ -18,6 +19,8 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
       return '🖼️';
     } else if (fileType.startsWith('video/')) {
       return '🎥';
+    } else if (fileType.startsWith('audio/')) {
+      return '🎤';
     }
     return '📎';
   };
@@ -61,6 +64,11 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
       window.open(message.file_url, '_blank');
     }
   };
+
+  // Audio messages - render directly without wrapper (WhatsApp style)
+  if (message.message_type === 'audio' || message.file_type?.startsWith('audio/')) {
+    return <VoiceMessage message={message} isOwnMessage={isOwnMessage} />;
+  }
 
   const renderFileContent = () => {
     if (!message.file_url) {

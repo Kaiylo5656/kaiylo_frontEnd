@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Play, Volume2, Maximize } from 'lucide-react';
+import { X, Play, Volume2, Maximize, Mic } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import SessionExercisesModal from './SessionExercisesModal';
+import VoiceRecorder from './VoiceRecorder';
+import VoiceMessage from './VoiceMessage';
 
 const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, studentId }) => {
   const { getAuthToken, refreshAuthToken } = useAuth();
@@ -26,6 +28,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const contentRef = useRef(null);
   const exercisesButtonRef = useRef(null);
   const [mainModalHeight, setMainModalHeight] = useState(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [audioRecording, setAudioRecording] = useState(null);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -49,56 +53,16 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
       setCoachComment('');
       setLoading(true);
       
-      // Debug: Log session data to see what fields are available
-      console.log('📝 CoachSessionReviewModal - Session data:', {
-        notes: session.notes,
-        comment: session.comment,
-        studentComment: session.studentComment,
-        student_comment: session.student_comment,
-        difficulty: session.difficulty,
-        exercises: session.exercises?.map(ex => ({
-          name: ex.name,
-          comment: ex.comment,
-          studentComment: ex.studentComment,
-          student_comment: ex.student_comment
-        })),
-        fullSession: session
-      });
-      
       fetchSessionVideos();
       setSessionDifficulty(session.difficulty || '');
       
       // Try multiple possible fields for student comment
-      // First check global session comment
+      // ONLY check global session-level comment, NOT exercise-level comments
+      // Exercise comments should be displayed separately in the exercise section (see line ~1059)
       let studentComment = session.notes || session.comment || session.studentComment || session.student_comment || '';
       
-      // If no global comment, check if there are exercise-level comments and aggregate them
-      if (!studentComment && session.exercises && session.exercises.length > 0) {
-        const exerciseComments = session.exercises
-          .map((ex, index) => {
-            // Check multiple possible fields for exercise comment
-            const comment = ex.comment || ex.studentComment || ex.student_comment || '';
-            if (comment && comment.trim() !== '') {
-              return `${ex.name || `Exercice ${index + 1}`}: ${comment.trim()}`;
-            }
-            return null;
-          })
-          .filter(comment => comment !== null);
-        
-        if (exerciseComments.length > 0) {
-          // Aggregate exercise comments with exercise names
-          studentComment = exerciseComments.join('\n\n');
-        }
-      }
-      
-      console.log('📝 Setting sessionComment to:', studentComment);
-      console.log('📝 Exercise comments found:', session.exercises?.map((ex, i) => ({
-        index: i,
-        name: ex.name,
-        comment: ex.comment,
-        studentComment: ex.studentComment,
-        student_comment: ex.student_comment
-      })));
+      // Do NOT aggregate exercise-level comments into session comment
+      // Exercise comments are displayed in their own section when viewing individual exercises
       setSessionComment(studentComment);
     }
   }, [isOpen, session, studentId]);
@@ -212,14 +176,6 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const getVideosForExercise = (exercise, exerciseIndex) => {
     if (!exercise) return [];
     
-    console.log('🔍 getVideosForExercise called:', {
-      exerciseName: exercise.name,
-      exerciseIndex,
-      exerciseId: exercise.exerciseId || exercise.id || exercise.exercise_id,
-      totalVideos: sessionVideos.length,
-      sessionVideos: sessionVideos
-    });
-    
     if (exerciseIndex !== undefined && exerciseIndex !== null) {
       const filtered = sessionVideos.filter(
         (video) => video.exercise_index === exerciseIndex && video.exercise_name === exercise.name
@@ -322,7 +278,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     }
   };
 
-  const handleSaveComment = async (videoToSave = null) => {
+  const handleSaveComment = async (videoToSave = null, audioFile = null) => {
     // Use the provided video, or fallback to selectedVideo
     const video = videoToSave || selectedVideo;
     
@@ -331,8 +287,9 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
       return;
     }
     
-    if (!coachComment.trim()) {
-      console.warn('No comment to save');
+    // At least one of text or audio feedback must be provided
+    if (!coachComment.trim() && !audioFile && !audioRecording) {
+      console.warn('No feedback to save (neither text nor audio)');
       return;
     }
     
@@ -345,33 +302,95 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         return;
       }
       
-      await axios.patch(
-        `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+      // Use audioFile parameter or audioRecording state
+      const audioToSend = audioFile || audioRecording;
+      
+      // If audio is present, use FormData; otherwise use JSON
+      if (audioToSend) {
+        const formData = new FormData();
+        if (coachComment.trim()) {
+          formData.append('feedback', coachComment.trim());
+        }
+        formData.append('audio', audioToSend);
+        formData.append('rating', '5');
+        formData.append('status', 'completed');
+        
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+          formData,
+          {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        );
+      } else {
+        // Text-only feedback
+        await axios.patch(
+          `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+          {
+            feedback: coachComment.trim(),
+            rating: 5,
+            status: 'completed'
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+      }
+      
+      // Fetch updated videos to get the audio URL if audio was sent
+      const { data: responseData } = await axios.get(
+        `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
         {
-          feedback: coachComment.trim(),
-          rating: 5,
-          status: 'completed'
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { 
+            studentId: studentId,
+            assignmentId: session.assignmentId || session.id
+          }
         }
       );
       
-      // Update the video in sessionVideos to reflect the saved feedback
-      const updatedVideo = { ...video, coach_feedback: coachComment.trim() };
-      setSessionVideos(prev => prev.map(v => 
-        v.id === video.id 
-          ? updatedVideo
-          : v
-      ));
-      
-      // Update selectedVideo to reflect the saved feedback immediately
-      if (selectedVideo && selectedVideo.id === video.id) {
-        setSelectedVideo(updatedVideo);
+      if (responseData.success && responseData.data) {
+        // Update all videos in sessionVideos with the latest data from API
+        setSessionVideos(prev => {
+          const updated = prev.map(v => {
+            const updatedVideoFromApi = responseData.data.find(apiV => apiV.id === v.id);
+            if (updatedVideoFromApi) {
+              // Merge API data with existing video data
+              const mergedVideo = {
+                ...v,
+                coach_feedback: updatedVideoFromApi.coach_feedback || v.coach_feedback,
+                coach_feedback_audio_url: updatedVideoFromApi.coach_feedback_audio_url || v.coach_feedback_audio_url,
+                coach_rating: updatedVideoFromApi.coach_rating || v.coach_rating,
+                status: updatedVideoFromApi.status || v.status
+              };
+              return mergedVideo;
+            }
+            return v;
+          });
+          return updated;
+        });
+        
+        // Update selectedVideo to reflect the saved feedback immediately
+        const updatedVideoFromApi = responseData.data.find(v => v.id === video.id);
+        if (updatedVideoFromApi) {
+          const updatedVideo = {
+            ...video,
+            coach_feedback: updatedVideoFromApi.coach_feedback || video.coach_feedback,
+            coach_feedback_audio_url: updatedVideoFromApi.coach_feedback_audio_url || video.coach_feedback_audio_url,
+            coach_rating: updatedVideoFromApi.coach_rating || video.coach_rating,
+            status: updatedVideoFromApi.status || video.status
+          };
+          setSelectedVideo(updatedVideo);
+        }
       }
       
-      // Clear the input after successful save
+      // Clear the inputs after successful save
       setCoachComment('');
+      setAudioRecording(null);
+      setIsRecordingVoice(false);
     } catch (error) {
       console.error('Error saving feedback:', error);
       console.error('Error details:', {
@@ -384,6 +403,21 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
       setSavingFeedback(false);
     }
   };
+  
+  // Handle voice message send
+  const handleVoiceMessageSend = useCallback((audioFile) => {
+    if (audioFile && selectedVideo) {
+      setAudioRecording(audioFile);
+      // Automatically save the feedback with audio
+      handleSaveComment(selectedVideo, audioFile);
+    }
+  }, [selectedVideo]);
+  
+  // Handle voice recorder cancel
+  const handleVoiceRecorderCancel = useCallback(() => {
+    setIsRecordingVoice(false);
+    setAudioRecording(null);
+  }, []);
 
   const handleSaveAndQuit = async () => {
     // Save comment first if there is one
@@ -394,15 +428,33 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     onClose();
   };
 
-  if (!session) return null;
-
-  const selectedExercise = session.exercises && session.exercises[selectedExerciseIndex] 
+  // Calculate selectedExercise (must be before useMemo hooks to maintain hook order)
+  const selectedExercise = session?.exercises && session.exercises[selectedExerciseIndex] 
     ? session.exercises[selectedExerciseIndex] 
     : null;
-  const exerciseVideos = selectedExercise ? getVideosForExercise(selectedExercise, selectedExerciseIndex) : [];
-  const currentSetVideo = selectedSetIndex !== null ? exerciseVideos.find(v => v.set_number === selectedSetIndex + 1) : null;
+  
+  // Memoize exerciseVideos to recalculate when sessionVideos changes
+  // Must be called unconditionally (same order every render)
+  // Note: getVideosForExercise uses sessionVideos from closure, so we include sessionVideos in deps
+  const exerciseVideos = useMemo(() => {
+    if (!selectedExercise || !session) return [];
+    return getVideosForExercise(selectedExercise, selectedExerciseIndex);
+  }, [selectedExercise, selectedExerciseIndex, sessionVideos, session]);
+  
+  // Memoize currentSetVideo to recalculate when exerciseVideos or selectedSetIndex changes
+  // Must be called unconditionally (same order every render)
+  const currentSetVideo = useMemo(() => {
+    if (selectedSetIndex === null || !exerciseVideos || exerciseVideos.length === 0) {
+      return null;
+    }
+    const video = exerciseVideos.find(v => v.set_number === selectedSetIndex + 1);
+    return video;
+  }, [selectedSetIndex, exerciseVideos]);
+  
   const currentSet = selectedSetIndex !== null ? selectedExercise?.sets?.[selectedSetIndex] : null;
   const currentSetRpe = currentSet?.rpe || currentSet?.rpe_rating || currentSetVideo?.rpe_rating || null;
+
+  if (!session) return null;
 
   // Calculate session duration
   const sessionDuration = session.startTime && session.endTime
@@ -815,6 +867,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                                              null;
                               }
                               
+                              // Si toujours null et qu'il n'y a pas de vidéo, essayer d'utiliser la charge demandée du set original comme fallback
+                              // (ceci permettra d'afficher la charge même sans vidéo uploadée)
+                              if (!studentWeight && !hasVideo && set.weight !== undefined && set.weight !== null && set.weight !== '') {
+                                studentWeight = set.weight;
+                              }
+                              
                               // Convertir en string si nécessaire et afficher
                               if (studentWeight !== null && studentWeight !== undefined && studentWeight !== '') {
                                 const weightValue = String(studentWeight).trim();
@@ -829,12 +887,26 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                               return null;
                             } else {
                               // Si useRir === false, afficher le RPE normal
+                              // Le coach a demandé un RPE, donc set.weight contient la valeur RPE demandée
                               if (rpeValue) {
                                 return (
                                   <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
                                     <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
                                   </div>
                                 );
+                              }
+                              // Si pas de RPE enregistré mais qu'il y a une valeur demandée (set.weight contient le RPE demandé par le coach)
+                              // Afficher le RPE demandé comme fallback (car useRir === false signifie que c'est du RPE, pas une charge)
+                              if (!hasVideo && set.weight !== undefined && set.weight !== null && set.weight !== '') {
+                                const requestedRpe = set.weight;
+                                // Vérifier que c'est bien un RPE valide (1-10)
+                                if (!isNaN(parseFloat(requestedRpe)) && parseFloat(requestedRpe) >= 1 && parseFloat(requestedRpe) <= 10) {
+                                  return (
+                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
+                                      <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{Math.round(parseFloat(requestedRpe))}</span></span>
+                                    </div>
+                                  );
+                                }
                               }
                               return null;
                             }
@@ -920,50 +992,94 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                   {/* Comment Display Section - In gray container, not in black video box */}
                   <div className="flex flex-col gap-[8px] mb-[12px] flex-shrink-0">
                     <div className="text-[10px] font-normal text-[var(--kaiylo-primary-hex)] flex-shrink-0">Commentaire coach :</div>
-                    <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[272px] h-[45px]">
-                      {currentSetVideo.coach_feedback || currentSetVideo.comment || 'Aucun commentaire'}
-                    </div>
+                    
+                    {/* Audio feedback display */}
+                    {currentSetVideo?.coach_feedback_audio_url && (
+                      <div className="mb-2">
+                        <VoiceMessage 
+                          message={{
+                            file_url: currentSetVideo.coach_feedback_audio_url,
+                            message_type: 'audio',
+                            file_type: 'audio/webm'
+                          }} 
+                          isOwnMessage={true}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Text feedback display */}
+                    {currentSetVideo?.coach_feedback && (
+                      <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[272px] min-h-[45px]">
+                        {currentSetVideo.coach_feedback}
+                      </div>
+                    )}
+                    
+                    {/* No feedback message */}
+                    {!currentSetVideo?.coach_feedback && !currentSetVideo?.coach_feedback_audio_url && (
+                      <div className="text-[14px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[272px] h-[45px]">
+                        Aucun commentaire
+                      </div>
+                    )}
                   </div>
 
                   {/* Coach Comment Input - Below video box */}
                   <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[12px] flex items-center gap-3 flex-shrink-0 mt-auto">
-                    <textarea
-                      ref={textareaRef}
-                      value={coachComment}
-                      onChange={(e) => {
-                        setCoachComment(e.target.value);
-                        setFeedback(e.target.value);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          if (coachComment.trim() && currentSetVideo) {
-                            handleSaveComment(currentSetVideo);
-                          }
-                        }
-                      }}
-                      placeholder="Ajouter un commentaire ..."
-                      rows={1}
-                      className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-y-auto leading-normal"
-                      style={{ minHeight: '24px', maxHeight: '100px' }}
-                    />
-                    <button 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (coachComment.trim() && currentSetVideo) {
-                          handleSaveComment(currentSetVideo);
-                        }
-                      }}
-                      className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                      style={{ opacity: 1 }}
-                      disabled={!coachComment.trim() || savingFeedback || !currentSetVideo}
-                      type="button"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
-                        <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
-                      </svg>
-                    </button>
+                    {isRecordingVoice ? (
+                      <VoiceRecorder
+                        onSend={handleVoiceMessageSend}
+                        onCancel={handleVoiceRecorderCancel}
+                        disabled={savingFeedback}
+                      />
+                    ) : (
+                      <>
+                        <textarea
+                          ref={textareaRef}
+                          value={coachComment}
+                          onChange={(e) => {
+                            setCoachComment(e.target.value);
+                            setFeedback(e.target.value);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              if ((coachComment.trim() || audioRecording) && currentSetVideo) {
+                                handleSaveComment(currentSetVideo, audioRecording);
+                              }
+                            }
+                          }}
+                          placeholder="Ajouter un commentaire ..."
+                          rows={1}
+                          className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-y-auto leading-normal"
+                          style={{ minHeight: '24px', maxHeight: '100px' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsRecordingVoice(true)}
+                          disabled={savingFeedback || !currentSetVideo}
+                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                          title="Enregistrer un message vocal"
+                        >
+                          <Mic className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }} />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if ((coachComment.trim() || audioRecording) && currentSetVideo) {
+                              handleSaveComment(currentSetVideo, audioRecording);
+                            }
+                          }}
+                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                          style={{ opacity: 1 }}
+                          disabled={(!coachComment.trim() && !audioRecording) || savingFeedback || !currentSetVideo}
+                          type="button"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
+                            <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (

@@ -9,6 +9,7 @@ import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
 import OneRmModal, { DEFAULT_ONE_RM_DATA, calculateRIS } from './OneRmModal';
 import StudentProfileModal from './StudentProfileModal';
+import VoiceMessage from './VoiceMessage';
 import DeleteSessionModal from './DeleteSessionModal';
 import PublishSessionModal from './PublishSessionModal';
 import SwitchToDraftModal from './SwitchToDraftModal';
@@ -1462,11 +1463,27 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Update video feedback in the list locally for immediate UI update
       console.log('✏️ Updating video feedback locally:', videoId);
       setStudentVideos(prev => {
-        const updated = prev.map(v => 
-          v.id === videoId 
-            ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
-            : v
-        );
+        const updated = prev.map(v => {
+          if (v.id === videoId) {
+            // Update feedback, but preserve audio feedback URL if it exists
+            // Determine actual status based on feedback presence (text or audio)
+            const hasTextFeedback = feedback && feedback.trim() !== '';
+            const hasAudioFeedback = v.coach_feedback_audio_url;
+            const actualStatus = (hasTextFeedback || hasAudioFeedback) ? 'completed' : status;
+            
+            const updatedVideo = {
+              ...v,
+              coach_feedback: feedback, 
+              coach_feedback_audio_url: v.coach_feedback_audio_url, // Preserve audio URL
+              coach_rating: rating, 
+              status: actualStatus 
+            };
+            // If feedback is being cleared but audio exists, keep audio
+            // If feedback is being set, keep it
+            return updatedVideo;
+          }
+          return v;
+        });
         console.log(`📊 Video count after local update: ${updated.length}`);
         return updated;
       });
@@ -2235,9 +2252,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         return false;
       }
       
-      // Status filter
-      if (statusFilter === 'A feedback' && video.status !== 'pending') return false;
-      if (statusFilter === 'Complété' && video.status !== 'completed' && video.status !== 'reviewed') return false;
+      // Status filter - check actual feedback presence (text or audio), not just status field
+      const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
+      const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
+      
+      if (statusFilter === 'A feedback' && isCompleted) return false;
+      if (statusFilter === 'Complété' && !isCompleted) return false;
       // If statusFilter is empty string (no filter), show all videos
       
       // Exercise filter
@@ -2520,16 +2540,54 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 return seriesText;
                               })()}
                             </div>
+                            
+                            {/* Coach Feedback */}
+                            {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                              <div className="mt-2 flex flex-col gap-1">
+                                {video.coach_feedback_audio_url && (
+                                  <div className="text-xs">
+                                    <VoiceMessage 
+                                      message={{
+                                        file_url: video.coach_feedback_audio_url,
+                                        message_type: 'audio',
+                                        file_type: 'audio/webm'
+                                      }} 
+                                      isOwnMessage={false}
+                                    />
+                                  </div>
+                                )}
+                                {video.coach_feedback && (
+                                  <div className="text-white/60 text-xs font-extralight line-clamp-2">
+                                    {video.coach_feedback}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                           
-                          {/* Status Tag - Only show for videos needing feedback */}
-                          {video.status === 'pending' && (
-                            <div className="flex-shrink-0 flex items-center">
-                              <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                A feedback
-                              </span>
-                            </div>
-                          )}
+                          {/* Status Tag - Show based on feedback presence (text or audio) */}
+                          {(() => {
+                            const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
+                            const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
+                            
+                            if (isCompleted) {
+                              return (
+                                <div className="flex-shrink-0 flex items-center">
+                                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                    Complété
+                                  </span>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="flex-shrink-0 flex items-center">
+                                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                    A feedback
+                                  </span>
+                                </div>
+                              );
+                            }
+                          })()}
                         </div>
                       </div>
                     ))}

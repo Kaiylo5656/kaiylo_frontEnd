@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import VoiceMessage from './VoiceMessage';
 
 /**
  * Mobile-optimized video detail modal for students
@@ -17,8 +18,8 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
       setVideoError(null);
       setIsVideoLoading(true);
       
-      // Determine video status based on coach feedback presence
-      if (video.coach_feedback && video.coach_feedback.trim() !== '') {
+      // Determine video status based on coach feedback presence (text or audio)
+      if ((video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url) {
         setVideoStatus('completed');
       } else {
         setVideoStatus('pending');
@@ -205,15 +206,30 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
               Feedback du coach
             </p>
             <div className="rounded-lg px-3 py-3" style={{ backgroundColor: 'var(--surface-800)' }}>
+              {/* Audio feedback display */}
+              {video.coach_feedback_audio_url && (
+                <div className="mb-3">
+                  <VoiceMessage 
+                    message={{
+                      file_url: video.coach_feedback_audio_url,
+                      message_type: 'audio',
+                      file_type: 'audio/webm'
+                    }} 
+                    isOwnMessage={false}
+                  />
+                </div>
+              )}
+              
+              {/* Text feedback display */}
               {video.coach_feedback ? (
                 <p className="text-white/85 text-xs font-light leading-relaxed whitespace-pre-wrap">
                   {video.coach_feedback}
                 </p>
-              ) : (
+              ) : !video.coach_feedback_audio_url ? (
                 <p className="text-gray-400 text-xs font-light italic text-center">
                   Aucun feedback du coach pour le moment
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

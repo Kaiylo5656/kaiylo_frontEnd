@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder, Mic } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import axios from 'axios';
@@ -7,6 +7,8 @@ import { buildApiUrl, getApiBaseUrlWithApi } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import ReactPlayer from 'react-player';
 import VideoPlayer from './VideoPlayer';
+import VoiceRecorder from './VoiceRecorder';
+import VoiceMessage from './VoiceMessage';
 
 const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +25,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [studentWeight, setStudentWeight] = useState(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [audioRecording, setAudioRecording] = useState(null);
 
   
   const videoRef = useRef(null);
@@ -43,14 +47,17 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       console.log('Video object loaded:', video);
       console.log('Video URL:', video.video_url);
       console.log('Coach feedback:', video.coach_feedback);
+      console.log('Coach feedback audio URL:', video.coach_feedback_audio_url);
       console.log('Video status:', video.status);
       console.log('Video student object:', video.student);
       console.log('Video student weight:', video.student?.weight);
+      console.log('Video type:', videoType);
+      console.log('Is coach view:', isCoachView);
       
-      // Determine video status based on coach feedback presence
-      if (video.coach_feedback && video.coach_feedback.trim() !== '') {
+      // Determine video status based on coach feedback presence (text or audio)
+      if ((video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url) {
         setVideoStatus('completed');
-        console.log('Setting status to completed - coach feedback exists');
+        console.log('Setting status to completed - coach feedback exists (text or audio)');
       } else {
         setVideoStatus('pending');
         console.log('Setting status to pending - no coach feedback');
@@ -239,8 +246,16 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmitFeedback = async () => {
-    if (!video || !feedback.trim()) return;
+  const handleSubmitFeedback = async (audioFile = null) => {
+    // At least one of text or audio feedback must be provided for student videos
+    if (videoType === 'student' && !feedback.trim() && !audioFile && !audioRecording) {
+      return;
+    }
+    
+    // For coach resources, text is required
+    if (videoType === 'coach' && !feedback.trim()) {
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -263,16 +278,41 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         );
         setIsEditing(false);
       } else {
-        // For student videos, submit feedback
-        await axios.patch(
-          buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
-          { 
-            feedback: feedback.trim(),
-            rating: rating || null,
-            status: 'completed'  // Update status to completed when feedback is sent
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // For student videos, submit feedback (text and/or audio)
+        const audioToSend = audioFile || audioRecording;
+        
+        if (audioToSend) {
+          // Send with FormData if audio is present
+          const formData = new FormData();
+          if (feedback.trim()) {
+            formData.append('feedback', feedback.trim());
+          }
+          formData.append('audio', audioToSend);
+          formData.append('rating', rating || '5');
+          formData.append('status', 'completed');
+          
+          await axios.patch(
+            buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
+            formData,
+            {
+              headers: { 
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+              }
+            }
+          );
+        } else {
+          // Text-only feedback
+          await axios.patch(
+            buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
+            { 
+              feedback: feedback.trim(),
+              rating: rating || null,
+              status: 'completed'  // Update status to completed when feedback is sent
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
         
         // Update local status immediately for student videos
         setVideoStatus('completed');
@@ -284,6 +324,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         onFeedbackUpdate(video.id, feedback.trim(), rating, false, videoType === 'coach' ? 'description' : 'completed', videoType);
       }
       
+      // Clear audio recording after successful submission
+      setAudioRecording(null);
+      setIsRecordingVoice(false);
+      
     } catch (error) {
       console.error('Error submitting:', error);
       alert(videoType === 'coach' ? 'Erreur lors de l\'enregistrement de la description' : 'Erreur lors de l\'envoi du feedback');
@@ -291,6 +335,21 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       setIsSubmitting(false);
     }
   };
+  
+  // Handle voice message send
+  const handleVoiceMessageSend = useCallback((audioFile) => {
+    if (audioFile && video) {
+      setAudioRecording(audioFile);
+      // Automatically save the feedback with audio
+      handleSubmitFeedback(audioFile);
+    }
+  }, [video]);
+  
+  // Handle voice recorder cancel
+  const handleVoiceRecorderCancel = useCallback(() => {
+    setIsRecordingVoice(false);
+    setAudioRecording(null);
+  }, []);
 
   const handleDownload = () => {
     if (video?.video_url) {
@@ -783,11 +842,23 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
               {/* Student Video - Coach Feedback Display */}
               {videoType === 'student' && !isCoachView && (
                 <div className="mb-4">
+                  {video.coach_feedback_audio_url && (
+                    <div className="mb-2">
+                      <VoiceMessage 
+                        message={{
+                          file_url: video.coach_feedback_audio_url,
+                          message_type: 'audio',
+                          file_type: 'audio/webm'
+                        }} 
+                        isOwnMessage={false}
+                      />
+                    </div>
+                  )}
                   {video.coach_feedback ? (
                     <p className="text-white/75 text-sm leading-relaxed font-extralight">{video.coach_feedback}</p>
-                  ) : (
+                  ) : !video.coach_feedback_audio_url ? (
                     <p className="text-white/50 text-sm font-extralight italic">Aucun feedback du coach pour le moment</p>
-                  )}
+                  ) : null}
                 </div>
               )}
 
@@ -828,37 +899,73 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   ) : (
                     // Student video - coach view only (feedback input)
                     <div className="flex-1 flex flex-col space-y-3">
-                      {/* Display existing comment if video is completed */}
-                      {videoStatus === 'completed' && video.coach_feedback && (
-                        <div className="flex flex-col gap-[8px] flex-shrink-0">
-                          <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px]">
-                            {video.coach_feedback}
-                          </div>
+                      {/* Display existing comment if feedback exists (text or audio) */}
+                      {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                        <div className="flex flex-col gap-[8px] flex-shrink-0 mb-3">
+                          {/* Audio feedback display */}
+                          {video.coach_feedback_audio_url && (
+                            <div className="mb-2">
+                              <VoiceMessage 
+                                message={{
+                                  file_url: video.coach_feedback_audio_url,
+                                  message_type: 'audio',
+                                  file_type: 'audio/webm'
+                                }} 
+                                isOwnMessage={true}
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Text feedback display */}
+                          {video.coach_feedback && (
+                            <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px]">
+                              {video.coach_feedback}
+                            </div>
+                          )}
                         </div>
                       )}
                       
                       {/* Comment input section */}
                       <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3 flex-shrink-0 mt-auto">
-                        <textarea
-                          ref={textareaRef}
-                          value={feedback}
-                          onChange={(e) => setFeedback(e.target.value)}
-                          placeholder="Ajouter un commentaire ..."
-                          rows={1}
-                          className="flex-1 bg-transparent text-[11px] md:text-[13px] font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
-                          style={{ paddingTop: '1px', paddingBottom: '1px', lineHeight: '1.5' }}
-                        />
-                        <button
-                          onClick={handleSubmitFeedback}
-                          disabled={!feedback.trim() || isSubmitting}
-                          className="flex items-center justify-center cursor-pointer p-1 md:p-1.5 w-[24px] h-[24px] md:w-[28px] md:h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                          style={{ opacity: (!feedback.trim() || isSubmitting) ? 0.5 : 1 }}
-                          type="button"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-3 w-3 md:h-4 md:w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
-                            <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
-                          </svg>
-                        </button>
+                        {isRecordingVoice ? (
+                          <VoiceRecorder
+                            onSend={handleVoiceMessageSend}
+                            onCancel={handleVoiceRecorderCancel}
+                            disabled={isSubmitting}
+                          />
+                        ) : (
+                          <>
+                            <textarea
+                              ref={textareaRef}
+                              value={feedback}
+                              onChange={(e) => setFeedback(e.target.value)}
+                              placeholder="Ajouter un commentaire ..."
+                              rows={1}
+                              className="flex-1 bg-transparent text-[11px] md:text-[13px] font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                              style={{ paddingTop: '1px', paddingBottom: '1px', lineHeight: '1.5' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setIsRecordingVoice(true)}
+                              disabled={isSubmitting}
+                              className="flex items-center justify-center cursor-pointer p-1 md:p-1.5 w-[24px] h-[24px] md:w-[28px] md:h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                              title="Enregistrer un message vocal"
+                            >
+                              <Mic className="h-3 w-3 md:h-4 md:w-4" style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }} />
+                            </button>
+                            <button
+                              onClick={() => handleSubmitFeedback(audioRecording)}
+                              disabled={(!feedback.trim() && !audioRecording) || isSubmitting}
+                              className="flex items-center justify-center cursor-pointer p-1 md:p-1.5 w-[24px] h-[24px] md:w-[28px] md:h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                              style={{ opacity: ((!feedback.trim() && !audioRecording) || isSubmitting) ? 0.5 : 1 }}
+                              type="button"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-3 w-3 md:h-4 md:w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
+                                <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
+                              </svg>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

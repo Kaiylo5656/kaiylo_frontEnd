@@ -1,27 +1,79 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import LoadingSpinner from '../components/LoadingSpinner';
 
-const ForgotPasswordPage = () => {
+const ResetPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState(null);
-  const { register, handleSubmit, formState: { errors } } = useForm();
-  const { resetPasswordForEmail } = useAuth();
+  const [sessionVerified, setSessionVerified] = useState(false);
+  const { register, handleSubmit, formState: { errors }, watch } = useForm();
+  const { updatePassword, user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Check for session validity manually to handle the recovery flow robustly
+  useEffect(() => {
+    const verifySession = async () => {
+      // If AuthContext already has a user, we are good
+      if (user) {
+        setSessionVerified(true);
+        return;
+      }
+
+      // Otherwise, check Supabase session directly (handles the case where AuthContext is lagging or hash was consumed)
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (session && !error) {
+        console.log('✅ Session verified directly via Supabase');
+        setSessionVerified(true);
+      } else {
+        console.log('⚠️ No active session found for password reset');
+        // Check if we have error params in URL
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const errorDescription = hashParams.get('error_description');
+        if (errorDescription) {
+          setError(decodeURIComponent(errorDescription));
+        }
+      }
+    };
+
+    if (!authLoading) {
+      verifySession();
+    }
+  }, [user, authLoading]);
 
   const onSubmit = async (data) => {
+    if (data.password !== data.confirmPassword) {
+      setError('Les mots de passe ne correspondent pas');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
     try {
-      const result = await resetPasswordForEmail(data.email, window.location.origin + '/reset-password');
+      // Use AuthContext updatePassword if available, otherwise fallback to direct Supabase call
+      let result;
+      if (user) {
+        result = await updatePassword(data.password);
+      } else {
+        const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+          password: data.password
+        });
+        if (updateError) throw updateError;
+        result = { success: true, data: updateData };
+      }
       
       if (result.success) {
         setIsSuccess(true);
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
       } else {
         setError(result.error || 'Une erreur est survenue. Veuillez réessayer.');
       }
@@ -32,6 +84,35 @@ const ForgotPasswordPage = () => {
       setIsLoading(false);
     }
   };
+
+  if (authLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // If session is not verified and we are not loading, show error or login link
+  // But allow a grace period if the URL contains a token (to avoid flashing error before session check completes)
+  const hasTokenInUrl = window.location.hash.includes('access_token') || window.location.hash.includes('type=recovery');
+  
+  if (!sessionVerified && !hasTokenInUrl && !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center" style={{ backgroundColor: '#0a0a0a', color: 'white' }}>
+        <Logo />
+        <div className="mt-8 max-w-md w-full bg-[rgba(255,255,255,0.05)] p-6 rounded-xl border border-[rgba(255,255,255,0.1)]">
+          <h2 className="text-xl font-semibold mb-4 text-destructive">Lien invalide ou expiré</h2>
+          <p className="text-gray-300 mb-6">
+            {error || "Nous n'avons pas pu vérifier votre session. Le lien de réinitialisation est peut-être expiré ou a déjà été utilisé."}
+          </p>
+          <Link 
+            to="/login" 
+            className="inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+            style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+          >
+            Retour à la connexion
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col antialiased relative" style={{ backgroundColor: '#0a0a0a' }}>
@@ -119,17 +200,17 @@ const ForgotPasswordPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center">
           <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Réinitialiser votre mot de passe
+              Nouveau mot de passe
             </h1>
 
             {isSuccess ? (
               <>
                 <div className="mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)] text-left">
                   <p className="text-sm text-[rgba(255,255,255,0.8)] mb-4 font-light">
-                    Si un compte existe avec cette adresse email, vous recevrez un lien pour réinitialiser votre mot de passe.
+                    Votre mot de passe a été mis à jour avec succès.
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,0.6)] font-light">
-                    Vérifiez votre boîte de réception et votre dossier de spam.
+                    Vous allez être redirigé vers la page de connexion...
                   </p>
                 </div>
                 <Link
@@ -152,21 +233,21 @@ const ForgotPasswordPage = () => {
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
                   <div style={{ marginBottom: '3px' }}>
                     <input
-                      {...register('email', {
-                        required: 'Adresse mail requise',
-                        pattern: {
-                          value: /^\S+@\S+$/i,
-                          message: 'Adresse mail invalide',
-                        },
+                      {...register('password', {
+                        required: 'Nouveau mot de passe requis',
+                        minLength: {
+                          value: 6,
+                          message: 'Le mot de passe doit contenir au moins 6 caractères'
+                        }
                       })}
-                      type="email"
-                      placeholder="Adresse mail"
+                      type="password"
+                      placeholder="Nouveau mot de passe"
                       className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                       style={{
                         color: 'rgba(255, 255, 255, 1)',
                         backgroundColor: 'rgba(255, 255, 255, 0.02)',
                         border: '0.5px solid rgba(255, 255, 255, 0.1)',
-                        borderColor: errors.email ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
+                        borderColor: errors.password ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
                         borderRadius: '10px',
                         fontWeight: '300',
                         boxShadow: 'none',
@@ -175,10 +256,41 @@ const ForgotPasswordPage = () => {
                         paddingTop: '10px',
                         paddingBottom: '10px',
                       }}
-                      aria-invalid={errors.email ? 'true' : 'false'}
                     />
-                    {errors.email && (
-                      <p className="text-destructive text-xs mt-1">{errors.email.message}</p>
+                    {errors.password && (
+                      <p className="text-destructive text-xs mt-1">{errors.password.message}</p>
+                    )}
+                  </div>
+
+                  <div style={{ marginBottom: '3px' }}>
+                    <input
+                      {...register('confirmPassword', {
+                        required: 'Confirmation requise',
+                        validate: (val) => {
+                          if (watch('password') != val) {
+                            return "Les mots de passe ne correspondent pas";
+                          }
+                        }
+                      })}
+                      type="password"
+                      placeholder="Confirmer le mot de passe"
+                      className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                      style={{
+                        color: 'rgba(255, 255, 255, 1)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                        border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                        borderColor: errors.confirmPassword ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '10px',
+                        fontWeight: '300',
+                        boxShadow: 'none',
+                        paddingLeft: '20px',
+                        paddingRight: '20px',
+                        paddingTop: '10px',
+                        paddingBottom: '10px',
+                      }}
+                    />
+                    {errors.confirmPassword && (
+                      <p className="text-destructive text-xs mt-1">{errors.confirmPassword.message}</p>
                     )}
                   </div>
 
@@ -195,18 +307,9 @@ const ForgotPasswordPage = () => {
                     }}
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
+                    {isLoading ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
                   </button>
                 </form>
-                
-                <Link
-                  to="/login"
-                  className="text-sm text-primary hover:underline font-semibold inline-flex items-center gap-2 mt-6"
-                  style={{ color: 'rgba(212, 132, 90, 1)' }}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Retour à la connexion
-                </Link>
               </>
             )}
           </div>
@@ -216,5 +319,4 @@ const ForgotPasswordPage = () => {
   );
 };
 
-export default ForgotPasswordPage;
-
+export default ResetPasswordPage;

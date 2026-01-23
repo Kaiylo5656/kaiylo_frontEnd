@@ -11,6 +11,7 @@ import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import AuthCallback from './pages/AuthCallback';
 import RegistrationSuccessPage from './pages/RegistrationSuccessPage';
 import OnboardingPage from './pages/OnboardingPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import Dashboard from './pages/Dashboard';
 import CoachDashboard from './pages/CoachDashboard';
 import StudentDashboard from './pages/StudentDashboard';
@@ -133,6 +134,7 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/register/student" element={<StudentRegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/invite" element={<StudentInvitationPage />} />
             <Route path="/auth/confirm-email" element={<ConfirmEmailPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
