@@ -547,7 +547,7 @@ const StudentDashboard = () => {
                   <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '40px' }}>
                     <button
                       onClick={() => setSelectedDate(day)}
-                      className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1 sm:px-2 pt-1.5 md:pt-2 pb-[8px] md:pb-[10px] rounded-[7px] text-[9px] md:text-[10px] font-normal transition-colors ${
+                      className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1.5 sm:px-2.5 pt-2 md:pt-2.5 pb-[10px] md:pb-[12px] rounded-[7px] text-[10px] md:text-[11px] font-normal transition-colors ${
                         isSelected 
                           ? 'bg-[#d4845a] text-white' 
                           : hasAssignments && !allCompleted

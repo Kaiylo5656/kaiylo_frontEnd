@@ -1201,7 +1201,7 @@ const CoachDashboard = () => {
                     </div>
 
                     {/* Avatar & Name */}
-                    <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
                       <div className="w-[42px] h-[42px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
                         <svg 
                           className="w-[18px] h-[18px] text-white/80" 
@@ -1212,7 +1212,7 @@ const CoachDashboard = () => {
                           <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
                         </svg>
                       </div>
-                      <span className="text-[18px] text-white font-light truncate">{student.name}</span>
+                      <span className="text-[18px] text-white font-light whitespace-nowrap">{student.name}</span>
                     </div>
                   </div>
 

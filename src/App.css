@@ -650,6 +650,24 @@ input[type="number"] {
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Enhanced reply card hover effects */
 .reply-card:hover {
   transform: translateY(-1px);
@@ -971,7 +989,7 @@ html {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   scrollbar-gutter: stable;
-  padding-right: 12px;
+  padding-right: 6px;
 }
 
 .exercise-list-scrollbar::-webkit-scrollbar {

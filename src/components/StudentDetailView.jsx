@@ -62,10 +62,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [hoveredWeek, setHoveredWeek] = useState(null); // Track which week is being hovered
   const [copiedWeek, setCopiedWeek] = useState(null); // Store copied week data for pasting
+  const [isPastingWeek, setIsPastingWeek] = useState(false); // Track if week is being pasted
+  const [pastingWeekStart, setPastingWeekStart] = useState(null); // Track which week is being pasted
   const [isDeleteWeekModalOpen, setIsDeleteWeekModalOpen] = useState(false);
   const [weekToDelete, setWeekToDelete] = useState(null); // { weekStart, sessionCount }
-  const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'draft', 'all'
-  const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 2 or 4 weeks
+  const [isDeletingWeek, setIsDeletingWeek] = useState(false); // Track if week is being deleted
+  const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'completed', 'all'
+  const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 8 (2 months) or 4 weeks
+  const [isDetailedView, setIsDetailedView] = useState(false); // Detailed view mode for training sessions
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Sidebar collapse state
   const [filterMenuOpen, setFilterMenuOpen] = useState(false); // Track if filter dropdown is open
@@ -1081,7 +1085,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         // Only copy sessions that match the current filter
         if (trainingFilter === 'all' || 
             (trainingFilter === 'assigned' && session.status !== 'draft') ||
-            (trainingFilter === 'draft' && session.status === 'draft')) {
+            (trainingFilter === 'completed' && session.status === 'completed')) {
           weekSessions.push({ session, date: day });
         }
       });
@@ -1113,10 +1117,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handlePasteWeek = async (targetWeekStart) => {
-    if (!copiedWeek) {
-      alert('Aucune semaine copiée !');
+    if (!copiedWeek || isPastingWeek) {
       return;
     }
+
+    setIsPastingWeek(true);
+    setPastingWeekStart(targetWeekStart);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -1126,11 +1132,27 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday=0 to Monday=0
         const newDate = addDays(targetWeekStart, dayOfWeek);
         
+        // Preserve RPE from completed sessions
+        let exercisesToCopy = session.exercises;
+        if (session.status === 'completed' && Array.isArray(session.exercises)) {
+          exercisesToCopy = session.exercises.map(ex => ({
+            ...ex,
+            sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
+              ...set,
+              // Preserve previous RPE so it can be displayed when editing
+              previousRpe: set.rpe_rating || set.rpeRating || null,
+              // Clear the actual RPE rating for the new session
+              rpe_rating: undefined,
+              rpeRating: undefined
+            })) : ex.sets
+          }));
+        }
+        
           // Always create new sessions as 'assigned', regardless of original status
           const sessionData = {
             title: session.title,
             description: session.description || '',
-            exercises: session.exercises,
+            exercises: exercisesToCopy,
             scheduled_date: format(newDate, 'yyyy-MM-dd'),
             student_id: student.id,
             status: session.status === 'draft' ? 'draft' : 'published' // Keep draft status, but make completed ones published
@@ -1153,6 +1175,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } catch (error) {
       console.error('Error pasting week:', error);
       alert('Erreur lors du collage de la semaine');
+    } finally {
+      setIsPastingWeek(false);
+      setPastingWeekStart(null);
     }
   };
 
@@ -1167,7 +1192,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         // Only delete sessions that match the current filter
         if (trainingFilter === 'all' || 
             (trainingFilter === 'assigned' && session.status !== 'draft') ||
-            (trainingFilter === 'draft' && session.status === 'draft')) {
+            (trainingFilter === 'completed' && session.status === 'completed')) {
           weekSessions.push({ session, date: day });
         }
       });
@@ -1184,7 +1209,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const confirmDeleteWeek = async () => {
-    if (!weekToDelete) return;
+    if (!weekToDelete || isDeletingWeek) return;
+
+    setIsDeletingWeek(true);
 
     try {
       const token = localStorage.getItem('authToken');
@@ -1235,6 +1262,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } catch (error) {
       console.error('Error deleting week:', error);
       alert('Erreur lors de la suppression de la semaine');
+    } finally {
+      setIsDeletingWeek(false);
     }
   };
 
@@ -1343,10 +1372,27 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const scheduledDate = format(targetDay, 'yyyy-MM-dd');
 
       const originalStatus = copiedSession.session.status;
+      
+      // Preserve RPE from completed sessions
+      let exercisesToCopy = copiedSession.session.exercises || [];
+      if (originalStatus === 'completed' && Array.isArray(copiedSession.session.exercises)) {
+        exercisesToCopy = copiedSession.session.exercises.map(ex => ({
+          ...ex,
+          sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
+            ...set,
+            // Preserve previous RPE so it can be displayed when editing
+            previousRpe: set.rpe_rating || set.rpeRating || null,
+            // Clear the actual RPE rating for the new session
+            rpe_rating: undefined,
+            rpeRating: undefined
+          })) : ex.sets
+        }));
+      }
+      
       const sessionData = {
         title: copiedSession.session.title,
         description: copiedSession.session.description || '',
-        exercises: copiedSession.session.exercises || [],
+        exercises: exercisesToCopy,
         scheduled_date: scheduledDate,
         student_id: student.id,
         status: originalStatus === 'draft' ? 'draft' : originalStatus === 'completed' ? 'published' : 'published'
@@ -2608,8 +2654,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     switch (trainingFilter) {
       case 'assigned':
         return sessions.filter(session => session.status === 'assigned' || session.status === 'in_progress' || session.status === 'completed');
-      case 'draft':
-        return sessions.filter(session => session.status === 'draft');
+      case 'completed':
+        return sessions.filter(session => session.status === 'completed');
       case 'all':
       default:
         return sessions;
@@ -2749,8 +2795,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} ${unit}`;
   };
 
-  const renderOverviewDayContent = (dayDate, dayKey, isDropTarget = false, draggedSession = null) => {
-    const sessions = workoutSessions[dayKey] || [];
+  const renderOverviewDayContent = (dayDate, dayKey, isDropTarget = false, draggedSession = null, filteredSessions = null) => {
+    const sessions = filteredSessions || workoutSessions[dayKey] || [];
     const hasMultipleSessions = sessions.length > 1;
     const hasMoreThanTwoSessions = sessions.length > 2;
 
@@ -3227,7 +3273,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const sessions = getFilteredSessions(allSessions);
 
     const sessionList = sessions.length > 0 ? (
-      <div className={`session-container flex-1 ${weekViewFilter === 2 ? 'space-y-1.5' : 'space-y-0.5'} overflow-y-auto max-h-full`}>
+      <div className={`session-container flex-1 ${weekViewFilter === 8 ? 'space-y-1.5' : 'space-y-0.5'} overflow-y-auto max-h-full`}>
         {sessions.map((session, sessionIndex) => {
           const canDrag = session.status === 'draft' || session.status === 'assigned';
 
@@ -3240,7 +3286,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   : session.status === 'assigned'
                   ? 'bg-[#262626] border-l-2 border-[#3b82f6] hover:bg-[#2a2a2a]'
                   : 'bg-[#262626] border-l-2 border-[#d4845a] hover:bg-[#2a2a2a]'
-              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 2 ? 'p-1.5' : 'p-1'} ${
+              } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${weekViewFilter === 8 ? 'p-1.5' : 'p-1'} ${
                 draggedSession && draggedSession.id === (session.id || session.assignmentId) ? 'opacity-50 scale-95' : ''
               }`}
               onClick={(e) => {
@@ -3251,21 +3297,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               onDragStart={(event) => handleSessionDragStart(event, session, day)}
               onDragEnd={handleSessionDragEnd}
             >
-              <div className={`flex items-center justify-between ${weekViewFilter === 2 ? 'mb-2' : 'mb-1'}`}>
+              <div className={`flex items-center justify-between ${weekViewFilter === 8 ? 'mb-2' : 'mb-1'}`}>
                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                  <div className={`font-light truncate ${weekViewFilter === 2 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
+                  <div className={`font-light truncate ${weekViewFilter === 8 ? 'text-sm' : 'text-[10px]'} max-w-[60%]`}>{session.title || 'Séance'}</div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     {session.status === 'in_progress' && (
-                      <PlayCircle className={`text-[#d4845a] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <PlayCircle className={`text-[#d4845a] ${weekViewFilter === 8 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'completed' && (
-                      <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <CheckCircle className={`text-[#22c55e] ${weekViewFilter === 8 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'draft' && (
-                      <EyeOff className={`text-white/50 ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <EyeOff className={`text-white/50 ${weekViewFilter === 8 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                     {session.status === 'assigned' && (
-                      <Clock className={`text-[#3b82f6] ${weekViewFilter === 2 ? 'h-3 w-3' : 'h-2 w-2'}`} />
+                      <Clock className={`text-[#3b82f6] ${weekViewFilter === 8 ? 'h-3 w-3' : 'h-2 w-2'}`} />
                     )}
                   </div>
                 </div>
@@ -3283,7 +3329,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       }`}
                       title="Options de la séance"
                     >
-                      <MoreHorizontal className={weekViewFilter === 2 ? 'h-4 w-4' : 'h-3 w-3'} />
+                      <MoreHorizontal className={weekViewFilter === 8 ? 'h-4 w-4' : 'h-3 w-3'} />
                     </button>
                     {dropdownOpen === `${session.id || session.assignmentId}-${dateKey}` && (
                       <div
@@ -3356,7 +3402,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </div>
                 )}
               </div>
-              <div className={`text-white/50 ${weekViewFilter === 2 ? 'text-[10px]' : 'text-[8px]'}`}>
+              <div className={`text-white/50 ${weekViewFilter === 8 ? 'text-[10px]' : 'text-[8px]'}`}>
                 + {session.exercises.length} exercises en plus
               </div>
             </div>
@@ -4521,6 +4567,42 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               </div>
 
               <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                {/* Detailed View Switch */}
+                <div className="flex items-center gap-2">
+                  <label 
+                    htmlFor="detailed-view-filter"
+                    className="text-[10px] md:text-xs text-white/50 font-light cursor-pointer select-none"
+                    style={{ fontFamily: "'Inter', sans-serif" }}
+                  >
+                    Vue détaillée
+                  </label>
+                  {/* Toggle Switch */}
+                  <div className="relative inline-block w-9 h-[18px] shrink-0">
+                    <input
+                      type="checkbox"
+                      id="detailed-view-filter"
+                      checked={isDetailedView}
+                      onChange={(e) => setIsDetailedView(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="detailed-view-filter"
+                      className="block h-[18px] rounded-full cursor-pointer transition-colors duration-200"
+                      style={{
+                        backgroundColor: isDetailedView ? 'var(--kaiylo-primary-hex)' : '#404040'
+                      }}
+                    >
+                      <span
+                        className={`absolute top-[3px] left-[3px] w-3 h-3 bg-white rounded-full transition-transform duration-200 ${
+                          isDetailedView ? 'translate-x-[18px]' : 'translate-x-0'
+                        }`}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
+
                 {/* Status Filter - Using buttons instead of select for better Kaiylo theme */}
                 <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
                   <button
@@ -4530,7 +4612,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
                     }`}
-                    style={{ fontWeight: trainingFilter === 'all' ? 400 : 200 }}
+                    style={{ fontWeight: trainingFilter === 'all' ? 400 : 200, width: '73px' }}
                   >
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Tous</span>
                     <span>Tous</span>
@@ -4542,22 +4624,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
                     }`}
-                    style={{ fontWeight: trainingFilter === 'assigned' ? 400 : 200 }}
+                    style={{ fontWeight: trainingFilter === 'assigned' ? 400 : 200, width: '73px' }}
                   >
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Assigné</span>
                     <span>Assigné</span>
                   </button>
                   <button
-                    onClick={() => setTrainingFilter('draft')}
+                    onClick={() => setTrainingFilter('completed')}
                     className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
-                      trainingFilter === 'draft'
+                      trainingFilter === 'completed'
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
                     }`}
-                    style={{ fontWeight: trainingFilter === 'draft' ? 400 : 200 }}
+                    style={{ fontWeight: trainingFilter === 'completed' ? 400 : 200, width: '73px' }}
                   >
-                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Brouillon</span>
-                    <span>Brouillon</span>
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Terminé</span>
+                    <span>Terminé</span>
                   </button>
                 </div>
 
@@ -4566,16 +4648,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 {/* Week View Filter - Using buttons instead of select */}
                 <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
                   <button
-                    onClick={() => setWeekViewFilter(2)}
+                    onClick={() => setWeekViewFilter(8)}
                     className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
-                      weekViewFilter === 2
+                      weekViewFilter === 8
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
                     }`}
-                    style={{ fontWeight: weekViewFilter === 2 ? 400 : 200 }}
+                    style={{ fontWeight: weekViewFilter === 8 ? 400 : 200, width: '89px' }}
                   >
-                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 semaines</span>
-                    <span>2 sem.</span>
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 mois</span>
+                    <span>2 mois</span>
                   </button>
                   <button
                     onClick={() => setWeekViewFilter(4)}
@@ -4584,7 +4666,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         ? 'bg-[var(--kaiylo-primary-hex)] text-white'
                         : 'text-white/50 hover:text-white/75'
                     }`}
-                    style={{ fontWeight: weekViewFilter === 4 ? 400 : 200 }}
+                    style={{ fontWeight: weekViewFilter === 4 ? 400 : 200, width: '89px' }}
                   >
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
                     <span>4 sem.</span>
@@ -4673,7 +4755,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             return (
                               <div
                                 key={dateKey}
-                                className="bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col h-[120px] md:h-[200px] transition-all duration-300 relative group cursor-pointer"
+                                className={`bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col transition-all duration-300 relative group cursor-pointer ${
+                                  isDetailedView 
+                                    ? 'min-h-[260px]' 
+                                    : 'h-[120px] md:h-[200px]'
+                                }`}
                                 style={{ 
                                   backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)'
                                 }}
@@ -4705,16 +4791,26 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   </span>
                                 </div>
                                 
-                                <div 
-                                  className={`flex-1 space-y-1 overflow-y-auto transition-all duration-300 ease-out rounded relative`}
-                                  style={{
-                                    backgroundColor: isDropTarget && !dragOverSessionId ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
-                                    borderRadius: '0.75rem',
-                                    padding: isDropTarget && !dragOverSessionId ? '4px' : '0',
-                                    transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
-                                  }}
-                                >
-                                  {sessionsOnDay.map((session, sessionIndex) => {
+                                {isDetailedView ? (
+                                  (() => {
+                                    // Apply training filter for detailed view
+                                    const filteredSessions = (workoutSessions[dateKey] || []).filter(session => {
+                                      if (trainingFilter === 'all') return true;
+                                      return session.status === trainingFilter;
+                                    });
+                                    return renderOverviewDayContent(day, dateKey, isDropTarget, draggedSession, filteredSessions);
+                                  })()
+                                ) : (
+                                  <div 
+                                    className={`flex-1 space-y-1 overflow-y-auto transition-all duration-300 ease-out rounded relative`}
+                                    style={{
+                                      backgroundColor: isDropTarget && !dragOverSessionId ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
+                                      borderRadius: '0.75rem',
+                                      padding: isDropTarget && !dragOverSessionId ? '4px' : '0',
+                                      transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
+                                    }}
+                                  >
+                                    {sessionsOnDay.map((session, sessionIndex) => {
                                     const exercises = session.exercises || [];
                                     const sessionTitle = session.title || 'Séance';
                                     const canDrag = session.status === 'draft' || session.status === 'assigned';
@@ -4946,7 +5042,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                       </div>
                                     );
                                   })}
-                                </div>
+                                  </div>
+                                )}
                                 {isDropTarget && draggedSession && (
                                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" style={{ top: '40px', bottom: '0' }}>
                                     <div className="bg-[#d4845a] bg-opacity-25 text-[#d4845a] px-3 py-1.5 rounded-lg text-xs font-medium shadow-md" style={{ fontWeight: 500 }}>
@@ -5070,23 +5167,34 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         
                         {/* Overlay pour coller une semaine copiée */}
                         {copiedWeek && (
-                          <div className="absolute inset-0 bg-[#d4845a]/10 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none">
+                          <div className={`absolute inset-0 bg-[#d4845a]/10 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none ${
+                            (isPastingWeek && pastingWeekStart && format(pastingWeekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd')) 
+                              ? 'opacity-100' 
+                              : isPastingWeek
+                                ? 'opacity-0'
+                                : 'opacity-0 group-hover/week:opacity-100'
+                          }`}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handlePasteWeek(weekStart);
                               }}
-                              className="bg-[#d4845a] hover:bg-[#c47850] text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110"
+                              disabled={isPastingWeek}
+                              className="bg-[#d4845a] hover:bg-[#c47850] text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
                               title="Coller la semaine copiée ici"
                             >
-                              Coller
+                              {isPastingWeek && pastingWeekStart && format(pastingWeekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd') && (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              )}
+                              <span>{isPastingWeek && pastingWeekStart && format(pastingWeekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd') ? 'Collage…' : 'Coller'}</span>
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCopiedWeek(null);
                               }}
-                              className="bg-white/10 hover:bg-white/20 text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110"
+                              disabled={isPastingWeek}
+                              className="bg-white/10 hover:bg-white/20 text-white font-normal px-6 py-2.5 rounded-lg transition-all pointer-events-auto shadow-lg hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                               title="Annuler la copie"
                             >
                               Annuler
@@ -5748,17 +5856,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   setIsDeleteWeekModalOpen(false);
                   setWeekToDelete(null);
                 }}
-                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)]"
+                disabled={isDeletingWeek}
+                className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Annuler
               </button>
               <button
                 type="button"
                 onClick={confirmDeleteWeek}
-                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+                disabled={isDeletingWeek}
+                className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                 style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
               >
-                Supprimer
+                {isDeletingWeek && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                <span>{isDeletingWeek ? 'Suppression…' : 'Supprimer'}</span>
               </button>
             </div>
           </div>

@@ -287,7 +287,14 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
       size="lg"
-      title={editingExercise ? 'Modifier l\'exercice' : 'Nouvel exercice'}
+      title={
+        <span className="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h-5 w-5" fill="currentColor">
+            <path d="M96 112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 112 256 0 0-112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 16 16 0c26.5 0 48 21.5 48 48l0 48c17.7 0 32 14.3 32 32s-14.3 32-32 32l0 48c0 26.5-21.5 48-48 48l-16 0 0 16c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-112-256 0 0 112c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-16-16 0c-26.5 0-48-21.5-48-48l0-48c-17.7 0-32-14.3-32-32s14.3-32 32-32l0-48c0-26.5 21.5-48 48-48l16 0 0-16z"/>
+          </svg>
+          {editingExercise ? 'Modifier l\'exercice' : 'Nouvel exercice'}
+        </span>
+      }
       titleClassName="text-lg md:text-xl font-normal text-white"
       className="!w-full md:!w-[448px] !max-w-full md:!max-w-[448px] !min-w-0 md:!min-w-[448px]"
       borderRadius="16px"
