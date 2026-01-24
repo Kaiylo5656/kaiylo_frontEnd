@@ -1422,7 +1422,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               </th>
                               <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
                               {hasPreviousRpeData() && (
-                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>RPE précédent</th>
+                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                                  {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
+                                </th>
                               )}
                               <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
                               <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
@@ -1723,9 +1725,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       {set.previousRpe && set.previousRpe !== null && set.previousRpe !== undefined ? (
                                         <div 
                                           className="flex items-center justify-center px-2 py-1 rounded"
-                                          title={`RPE renseigné lors de la séance précédente: ${set.previousRpe}`}
+                                          title={exercise.useRir 
+                                            ? `Charge renseignée lors de la séance précédente: ${set.previousRpe}kg`
+                                            : `RPE renseigné lors de la séance précédente: ${set.previousRpe}`
+                                          }
                                         >
-                                          <span className="text-[#d4845a] text-sm font-normal">{set.previousRpe}</span>
+                                          <span className="text-[#d4845a] text-sm font-normal">
+                                            {exercise.useRir ? `${set.previousRpe}kg` : set.previousRpe}
+                                          </span>
                                         </div>
                                       ) : (
                                         <span className="text-white/25 text-sm font-light">-</span>

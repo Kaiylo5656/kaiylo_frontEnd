@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, X, Send, Play, Pause } from 'lucide-react';
+import { X, Send, Play, Pause } from 'lucide-react';
 
 const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -288,7 +288,14 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
               }}
               disabled={hasPermission === false}
             >
-              <Mic className="w-5 h-5 relative z-10" />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 384 512" 
+                className="w-5 h-5 relative z-10" 
+                style={{ fill: 'white', color: 'white' }}
+              >
+                <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+              </svg>
               {isRecording && (
                 <span 
                   className="absolute inset-0 rounded-full"
@@ -333,7 +340,14 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
               }}
               disabled={hasPermission === false}
             >
-              <Mic className="w-5 h-5 relative z-10" />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 384 512" 
+                className="w-5 h-5 relative z-10" 
+                style={{ fill: 'white', color: 'white' }}
+              >
+                <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+              </svg>
               {isRecording && (
                 <span 
                   className="absolute inset-0 rounded-full"
@@ -407,7 +421,14 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
             )}
           </button>
           <div className="flex-1 flex items-center gap-2">
-            <Mic className="w-4 h-4 text-white/50" />
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 384 512" 
+              className="w-4 h-4 text-white/50" 
+              style={{ fill: 'white', color: 'white' }}
+            >
+              <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+            </svg>
             <span className="text-sm text-white/70">{formatTime(recordingTime)}</span>
           </div>
           <div className="flex items-center gap-2">

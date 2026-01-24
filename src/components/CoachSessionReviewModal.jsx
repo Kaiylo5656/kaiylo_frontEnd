@@ -70,8 +70,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = '24px';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
+      // Reset height to auto to get the correct scrollHeight
+      textareaRef.current.style.height = 'auto';
+      // Set height to scrollHeight, with min 24px and max 100px
+      const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
+      textareaRef.current.style.height = `${newHeight}px`;
     }
   }, [coachComment]);
 
@@ -810,7 +813,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         `}
                       >
                         <div className="flex items-end justify-end gap-[15px]">
-                          <div className="w-[30px] h-[15px] flex items-center">
+                          <div className="w-[30px] h-[15px] flex items-center pb-[3px]">
                             <span className={`text-[12px] ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
                               Set {setIndex + 1}
                             </span>
@@ -843,7 +846,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             })()}
                           </span>
                         </div>
-                        <div className="flex items-end gap-[15px]">
+                        <div className="flex items-end gap-[15px] pb-[3px]">
                           {(() => {
                             // Si useRir === true, afficher la charge renseignée par l'élève au lieu du RPE
                             if (selectedExercise.useRir || selectedExercise.use_rir) {
@@ -1023,7 +1026,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                   </div>
 
                   {/* Coach Comment Input - Below video box */}
-                  <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[12px] flex items-center gap-3 flex-shrink-0 mt-auto">
+                  <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
                     {isRecordingVoice ? (
                       <VoiceRecorder
                         onSend={handleVoiceMessageSend}
@@ -1038,6 +1041,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           onChange={(e) => {
                             setCoachComment(e.target.value);
                             setFeedback(e.target.value);
+                            // Auto-resize on input
+                            if (textareaRef.current) {
+                              textareaRef.current.style.height = 'auto';
+                              const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
+                              textareaRef.current.style.height = `${newHeight}px`;
+                            }
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
@@ -1049,8 +1058,15 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           }}
                           placeholder="Ajouter un commentaire ..."
                           rows={1}
-                          className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-y-auto leading-normal"
-                          style={{ minHeight: '24px', maxHeight: '100px' }}
+                          className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                          style={{ 
+                            minHeight: '24px', 
+                            maxHeight: '100px', 
+                            height: '24px',
+                            lineHeight: '24px',
+                            paddingTop: '0',
+                            paddingBottom: '0'
+                          }}
                         />
                         <button
                           type="button"
@@ -1059,7 +1075,14 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
                           title="Enregistrer un message vocal"
                         >
-                          <Mic className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }} />
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 384 512" 
+                            className="h-4 w-4" 
+                            style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
+                          >
+                            <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+                          </svg>
                         </button>
                         <button 
                           onClick={(e) => {

@@ -644,6 +644,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         (s.assignmentId === sessionId) || (s.id === sessionId && s.status === 'draft')
       );
     
+    // Ne pas permettre la suppression de séances terminées
+    if (session && session.status === 'completed') {
+      alert('Les séances terminées ne peuvent pas être supprimées');
+      return;
+    }
+    
     // Store session info and open modal
     setSessionToDelete({
       sessionId,
@@ -667,6 +673,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         .find(s => 
           (s.assignmentId === sessionId) || (s.id === sessionId && s.status === 'draft')
         );
+      
+      // Ne pas permettre la suppression de séances terminées
+      if (session && session.status === 'completed') {
+        alert('Les séances terminées ne peuvent pas être supprimées');
+        setIsDeleteSessionModalOpen(false);
+        setSessionToDelete(null);
+        setIsDeletingSession(false);
+        return;
+      }
       
       if (session && session.status === 'draft') {
         // Delete draft session directly
@@ -1139,8 +1154,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             ...ex,
             sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
               ...set,
-              // Preserve previous RPE so it can be displayed when editing
-              previousRpe: set.rpe_rating || set.rpeRating || null,
+              // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
+              // Sinon, stocker le RPE précédent
+              previousRpe: ex.useRir || ex.use_rir 
+                ? (set.studentWeight || set.student_weight || null)
+                : (set.rpe_rating || set.rpeRating || null),
               // Clear the actual RPE rating for the new session
               rpe_rating: undefined,
               rpeRating: undefined
@@ -1182,24 +1200,28 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handleDeleteWeek = (weekStart) => {
-    // Get all sessions in this week
+    // Get all sessions in this week (excluding completed sessions)
     const weekSessions = [];
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
       const dateKey = format(day, 'yyyy-MM-dd');
       const sessions = workoutSessions[dateKey] || [];
       sessions.forEach(session => {
+        // Ne pas inclure les séances terminées
+        if (session.status === 'completed') {
+          return;
+        }
+        
         // Only delete sessions that match the current filter
         if (trainingFilter === 'all' || 
-            (trainingFilter === 'assigned' && session.status !== 'draft') ||
-            (trainingFilter === 'completed' && session.status === 'completed')) {
+            (trainingFilter === 'assigned' && session.status !== 'draft')) {
           weekSessions.push({ session, date: day });
         }
       });
     }
 
     if (weekSessions.length === 0) {
-      alert('Aucune séance à supprimer dans cette semaine');
+      alert('Aucune séance à supprimer dans cette semaine (les séances terminées ne peuvent pas être supprimées)');
       return;
     }
 
@@ -1221,6 +1243,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Delete each session automatically without individual confirmations
       for (const { session, date } of weekToDelete.weekSessions) {
         try {
+          // Ne pas supprimer les séances terminées
+          if (session.status === 'completed') {
+            console.log(`Skipping completed session ${session.assignmentId || session.id}`);
+            continue;
+          }
+          
           const sessionId = session.assignmentId || session.id;
           
           // Check if this is a draft session (no assignment) or a regular assignment
@@ -1370,6 +1398,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const token = localStorage.getItem('authToken');
       const headers = { Authorization: `Bearer ${token}` };
       const scheduledDate = format(targetDay, 'yyyy-MM-dd');
+      
+      // Fixer hoveredPasteDate sur la date cible pour que l'overlay reste fixe pendant le collage
+      setHoveredPasteDate(scheduledDate);
 
       const originalStatus = copiedSession.session.status;
       
@@ -1380,8 +1411,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           ...ex,
           sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
             ...set,
-            // Preserve previous RPE so it can be displayed when editing
-            previousRpe: set.rpe_rating || set.rpeRating || null,
+            // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
+            // Sinon, stocker le RPE précédent
+            previousRpe: ex.useRir || ex.use_rir 
+              ? (set.studentWeight || set.student_weight || null)
+              : (set.rpe_rating || set.rpeRating || null),
             // Clear the actual RPE rating for the new session
             rpe_rating: undefined,
             rpeRating: undefined
@@ -2445,7 +2479,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           const isHovered = hoveredSessionId === session.sessionId;
           const sessionName = session.sessionName;
           const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
-          const backgroundColor = isHovered 
+          // Si le toggle est ouvert, ne pas changer le background au survol
+          const backgroundColor = (isHovered && !isOpen)
             ? 'rgba(255, 255, 255, 0.16)' 
             : 'rgba(255, 255, 255, 0.05)';
           
@@ -2514,9 +2549,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     {session.videos.map((video) => (
                       <div 
                         key={video.id} 
-                        className="px-2 py-2 transition-colors cursor-pointer rounded-2xl hover:bg-white/8"
+                        className="px-2 py-2 transition-all duration-200 cursor-pointer rounded-2xl bg-white/[0.07] hover:bg-white/[0.14]"
                         style={{ 
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
                           borderWidth: '0px',
                           borderColor: 'rgba(0, 0, 0, 0)',
                           borderStyle: 'none',
@@ -2589,7 +2623,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             
                             {/* Coach Feedback */}
                             {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                              <div className="mt-2 flex flex-col gap-1">
+                              <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
                                 {video.coach_feedback_audio_url && (
                                   <div className="text-xs">
                                     <VoiceMessage 
@@ -2603,8 +2637,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   </div>
                                 )}
                                 {video.coach_feedback && (
-                                  <div className="text-white/60 text-xs font-extralight line-clamp-2">
-                                    {video.coach_feedback}
+                                  <div className="flex items-start gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                      <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
+                                    </svg>
+                                    <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                      {video.coach_feedback}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -3972,12 +4011,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     onDragEnter={(event) => handleDayDragOver(event, dayDate)}
                     onDragLeave={(event) => handleDragLeave(event, dayDate)}
                     onDrop={(event) => handleDayDrop(event, dayDate)}
-                    onMouseEnter={() => setHoveredPasteDate(dayKey)}
+                    onMouseEnter={() => {
+                      // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                      if (!isPastingSession) {
+                        setHoveredPasteDate(dayKey);
+                      }
+                    }}
                     onMouseLeave={(event) => {
-                      // Check if relatedTarget is a valid node before calling contains
-                      const relatedTarget = event.relatedTarget;
-                      if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
-                        setHoveredPasteDate((current) => (current === dayKey ? null : current));
+                      // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                      if (!isPastingSession) {
+                        // Check if relatedTarget is a valid node before calling contains
+                        const relatedTarget = event.relatedTarget;
+                        if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+                          setHoveredPasteDate((current) => (current === dayKey ? null : current));
+                        }
                       }
                     }}
                   >
@@ -4768,11 +4815,19 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 onDragEnter={(e) => handleDayDragOver(e, day)}
                                 onDragLeave={(e) => handleDragLeave(e, day)}
                                 onDrop={(e) => handleDayDrop(e, day)}
-                                onMouseEnter={() => setHoveredPasteDate(dateKey)}
+                                onMouseEnter={() => {
+                                  // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                                  if (!isPastingSession) {
+                                    setHoveredPasteDate(dateKey);
+                                  }
+                                }}
                                 onMouseLeave={(event) => {
-                                  const relatedTarget = event.relatedTarget;
-                                  if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
-                                    setHoveredPasteDate((current) => (current === dateKey ? null : current));
+                                  // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                                  if (!isPastingSession) {
+                                    const relatedTarget = event.relatedTarget;
+                                    if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+                                      setHoveredPasteDate((current) => (current === dateKey ? null : current));
+                                    }
                                   }
                                 }}
                               >
