@@ -116,7 +116,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             video: set.video || false,
             repType: set.repType || 'reps',
             // Store previous RPE if the session was completed
-            previousRpe: set.rpe_rating || set.rpeRating || set.previousRpe || null
+            // Store previous RPE if the session was completed
+            previousRpe: (ex.useRir || ex.use_rir)
+              ? (set.studentWeight || set.student_weight || null)
+              : (set.rpe_rating || set.rpeRating || set.previousRpe || null)
           }));
         } else {
           // Default sets if none exist or not an array

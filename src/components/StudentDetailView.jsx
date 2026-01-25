@@ -1150,10 +1150,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         
         // Preserve RPE from completed sessions
         let exercisesToCopy = session.exercises;
-        if (session.status === 'completed' && Array.isArray(session.exercises)) {
+        if (Array.isArray(session.exercises)) {
           exercisesToCopy = session.exercises.map(ex => ({
             ...ex,
-            sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
+            // Supprimer les commentaires de l'étudiant au niveau de l'exercice lors de la copie
+            student_comment: undefined,
+            comment: undefined,
+            studentComment: undefined,
+            sets: Array.isArray(ex.sets) ? (session.status === 'completed' ? ex.sets.map(set => ({
               ...set,
               // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
               // Sinon, stocker le RPE précédent
@@ -1162,8 +1166,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 : (set.rpe_rating || set.rpeRating || null),
               // Clear the actual RPE rating for the new session
               rpe_rating: undefined,
-              rpeRating: undefined
-            })) : ex.sets
+              rpeRating: undefined,
+              // Clear student comments and video data
+              feedback: undefined,
+              comment: undefined,
+              notes: undefined,
+              student_comment: undefined,
+              video_url: undefined,
+              video: undefined,
+              hasVideo: undefined,
+              videoStatus: undefined
+            })) : ex.sets) : ex.sets
           }));
         }
         
@@ -1407,10 +1420,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       
       // Preserve RPE from completed sessions
       let exercisesToCopy = copiedSession.session.exercises || [];
-      if (originalStatus === 'completed' && Array.isArray(copiedSession.session.exercises)) {
+      if (Array.isArray(copiedSession.session.exercises)) {
         exercisesToCopy = copiedSession.session.exercises.map(ex => ({
           ...ex,
-          sets: Array.isArray(ex.sets) ? ex.sets.map(set => ({
+          // Supprimer les commentaires de l'étudiant au niveau de l'exercice lors de la copie
+          student_comment: undefined,
+          comment: undefined,
+          studentComment: undefined,
+          sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({
             ...set,
             // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
             // Sinon, stocker le RPE précédent
@@ -1419,8 +1436,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               : (set.rpe_rating || set.rpeRating || null),
             // Clear the actual RPE rating for the new session
             rpe_rating: undefined,
-            rpeRating: undefined
-          })) : ex.sets
+            rpeRating: undefined,
+            // Clear student comments and video data
+            feedback: undefined,
+            comment: undefined,
+            notes: undefined,
+            student_comment: undefined,
+            video_url: undefined,
+            video: undefined,
+            hasVideo: undefined,
+            videoStatus: undefined
+          })) : ex.sets) : ex.sets
         }));
       }
       

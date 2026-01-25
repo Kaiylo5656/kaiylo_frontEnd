@@ -283,6 +283,12 @@ const StudentDashboard = () => {
                 set.rpe_rating = setData.rpeRating;
                 set.rpe = setData.rpeRating; // Also set rpe for compatibility
               }
+              
+              // Inject studentWeight if present (CRITICAL FIX)
+              if ('studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined) {
+                set.student_weight = setData.studentWeight;
+                set.studentWeight = setData.studentWeight; // Set both camelCase and snake_case just to be safe
+              }
             } else if (setData && typeof setData === 'string') {
               set.validation_status = setData;
             }
