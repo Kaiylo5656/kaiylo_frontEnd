@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Tag, Plus, Loader2 } from 'lucide-react';
+import { X, Tag, Plus, Loader2, Edit2, Trash2, MoreVertical } from 'lucide-react';
 import { buildApiUrl } from '../../config/api';
 import axios from 'axios';
 import { 
   normalizeTagName, 
   validateTagName, 
-  areTagsEquivalent, 
-  findExistingTag, 
-  removeDuplicateTags, 
   isTagSelected 
 } from '../../utils/tagNormalization';
 import { getTagColor, getTagColorMap } from '../../utils/tagColors';
 
-const ExerciseTagTypeahead = ({ 
+const PeriodizationTagTypeahead = ({ 
   selectedTags = [], 
   onTagsChange, 
-  placeholder = "Press Enter to add tags...",
+  placeholder = "Appuyez sur Entrée pour ajouter un tag...",
   className = "",
   inputClassName = "",
   disabled = false,
@@ -29,12 +26,18 @@ const ExerciseTagTypeahead = ({
   const [error, setError] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(true);
   
+  // Tag management states
+  const [contextMenu, setContextMenu] = useState(null);
+  const [editingTag, setEditingTag] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [dropdownMenuTag, setDropdownMenuTag] = useState(null);
+  
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const containerRef = useRef(null);
   const debounceRef = useRef(null);
 
-  // Fetch all tags when component mounts
+  // Fetch all periodization tags when component mounts
   useEffect(() => {
     fetchTags();
   }, []);
@@ -44,7 +47,7 @@ const ExerciseTagTypeahead = ({
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('authToken');
-      const response = await axios.get(buildApiUrl('/exercises/tags'), {
+      const response = await axios.get(buildApiUrl('/periodization/tags'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -61,9 +64,91 @@ const ExerciseTagTypeahead = ({
     }
   };
 
+  // Tag management handlers
+  const handleTagRightClick = (e, tag) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      tag
+    });
+  };
+
+  const handleRenameTag = (tag) => {
+    setEditingTag(tag);
+    setEditingValue(tag.name);
+    setContextMenu(null);
+  };
+
+  const handleSaveRename = async () => {
+    if (!editingTag || !editingValue.trim()) {
+      setEditingTag(null);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.put(
+        buildApiUrl(`/periodization/tags/${editingTag.id}`),
+        { name: editingValue.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        // Update selected tags
+        const updatedSelected = selectedTags.map(t => 
+          t.id === editingTag.id ? { ...t, name: editingValue.trim() } : t
+        );
+        onTagsChange(updatedSelected);
+        
+        // Refresh all tags
+        await fetchTags();
+      }
+    } catch (err) {
+      console.error('Error renaming tag:', err);
+      alert('Erreur lors du renommage du tag');
+    } finally {
+      setEditingTag(null);
+      setEditingValue('');
+    }
+  };
+
+
+
+  const handleDeleteTag = async (tag) => {
+    setContextMenu(null);
+    
+    if (!confirm(`Supprimer le tag "${tag.name}" ? Il sera retiré de tous les blocs.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      await axios.delete(buildApiUrl(`/periodization/tags/${tag.id}`), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Remove from selected tags and refresh
+      onTagsChange(selectedTags.filter(t => t.id !== tag.id));
+      await fetchTags();
+    } catch (err) {
+      console.error('Error deleting tag:', err);
+      alert('Erreur lors de la suppression du tag');
+    }
+  };
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    if (contextMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [contextMenu]);
+
   // Debounced filtering - exclude already selected tags
   const filteredSuggestions = useMemo(() => {
-    // Filter out tags that are already selected
     const availableTags = allTags.filter(tag => 
       !isTagSelected(tag.name, selectedTags)
     );
@@ -75,7 +160,7 @@ const ExerciseTagTypeahead = ({
       normalizeTagName(tag.name).includes(normalizedInput)
     );
     
-    // Sort by relevance: prefix matches first, then substring matches
+    // Sort by relevance
     const sorted = filtered.sort((a, b) => {
       const aName = normalizeTagName(a.name);
       const bName = normalizeTagName(b.name);
@@ -84,7 +169,7 @@ const ExerciseTagTypeahead = ({
       
       if (aPrefix && !bPrefix) return -1;
       if (!aPrefix && bPrefix) return 1;
-      return b.usageCount - a.usageCount;
+      return 0; // Usage count might not be available or relevant yet
     });
     
     const suggestions = sorted.slice(0, 8);
@@ -97,7 +182,6 @@ const ExerciseTagTypeahead = ({
       suggestions.push({ 
         id: `new-${normalizedInput}`, 
         name: normalizedInput, 
-        usageCount: 0, 
         isNew: true 
       });
     }
@@ -105,17 +189,14 @@ const ExerciseTagTypeahead = ({
     return suggestions;
   }, [inputValue, allTags, canCreate, selectedTags]);
 
-  // Handle input changes with debouncing
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     setInputValue(value);
     
-    // Clear existing debounce
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
     
-    // Debounce the input
     debounceRef.current = setTimeout(() => {
       if (!isCollapsed) {
         setIsOpen(true);
@@ -124,7 +205,6 @@ const ExerciseTagTypeahead = ({
     }, 250);
   }, [isCollapsed]);
 
-  // Handle input focus
   const handleInputFocus = () => {
     if (!disabled) {
       setIsCollapsed(false);
@@ -132,7 +212,6 @@ const ExerciseTagTypeahead = ({
     }
   };
 
-  // Handle collapsed state click
   const handleCollapsedClick = () => {
     if (!disabled) {
       setIsCollapsed(false);
@@ -143,38 +222,31 @@ const ExerciseTagTypeahead = ({
     }
   };
 
-  // Handle tag selection
   const handleTagSelect = (tag) => {
     const normalizedTag = normalizeTagName(tag.name);
     
-    // Validate the tag name
     const validation = validateTagName(normalizedTag);
     if (!validation.isValid) {
       console.warn('Invalid tag name:', validation.error);
       return;
     }
     
-    // Check if tag is already selected (case-insensitive)
     if (!isTagSelected(normalizedTag, selectedTags)) {
       onTagsChange([...selectedTags, normalizedTag]);
     }
     
-    // Clear input but keep dropdown open
     setInputValue('');
     setActiveIndex(-1);
     
-    // Keep focus on input to continue selecting tags
     if (inputRef.current) {
       inputRef.current.focus();
     }
   };
 
-  // Handle tag removal
   const handleTagRemove = (tagToRemove) => {
     onTagsChange(selectedTags.filter(tag => tag !== tagToRemove));
   };
 
-  // Handle keyboard navigation
   const handleKeyDown = (e) => {
     if (!isOpen) {
       if (e.key === 'Enter' && inputValue.trim()) {
@@ -229,10 +301,8 @@ const ExerciseTagTypeahead = ({
     }
   };
 
-  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Only handle clicks when menu is open or component is expanded
       if (isCollapsed && !isOpen) {
         return;
       }
@@ -243,10 +313,8 @@ const ExerciseTagTypeahead = ({
       const target = event.target;
       if (!target || !(target instanceof Node)) return;
       
-      // Check if click is inside the container (dropdown is a child, so it's included)
       const clickedInside = container.contains(target);
       
-      // Close menu if click is outside the container
       if (!clickedInside) {
         setIsOpen(false);
         setIsCollapsed(true);
@@ -255,7 +323,6 @@ const ExerciseTagTypeahead = ({
       }
     };
 
-    // Always attach listener, but function checks if menu is open
     document.addEventListener('mousedown', handleClickOutside, true);
     
     return () => {
@@ -263,7 +330,6 @@ const ExerciseTagTypeahead = ({
     };
   }, [isOpen, isCollapsed]);
 
-  // Handle dropdown positioning
   useEffect(() => {
     if (isOpen && dropdownRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -283,7 +349,6 @@ const ExerciseTagTypeahead = ({
     }
   }, [isOpen]);
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
@@ -292,7 +357,6 @@ const ExerciseTagTypeahead = ({
     };
   }, []);
 
-  // Create a color map for tags
   const tagColorMap = useMemo(() => {
     const tagNames = allTags.map(tag => tag.name).filter(Boolean);
     return getTagColorMap(tagNames);
@@ -301,7 +365,7 @@ const ExerciseTagTypeahead = ({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      {/* Collapsed State - Show "+ Tag" affordance or selected tags */}
+      {/* Collapsed State */}
       {isCollapsed && (
         <div
           onClick={handleCollapsedClick}
@@ -331,23 +395,33 @@ const ExerciseTagTypeahead = ({
                     e.stopPropagation();
                     handleTagRemove(tag);
                   }}
+                  onContextMenu={(e) => handleTagRightClick(e, tag)}
                   onMouseDown={(e) => {
                     e.preventDefault();
                   }}
-                  title="Cliquez pour supprimer ce tag"
+                  title="Cliquez pour supprimer | Clic droit pour plus d'options"
                 >
-                  {tag}
+                  {editingTag && editingTag.id === tag.id ? (
+                    <input
+                      type="text"
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      onBlur={handleSaveRename}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveRename();
+                        if (e.key === 'Escape') setEditingTag(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="bg-transparent border-none outline-none w-20 text-white"
+                    />
+                  ) : (
+                    tag.name || tag
+                  )}
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
                       handleTagRemove(tag);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleTagRemove(tag);
-                      }
                     }}
                     role="button"
                     tabIndex={-1}
@@ -369,11 +443,10 @@ const ExerciseTagTypeahead = ({
         </div>
       )}
 
-      {/* Expanded State - Show input and dropdown */}
+      {/* Expanded State */}
       {!isCollapsed && (
         <div className="relative">
           <div className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-4 py-2.5 transition-all min-h-[40px] ${inputClassName}`}>
-            {/* Selected Tags - Show inside the input container */}
             {selectedTags.map((tag) => {
               const tagStyle = getTagColor(tag, tagColorMap);
               
@@ -389,20 +462,12 @@ const ExerciseTagTypeahead = ({
                   onMouseDown={(e) => {
                     e.preventDefault();
                   }}
-                  title="Cliquez pour supprimer ce tag"
                 >
                   {tag}
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
                       handleTagRemove(tag);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleTagRemove(tag);
-                      }
                     }}
                     role="button"
                     tabIndex={-1}
@@ -411,7 +476,6 @@ const ExerciseTagTypeahead = ({
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    title="Supprimer ce tag"
                   >
                     <X className="h-3 w-3" />
                   </span>
@@ -464,11 +528,9 @@ const ExerciseTagTypeahead = ({
               aria-label="Tag suggestions"
             >
               {filteredSuggestions.map((tag, index) => (
-                <button
+                <div
                   key={tag.id}
-                  type="button"
-                  onClick={() => handleTagSelect(tag)}
-                  className={`w-full px-5 py-2 text-left text-sm font-light transition-colors flex items-center justify-between ${
+                  className={`w-full px-5 py-2 text-left text-sm font-light transition-colors flex items-center justify-between group ${
                     index === activeIndex 
                       ? 'bg-primary/20 text-primary' 
                       : 'text-foreground hover:bg-muted'
@@ -481,24 +543,57 @@ const ExerciseTagTypeahead = ({
                   role="option"
                   aria-selected={index === activeIndex}
                 >
-                  <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTagSelect(tag)}
+                    className="flex-1 flex items-center gap-2 text-left"
+                  >
                     {tag.isNew ? (
                       <Plus className="h-4 w-4 text-primary" />
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 text-muted-foreground" fill="currentColor" aria-hidden="true">
-                        <path d="M96.5 160L96.5 309.5C96.5 326.5 103.2 342.8 115.2 354.8L307.2 546.8C332.2 571.8 372.7 571.8 397.7 546.8L547.2 397.3C572.2 372.3 572.2 331.8 547.2 306.8L355.2 114.8C343.2 102.7 327 96 310 96L160.5 96C125.2 96 96.5 124.7 96.5 160zM208.5 176C226.2 176 240.5 190.3 240.5 208C240.5 225.7 226.2 240 208.5 240C190.8 240 176.5 225.7 176.5 208C176.5 190.3 190.8 176 208.5 176z"/>
-                      </svg>
+                      <Tag className="h-4 w-4 text-muted-foreground" />
                     )}
                     <span className="truncate">
                       {tag.isNew ? `Créer "${tag.name}"` : normalizeTagName(tag.name)}
                     </span>
-                  </div>
-                  {!tag.isNew && tag.usageCount > 0 && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {tag.usageCount}
-                    </span>
+                  </button>
+                  
+                  {/* Three-dot menu for existing tags */}
+                  {!tag.isNew && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDropdownMenuTag(dropdownMenuTag?.id === tag.id ? null : tag);
+                        }}
+                        className="p-1 hover:bg-white/10 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Options"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                      
+                      {/* Dropdown menu for tag options */}
+                      {dropdownMenuTag?.id === tag.id && (
+                        <div 
+                          className="absolute right-0 top-full mt-1 z-50 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl py-2 min-w-[180px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              handleDeleteTag(tag);
+                              setDropdownMenuTag(null);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/10 flex items-center gap-2 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -520,8 +615,33 @@ const ExerciseTagTypeahead = ({
           )}
         </div>
       )}
+      
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-50 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl py-2 min-w-[180px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleRenameTag(contextMenu.tag)}
+            className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
+          >
+            <Edit2 className="w-4 h-4" />
+            Renommer
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button
+            onClick={() => handleDeleteTag(contextMenu.tag)}
+            className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/10 flex items-center gap-2 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Supprimer
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ExerciseTagTypeahead;
+export default PeriodizationTagTypeahead;

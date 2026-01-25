@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw, FileText } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
@@ -9,15 +9,17 @@ import CoachSessionReviewModal from './CoachSessionReviewModal';
 import VideoDetailModal from './VideoDetailModal';
 import OneRmModal, { DEFAULT_ONE_RM_DATA, calculateRIS } from './OneRmModal';
 import StudentProfileModal from './StudentProfileModal';
+import CreateBlockModal from './CreateBlockModal';
 import VoiceMessage from './VoiceMessage';
 import DeleteSessionModal from './DeleteSessionModal';
 import PublishSessionModal from './PublishSessionModal';
 import SwitchToDraftModal from './SwitchToDraftModal';
 import BaseModal from './ui/modal/BaseModal';
 import { useModalManager } from './ui/modal/ModalManager';
-import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears } from 'date-fns';
+import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears, addWeeks, differenceInCalendarWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
+import PeriodizationTab from './PeriodizationTab';
 import StudentSidebar from './StudentSidebar';
 import {
   DropdownMenu,
@@ -34,6 +36,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const { isTopMost: isDeleteWeekModalTopMost } = useModalManager();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [studentData, setStudentData] = useState(null);
+  const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -106,19 +109,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
   
   // Block information state
+  const [isCreateBlockModalOpen, setIsCreateBlockModalOpen] = useState(false);
   const [blockNumber, setBlockNumber] = useState(3);
   const [totalBlocks, setTotalBlocks] = useState(3);
   const [blockName, setBlockName] = useState('Prépa Force');
-  const [isEditingBlock, setIsEditingBlock] = useState(false);
-  const [isBlockEditModalOpen, setIsBlockEditModalOpen] = useState(false);
-  const [isSavingBlock, setIsSavingBlock] = useState(false);
   
   // Notes state
   const [notes, setNotes] = useState([]);
-  const [editingNoteIndex, setEditingNoteIndex] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteText, setEditingNoteText] = useState('');
   const [isDeleteNoteModalOpen, setIsDeleteNoteModalOpen] = useState(false);
-  const [noteToDeleteIndex, setNoteToDeleteIndex] = useState(null);
+  const [noteToDeleteId, setNoteToDeleteId] = useState(null);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
   
@@ -1723,7 +1724,23 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       }
       
+      // Fetch limitations from profile
+      try {
+        const profileRes = await axios.get(
+          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/profile`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (profileRes.data.success) {
+           setLimitations(profileRes.data.data.limitations || []);
+        }
+      } catch (err) {
+        console.warn('Error fetching limitations:', err);
+      }
+
       setStudentData(data);
+      if (data.blocks) {
+        setBlocks(data.blocks);
+      }
       
       // Load block information from student data (use defaults if not set)
       setBlockNumber(data.block_number !== undefined && data.block_number !== null ? data.block_number : 3);
@@ -1912,42 +1929,103 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
+  // Fetch week notes when overview week changes
+  useEffect(() => {
+    if (student?.id && overviewWeekDate) {
+      fetchWeekNotes();
+    }
+  }, [student?.id, overviewWeekDate]);
+
+  const fetchWeekNotes = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const weekKey = format(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      
+      console.log('📅 Fetching notes for week:', weekKey);
+
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/periodization/week-notes/${student.id}/${weekKey}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        const loadedNotes = response.data.data.notes || [];
+        // Sort by order
+        setNotes(loadedNotes.sort((a, b) => a.order - b.order));
+      } else {
+        setNotes([]);
+      }
+    } catch (err) {
+      console.error('Error loading week notes:', err);
+      setNotes([]);
+    }
+  };
+
+  const saveWeekNotes = async (updatedNotes) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const weekKey = format(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+      await axios.post(
+        `${getApiBaseUrlWithApi()}/periodization/week-notes`,
+        {
+          student_id: student.id,
+          week_start_date: weekKey,
+          notes: updatedNotes
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setNotes(updatedNotes);
+    } catch (err) {
+      console.error('Error saving week notes:', err);
+      alert('Erreur lors de la sauvegarde des notes');
+    }
+  };
+
   // Handle note editing
-  const handleEditNote = (index) => {
-    setEditingNoteIndex(index);
-    setEditingNoteText(notes[index]);
+  const handleEditNote = (note) => {
+    setEditingNoteId(note.id);
+    setEditingNoteText(note.content);
   };
 
   // Handle note deletion
-  const handleDeleteNote = (index) => {
-    setNoteToDeleteIndex(index);
-    setIsDeleteNoteModalOpen(true);
+  const handleDeleteNote = async (noteId) => {
+    const filtered = notes.filter(n => n.id !== noteId);
+    const reordered = filtered.map((n, i) => ({ ...n, order: i }));
+    await saveWeekNotes(reordered);
   };
 
-  // Confirm note deletion
+  // Legacy confirmation (kept for compatibility if modal exists)
   const confirmDeleteNote = () => {
-    if (noteToDeleteIndex !== null) {
-      const newNotes = notes.filter((_, i) => i !== noteToDeleteIndex);
-      setNotes(newNotes);
+    if (noteToDeleteId !== null) {
+      handleDeleteNote(noteToDeleteId);
       setIsDeleteNoteModalOpen(false);
-      setNoteToDeleteIndex(null);
+      setNoteToDeleteId(null);
     }
   };
 
   // Handle note save
-  const handleSaveNote = () => {
-    if (editingNoteIndex !== null && editingNoteText.trim()) {
-      const newNotes = [...notes];
-      newNotes[editingNoteIndex] = editingNoteText.trim();
-      setNotes(newNotes);
-      setEditingNoteIndex(null);
-      setEditingNoteText('');
+  const handleSaveNote = async () => {
+    if (editingNoteId === null) return;
+
+    if (!editingNoteText.trim()) {
+      await handleDeleteNote(editingNoteId);
+      setEditingNoteId(null);
+      return;
     }
+
+    const updatedNotes = notes.map(n => 
+      n.id === editingNoteId ? { ...n, content: editingNoteText.trim() } : n
+    );
+
+    await saveWeekNotes(updatedNotes);
+    setEditingNoteId(null);
   };
 
   // Handle note cancel
   const handleCancelEditNote = () => {
-    setEditingNoteIndex(null);
+    setEditingNoteId(null);
     setEditingNoteText('');
   };
 
@@ -1958,20 +2036,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Handle save new note
-  const handleSaveNewNote = () => {
-    if (newNoteText.trim()) {
-      setNotes([...notes, newNoteText.trim()]);
-      setNewNoteText('');
+  const handleSaveNewNote = async () => {
+    if (!newNoteText.trim()) {
       setIsAddingNote(false);
-    } else {
-      setIsAddingNote(false);
+      return;
     }
+
+    const newNote = {
+      id: crypto.randomUUID(),
+      content: newNoteText.trim(),
+      order: notes.length
+    };
+
+    const updatedNotes = [...notes, newNote];
+    await saveWeekNotes(updatedNotes);
+    
+    setNewNoteText('');
+    setIsAddingNote(false);
   };
 
   // Handle cancel adding note
   const handleCancelAddingNote = () => {
     setIsAddingNote(false);
     setNewNoteText('');
+  };
+
+  const saveLimitations = async (updatedLimitations) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      await axios.put(
+        `${getApiBaseUrlWithApi()}/coach/student/${student.id}/profile`,
+        { limitations: updatedLimitations },
+         { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setLimitations(updatedLimitations);
+    } catch (err) {
+      console.error('Error saving limitations:', err);
+      alert('Erreur lors de la sauvegarde des limitations');
+    }
   };
 
   // Handle limitation editing
@@ -1987,21 +2089,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Confirm limitation deletion
-  const confirmDeleteLimitation = () => {
+  const confirmDeleteLimitation = async () => {
     if (limitationToDeleteIndex !== null) {
       const newLimitations = limitations.filter((_, i) => i !== limitationToDeleteIndex);
-      setLimitations(newLimitations);
+      await saveLimitations(newLimitations);
       setIsDeleteLimitationModalOpen(false);
       setLimitationToDeleteIndex(null);
     }
   };
 
   // Handle limitation save
-  const handleSaveLimitation = () => {
+  const handleSaveLimitation = async () => {
     if (editingLimitationIndex !== null && editingLimitationText.trim()) {
       const newLimitations = [...limitations];
       newLimitations[editingLimitationIndex] = editingLimitationText.trim();
-      setLimitations(newLimitations);
+      await saveLimitations(newLimitations);
       setEditingLimitationIndex(null);
       setEditingLimitationText('');
     }
@@ -2020,9 +2122,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Handle save new limitation
-  const handleSaveNewLimitation = () => {
+  const handleSaveNewLimitation = async () => {
     if (newLimitationText.trim()) {
-      setLimitations([...limitations, newLimitationText.trim()]);
+      const newLimitations = [...limitations, newLimitationText.trim()];
+      await saveLimitations(newLimitations);
       setNewLimitationText('');
       setIsAddingLimitation(false);
     } else {
@@ -3611,7 +3714,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     onChange={(e) => setActiveTab(e.target.value)}
                     className="w-full bg-transparent border-0 px-2 py-1 pr-6 text-sm text-white focus:outline-none focus:ring-0 transition-colors"
                     style={{ 
-                      color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
+                      color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
                       appearance: 'none',
                       WebkitAppearance: 'none',
                       MozAppearance: 'none'
@@ -3619,11 +3722,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   >
                     <option value="overview">Tableau de bord</option>
                     <option value="training">Entraînement</option>
+                    <option value="periodization">Périodisation</option>
                     <option value="analyse">Analyse vidéo</option>
                     <option value="suivi">Suivi Financier</option>
                   </select>
                   {/* Flèche du dropdown */}
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)' }}>
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -3648,6 +3752,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   onClick={() => setActiveTab('training')}
                 >
                   Entraînement
+                </button>
+                <button 
+                  className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
+                  data-text="Périodisation"
+                  style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
+                  onClick={() => setActiveTab('periodization')}
+                >
+                  Périodisation
                 </button>
                 <button 
                   className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
@@ -3679,31 +3791,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               {/* Current Block Card */}
               <div 
                 className="bg-white/5 rounded-2xl px-2 py-3 cursor-pointer hover:bg-white/10 transition-colors border border-white/10"
-                onClick={() => {
-                  // Utiliser exactement la même logique que l'affichage pour charger les valeurs
-                  const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
-                  const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
-                  const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
-                  const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
-                  
-                  // Charger les valeurs calculées dans la modale
-                  setBlockNumber(displayBlockNumber);
-                  setTotalBlocks(displayTotalBlocks);
-                  setBlockName(displayBlockName);
-                  setIsBlockEditModalOpen(true);
-                }}
+                onClick={() => setIsCreateBlockModalOpen(true)}
               >
                 <h2 
                   className="text-base font-normal mb-4 text-center"
                   style={{ color: 'var(--kaiylo-primary-hover)' }}
                 >
                   {(() => {
-                    const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
-                    // Use studentData directly to ensure consistency
-                    const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
-                    const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
-                    const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
-                    return `Bloc ${displayBlockNumber}/${displayTotalBlocks}${displayBlockName ? ` - ${displayBlockName}` : ''}`;
+                    // Find current block from periodization blocks based on the selected week date (overviewWeekDate)
+                    // Only display if an active block is found for the selected week
+                    if (blocks && blocks.length > 0) {
+                      const selectedWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
+                      
+                      // Find the active block for the selected week
+                      const activeBlock = blocks.find(b => {
+                        const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                        const bEnd = addWeeks(bStart, b.duration);
+                        return selectedWeekStart >= bStart && selectedWeekStart < bEnd;
+                      });
+                      
+                      if (activeBlock) {
+                        // Calculate block number and total from blocks
+                        const sortedBlocks = [...blocks].sort(
+                          (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
+                        );
+                        const currentIndex = sortedBlocks.findIndex(b => b.id === activeBlock.id);
+                        const displayBlockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
+                        const displayTotalBlocks = sortedBlocks.length;
+                        const displayBlockName = activeBlock.name || '';
+                        
+                        return `Bloc ${displayBlockNumber}/${displayTotalBlocks}${displayBlockName ? ` - ${displayBlockName}` : ''}`;
+                      }
+                    }
+                    
+                    // If no active block found, don't display anything
+                    return null;
                   })()}
                 </h2>
                 <div className="flex items-center justify-center gap-3">
@@ -3917,13 +4039,38 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             <div className="overflow-x-auto planning-scrollbar">
               <div style={{ minWidth: '1203px', paddingRight: '0px' }}>
                 {/* Month indicator */}
-                <div className="flex items-center justify-center mb-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+                <div className="flex items-center justify-center mb-2 gap-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
                   <span className="text-sm text-white/50 font-light">
                     {(() => {
                       const month = format(overviewWeekDate, 'MMMM', { locale: fr });
                       return month.charAt(0).toUpperCase() + month.slice(1);
                     })()}
                   </span>
+                  {(() => {
+                      if (!blocks || blocks.length === 0) return null;
+                      
+                      const currentWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
+                      // Find block logic
+                      const active = blocks.find(b => {
+                          const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                          const bEnd = addWeeks(bStart, b.duration);
+                          return currentWeekStart >= bStart && currentWeekStart < bEnd;
+                      });
+                      
+                      if (active) {
+                          const bStart = startOfWeek(new Date(active.start_week_date), { weekStartsOn: 1 });
+                          const weekDiff = differenceInCalendarWeeks(currentWeekStart, bStart, { weekStartsOn: 1 });
+                          // Calculate current week in block (1-indexed) and total weeks
+                          const currentWeekInBlock = weekDiff + 1;
+                          const totalWeeksInBlock = active.duration;
+                          return (
+                              <span className="text-sm text-[#D4845A] font-normal">
+                                 Semaine {currentWeekInBlock}/{totalWeeksInBlock}
+                              </span>
+                          );
+                      }
+                      return null;
+                  })()}
                 </div>
                 
                 {/* Week Navigation with Day Labels */}
@@ -4300,9 +4447,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     </h3>
                   </div>
                   <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar pr-2">
-                    {notes.map((note, index) => (
-                      <div key={index} className="relative group text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
-                        {editingNoteIndex === index ? (
+                    {notes.map((note) => (
+                      <div key={note.id} className="relative group text-xs text-white/75 font-normal flex items-start gap-2 px-3 py-2 rounded-lg bg-white/5 transition-all duration-200 hover:backdrop-blur-sm hover:bg-black/30 cursor-pointer">
+                        {editingNoteId === note.id ? (
                           <>
                             <span className="text-[#d4845a] mt-0.5">•</span>
                             <input
@@ -4328,12 +4475,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         ) : (
                           <>
                             <span className="text-[#d4845a] mt-0.5 transition-all duration-200 group-hover:blur-sm group-hover:opacity-40">•</span>
-                            <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40 flex-1">{note}</span>
+                            <span className="transition-all duration-200 group-hover:blur-sm group-hover:text-white/40 flex-1">{note.content}</span>
                             <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleEditNote(index);
+                                  handleEditNote(note);
                                 }}
                                 className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
                                 title="Modifier la note"
@@ -4345,7 +4492,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteNote(index);
+                                  handleDeleteNote(note.id);
                                 }}
                                 className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
                                 title="Supprimer la note"
@@ -4390,7 +4537,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         onClick={handleStartAddingNote}
                         className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
                       >
-                        <span className="text-white/50 font-light">Ajouter une note</span>
+                        <span className="text-white/50 font-light">Ajouter une note de semaine</span>
                       </button>
                     )}
                   </div>
@@ -4400,10 +4547,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2 shrink-0">
                     <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 opacity-75" fill="currentColor">
-                        <path d="M200 48l112 0c4.4 0 8 3.6 8 8l0 40-128 0 0-40c0-4.4 3.6-8 8-8zm-56 8l0 40-80 0C28.7 96 0 124.7 0 160L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64l-80 0 0-40c0-30.9-25.1-56-56-56L200 0c-30.9 0-56 25.1-56 56zm80 160c0-8.8 7.2-16 16-16l32 0c8.8 0 16 7.2 16 16l0 40 40 0c8.8 0 16 7.2 16 16l0 32c0 8.8-7.2 16-16 16l-40 0 0 40c0 8.8-7.2 16-16 16l-32 0c-8.8 0-16-7.2-16-16l0-40-40 0c-8.8 0-16-7.2-16-16l0-32c0-8.8 7.2-16 16-16l40 0 0-40z"/>
-                      </svg>
-                      Limitations et blessures
+                      <FileText className="w-4 h-4 opacity-75" />
+                      Notes Générales
                     </h3>
                   </div>
                   <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar pr-2">
@@ -4443,7 +4588,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   handleEditLimitation(index);
                                 }}
                                 className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
-                                title="Modifier la limitation"
+                                title="Modifier la note"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 text-[#d4845a] fill-current">
                                   <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/>
@@ -4455,7 +4600,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   handleDeleteLimitation(index);
                                 }}
                                 className="p-1 rounded transition-transform duration-200 hover:scale-125 pointer-events-auto"
-                                title="Supprimer la limitation"
+                                title="Supprimer la note"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 text-[#d4845a] fill-current">
                                   <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
@@ -4483,7 +4628,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             }
                           }}
                           onBlur={handleSaveNewLimitation}
-                          placeholder="Ajouter une limitation..."
+                          placeholder="Ajouter une note..."
                           className="flex-1 bg-transparent border-none outline-none text-xs text-white/75 font-normal px-0 py-0 placeholder:text-white/30"
                           style={{ 
                             caretColor: '#d4845a',
@@ -4497,7 +4642,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         onClick={handleStartAddingLimitation}
                         className="w-full text-xs font-normal px-3 py-2 rounded-lg bg-transparent hover:bg-white/5 transition-all duration-200"
                       >
-                        <span className="text-white/50 font-extralight">Ajouter une limitation</span>
+                        <span className="text-white/50 font-extralight">Ajouter une note</span>
                       </button>
                     )}
                   </div>
@@ -4709,8 +4854,39 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     const weekStart = startOfWeek(weekDays[0].day, { weekStartsOn: 1 });
                     const weekKey = format(weekStart, 'yyyy-MM-dd');
                     
+                    // Find active block for this week
+                    let weekBlockInfo = null;
+                    if (blocks && blocks.length > 0) {
+                      const activeBlock = blocks.find(b => {
+                        const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                        const bEnd = addWeeks(bStart, b.duration);
+                        return weekStart >= bStart && weekStart < bEnd;
+                      });
+                      
+                      if (activeBlock) {
+                        const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
+                        const weekDiff = differenceInCalendarWeeks(weekStart, bStart, { weekStartsOn: 1 });
+                        const currentWeekInBlock = weekDiff + 1;
+                        const totalWeeksInBlock = activeBlock.duration;
+                        weekBlockInfo = {
+                          name: activeBlock.name || '',
+                          currentWeek: currentWeekInBlock,
+                          totalWeeks: totalWeeksInBlock
+                        };
+                      }
+                    }
+                    
                     return (
                       <div key={weekKey} className="relative week-group group/week">
+                        {/* Week Block Info - Display block name and week number at the top center */}
+                        {weekBlockInfo && (
+                          <div className="mb-2 px-1 flex items-center justify-center gap-2">
+                            <span className="text-xs md:text-sm text-[#D4845A] font-normal">
+                              {weekBlockInfo.name && `${weekBlockInfo.name} - `}Semaine {weekBlockInfo.currentWeek}/{weekBlockInfo.totalWeeks}
+                            </span>
+                          </div>
+                        )}
+                        
                         {/* Week Actions - Side Buttons - Hidden on mobile */}
                         <div className="hidden md:flex absolute -right-12 top-0 bottom-0 flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0">
                           <button
@@ -5165,12 +5341,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           })}
                         </div>
                         
-                        {/* Overlay pour coller une semaine copiée */}
-                        {copiedWeek && (
-                          <div className={`absolute inset-0 bg-[#d4845a]/10 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none ${
-                            (isPastingWeek && pastingWeekStart && format(pastingWeekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd')) 
-                              ? 'opacity-100' 
-                              : isPastingWeek
+                          {/* Overlay pour coller une semaine copiée */}
+                          {copiedWeek && (
+                            <div className={`absolute inset-0 bg-[#d4845a]/10 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none ${
+                              (isPastingWeek && pastingWeekStart && format(pastingWeekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd')) 
+                                ? 'opacity-100' 
+                                : isPastingWeek
                                 ? 'opacity-0'
                                 : 'opacity-0 group-hover/week:opacity-100'
                           }`}>
@@ -5201,7 +5377,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             </button>
                           </div>
                         )}
-                        
                       </div>
                     );
                   });
@@ -5209,6 +5384,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'periodization' && (
+          <PeriodizationTab studentId={student?.id} />
         )}
 
         {activeTab === 'analyse' && (
@@ -5877,6 +6056,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           </div>
         </BaseModal>
 
+          </>
+        )}
+
           <OneRmModal
           isOpen={isOneRmModalOpen}
           onClose={() => setIsOneRmModalOpen(false)}
@@ -6067,255 +6249,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           studentId={student.id}
         />
 
-        {/* Block Edit Modal */}
-        {isBlockEditModalOpen && (
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
-            style={{ zIndex: 100 }}
-            onClick={(e) => {
-              // Only close if clicking directly on the backdrop, not on child elements
-              if (e.target === e.currentTarget && !isSavingBlock) {
-                setIsBlockEditModalOpen(false);
-              }
-            }}
-            onMouseDown={(e) => {
-              // Prevent closing when clicking inside the modal
-              if (e.target !== e.currentTarget) {
-                e.stopPropagation();
-              }
-            }}
-          >
-            <div 
-              className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
-              style={{
-                background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
-                opacity: 0.95
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                    <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z"/>
-                  </svg>
-                  <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    Paramètres du bloc
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setIsBlockEditModalOpen(false)}
-                  className="text-white/50 hover:text-white transition-colors"
-                  aria-label="Close modal"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
-                    <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
-                  </svg>
-                </button>
-              </div>
-              <div className="border-b border-white/10 mx-6"></div>
 
-              {/* Form */}
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 space-y-5">
-                <div>
-                  <label className="block text-sm font-extralight text-white/50 mb-2">
-                    Numéro de bloc
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <div className="relative bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] h-[36px] w-14 flex items-center justify-center pr-[10px]">
-                      <input
-                        type="number"
-                        value={blockNumber}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          const value = parseInt(e.target.value) || 1;
-                          setBlockNumber(value);
-                        }}
-                        onFocus={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            setBlockNumber(prev => Math.max(1, prev + 1));
-                          } else if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            setBlockNumber(prev => Math.max(1, prev - 1));
-                          }
-                        }}
-                        className="w-full h-full bg-transparent border-none text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none px-2"
-                        min="1"
-                        disabled={isSavingBlock}
-                      />
-                      <div className="absolute right-[1px] top-0 bottom-0 flex flex-col justify-center items-center gap-0 pointer-events-none">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setBlockNumber(prev => Math.max(1, prev + 1));
-                          }}
-                          disabled={isSavingBlock}
-                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-                          tabIndex={-1}
-                        >
-                          <ChevronUp className="h-3 w-3 text-white/50" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setBlockNumber(prev => Math.max(1, prev - 1));
-                          }}
-                          disabled={isSavingBlock}
-                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-                          tabIndex={-1}
-                        >
-                          <ChevronDown className="h-3 w-3 text-white/50" />
-                        </button>
-                      </div>
-                    </div>
-                    <span className="text-white/50 text-sm">/</span>
-                    <div className="relative bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] h-[36px] w-14 flex items-center justify-center pr-[10px]">
-                      <input
-                        type="number"
-                        value={totalBlocks}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          const value = parseInt(e.target.value) || 1;
-                          setTotalBlocks(value);
-                        }}
-                        onFocus={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            setTotalBlocks(prev => Math.max(1, prev + 1));
-                          } else if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            setTotalBlocks(prev => Math.max(1, prev - 1));
-                          }
-                        }}
-                        className="w-full h-full bg-transparent border-none text-white text-sm text-center placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none px-2"
-                        min="1"
-                        disabled={isSavingBlock}
-                      />
-                      <div className="absolute right-[1px] top-0 bottom-0 flex flex-col justify-center items-center gap-0 pointer-events-none">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTotalBlocks(prev => Math.max(1, prev + 1));
-                          }}
-                          disabled={isSavingBlock}
-                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-                          tabIndex={-1}
-                        >
-                          <ChevronUp className="h-3 w-3 text-white/50" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTotalBlocks(prev => Math.max(1, prev - 1));
-                          }}
-                          disabled={isSavingBlock}
-                          className="pointer-events-auto p-0.5 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
-                          tabIndex={-1}
-                        >
-                          <ChevronDown className="h-3 w-3 text-white/50" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-extralight text-white/50 mb-2">
-                    Nom du bloc
-                  </label>
-                  <input
-                    type="text"
-                    value={blockName}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setBlockName(e.target.value);
-                    }}
-                    onFocus={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Nom du bloc"
-                    className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
-                    disabled={isSavingBlock}
-                  />
-                </div>
-
-                <div className="pt-4 border-t border-white/10">
-                  <h3 className="text-sm font-extralight text-white/50 mb-3">Indicateurs de progression</h3>
-                  <div className="space-y-2 text-sm text-white/60">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#d4845a]"></div>
-                      <span>
-                        <span className="text-[var(--kaiylo-primary-hex)]">1er graphique :</span>
-                        <span className="text-white/75 font-light"> Séances réalisées / assignées (semaine)</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#d4845a]"></div>
-                      <span>
-                        <span className="text-[var(--kaiylo-primary-hex)]">2e graphique :</span>
-                        <span className="text-white/75 font-light"> Séances réalisées / assignées (mois)</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (!isSavingBlock) {
-                        setIsBlockEditModalOpen(false);
-                        // Reset to original values using the same logic as display
-                        const isNewStudent = progressStats.week.total === 0 && progressStats.trainingWeek.total === 0;
-                        const displayBlockNumber = isNewStudent ? 1 : (studentData?.block_number ?? blockNumber ?? 3);
-                        const displayTotalBlocks = isNewStudent ? 1 : (studentData?.total_blocks ?? totalBlocks ?? 3);
-                        const displayBlockName = isNewStudent ? '' : (studentData?.block_name || blockName || 'Prépa Force');
-                        
-                        setBlockNumber(displayBlockNumber);
-                        setTotalBlocks(displayTotalBlocks);
-                        setBlockName(displayBlockName);
-                      }
-                    }}
-                    disabled={isSavingBlock}
-                    className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveBlockInformation}
-                    disabled={isSavingBlock}
-                    className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
-                  >
-                    {isSavingBlock ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Enregistrement...
-                      </>
-                    ) : (
-                      'Enregistrer'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-          </>
-        )}
+        {/* Block Creation Modal */}
+        <CreateBlockModal
+          isOpen={isCreateBlockModalOpen}
+          onClose={() => setIsCreateBlockModalOpen(false)}
+          onCreated={() => setIsCreateBlockModalOpen(false)}
+          studentId={student.id}
+        />
       </div>
     </div>
   );

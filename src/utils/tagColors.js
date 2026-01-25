@@ -3,19 +3,25 @@
  * Uses Notion's color palette for tags
  */
 
-// Notion color palette
+// Notion color palette - exact colors from Notion
 const NOTION_COLORS = [
-  '#373736', // gris foncé
-  '#686762', // gris moyen
-  '#745a48', // marron
-  '#8e5835', // marron foncé
-  '#896a2c', // marron doré
-  '#3e6e54', // vert
-  '#3b6591', // bleu
-  '#6e5482', // violet
-  '#824e67', // rose foncé
-  '#9d5650'  // rouge/terracotta
+  { name: 'Dark Gray', hex: '#373736' },      // gris foncé
+  { name: 'Medium Gray', hex: '#686762' },    // gris moyen
+  { name: 'Brown', hex: '#745a48' },          // marron
+  { name: 'Dark Brown', hex: '#8e5835' },     // marron foncé
+  { name: 'Golden Brown', hex: '#896a2c' },   // marron doré
+  { name: 'Green', hex: '#3e6e54' },          // vert
+  { name: 'Blue', hex: '#3b6591' },           // bleu
+  { name: 'Purple', hex: '#6e5482' },         // violet
+  { name: 'Dark Pink', hex: '#824e67' },      // rose foncé
+  { name: 'Terracotta', hex: '#9d5650' }      // rouge/terracotta
 ];
+
+/**
+ * Get available colors for color picker
+ * @returns {Array} - Array of color objects with name and hex
+ */
+export const getAvailableColors = () => NOTION_COLORS;
 
 /**
  * Convert hex color to rgba with opacity
@@ -23,7 +29,7 @@ const NOTION_COLORS = [
  * @param {number} opacity - Opacity value between 0 and 1
  * @returns {string} - RGBA color string
  */
-const hexToRgba = (hex, opacity = 0.25) => {
+export const hexToRgba = (hex, opacity = 0.25) => {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -78,18 +84,18 @@ export const getTagColorMap = (tags) => {
       // Find next available color starting from hash position
       let attempts = 0;
       colorIndex = startIndex;
-      while (usedColors.has(availableColors[colorIndex]) && attempts < availableColors.length) {
+      while (usedColors.has(availableColors[colorIndex].hex) && attempts < availableColors.length) {
         colorIndex = (colorIndex + 1) % availableColors.length;
         attempts++;
       }
       
-      selectedColor = availableColors[colorIndex];
+      selectedColor = availableColors[colorIndex].hex;
       usedColors.add(selectedColor);
     } else {
       // More tags than colors, reuse colors cyclically
       const hash = hashString(tag);
       colorIndex = hash % availableColors.length;
-      selectedColor = availableColors[colorIndex];
+      selectedColor = availableColors[colorIndex].hex;
     }
     
     colorMap.set(tag, selectedColor);
@@ -99,23 +105,34 @@ export const getTagColorMap = (tags) => {
 };
 
 /**
- * Get tag color styles based on tag name
- * Uses a color map if provided, otherwise falls back to hash-based assignment
- * @param {string} tag - The tag name
+ * Get tag color styles based on tag name or tag object
+ * Priority: 1) tag.color (from database), 2) colorMap, 3) hash-based
+ * @param {string|object} tag - The tag name (string) or tag object with .color property
  * @param {Map<string, string>} colorMap - Optional map of tag names to colors
  * @returns {object} - Style object with backgroundColor and color (no border)
  */
 export const getTagColor = (tag, colorMap = null) => {
-  if (!tag || typeof tag !== 'string') {
+  // If tag is an object with a color property, use that first
+  if (tag && typeof tag === 'object' && tag.color) {
+    return {
+      backgroundColor: hexToRgba(tag.color, 1),
+      color: 'rgba(255, 255, 255, 1)'
+    };
+  }
+
+  // Get tag name for string tags or extract name from object
+  const tagName = typeof tag === 'string' ? tag : (tag?.name || tag);
+  
+  if (!tagName || typeof tagName !== 'string') {
     // Default color for invalid tags
     return {
-      backgroundColor: hexToRgba(NOTION_COLORS[0], 1),
+      backgroundColor: hexToRgba(NOTION_COLORS[0].hex, 1),
       color: 'rgba(255, 255, 255, 1)'
     };
   }
 
   // Normalize tag name to lowercase for consistent lookup
-  const normalizedTag = tag.toLowerCase().trim();
+  const normalizedTag = tagName.toLowerCase().trim();
   
   // Use color map if provided
   let selectedColor;
@@ -125,7 +142,7 @@ export const getTagColor = (tag, colorMap = null) => {
     // Fallback to hash-based assignment
     const hash = hashString(normalizedTag);
     const colorIndex = hash % NOTION_COLORS.length;
-    selectedColor = NOTION_COLORS[colorIndex];
+    selectedColor = NOTION_COLORS[colorIndex].hex;
   }
 
   // Return style with background color (solid) and white text color
