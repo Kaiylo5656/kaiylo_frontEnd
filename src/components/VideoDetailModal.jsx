@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder, Mic } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import axios from 'axios';
@@ -951,7 +951,14 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                               className="flex items-center justify-center cursor-pointer p-1 md:p-1.5 w-[24px] h-[24px] md:w-[28px] md:h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
                               title="Enregistrer un message vocal"
                             >
-                              <Mic className="h-3 w-3 md:h-4 md:w-4" style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }} />
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                viewBox="0 0 384 512" 
+                                className="h-3 w-3 md:h-4 md:w-4" 
+                                style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
+                              >
+                                <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+                              </svg>
                             </button>
                             <button
                               onClick={() => handleSubmitFeedback(audioRecording)}

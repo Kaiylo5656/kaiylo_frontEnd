@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, Send, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video, Mic } from 'lucide-react';
+import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 
@@ -1413,7 +1413,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               title="Enregistrer un message vocal"
               className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
             >
-              <Mic className="h-4 w-4 md:h-5 md:w-5" />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 384 512" 
+                className="h-4 w-4 md:h-5 md:w-5" 
+                style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
+              >
+                <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+              </svg>
             </Button>
             <form onSubmit={sendMessage} className="flex-1 flex items-center">
               <Input
@@ -1438,13 +1445,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 type="submit"
                 disabled={!newMessage.trim() || sending || uploadingFile}
                 size="icon"
-                className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 text-[var(--kaiylo-primary-hex)] disabled:text-white/50"
+                className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 disabled:text-white/50"
                 style={{
                   backgroundColor: 'unset',
                   background: 'unset'
                 }}
               >
-                <Send className="h-4 w-4 md:h-5 md:w-5" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4 md:h-5 md:w-5" style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}>
+                  <path d="M536.4-26.3c9.8-3.5 20.6-1 28 6.3s9.8 18.2 6.3 28l-178 496.9c-5 13.9-18.1 23.1-32.8 23.1-14.2 0-27-8.6-32.3-21.7l-64.2-158c-4.5-11-2.5-23.6 5.2-32.6l94.5-112.4c5.1-6.1 4.7-15-.9-20.6s-14.6-6-20.6-.9L229.2 276.1c-9.1 7.6-21.6 9.6-32.6 5.2L38.1 216.8c-13.1-5.3-21.7-18.1-21.7-32.3 0-14.7 9.2-27.8 23.1-32.8l496.9-178z"/>
+                </svg>
               </Button>
             </form>
           </div>
