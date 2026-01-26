@@ -119,6 +119,7 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
   const drawerRef = useRef(null);
   const { socket } = useSocket();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [drawerHeight, setDrawerHeight] = useState('100vh');
 
   const fetchUnreadCount = async () => {
     if (!user) return;
@@ -202,6 +203,46 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  // Calculate drawer height to account for mobile browser bars
+  useEffect(() => {
+    const updateHeight = () => {
+      // Use window.innerHeight which excludes browser UI bars
+      // This gives us the actual visible viewport height
+      const height = window.innerHeight;
+      setDrawerHeight(`${height}px`);
+    };
+    
+    if (isOpen) {
+      // Initial height calculation
+      updateHeight();
+      
+      // Listen for viewport changes
+      window.addEventListener('resize', updateHeight);
+      window.addEventListener('orientationchange', updateHeight);
+      
+      // Use visualViewport API if available (better for mobile browser bars)
+      if (window.visualViewport) {
+        const handleViewportChange = () => {
+          updateHeight();
+        };
+        window.visualViewport.addEventListener('resize', handleViewportChange);
+        window.visualViewport.addEventListener('scroll', handleViewportChange);
+        
+        return () => {
+          window.removeEventListener('resize', updateHeight);
+          window.removeEventListener('orientationchange', updateHeight);
+          window.visualViewport.removeEventListener('resize', handleViewportChange);
+          window.visualViewport.removeEventListener('scroll', handleViewportChange);
+        };
+      }
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      window.removeEventListener('orientationchange', updateHeight);
+    };
+  }, [isOpen]);
+
   // Prevent body scroll when drawer is open
   useEffect(() => {
     if (isOpen) {
@@ -228,24 +269,29 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className="fixed inset-y-0 left-0 w-64 bg-card border-r border-border/20 z-50 flex flex-col transform transition-transform duration-300 ease-in-out"
+        className="fixed top-0 left-0 w-64 sm:w-72 bg-card border-r border-border/20 z-50 flex flex-col transform transition-transform duration-300 ease-in-out overflow-hidden"
         style={{
           transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)'
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          height: drawerHeight,
+          maxHeight: drawerHeight,
+          minHeight: drawerHeight
         }}
         role="dialog"
         aria-modal="true"
         aria-label="Navigation mobile"
       >
         {/* Header with Logo and Close button */}
-        <div className="pt-6 pb-6 pl-6 pr-[10px] flex items-center justify-between">
-          <Logo />
+        <div className="pt-4 pb-4 sm:pt-6 sm:pb-6 pl-4 sm:pl-6 pr-2 sm:pr-[10px] flex items-center justify-between gap-2 sm:gap-3 flex-shrink-0 min-h-[60px]">
+          <div className="flex items-center flex-shrink-0" style={{ minWidth: '85px' }}>
+            <Logo size="mobile" />
+          </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
             aria-label="Fermer le menu"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
