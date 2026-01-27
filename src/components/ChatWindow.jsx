@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileMessage from './FileMessage';
+import VideoFeedbackMessage from './VideoFeedbackMessage';
 import ReplyMessage from './ReplyMessage';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -10,6 +11,8 @@ import { buildApiUrl } from '../config/api';
 import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
+import VideoDetailModal from './VideoDetailModal';
+import StudentVideoDetailModal from './StudentVideoDetailModal';
 
 // Custom MessageSquare Icon Component (Font Awesome)
 const MessageSquareIcon = ({ className, style }) => (
@@ -62,6 +65,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [filePreview, setFilePreview] = useState(null);
   const [otherParticipantReadAt, setOtherParticipantReadAt] = useState(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
@@ -699,6 +704,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         }
       };
 
+      // Listen for message deleted events
+      const handleMessageDeleted = (data) => {
+        console.log('🔌 Message deleted:', data);
+        if (conversation?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
+          setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+        }
+      };
+
       // Register event listeners - ensure we only register once
       // Remove any existing listeners first to prevent duplicates
       socket.off('new_message', handleNewMessage);
@@ -706,6 +719,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       socket.off('user_joined', handleUserJoined);
       socket.off('user_left', handleUserLeft);
       socket.off('messages_read', handleMessagesRead);
+      socket.off('message_deleted', handleMessageDeleted);
       
       // Now register the listeners
       socket.on('new_message', handleNewMessage);
@@ -713,6 +727,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       socket.on('user_joined', handleUserJoined);
       socket.on('user_left', handleUserLeft);
       socket.on('messages_read', handleMessagesRead);
+      socket.on('message_deleted', handleMessageDeleted);
 
       return () => {
         socket.off('new_message', handleNewMessage);
@@ -720,6 +735,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         socket.off('user_joined', handleUserJoined);
         socket.off('user_left', handleUserLeft);
         socket.off('messages_read', handleMessagesRead);
+        socket.off('message_deleted', handleMessageDeleted);
       };
     }
   }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
@@ -899,6 +915,43 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       // You could implement a toast notification here instead of console.log
       // For now, we'll just log it to avoid interrupting the user experience
     }
+  };
+
+  const handleVideoClick = (videoData) => {
+    // Construct video object for the modal
+    const videoObj = {
+      id: videoData.videoId,
+      video_url: videoData.videoUrl,
+      video_filename: `video_${videoData.videoId}.mp4`,
+      exercise_name: videoData.exerciseName,
+      created_at: videoData.videoDate,
+      set_number: videoData.setNumber,
+      weight: videoData.weight,
+      reps: videoData.reps,
+      coach_rating: videoData.rating,
+      coach_feedback: videoData.feedback,
+      coach_feedback_audio_url: videoData.audioUrl,
+      status: 'completed', // Assuming feedback exists
+      student: {
+        id: conversation.other_participant_id, // Assuming other participant is student if current user is coach
+        raw_user_meta_data: {
+          full_name: conversation.other_participant_name || 'Student'
+        }
+      }
+    };
+    
+    // If current user is student, we need to adjust the student object
+    if (currentUser.role === 'student') {
+        videoObj.student = {
+            id: currentUser.id,
+            raw_user_meta_data: {
+                full_name: currentUser.user_metadata?.full_name || currentUser.email
+            }
+        };
+    }
+
+    setSelectedVideo(videoObj);
+    setIsVideoModalOpen(true);
   };
 
   if (!conversation) {
@@ -1142,7 +1195,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   </div>
                   
                   <div className="relative">
-                    {message.message_type === 'file' || message.message_type === 'audio' ? (
+                    {message.message_type === 'video_feedback' ? (
+                      <VideoFeedbackMessage 
+                        message={message} 
+                        isOwnMessage={isOwnMessage} 
+                        onVideoClick={handleVideoClick}
+                      />
+                    ) : message.message_type === 'file' || message.message_type === 'audio' ? (
                       <FileMessage 
                         message={message} 
                         isOwnMessage={isOwnMessage}
@@ -1470,6 +1529,28 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         onConfirm={handleConfirmDelete}
         loading={deleting}
       />
+
+      {/* Video Detail Modal */}
+      {currentUser?.role === 'coach' ? (
+        <VideoDetailModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          video={selectedVideo}
+          videoType="student"
+          isCoachView={true}
+          onFeedbackUpdate={() => {
+             // Optional: refresh messages or update local state if feedback changes
+             // For now, simple close is enough as feedback is usually final in chat history context
+             // but if editable, we might want to update the message content locally
+          }}
+        />
+      ) : (
+        <StudentVideoDetailModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          video={selectedVideo}
+        />
+      )}
     </div>
   );
 };
