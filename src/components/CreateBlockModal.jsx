@@ -296,7 +296,7 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
         onSaved(response.data.data);
         // Reset and close
         setSelectedTags([]);
-        setDuration(0);
+        setDuration(1);
         setName('');
         onClose();
       }
@@ -435,10 +435,10 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
                     <button
                         type="button"
                         onClick={() => {
-                            const newValue = Math.max(0, parseInt(duration) - 1);
+                            const newValue = Math.max(1, parseInt(duration) - 1);
                             setDuration(newValue);
                         }}
-                        disabled={parseInt(duration) <= 0}
+                        disabled={parseInt(duration) <= 1}
                         className="text-white/50 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
                         aria-label="Diminuer"
                     >
@@ -448,12 +448,12 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
                     </button>
                     <input 
                         type="number" 
-                        min="0" 
+                        min="1" 
                         max="52"
                         value={duration}
                         onChange={(e) => {
                             const val = e.target.value;
-                            if (val === '' || (!isNaN(val) && parseInt(val) >= 0 && parseInt(val) <= 52)) {
+                            if (val === '' || (!isNaN(val) && parseInt(val) >= 1 && parseInt(val) <= 52)) {
                                 setDuration(val);
                             }
                         }}

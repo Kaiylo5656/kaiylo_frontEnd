@@ -5062,7 +5062,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         </div>
 
                         {/* The Grid for this week */}
-                        <div className="grid grid-cols-7 gap-1 md:gap-2">
+                        <div className="relative grid grid-cols-7 gap-1 md:gap-2">
                           {weekDays.map(({ day, index }) => {
                             const dateKey = format(day, 'yyyy-MM-dd');
                             const sessionsOnDay = (workoutSessions[dateKey] || []).filter(session => {
@@ -5492,8 +5492,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               </div>
                             );
                           })}
-                        </div>
-                        
+                          
                           {/* Overlay pour coller une semaine copiée */}
                           {copiedWeek && (
                             <div className={`absolute inset-0 bg-[#d4845a]/10 transition-opacity duration-200 rounded-xl flex flex-col items-center justify-center gap-2 z-20 pointer-events-none ${
@@ -5530,6 +5529,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             </button>
                           </div>
                         )}
+                        </div>
                       </div>
                     );
                   });

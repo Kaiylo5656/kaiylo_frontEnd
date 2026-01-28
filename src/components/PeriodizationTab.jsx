@@ -894,11 +894,25 @@ const PeriodizationTab = ({ studentId }) => {
                     const normalizedWeekDate = startOfWeek(weekDate, { weekStartsOn: 1 });
 
                     // Check neighbors efficiently using the map
+                    // Directly check if adjacent weeks in blockMap have the same block
                     const prevBlock = index > 0 ? blockMap[index - 1] : null;
                     const nextBlock = index < WEEKS_TO_SHOW - 1 ? blockMap[index + 1] : null;
                     
-                    const hasPrevWeekSameBlock = activeBlock && prevBlock && activeBlock.id === prevBlock.id;
-                    const hasNextWeekSameBlock = activeBlock && nextBlock && activeBlock.id === nextBlock.id;
+                    // Compare blocks - use both object reference and ID comparison for robustness
+                    // During resizing, also check if adjacent weeks are part of the resizing block
+                    let hasPrevWeekSameBlock = activeBlock && prevBlock && (
+                        activeBlock === prevBlock || activeBlock.id === prevBlock.id
+                    );
+                    let hasNextWeekSameBlock = activeBlock && nextBlock && (
+                        activeBlock === nextBlock || activeBlock.id === nextBlock.id
+                    );
+                    
+                    // Additional check during resizing: if current week is part of resizing block,
+                    // check if adjacent weeks are also part of the same resizing block
+                    if (resizingBlock && activeBlock && resizingBlock.id === activeBlock.id) {
+                        hasPrevWeekSameBlock = hasPrevWeekSameBlock || (prevBlock && resizingBlock.id === prevBlock.id);
+                        hasNextWeekSameBlock = hasNextWeekSameBlock || (nextBlock && resizingBlock.id === nextBlock.id);
+                    }
 
                     // Calculate visual neighbors (taking grid wrapping into account)
                     const isFirstCol = index % columns === 0;
@@ -1001,8 +1015,11 @@ const PeriodizationTab = ({ studentId }) => {
                         }
                         
                         // Border style: remove left border if previous week is same block, remove right border if next week is same block
-                        const borderLeft = isVisualPrevSame ? 'none' : blockStyle.borderWidth;
-                        const borderRight = isVisualNextSame ? 'none' : blockStyle.borderWidth;
+                        // Always use hasPrevWeekSameBlock/hasNextWeekSameBlock to ensure borders are removed correctly
+                        // both in normal state and during resizing, regardless of visual grid position
+                        // Use '0' instead of 'none' to ensure borders are completely removed
+                        const borderLeft = hasPrevWeekSameBlock ? '0' : blockStyle.borderWidth;
+                        const borderRight = hasNextWeekSameBlock ? '0' : blockStyle.borderWidth;
                         const borderTop = blockStyle.borderWidth;
                         const borderBottom = blockStyle.borderWidth;
 
@@ -1079,18 +1096,7 @@ const PeriodizationTab = ({ studentId }) => {
                                             backgroundColor: 'transparent',
                                             userSelect: 'none'
                                         }}
-                                    >
-                                        <div
-                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 rounded-full transition-all duration-200"
-                                            style={{
-                                                display: (hoveredBlockId === activeBlock.id) || isResizeHandleActive || (resizingBlock && resizingBlock.id === activeBlock.id && resizeType === 'start') ? 'block' : 'none',
-                                                backgroundColor: isResizeHandleActive ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)',
-                                                transform: isResizeHandleActive ? 'translateX(-50%) translateY(-50%) scale(1.2)' : 'translateX(-50%) translateY(-50%) scale(1)',
-                                                transition: 'background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease',
-                                                opacity: isResizeHandleActive ? 1 : 0.6
-                                            }}
-                                        />
-                                    </div>
+                                    />
                                 )}
                                 
                                 {/* Resize handle - right (end) */}
@@ -1102,18 +1108,7 @@ const PeriodizationTab = ({ studentId }) => {
                                             backgroundColor: 'transparent',
                                             userSelect: 'none'
                                         }}
-                                    >
-                                        <div
-                                            className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-10 rounded-full transition-all duration-200"
-                                            style={{
-                                                display: (hoveredBlockId === activeBlock.id) || isResizeHandleActive || (resizingBlock && resizingBlock.id === activeBlock.id && resizeType === 'end') ? 'block' : 'none',
-                                                backgroundColor: isResizeHandleActive ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)',
-                                                transform: isResizeHandleActive ? 'translateX(50%) translateY(-50%) scale(1.2)' : 'translateX(50%) translateY(-50%) scale(1)',
-                                                transition: 'background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease',
-                                                opacity: isResizeHandleActive ? 1 : 0.6
-                                            }}
-                                        />
-                                    </div>
+                                    />
                                 )}
                                 {/* Fill gap to the right if next week is same block */}
                                 {isVisualNextSame && (
