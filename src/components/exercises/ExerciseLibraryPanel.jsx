@@ -233,7 +233,7 @@ const ExerciseLibraryPanel = ({
                 placeholder="Rechercher un exercice..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-extralight"
+                className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring font-extralight"
                 style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   borderColor: 'rgba(255, 255, 255, 0.1)'

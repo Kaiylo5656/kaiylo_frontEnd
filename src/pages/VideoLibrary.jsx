@@ -7,6 +7,7 @@ import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
 import StudentVideoLibrary from '../components/StudentVideoLibrary';
+import VoiceMessage from '../components/VoiceMessage';
 import { Button } from '../components/ui/button';
 import BaseModal from '../components/ui/modal/BaseModal';
 import { useModalManager } from '../components/ui/modal/ModalManager';
@@ -898,14 +899,15 @@ const VideoLibrary = () => {
           const isHovered = hoveredSessionId === session.sessionId;
           const sessionName = session.sessionName;
           const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
-          const backgroundColor = isHovered 
+          // Si le toggle est ouvert, ne pas changer le background au survol
+          const backgroundColor = (isHovered && !isOpen)
             ? 'rgba(255, 255, 255, 0.16)' 
-            : 'rgba(255, 255, 255, 0.04)';
+            : 'rgba(255, 255, 255, 0.05)';
           
           return (
             <div 
               key={session.sessionId}
-              className="px-4 md:px-5 py-3 md:py-4 transition-colors cursor-pointer rounded-2xl"
+              className="px-4 md:px-5 py-3 md:py-[14px] transition-colors cursor-pointer rounded-2xl"
               style={{ 
                 backgroundColor: backgroundColor,
                 borderWidth: '0px',
@@ -943,7 +945,13 @@ const VideoLibrary = () => {
                           <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                         </span>
                       </span>
-                      <span className="text-xs md:text-base" style={{ opacity: 0.5 }}>- {sessionDate} - {session.studentName}</span>
+                      <span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
+                        - {sessionDate} - 
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ opacity: 0.5 }}>
+                          <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
+                        </svg>
+                        {session.studentName}
+                      </span>
                     </h3>
                     
                     {/* Status indicator - Mobile: aligned horizontally with text, Desktop: separate */}
@@ -984,9 +992,8 @@ const VideoLibrary = () => {
                     {session.videos.map((video) => (
                       <div 
                         key={video.id} 
-                        className="px-2 py-2 transition-colors cursor-pointer rounded-2xl hover:bg-white/8"
+                        className="px-2 py-2 transition-all duration-200 cursor-pointer rounded-2xl bg-white/[0.07] hover:bg-white/[0.14]"
                         style={{ 
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
                           borderWidth: '0px',
                           borderColor: 'rgba(0, 0, 0, 0)',
                           borderStyle: 'none',
@@ -1024,7 +1031,7 @@ const VideoLibrary = () => {
                                   {video.exercise_name}
                                 </span>
                                 <span className="hidden md:inline text-white/50">-</span>
-                                <span className="text-white/50 text-xs md:text-base font-extralight">
+                                <span className="text-white/50 text-xs md:text-sm font-extralight">
                                   {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
                                 </span>
                               </div>
@@ -1057,6 +1064,34 @@ const VideoLibrary = () => {
                                   return seriesText;
                                 })()}
                               </div>
+                              
+                              {/* Coach Feedback */}
+                              {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                                <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
+                                  {video.coach_feedback_audio_url && (
+                                    <div className="text-xs">
+                                      <VoiceMessage 
+                                        message={{
+                                          file_url: video.coach_feedback_audio_url,
+                                          message_type: 'audio',
+                                          file_type: 'audio/webm'
+                                        }} 
+                                        isOwnMessage={false}
+                                      />
+                                    </div>
+                                  )}
+                                  {video.coach_feedback && (
+                                    <div className="flex items-start gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                        <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
+                                      </svg>
+                                      <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                        {video.coach_feedback}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             
                             {/* Status Badge */}
@@ -1752,7 +1787,7 @@ const VideoLibrary = () => {
                         value={exerciseSearchTerm}
                         onChange={(e) => setExerciseSearchTerm(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           borderColor: 'rgba(255, 255, 255, 0.1)'

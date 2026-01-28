@@ -68,7 +68,7 @@ const ExerciseTagTypeahead = ({
       !isTagSelected(tag.name, selectedTags)
     );
     
-    if (!inputValue.trim()) return availableTags.slice(0, 8);
+    if (!inputValue.trim()) return availableTags.slice(0, 12);
     
     const normalizedInput = normalizeTagName(inputValue);
     const filtered = availableTags.filter(tag => 
@@ -87,7 +87,7 @@ const ExerciseTagTypeahead = ({
       return b.usageCount - a.usageCount;
     });
     
-    const suggestions = sorted.slice(0, 8);
+    const suggestions = sorted.slice(0, 12);
     
     // Add "Create new tag" option if no exact match and canCreate is true
     const hasExactMatch = suggestions.some(tag => 
@@ -314,7 +314,7 @@ const ExerciseTagTypeahead = ({
           role="button"
           tabIndex={disabled ? -1 : 0}
           aria-disabled={disabled}
-          className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 transition-colors w-full text-left min-h-[40px] ${
+          className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 transition-colors w-full text-left h-[46px] ${
             disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-[rgba(255,255,255,0.08)]'
           } ${inputClassName}`}
         >
@@ -372,7 +372,7 @@ const ExerciseTagTypeahead = ({
       {/* Expanded State - Show input and dropdown */}
       {!isCollapsed && (
         <div className="relative">
-          <div className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-4 py-2.5 transition-all min-h-[40px] ${inputClassName}`}>
+          <div className={`flex items-center flex-wrap gap-1.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] border-[rgba(255,255,255,0.05)] px-[14px] py-2.5 transition-all h-[46px] ${inputClassName}`}>
             {/* Selected Tags - Show inside the input container */}
             {selectedTags.map((tag) => {
               const tagStyle = getTagColor(tag, tagColorMap);
@@ -454,7 +454,7 @@ const ExerciseTagTypeahead = ({
           {isOpen && filteredSuggestions.length > 0 && (
             <div
               ref={dropdownRef}
-              className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto pt-2 pb-2"
+              className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-lg max-h-[220px] overflow-y-auto pt-2 pb-2 scrollbar-thin-transparent-track"
               style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.75)',
                 backdropFilter: 'blur(10px)',

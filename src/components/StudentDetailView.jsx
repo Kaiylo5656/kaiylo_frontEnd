@@ -1176,7 +1176,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               video: undefined,
               hasVideo: undefined,
               videoStatus: undefined
-            })) : ex.sets) : ex.sets
+            })) : ex.sets.map(set => ({
+              ...set,
+              // Préserver previousRpe même si la séance n'est pas completed (au cas où elle aurait déjà un previousRpe)
+              previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+            }))) : ex.sets
           }));
         }
         
@@ -1446,7 +1450,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             video: undefined,
             hasVideo: undefined,
             videoStatus: undefined
-          })) : ex.sets) : ex.sets
+          })) : ex.sets.map(set => ({
+            ...set,
+            // Préserver previousRpe même si la séance n'est pas completed (au cas où elle aurait déjà un previousRpe)
+            previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+          }))) : ex.sets
         }));
       }
       
@@ -2616,7 +2624,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           return (
             <div 
               key={session.sessionId}
-              className="px-5 py-4 transition-colors cursor-pointer rounded-2xl"
+              className="px-5 py-3.5 transition-colors cursor-pointer rounded-2xl"
               style={{ 
                 backgroundColor: backgroundColor,
                 borderWidth: '0px',
@@ -2716,7 +2724,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 {video.exercise_name}
                               </span>
                               <span className="text-white/50">-</span>
-                              <span className="text-white/50 text-base font-extralight">
+                              <span className="text-white/50 text-sm font-extralight">
                                 {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
                               </span>
                             </div>
@@ -3849,10 +3857,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       </div>
 
       {/* Main Content */}
-      <div className="p-4 pb-0 pt-0" style={{ overflowX: 'hidden' }}>
+      <div className="p-4 pb-0 pt-0" style={{ overflow: 'hidden', maxWidth: '100%' }}>
         {activeTab === 'overview' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3" style={{ marginBottom: '8px' }}>
               {/* Current Block Card */}
               <div 
                 className="bg-white/5 rounded-2xl px-2 py-3 cursor-pointer hover:bg-white/10 transition-colors border border-white/10"
@@ -3885,12 +3893,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         const displayTotalBlocks = sortedBlocks.length;
                         const displayBlockName = activeBlock.name || '';
                         
-                        return `Bloc ${displayBlockNumber}/${displayTotalBlocks}${displayBlockName ? ` - ${displayBlockName}` : ''}`;
+                        return displayBlockName ? `Bloc ${displayBlockNumber} - ${displayBlockName}` : `Bloc ${displayBlockNumber}`;
                       }
                     }
                     
-                    // If no active block found, don't display anything
-                    return null;
+                    // If no active block found, display a message to create a block
+                    return 'Créez un bloc';
                   })()}
                 </h2>
                 <div className="flex items-center justify-center gap-3">
@@ -4104,38 +4112,81 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             <div className="overflow-x-auto planning-scrollbar">
               <div style={{ minWidth: '1203px', paddingRight: '0px' }}>
                 {/* Month indicator */}
-                <div className="flex items-center justify-center mb-2 gap-2" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
-                  <span className="text-sm text-white/50 font-light">
+                <div className="relative flex items-center" style={{ paddingLeft: '12px', paddingRight: '12px', height: '40px', marginBottom: '6px' }}>
+                  {/* Block info - aligned to left */}
+                  <div className="flex items-center justify-start gap-2.5">
+                    <button 
+                      onClick={() => setOverviewWeekDate(new Date())}
+                      className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1 text-primary-foreground text-xs md:text-sm"
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: 'rgba(250, 250, 250, 0.5)',
+                        fontWeight: '400'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                        e.currentTarget.style.color = '#D48459';
+                        e.currentTarget.style.fontWeight = '400';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                        e.currentTarget.style.fontWeight = '400';
+                      }}
+                    >
+                      Aujourd'hui
+                    </button>
                     {(() => {
-                      const month = format(overviewWeekDate, 'MMMM', { locale: fr });
-                      return month.charAt(0).toUpperCase() + month.slice(1);
+                        if (!blocks || blocks.length === 0) return null;
+                        
+                        const currentWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
+                        // Find block logic
+                        const active = blocks.find(b => {
+                            const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                            const bEnd = addWeeks(bStart, b.duration);
+                            return currentWeekStart >= bStart && currentWeekStart < bEnd;
+                        });
+                        
+                        if (active) {
+                            const bStart = startOfWeek(new Date(active.start_week_date), { weekStartsOn: 1 });
+                            const weekDiff = differenceInCalendarWeeks(currentWeekStart, bStart, { weekStartsOn: 1 });
+                            // Calculate current week in block (1-indexed) and total weeks
+                            const currentWeekInBlock = weekDiff + 1;
+                            const totalWeeksInBlock = active.duration;
+                            // Calculate block number by sorting blocks by start date
+                            const sortedBlocks = [...blocks].sort(
+                              (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
+                            );
+                            const currentIndex = sortedBlocks.findIndex(b => b.id === active.id);
+                            const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
+                            return (
+                                <span className="text-sm text-[#D4845A] font-normal flex items-center gap-1.5">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3.5 h-3.5" fill="currentColor">
+                                    <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z"/>
+                                  </svg>
+                                  Bloc {blockNumber} - Semaine {currentWeekInBlock}/{totalWeeksInBlock}
+                                </span>
+                            );
+                        }
+                        return (
+                            <span className="text-sm text-white/25 font-normal flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-3.5 h-3.5" fill="currentColor">
+                                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                              </svg>
+                              Aucun bloc attribué
+                            </span>
+                        );
                     })()}
-                  </span>
-                  {(() => {
-                      if (!blocks || blocks.length === 0) return null;
-                      
-                      const currentWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
-                      // Find block logic
-                      const active = blocks.find(b => {
-                          const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
-                          const bEnd = addWeeks(bStart, b.duration);
-                          return currentWeekStart >= bStart && currentWeekStart < bEnd;
-                      });
-                      
-                      if (active) {
-                          const bStart = startOfWeek(new Date(active.start_week_date), { weekStartsOn: 1 });
-                          const weekDiff = differenceInCalendarWeeks(currentWeekStart, bStart, { weekStartsOn: 1 });
-                          // Calculate current week in block (1-indexed) and total weeks
-                          const currentWeekInBlock = weekDiff + 1;
-                          const totalWeeksInBlock = active.duration;
-                          return (
-                              <span className="text-sm text-[#D4845A] font-normal">
-                                 Semaine {currentWeekInBlock}/{totalWeeksInBlock}
-                              </span>
-                          );
-                      }
-                      return null;
-                  })()}
+                  </div>
+                  {/* Month - centered */}
+                  <div className="absolute left-1/2 transform -translate-x-1/2">
+                    <span className="text-sm text-white/50 font-light">
+                      {(() => {
+                        const month = format(overviewWeekDate, 'MMMM', { locale: fr });
+                        return month.charAt(0).toUpperCase() + month.slice(1);
+                      })()}
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Week Navigation with Day Labels */}
@@ -4516,7 +4567,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-4 h-4 opacity-75" fill="currentColor">
                         <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
                       </svg>
-                      Notes
+                      Notes de la semaine
                     </h3>
                   </div>
                   <div className="space-y-2 overflow-y-auto flex-1 min-h-0 custom-scrollbar pr-2">
@@ -4620,7 +4671,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 flex flex-col flex-1 min-h-0 overflow-hidden">
                   <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2 shrink-0">
                     <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
-                      <FileText className="w-4 h-4 opacity-75" />
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-4 h-4 opacity-75" fill="currentColor">
+                        <path d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"/>
+                      </svg>
                       Notes Générales
                     </h3>
                   </div>
@@ -4866,18 +4919,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 {/* Week View Filter - Using buttons instead of select */}
                 <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
                   <button
-                    onClick={() => setWeekViewFilter(8)}
-                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
-                      weekViewFilter === 8
-                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                        : 'text-white/50 hover:text-white/75'
-                    }`}
-                    style={{ fontWeight: weekViewFilter === 8 ? 400 : 200, width: '89px' }}
-                  >
-                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 mois</span>
-                    <span>2 mois</span>
-                  </button>
-                  <button
                     onClick={() => setWeekViewFilter(4)}
                     className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
                       weekViewFilter === 4
@@ -4889,6 +4930,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
                     <span>4 sem.</span>
                   </button>
+                  <button
+                    onClick={() => setWeekViewFilter(8)}
+                    className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${
+                      weekViewFilter === 8
+                        ? 'bg-[var(--kaiylo-primary-hex)] text-white'
+                        : 'text-white/50 hover:text-white/75'
+                    }`}
+                    style={{ fontWeight: weekViewFilter === 8 ? 400 : 200, width: '89px' }}
+                  >
+                    <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 mois</span>
+                    <span>2 mois</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -4896,7 +4949,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             <div className="border-b border-white/10 mb-3"></div>
             
             {/* Calendar Grid */}
-            <div className="pr-0 md:pr-14">
+            <div className="pr-0 md:pr-14 pt-4">
               {/* Day Headers */}
               <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
                 {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
@@ -4941,27 +4994,46 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         const weekDiff = differenceInCalendarWeeks(weekStart, bStart, { weekStartsOn: 1 });
                         const currentWeekInBlock = weekDiff + 1;
                         const totalWeeksInBlock = activeBlock.duration;
+                        // Calculate block number by sorting blocks by start date
+                        const sortedBlocks = [...blocks].sort(
+                          (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
+                        );
+                        const currentIndex = sortedBlocks.findIndex(b => b.id === activeBlock.id);
+                        const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
                         weekBlockInfo = {
                           name: activeBlock.name || '',
                           currentWeek: currentWeekInBlock,
-                          totalWeeks: totalWeeksInBlock
+                          totalWeeks: totalWeeksInBlock,
+                          blockNumber: blockNumber
                         };
                       }
                     }
                     
                     return (
                       <div key={weekKey} className="relative week-group group/week">
-                        {/* Week Block Info - Display block name and week number at the top center */}
-                        {weekBlockInfo && (
-                          <div className="mb-2 px-1 flex items-center justify-center gap-2">
-                            <span className="text-xs md:text-sm text-[#D4845A] font-normal">
-                              {weekBlockInfo.name && `${weekBlockInfo.name} - `}Semaine {weekBlockInfo.currentWeek}/{weekBlockInfo.totalWeeks}
+                        {/* Week Block Info - Display block name and week number at the top left */}
+                        <div className="mb-2 px-1 flex items-center justify-start gap-2">
+                          {weekBlockInfo ? (
+                            <span className="text-xs md:text-sm text-[#D4845A] font-normal flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5" fill="currentColor">
+                                <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z"/>
+                              </svg>
+                              Bloc {weekBlockInfo.blockNumber} - Semaine {weekBlockInfo.currentWeek}/{weekBlockInfo.totalWeeks}
                             </span>
-                          </div>
-                        )}
+                          ) : (
+                            <span className="text-xs md:text-sm text-white/25 font-normal flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-3 h-3 md:w-3.5 md:h-3.5" fill="currentColor">
+                                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                              </svg>
+                              Aucun bloc attribué
+                            </span>
+                          )}
+                        </div>
                         
                         {/* Week Actions - Side Buttons - Hidden on mobile */}
-                        <div className="hidden md:flex absolute -right-12 top-0 bottom-0 flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0">
+                        <div className={`hidden md:flex absolute -right-12 top-[28px] flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0 ${
+                          isDetailedView ? 'min-h-[260px]' : 'h-[142px]'
+                        }`}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -5007,7 +5079,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 className={`bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col transition-all duration-300 relative group cursor-pointer ${
                                   isDetailedView 
                                     ? 'min-h-[260px]' 
-                                    : 'h-[120px] md:h-[200px]'
+                                    : 'h-[142px]'
                                 }`}
                                 style={{ 
                                   backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)'
@@ -5092,7 +5164,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                           handleSessionClick(session, day);
                                         }}
                                       >
-                                        <div className="pt-1 md:pt-2 pb-1 md:pb-2 px-1 md:px-2 space-y-1 md:space-y-2 flex-1 flex flex-col overflow-visible" style={{ width: '100%' }}>
+                                        <div className="pt-1 md:pt-2 pb-1 md:pb-2 px-1 md:px-2 space-y-1 md:space-y-2 flex flex-col overflow-visible" style={{ width: '100%' }}>
                                           <div className="flex items-start justify-between gap-1 md:gap-2">
                                             <div className="flex items-center gap-0.5 md:gap-1 min-w-0 flex-1">
                                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
@@ -5722,7 +5794,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         value={exerciseSearchTerm}
                         onChange={(e) => setExerciseSearchTerm(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           borderColor: 'rgba(255, 255, 255, 0.1)'

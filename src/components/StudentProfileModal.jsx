@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 
 const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
   const dateInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [isDisciplineDropdownOpen, setIsDisciplineDropdownOpen] = useState(false);
   const [formData, setFormData] = useState({
     gender: '',
     birthDate: '',
@@ -13,6 +14,8 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
     weight: '',
     discipline: 'Street Lifting'
   });
+
+  const disciplines = ['Street Lifting', 'Powerlifting', 'Bodybuilding', 'Calisthenics'];
 
   // Initialize form data when modal opens or studentData changes
   useEffect(() => {
@@ -26,6 +29,22 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
       });
     }
   }, [isOpen, studentData]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isDisciplineDropdownOpen && !event.target.closest('.discipline-dropdown-container')) {
+        setIsDisciplineDropdownOpen(false);
+      }
+    };
+
+    if (isDisciplineDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDisciplineDropdownOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -187,6 +206,69 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
             </div>
           </div>
 
+          {/* Discipline */}
+          <div>
+            <label className="block text-sm font-extralight text-white/50 mb-2">Discipline</label>
+            <div className="relative flex items-center discipline-dropdown-container">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 256 512" 
+                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0 z-10"
+                style={{ color: '#d4845a' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              <button
+                type="button"
+                onClick={() => setIsDisciplineDropdownOpen(!isDisciplineDropdownOpen)}
+                className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm outline-none transition-colors flex items-center justify-between focus:border-[rgba(255,255,255,0.05)]"
+              >
+                <span className="font-extralight">{formData.discipline}</span>
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 384 512" 
+                  className="h-4 w-4 pointer-events-none"
+                  style={{ color: 'rgba(255,255,255,0.5)' }}
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                </svg>
+              </button>
+
+              {isDisciplineDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[rgba(0,0,0,0.8)] backdrop-blur border-[0.5px] border-[rgba(255,255,255,0.1)] rounded-[10px] overflow-hidden max-h-[200px] overflow-y-auto z-50 shadow-xl scrollbar-thin-transparent-track">
+                  {disciplines.map((discipline) => {
+                    const isSelected = formData.discipline === discipline;
+                    return (
+                      <button
+                        key={discipline}
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, discipline }));
+                          setIsDisciplineDropdownOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                          isSelected 
+                            ? 'bg-[#d4845a]/10 text-[#d4845a] font-normal' 
+                            : 'text-white/50 hover:bg-white/5 font-extralight'
+                        }`}
+                      >
+                        <span>{discipline}</span>
+                        {isSelected && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                            <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Birth Date */}
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Date de naissance</label>
@@ -273,44 +355,6 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
                 className="w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none"
                 placeholder="Poids (kg)"
               />
-            </div>
-          </div>
-
-          {/* Discipline */}
-          <div>
-            <label className="block text-sm font-extralight text-white/50 mb-2">Discipline</label>
-            <div className="relative flex items-center">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 256 512" 
-                className="absolute left-[14px] h-4 w-4 pointer-events-none flex-shrink-0"
-                style={{ color: '#d4845a' }}
-                fill="currentColor"
-              >
-                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-              </svg>
-              <select
-                name="discipline"
-                value={formData.discipline}
-                onChange={handleChange}
-                className="select-dark-kaiylo w-full pl-[42px] pr-[14px] py-3 rounded-[10px] bg-[rgba(0,0,0,0.5)] text-white text-sm appearance-none focus:outline-none"
-                style={{ colorScheme: 'dark' }}
-              >
-                <option value="Street Lifting" className="bg-[#131416]">Street Lifting</option>
-                <option value="Powerlifting" className="bg-[#131416]">Powerlifting</option>
-                <option value="Bodybuilding" className="bg-[#131416]">Bodybuilding</option>
-                <option value="Calisthenics" className="bg-[#131416]">Calisthenics</option>
-              </select>
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 384 512" 
-                className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.5)' }}
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-              </svg>
             </div>
           </div>
 

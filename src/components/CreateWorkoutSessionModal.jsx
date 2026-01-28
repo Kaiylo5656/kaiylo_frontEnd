@@ -658,7 +658,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           reps: set.repType === 'hold' ? set.reps : (set.reps || ''),
           rest: set.rest,
           video: set.video,
-          repType: set.repType || 'reps'
+          repType: set.repType || 'reps',
+          previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
         })),
         notes: ex.notes,
         tempo: ex.tempo,

@@ -566,7 +566,7 @@ const StudentVideoLibrary = () => {
                           value={exerciseSearchTerm}
                           onChange={(e) => setExerciseSearchTerm(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring"
                           style={{
                             backgroundColor: 'rgba(255, 255, 255, 0.05)',
                             borderColor: 'rgba(255, 255, 255, 0.1)'
