@@ -171,6 +171,108 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
       setError(null);
       const token = localStorage.getItem('authToken');
 
+      // Prepare date objects for the new block
+      const newBlockStart = startOfWeek(startDate, { weekStartsOn: 1 });
+      const newBlockEnd = addWeeks(newBlockStart, parseInt(duration)); // End date is exclusive (start of next week)
+
+      // Identify overlaps and prepare actions
+      const overlapActions = [];
+      const otherBlocks = existingBlocks.filter(b => !blockToEdit || b.id !== blockToEdit.id);
+
+      for (const block of otherBlocks) {
+        const blockStart = startOfWeek(new Date(block.start_week_date), { weekStartsOn: 1 });
+        const blockDuration = parseInt(block.duration, 10);
+        const blockEnd = addWeeks(blockStart, blockDuration);
+
+        // Check for overlap
+        // Overlap exists if (StartA < EndB) and (EndA > StartB)
+        if (newBlockStart < blockEnd && newBlockEnd > blockStart) {
+            console.log("Overlap detected with block:", block.name);
+
+            // Case 1: New block completely covers existing block -> Delete existing
+            if (newBlockStart <= blockStart && newBlockEnd >= blockEnd) {
+                console.log("-> Action: DELETE");
+                overlapActions.push(
+                    axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    })
+                );
+            }
+            // Case 2: New block is inside existing block -> Split existing into two
+            else if (newBlockStart > blockStart && newBlockEnd < blockEnd) {
+                console.log("-> Action: SPLIT");
+                // 1. Update existing block (Head) to end before new block
+                const headDuration = Math.round((newBlockStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                overlapActions.push(
+                    axios.patch(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                        duration: Math.max(1, headDuration)
+                    }, { headers: { Authorization: `Bearer ${token}` } })
+                );
+
+                // 2. Create new block (Tail) starting after new block
+                const tailStart = newBlockEnd; // Start of the week after new block
+                const tailDuration = Math.round((blockEnd.getTime() - newBlockEnd.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                
+                if (tailDuration > 0) {
+                    overlapActions.push(
+                        axios.post(`${getApiBaseUrlWithApi()}/periodization/blocks`, {
+                            student_id: studentId,
+                            tags: block.tags ? block.tags.map(t => typeof t === 'string' ? t : t?.name || t) : [],
+                            start_week_date: format(tailStart, 'yyyy-MM-dd'),
+                            duration: tailDuration,
+                            name: block.name
+                        }, { headers: { Authorization: `Bearer ${token}` } })
+                    );
+                }
+            }
+            // Case 3: Overlap at the end of existing block (New block starts inside existing) -> Trim Tail of existing
+            else if (newBlockStart > blockStart && newBlockStart < blockEnd) {
+                console.log("-> Action: TRIM TAIL");
+                const newDuration = Math.round((newBlockStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                if (newDuration > 0) {
+                    overlapActions.push(
+                        axios.patch(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                            duration: newDuration
+                        }, { headers: { Authorization: `Bearer ${token}` } })
+                    );
+                } else {
+                    // If duration becomes 0, delete it
+                    overlapActions.push(
+                        axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        })
+                    );
+                }
+            }
+            // Case 4: Overlap at the start of existing block (New block ends inside existing) -> Trim Head of existing
+            else if (newBlockEnd > blockStart && newBlockEnd < blockEnd) {
+                console.log("-> Action: TRIM HEAD");
+                const newStart = newBlockEnd;
+                const newDuration = Math.round((blockEnd.getTime() - newBlockEnd.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                
+                if (newDuration > 0) {
+                    overlapActions.push(
+                        axios.patch(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                            start_week_date: format(newStart, 'yyyy-MM-dd'),
+                            duration: newDuration
+                        }, { headers: { Authorization: `Bearer ${token}` } })
+                    );
+                } else {
+                     overlapActions.push(
+                        axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        })
+                    );
+                }
+            }
+        }
+      }
+
+      // Execute all overlap resolution actions
+      if (overlapActions.length > 0) {
+          await Promise.all(overlapActions);
+      }
+
       let response;
       const payload = {
         student_id: studentId,

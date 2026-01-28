@@ -113,6 +113,20 @@ const CoachDashboard = () => {
     }
   }, [location.search, navigate]);
 
+  // Restore selected student from URL on load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const studentIdFromUrl = urlParams.get('studentId');
+
+    // If we have an ID in the URL, students are loaded, and no student is currently selected
+    if (studentIdFromUrl && students.length > 0 && !selectedStudent) {
+      const student = students.find(s => s.id === studentIdFromUrl);
+      if (student) {
+        setSelectedStudent(student);
+      }
+    }
+  }, [location.search, students, selectedStudent]);
+
 
   // Sort students function
   const sortStudents = (studentsList, sortBy, direction) => {
@@ -521,6 +535,7 @@ const CoachDashboard = () => {
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
     setSelectedStudentInitialTab('overview');
+    navigate(`?studentId=${student.id}`, { replace: true });
   };
 
   // Handle clicking on feedback icon to go to video analysis
@@ -528,6 +543,7 @@ const CoachDashboard = () => {
     e.stopPropagation(); // Prevent triggering the row click
     setSelectedStudent(student);
     setSelectedStudentInitialTab('analyse');
+    navigate(`?studentId=${student.id}`, { replace: true });
   };
 
   // Handle clicking on message icon to go to chat
@@ -541,6 +557,10 @@ const CoachDashboard = () => {
   const handleBackToList = () => {
     setSelectedStudent(null);
     setSelectedStudentInitialTab('overview');
+    
+    // Return to clean dashboard URL
+    navigate('/coach/dashboard', { replace: true });
+    
     // Refresh dashboard counts when returning from student detail view
     // This ensures the video feedback count is up to date after giving feedback
     fetchDashboardCounts();

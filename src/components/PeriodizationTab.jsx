@@ -52,6 +52,7 @@ const PeriodizationTab = ({ studentId }) => {
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [dragStartWeek, setDragStartWeek] = useState(null);
   const [dragOffset, setDragOffset] = useState(0); // Offset in weeks
+  const [dragAnchorOffset, setDragAnchorOffset] = useState(0); // Offset of click relative to block start
 
   // Resize state
   const [resizingBlock, setResizingBlock] = useState(null);
@@ -59,6 +60,22 @@ const PeriodizationTab = ({ studentId }) => {
   const [resizeStartWeek, setResizeStartWeek] = useState(null);
   const [resizeStartDuration, setResizeStartDuration] = useState(null);
   const [isResizeHandleActive, setIsResizeHandleActive] = useState(false); // Track if resize handle is being held
+  
+  // Track grid columns for responsive layout
+  const [columns, setColumns] = useState(8);
+
+  useEffect(() => {
+    const updateColumns = () => {
+      const width = window.innerWidth;
+      if (width >= 1024) setColumns(8);
+      else if (width >= 768) setColumns(6);
+      else setColumns(4);
+    };
+    
+    updateColumns();
+    window.addEventListener('resize', updateColumns);
+    return () => window.removeEventListener('resize', updateColumns);
+  }, []);
 
   // Calculate number of weeks in the selected year using ISO standard
   const WEEKS_TO_SHOW = useMemo(() => {
@@ -89,11 +106,12 @@ const PeriodizationTab = ({ studentId }) => {
     fetchWeekNotes();
   }, [studentId, selectedYear]);
 
-  const fetchBlocks = async () => {
+  const fetchBlocks = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = localStorage.getItem('authToken');
-      const response = await axios.get(`${getApiBaseUrlWithApi()}/periodization/blocks/student/${studentId}`, {
+      // Add timestamp to prevent caching
+      const response = await axios.get(`${getApiBaseUrlWithApi()}/periodization/blocks/student/${studentId}?t=${new Date().getTime()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data.success) {
@@ -101,9 +119,9 @@ const PeriodizationTab = ({ studentId }) => {
       }
     } catch (err) {
       console.error('Error fetching blocks:', err);
-      setError('Impossible de charger la périodisation.');
+      if (!silent) setError('Impossible de charger la périodisation.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -308,10 +326,14 @@ const PeriodizationTab = ({ studentId }) => {
     setDraggedBlock(block);
     const blockStart = startOfWeek(new Date(block.start_week_date), { weekStartsOn: 1 });
     const weekStart = startOfWeek(weekDate, { weekStartsOn: 1 });
+    
+    // Calculate offset of click relative to block start
     const diffTime = weekStart.getTime() - blockStart.getTime();
-    const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
+    const anchorOffset = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
+    
     setDragStartWeek(blockStart);
-    setDragOffset(diffWeeks);
+    setDragAnchorOffset(anchorOffset);
+    setDragOffset(0); // Start with 0 movement
   };
 
   // Resize handlers
@@ -356,8 +378,11 @@ const PeriodizationTab = ({ studentId }) => {
         if (weekElement) {
           const weekDate = new Date(weekElement.dataset.weekDate);
           if (draggedBlock && dragStartWeek) {
-            const weekStart = startOfWeek(weekDate, { weekStartsOn: 1 });
-            const diffTime = weekStart.getTime() - dragStartWeek.getTime();
+            const currentMouseWeek = startOfWeek(weekDate, { weekStartsOn: 1 });
+            // Calculate where the block start should be based on current mouse position and anchor
+            // newBlockStart = currentMouseWeek - dragAnchorOffset
+            const newBlockStartTime = currentMouseWeek.getTime() - (dragAnchorOffset * 1000 * 60 * 60 * 24 * 7);
+            const diffTime = newBlockStartTime - dragStartWeek.getTime();
             const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
             setDragOffset(diffWeeks);
           } else if (resizingBlock && resizeStartWeek && resizeType) {
@@ -389,110 +414,163 @@ const PeriodizationTab = ({ studentId }) => {
       });
     };
 
-    // Helper function to check if two blocks overlap
-    const blocksOverlap = (block1Start, block1Duration, block2Start, block2Duration) => {
-      const block1End = addWeeks(block1Start, block1Duration);
-      const block2End = addWeeks(block2Start, block2Duration);
+    // Helper function to calculate overlap operations (returns instructions, no side effects)
+    const calculateOverlapOperations = (incomingBlock, newStartDate, newDuration, allBlocks) => {
+      const incomingStart = startOfWeek(newStartDate, { weekStartsOn: 1 });
+      const incomingEnd = addWeeks(incomingStart, newDuration);
       
-      // Check if blocks overlap
-      return (block1Start < block2End && block1End > block2Start);
-    };
-
-    // Helper function to calculate new positions for blocks to avoid collisions
-    const resolveCollisions = (movedBlock, newStartDate, allBlocks) => {
-      const movedBlockStart = startOfWeek(newStartDate, { weekStartsOn: 1 });
-      const movedBlockDuration = parseInt(movedBlock.duration, 10);
-      const movedBlockEnd = addWeeks(movedBlockStart, movedBlockDuration);
+      const operations = [];
+      const otherBlocks = allBlocks.filter(b => b.id !== incomingBlock.id);
       
-      const updates = [];
-      const otherBlocks = allBlocks.filter(b => b.id !== movedBlock.id);
-      
-      // Find all blocks that overlap with the moved block
-      const overlappingBlocks = otherBlocks.filter(block => {
+      otherBlocks.forEach(block => {
         const blockStart = startOfWeek(new Date(block.start_week_date), { weekStartsOn: 1 });
         const blockDuration = parseInt(block.duration, 10);
-        return blocksOverlap(movedBlockStart, movedBlockDuration, blockStart, blockDuration);
-      });
-      
-      // Sort overlapping blocks by start date (earliest first)
-      overlappingBlocks.sort((a, b) => {
-        const dateA = startOfWeek(new Date(a.start_week_date), { weekStartsOn: 1 });
-        const dateB = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      // Calculate new positions for overlapping blocks
-      // Move them to start right after the moved block, maintaining their order
-      let currentPosition = movedBlockEnd;
-      
-      overlappingBlocks.forEach(block => {
-        const blockStart = startOfWeek(new Date(block.start_week_date), { weekStartsOn: 1 });
-        const blockDuration = parseInt(block.duration, 10);
+        const blockEnd = addWeeks(blockStart, blockDuration);
         
-        // Move the block to start after the moved block (or after previously moved blocks)
-        // Only move if it actually overlaps (starts before the end of moved block)
-        if (blockStart < movedBlockEnd) {
-          updates.push({
-            block,
-            newStartDate: currentPosition
-          });
-          // Move the current position forward by this block's duration
-          currentPosition = addWeeks(currentPosition, blockDuration);
+        // Check for overlap
+        if (incomingStart < blockEnd && incomingEnd > blockStart) {
+          // Case 1: Incoming completely covers existing -> Delete
+          if (incomingStart <= blockStart && incomingEnd >= blockEnd) {
+            operations.push({ type: 'DELETE', id: block.id });
+          }
+          // Case 2: Incoming is inside existing -> Split
+          else if (incomingStart > blockStart && incomingEnd < blockEnd) {
+            // 1. Trim Head
+            const headDuration = Math.round((incomingStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            operations.push({ 
+                type: 'PATCH', 
+                id: block.id, 
+                data: { duration: Math.max(1, headDuration) } 
+            });
+            
+            // 2. Create Tail
+            const tailStart = incomingEnd;
+            const tailDuration = Math.round((blockEnd.getTime() - incomingEnd.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            if (tailDuration > 0) {
+              operations.push({
+                type: 'POST',
+                data: {
+                  student_id: studentId,
+                  tags: block.tags ? block.tags.map(t => typeof t === 'string' ? t : t?.name || t) : [],
+                  start_week_date: format(tailStart, 'yyyy-MM-dd'),
+                  duration: tailDuration,
+                  name: block.name
+                }
+              });
+            }
+          }
+          // Case 3: Overlap Tail -> Trim existing (keep head)
+          else if (incomingStart > blockStart && incomingStart < blockEnd) {
+            const newDuration = Math.round((incomingStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            if (newDuration > 0) {
+              operations.push({ 
+                type: 'PATCH', 
+                id: block.id, 
+                data: { duration: newDuration } 
+              });
+            } else {
+              operations.push({ type: 'DELETE', id: block.id });
+            }
+          }
+          // Case 4: Overlap Head -> Trim existing (keep tail)
+          else if (incomingEnd > blockStart && incomingEnd < blockEnd) {
+            const newStart = incomingEnd;
+            const newDuration = Math.round((blockEnd.getTime() - incomingEnd.getTime()) / (1000 * 60 * 60 * 24 * 7));
+            if (newDuration > 0) {
+              operations.push({ 
+                type: 'PATCH', 
+                id: block.id, 
+                data: { 
+                    start_week_date: format(newStart, 'yyyy-MM-dd'),
+                    duration: newDuration 
+                } 
+              });
+            } else {
+              operations.push({ type: 'DELETE', id: block.id });
+            }
+          }
         }
       });
       
-      return updates;
+      return operations;
     };
 
     const handleGlobalMouseUp = async (e) => {
       if (draggedBlock && dragOffset !== 0) {
+        // --- DRAG END ---
         try {
           const token = localStorage.getItem('authToken');
           const newStartDate = addWeeks(dragStartWeek, dragOffset);
           
-          // Resolve collisions - find blocks that need to be moved
-          const blocksToUpdate = resolveCollisions(draggedBlock, newStartDate, blocks);
-          
-          // Update the moved block
-          await axios.patch(
-            `${getApiBaseUrlWithApi()}/periodization/blocks/${draggedBlock.id}`,
-            {
-              start_week_date: format(newStartDate, 'yyyy-MM-dd'),
-              duration: draggedBlock.duration,
-              name: draggedBlock.name,
-              tags: draggedBlock.tags ? draggedBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t) : []
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
+          // 1. Calculate operations
+          const operations = calculateOverlapOperations(
+            draggedBlock, 
+            newStartDate, 
+            parseInt(draggedBlock.duration, 10), 
+            blocks
           );
           
-          // Update all overlapping blocks to make room
-          if (blocksToUpdate.length > 0) {
-            const updatePromises = blocksToUpdate.map(({ block, newStartDate: updatedStartDate }) =>
-              axios.patch(
-                `${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`,
-                {
-                  start_week_date: format(updatedStartDate, 'yyyy-MM-dd'),
-                  duration: block.duration,
-                  name: block.name,
-                  tags: block.tags ? block.tags.map(t => typeof t === 'string' ? t : t?.name || t) : []
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
-              )
-            );
-            
-            await Promise.all(updatePromises);
-          }
+          // 2. Optimistic Update (Immediate UI feedback)
+          let optimisticBlocks = blocks.filter(b => b.id !== draggedBlock.id);
           
-          await fetchBlocks();
-        } catch (err) {
-          console.error('Error moving block:', err);
-          alert('Erreur lors du déplacement du bloc.');
-        } finally {
+          // Apply overlap operations locally
+          operations.forEach(op => {
+              if (op.type === 'DELETE') {
+                  optimisticBlocks = optimisticBlocks.filter(b => b.id !== op.id);
+              } else if (op.type === 'PATCH') {
+                  optimisticBlocks = optimisticBlocks.map(b => b.id === op.id ? { ...b, ...op.data } : b);
+              } else if (op.type === 'POST') {
+                  // Generate temp block
+                  optimisticBlocks.push({ ...op.data, id: `temp-${Date.now()}-${Math.random()}` });
+              }
+          });
+          
+          // Add dragged block back with new props
+          const updatedDraggedBlock = { 
+              ...draggedBlock, 
+              start_week_date: format(newStartDate, 'yyyy-MM-dd')
+          };
+          optimisticBlocks.push(updatedDraggedBlock);
+          
+          // Update state immediately
+          setBlocks(optimisticBlocks);
+          
+          // Clear drag state immediately so UI shows the optimistic state
           document.body.style.userSelect = '';
           document.body.style.cursor = '';
           setDraggedBlock(null);
           setDragStartWeek(null);
           setDragOffset(0);
+          setDragAnchorOffset(0);
+
+          // 3. Perform API Calls in background
+          const promises = operations.map(op => {
+              if (op.type === 'DELETE') return axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${op.id}`, { headers: { Authorization: `Bearer ${token}` } });
+              if (op.type === 'PATCH') return axios.patch(`${getApiBaseUrlWithApi()}/periodization/blocks/${op.id}`, op.data, { headers: { Authorization: `Bearer ${token}` } });
+              if (op.type === 'POST') return axios.post(`${getApiBaseUrlWithApi()}/periodization/blocks`, op.data, { headers: { Authorization: `Bearer ${token}` } });
+          });
+          
+          // Add main block update
+          promises.push(axios.patch(
+              `${getApiBaseUrlWithApi()}/periodization/blocks/${draggedBlock.id}`,
+              {
+                start_week_date: format(newStartDate, 'yyyy-MM-dd'),
+                duration: draggedBlock.duration,
+                name: draggedBlock.name,
+                tags: draggedBlock.tags ? draggedBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t) : []
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+          ));
+          
+          await Promise.all(promises);
+          
+          // 4. Sync with server (silent) to get real IDs and ensure consistency
+          await fetchBlocks(true);
+          
+        } catch (err) {
+          console.error('Error moving block:', err);
+          await fetchBlocks(true); // Revert to server state
+          alert('Erreur lors du déplacement du bloc.');
         }
       } else if (draggedBlock) {
         document.body.style.userSelect = '';
@@ -500,37 +578,61 @@ const PeriodizationTab = ({ studentId }) => {
         setDraggedBlock(null);
         setDragStartWeek(null);
         setDragOffset(0);
+        setDragAnchorOffset(0);
       } else if (resizingBlock && resizeType) {
+        // --- RESIZE END ---
         try {
           const token = localStorage.getItem('authToken');
-          let updatePayload = {
-            name: resizingBlock.name,
-            tags: resizingBlock.tags ? resizingBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t) : []
-          };
+          
+          // Calculate new parameters for resizing block
+          let newStartDateObj = startOfWeek(new Date(resizingBlock.start_week_date), { weekStartsOn: 1 });
+          let newDurationVal = parseInt(resizingBlock.duration, 10);
 
           if (resizeType === 'end') {
-            const originalBlock = blocks.find(b => b.id === resizingBlock.id);
-            if (originalBlock) {
-              updatePayload.start_week_date = format(new Date(originalBlock.start_week_date), 'yyyy-MM-dd');
-              updatePayload.duration = Math.max(1, resizingBlock.duration);
-            }
+             const originalBlock = blocks.find(b => b.id === resizingBlock.id);
+             if (originalBlock) {
+                newStartDateObj = startOfWeek(new Date(originalBlock.start_week_date), { weekStartsOn: 1 });
+                newDurationVal = Math.max(1, resizingBlock.duration);
+             }
           } else if (resizeType === 'start') {
-            const newStartDate = startOfWeek(new Date(resizingBlock.start_week_date), { weekStartsOn: 1 });
-            updatePayload.start_week_date = format(newStartDate, 'yyyy-MM-dd');
-            updatePayload.duration = Math.max(1, resizingBlock.duration);
+             newStartDateObj = startOfWeek(new Date(resizingBlock.start_week_date), { weekStartsOn: 1 });
+             newDurationVal = Math.max(1, resizingBlock.duration);
           }
 
-          await axios.patch(
-            `${getApiBaseUrlWithApi()}/periodization/blocks/${resizingBlock.id}`,
-            updatePayload,
-            { headers: { Authorization: `Bearer ${token}` } }
+          // 1. Calculate operations
+          const operations = calculateOverlapOperations(
+            resizingBlock,
+            newStartDateObj,
+            newDurationVal,
+            blocks
           );
-          
-          await fetchBlocks();
-        } catch (err) {
-          console.error('Error resizing block:', err);
-          alert('Erreur lors du redimensionnement du bloc.');
-        } finally {
+
+          // 2. Optimistic Update
+          let optimisticBlocks = blocks.filter(b => b.id !== resizingBlock.id);
+
+          // Apply overlap operations locally
+          operations.forEach(op => {
+              if (op.type === 'DELETE') {
+                  optimisticBlocks = optimisticBlocks.filter(b => b.id !== op.id);
+              } else if (op.type === 'PATCH') {
+                  optimisticBlocks = optimisticBlocks.map(b => b.id === op.id ? { ...b, ...op.data } : b);
+              } else if (op.type === 'POST') {
+                  optimisticBlocks.push({ ...op.data, id: `temp-${Date.now()}-${Math.random()}` });
+              }
+          });
+
+          // Add resized block back
+          const updatedResizingBlock = {
+              ...resizingBlock,
+              start_week_date: format(newStartDateObj, 'yyyy-MM-dd'),
+              duration: newDurationVal
+          };
+          optimisticBlocks.push(updatedResizingBlock);
+
+          // Update state immediately
+          setBlocks(optimisticBlocks);
+
+          // Clear resize state
           document.body.style.userSelect = '';
           document.body.style.cursor = '';
           setResizingBlock(null);
@@ -538,6 +640,36 @@ const PeriodizationTab = ({ studentId }) => {
           setResizeStartWeek(null);
           setResizeStartDuration(null);
           setIsResizeHandleActive(false);
+
+          // 3. Perform API Calls
+          const promises = operations.map(op => {
+              if (op.type === 'DELETE') return axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${op.id}`, { headers: { Authorization: `Bearer ${token}` } });
+              if (op.type === 'PATCH') return axios.patch(`${getApiBaseUrlWithApi()}/periodization/blocks/${op.id}`, op.data, { headers: { Authorization: `Bearer ${token}` } });
+              if (op.type === 'POST') return axios.post(`${getApiBaseUrlWithApi()}/periodization/blocks`, op.data, { headers: { Authorization: `Bearer ${token}` } });
+          });
+
+          // Update the resized block on server
+          let updatePayload = {
+            name: resizingBlock.name,
+            tags: resizingBlock.tags ? resizingBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t) : []
+          };
+          updatePayload.start_week_date = format(newStartDateObj, 'yyyy-MM-dd');
+          updatePayload.duration = newDurationVal;
+
+          promises.push(axios.patch(
+            `${getApiBaseUrlWithApi()}/periodization/blocks/${resizingBlock.id}`,
+            updatePayload,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ));
+
+          await Promise.all(promises);
+          
+          // 4. Sync with server
+          await fetchBlocks(true); 
+        } catch (err) {
+          console.error('Error resizing block:', err);
+          await fetchBlocks(true);
+          alert('Erreur lors du redimensionnement du bloc.');
         }
       }
     };
@@ -551,7 +683,7 @@ const PeriodizationTab = ({ studentId }) => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [draggedBlock, resizingBlock, dragStartWeek, dragOffset, resizeStartWeek, resizeType, resizeStartDuration, blocks]);
+  }, [draggedBlock, resizingBlock, dragStartWeek, dragOffset, dragAnchorOffset, resizeStartWeek, resizeType, resizeStartDuration, blocks]);
 
   // Navigation functions for year
   const changeYear = (direction) => {
@@ -590,6 +722,77 @@ const PeriodizationTab = ({ studentId }) => {
     });
     return numbers;
   }, [blocks]);
+
+  // Calculate first week of the year once
+  const firstWeekStart = useMemo(() => {
+    const jan4 = new Date(selectedYear, 0, 4);
+    return startOfWeek(jan4, { weekStartsOn: 1 });
+  }, [selectedYear]);
+
+  // Pre-calculate block map for the entire year (index -> block)
+  // This avoids expensive date calculations inside the render loop
+  const blockMap = useMemo(() => {
+    const map = new Array(WEEKS_TO_SHOW).fill(null);
+    
+    // 1. Fill with regular blocks first
+    blocks.forEach(block => {
+      // Skip if this block is being dragged or resized
+      if ((draggedBlock && block.id === draggedBlock.id) || 
+          (resizingBlock && block.id === resizingBlock.id)) {
+        return;
+      }
+      
+      const blockStart = new Date(block.start_week_date);
+      const normalizedBlockStart = startOfWeek(blockStart, { weekStartsOn: 1 });
+      const diffTime = normalizedBlockStart.getTime() - firstWeekStart.getTime();
+      const startIndex = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
+      const duration = parseInt(block.duration, 10);
+      
+      for (let i = 0; i < duration; i++) {
+        const index = startIndex + i;
+        if (index >= 0 && index < WEEKS_TO_SHOW) {
+          map[index] = block;
+        }
+      }
+    });
+
+    // 2. Overlay dragged block
+    if (draggedBlock && dragStartWeek) {
+      const diffTimeStart = dragStartWeek.getTime() - firstWeekStart.getTime();
+      const originalStartIndex = Math.round(diffTimeStart / (1000 * 60 * 60 * 24 * 7));
+      const newStartIndex = originalStartIndex + dragOffset;
+      const duration = parseInt(draggedBlock.duration, 10);
+      
+      // Calculate the dragged block with its temporary start date
+      const newStartDate = addWeeks(dragStartWeek, dragOffset);
+      const tempBlock = { ...draggedBlock, start_week_date: newStartDate.toISOString() };
+
+      for (let i = 0; i < duration; i++) {
+        const index = newStartIndex + i;
+        if (index >= 0 && index < WEEKS_TO_SHOW) {
+          map[index] = tempBlock;
+        }
+      }
+    }
+
+    // 3. Overlay resizing block
+    if (resizingBlock) {
+      const blockStart = new Date(resizingBlock.start_week_date);
+      const normalizedBlockStart = startOfWeek(blockStart, { weekStartsOn: 1 });
+      const diffTime = normalizedBlockStart.getTime() - firstWeekStart.getTime();
+      const startIndex = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
+      const duration = parseInt(resizingBlock.duration, 10);
+      
+      for (let i = 0; i < duration; i++) {
+        const index = startIndex + i;
+        if (index >= 0 && index < WEEKS_TO_SHOW) {
+          map[index] = resizingBlock;
+        }
+      }
+    }
+
+    return map;
+  }, [blocks, draggedBlock, dragStartWeek, dragOffset, resizingBlock, firstWeekStart, WEEKS_TO_SHOW]);
 
   return (
     <div className="h-full flex flex-col space-y-6 pt-0 pb-0 px-0">
@@ -686,70 +889,22 @@ const PeriodizationTab = ({ studentId }) => {
         <div className="flex-1 overflow-y-auto">
              <div className="grid gap-y-4 gap-x-2 periodization-grid">
                 {weeks.map((weekDate, index) => {
-                    // Find blocks active this week (use resizingBlock or draggedBlock if available for visual feedback)
+                    // Use pre-calculated block map for O(1) lookup
+                    const activeBlock = blockMap[index];
                     const normalizedWeekDate = startOfWeek(weekDate, { weekStartsOn: 1 });
-                    const activeBlock = (() => {
-                        // First check if resizingBlock applies to this week
-                        if (resizingBlock) {
-                            const resizingBlockStart = startOfWeek(new Date(resizingBlock.start_week_date), { weekStartsOn: 1 });
-                            const diffTime = normalizedWeekDate.getTime() - resizingBlockStart.getTime();
-                            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                            const duration = parseInt(resizingBlock.duration, 10);
-                            if (diffWeeks >= 0 && diffWeeks < duration) {
-                                return resizingBlock;
-                            }
-                        }
-                        // Check if draggedBlock applies to this week (with offset)
-                        if (draggedBlock && dragStartWeek) {
-                            const newBlockStart = addWeeks(dragStartWeek, dragOffset);
-                            const diffTime = normalizedWeekDate.getTime() - newBlockStart.getTime();
-                            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                            const duration = parseInt(draggedBlock.duration, 10);
-                            if (diffWeeks >= 0 && diffWeeks < duration) {
-                                return { ...draggedBlock, start_week_date: newBlockStart.toISOString() };
-                            }
-                        }
-                        // Otherwise check regular blocks (but exclude dragged/resizing blocks)
-                        return blocks.find(block => {
-                            // Skip if this block is being dragged or resized
-                            if ((draggedBlock && block.id === draggedBlock.id) || 
-                                (resizingBlock && block.id === resizingBlock.id)) {
-                                return false;
-                            }
-                            const blockStart = new Date(block.start_week_date);
-                            const normalizedBlockStart = startOfWeek(blockStart, { weekStartsOn: 1 });
-                            const diffTime = normalizedWeekDate.getTime() - normalizedBlockStart.getTime();
-                            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                            const duration = parseInt(block.duration, 10);
-                            return diffWeeks >= 0 && diffWeeks < duration;
-                        });
-                    })();
 
-                    // Check if previous week belongs to the same block (using activeBlock position)
-                    const prevWeekDate = index > 0 ? weeks[index - 1] : null;
-                    let hasPrevWeekSameBlock = false;
-                    if (activeBlock && prevWeekDate) {
-                        const prevWeekNormalized = startOfWeek(prevWeekDate, { weekStartsOn: 1 });
-                        const activeBlockStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
-                        const diffTime = prevWeekNormalized.getTime() - activeBlockStart.getTime();
-                        const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                        const duration = parseInt(activeBlock.duration, 10);
-                        // Check if previous week is within the block's range
-                        hasPrevWeekSameBlock = diffWeeks >= 0 && diffWeeks < duration;
-                    }
+                    // Check neighbors efficiently using the map
+                    const prevBlock = index > 0 ? blockMap[index - 1] : null;
+                    const nextBlock = index < WEEKS_TO_SHOW - 1 ? blockMap[index + 1] : null;
+                    
+                    const hasPrevWeekSameBlock = activeBlock && prevBlock && activeBlock.id === prevBlock.id;
+                    const hasNextWeekSameBlock = activeBlock && nextBlock && activeBlock.id === nextBlock.id;
 
-                    // Check if next week belongs to the same block (using activeBlock position)
-                    const nextWeekDate = index < weeks.length - 1 ? weeks[index + 1] : null;
-                    let hasNextWeekSameBlock = false;
-                    if (activeBlock && nextWeekDate) {
-                        const nextWeekNormalized = startOfWeek(nextWeekDate, { weekStartsOn: 1 });
-                        const activeBlockStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
-                        const diffTime = nextWeekNormalized.getTime() - activeBlockStart.getTime();
-                        const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-                        const duration = parseInt(activeBlock.duration, 10);
-                        // Check if next week is within the block's range
-                        hasNextWeekSameBlock = diffWeeks >= 0 && diffWeeks < duration;
-                    }
+                    // Calculate visual neighbors (taking grid wrapping into account)
+                    const isFirstCol = index % columns === 0;
+                    const isLastCol = (index + 1) % columns === 0;
+                    const isVisualPrevSame = hasPrevWeekSameBlock && !isFirstCol;
+                    const isVisualNextSame = hasNextWeekSameBlock && !isLastCol;
 
                     // Check if this week is in the past
                     const today = new Date();
@@ -757,15 +912,15 @@ const PeriodizationTab = ({ studentId }) => {
                     const isPastWeek = normalizedWeekDate.getTime() < currentWeekStart.getTime();
 
                     // Check if activeBlock extends to current week or beyond
+                    // We can check this efficiently without date math if we know where we are in the loop
+                    // But for visual opacity we still need to know if the *entire* block is past
                     let isBlockFullyPast = false;
                     if (activeBlock) {
                         const blockStart = new Date(activeBlock.start_week_date);
                         const normalizedBlockStart = startOfWeek(blockStart, { weekStartsOn: 1 });
                         const duration = parseInt(activeBlock.duration, 10);
-                        // Calculate the last week of the block
                         const blockLastWeek = addWeeks(normalizedBlockStart, duration - 1);
                         const normalizedBlockLastWeek = startOfWeek(blockLastWeek, { weekStartsOn: 1 });
-                        // Block is fully past if its last week is before the current week
                         isBlockFullyPast = normalizedBlockLastWeek.getTime() < currentWeekStart.getTime();
                     }
 
@@ -822,11 +977,8 @@ const PeriodizationTab = ({ studentId }) => {
                             };
                         }
 
-                        const blockStart = new Date(activeBlock.start_week_date);
-                        const normalizedBlockStart = startOfWeek(blockStart, { weekStartsOn: 1 });
-                        const normalizedWeekDate = startOfWeek(weekDate, { weekStartsOn: 1 });
                         // isStart: this is the first week of the block (no previous week in same block)
-                        const isStart = normalizedWeekDate.getTime() === normalizedBlockStart.getTime() && !hasPrevWeekSameBlock;
+                        const isStart = !hasPrevWeekSameBlock;
 
                         // Calculate border radius based on position in block
                         // First week: rounded left, last week: rounded right, middle: no rounding
@@ -834,13 +986,13 @@ const PeriodizationTab = ({ studentId }) => {
                         let borderRadius = '';
                         const radiusExtremity = '12px'; // 12px pour les coins des extrémités
                         
-                        if (hasPrevWeekSameBlock && hasNextWeekSameBlock) {
+                        if (isVisualPrevSame && isVisualNextSame) {
                             // Middle week: no rounding
                             borderRadius = '0';
-                        } else if (hasPrevWeekSameBlock) {
+                        } else if (isVisualPrevSame) {
                             // Last week: rounded right only
                             borderRadius = `0 ${radiusExtremity} ${radiusExtremity} 0`;
-                        } else if (hasNextWeekSameBlock) {
+                        } else if (isVisualNextSame) {
                             // First week: rounded left only
                             borderRadius = `${radiusExtremity} 0 0 ${radiusExtremity}`;
                         } else {
@@ -848,12 +1000,9 @@ const PeriodizationTab = ({ studentId }) => {
                             borderRadius = radiusExtremity;
                         }
                         
-                        // For desktop, we'll need to use a media query or inline style with CSS variables
-                        // For now, using mobile value, can be enhanced with CSS classes if needed
-
                         // Border style: remove left border if previous week is same block, remove right border if next week is same block
-                        const borderLeft = hasPrevWeekSameBlock ? 'none' : blockStyle.borderWidth;
-                        const borderRight = hasNextWeekSameBlock ? 'none' : blockStyle.borderWidth;
+                        const borderLeft = isVisualPrevSame ? 'none' : blockStyle.borderWidth;
+                        const borderRight = isVisualNextSame ? 'none' : blockStyle.borderWidth;
                         const borderTop = blockStyle.borderWidth;
                         const borderBottom = blockStyle.borderWidth;
 
@@ -889,15 +1038,6 @@ const PeriodizationTab = ({ studentId }) => {
                         const isDragging = draggedBlock && draggedBlock.id === activeBlock.id;
                         const isResizing = resizingBlock && resizingBlock.id === activeBlock.id;
                         
-                        // Calculate visual offset for dragging
-                        let visualOffset = 0;
-                        if (isDragging && dragStartWeek) {
-                            const currentBlockStart = startOfWeek(new Date(displayBlock.start_week_date), { weekStartsOn: 1 });
-                            const newBlockStart = addWeeks(dragStartWeek, dragOffset);
-                            const diffTime = newBlockStart.getTime() - currentBlockStart.getTime();
-                            visualOffset = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
-                        }
-
                         content = (
                             <div 
                                 className="h-full w-full relative group cursor-move min-h-[100px] flex flex-col transition-all shadow-sm"
@@ -976,7 +1116,7 @@ const PeriodizationTab = ({ studentId }) => {
                                     </div>
                                 )}
                                 {/* Fill gap to the right if next week is same block */}
-                                {hasNextWeekSameBlock && (
+                                {isVisualNextSame && (
                                     <div
                                         style={{
                                             position: 'absolute',
@@ -995,7 +1135,7 @@ const PeriodizationTab = ({ studentId }) => {
                                     />
                                 )}
                                 {/* Fill gap to the left if previous week is same block */}
-                                {hasPrevWeekSameBlock && (
+                                {isVisualPrevSame && (
                                     <div
                                         style={{
                                             position: 'absolute',
