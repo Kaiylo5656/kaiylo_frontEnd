@@ -293,7 +293,9 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
       }
       
       if (response.data.success) {
-        onSaved(response.data.data);
+        if (typeof onSaved === 'function') {
+          onSaved(response.data.data);
+        }
         // Reset and close
         setSelectedTags([]);
         setDuration(1);

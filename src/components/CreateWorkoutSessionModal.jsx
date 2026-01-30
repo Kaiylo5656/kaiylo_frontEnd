@@ -2059,8 +2059,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     </button>
                   </div>
 
-                  {searchTerm.trim() === '' && (
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                  {/* Exercise List */}
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
                       {filteredExercises.map(exercise => (
                         <div
                           key={exercise.id}
@@ -2099,7 +2099,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         </div>
                       )}
                     </div>
-                  )}
                 </div>
               </div>
             )}

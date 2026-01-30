@@ -3876,18 +3876,39 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     if (blocks && blocks.length > 0) {
                       const selectedWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
                       
-                      // Find the active block for the selected week
-                      const activeBlock = blocks.find(b => {
+                      // Find all active blocks for the selected week
+                      const matchingBlocks = blocks.filter(b => {
                         const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
                         const bEnd = addWeeks(bStart, b.duration);
                         return selectedWeekStart >= bStart && selectedWeekStart < bEnd;
                       });
                       
+                      // Sort matching blocks to pick the most relevant one (latest start date, then latest created)
+                      matchingBlocks.sort((a, b) => {
+                        const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                        if (dateDiff !== 0) return dateDiff;
+                        
+                        // Secondary sort by created_at to prefer newer blocks
+                        if (a.created_at && b.created_at) {
+                            return new Date(a.created_at) - new Date(b.created_at);
+                        }
+                        return String(a.id).localeCompare(String(b.id));
+                      });
+
+                      // Take the last one as the active block
+                      const activeBlock = matchingBlocks.length > 0 ? matchingBlocks[matchingBlocks.length - 1] : null;
+                      
                       if (activeBlock) {
                         // Calculate block number and total from blocks
-                        const sortedBlocks = [...blocks].sort(
-                          (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
-                        );
+                        const sortedBlocks = [...blocks].sort((a, b) => {
+                           const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                           if (dateDiff !== 0) return dateDiff;
+                           if (a.created_at && b.created_at) {
+                               return new Date(a.created_at) - new Date(b.created_at);
+                           }
+                           return String(a.id).localeCompare(String(b.id));
+                        });
+                        
                         const currentIndex = sortedBlocks.findIndex(b => b.id === activeBlock.id);
                         const displayBlockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
                         const displayTotalBlocks = sortedBlocks.length;
@@ -4140,12 +4161,25 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         if (!blocks || blocks.length === 0) return null;
                         
                         const currentWeekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
-                        // Find block logic
-                        const active = blocks.find(b => {
+                        // Find all active blocks for the selected week
+                        const matchingBlocks = blocks.filter(b => {
                             const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
                             const bEnd = addWeeks(bStart, b.duration);
                             return currentWeekStart >= bStart && currentWeekStart < bEnd;
                         });
+
+                        // Sort matching blocks to pick the most relevant one (latest start date, then latest created)
+                        matchingBlocks.sort((a, b) => {
+                            const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                            if (dateDiff !== 0) return dateDiff;
+                            if (a.created_at && b.created_at) {
+                                return new Date(a.created_at) - new Date(b.created_at);
+                            }
+                            return String(a.id).localeCompare(String(b.id));
+                        });
+
+                        // Take the last one as the active block
+                        const active = matchingBlocks.length > 0 ? matchingBlocks[matchingBlocks.length - 1] : null;
                         
                         if (active) {
                             const bStart = startOfWeek(new Date(active.start_week_date), { weekStartsOn: 1 });
@@ -4154,9 +4188,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             const currentWeekInBlock = weekDiff + 1;
                             const totalWeeksInBlock = active.duration;
                             // Calculate block number by sorting blocks by start date
-                            const sortedBlocks = [...blocks].sort(
-                              (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
-                            );
+                            const sortedBlocks = [...blocks].sort((a, b) => {
+                                const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                                if (dateDiff !== 0) return dateDiff;
+                                if (a.created_at && b.created_at) {
+                                    return new Date(a.created_at) - new Date(b.created_at);
+                                }
+                                return String(a.id).localeCompare(String(b.id));
+                            });
                             const currentIndex = sortedBlocks.findIndex(b => b.id === active.id);
                             const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
                             return (
@@ -6407,8 +6446,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         <CreateBlockModal
           isOpen={isCreateBlockModalOpen}
           onClose={() => setIsCreateBlockModalOpen(false)}
-          onCreated={() => setIsCreateBlockModalOpen(false)}
+          onSaved={() => {
+            fetchStudentDetails();
+            setIsCreateBlockModalOpen(false);
+          }}
           studentId={student.id}
+          existingBlocks={blocks}
+          initialDate={overviewWeekDate}
         />
       </div>
     </div>
