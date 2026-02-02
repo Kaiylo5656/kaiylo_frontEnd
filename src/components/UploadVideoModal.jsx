@@ -18,8 +18,8 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const { isTopMost } = useModalManager();
   const modalId = 'upload-video-modal';
 
-  // Maximum file size: 48MB (Supabase free tier 50MB limit with 2MB safety margin)
-  const MAX_FILE_SIZE = 48 * 1024 * 1024; // 48MB in bytes
+  // Maximum file size: 50GB (Upgraded plan)
+  const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50GB in bytes
 
   // Helper function to format file size
   const formatFileSize = (bytes) => {
@@ -43,7 +43,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     
     // Validate file size BEFORE setting state
     if (file.size > MAX_FILE_SIZE) {
-      setError(`❌ Vidéo trop volumineuse !\n\n📏 Taille maximale : 48 MB\n📦 Votre fichier : ${formatFileSize(file.size)}\n\n💡 Conseil : Utilisez une application de compression vidéo ou enregistrez en qualité réduite.`);
+      setError(`❌ Vidéo trop volumineuse !\n\n📏 Taille maximale : 50 GB\n📦 Votre fichier : ${formatFileSize(file.size)}\n\n💡 Conseil : Utilisez une application de compression vidéo ou enregistrez en qualité réduite.`);
       setVideoFile(null);
       return;
     }
@@ -246,7 +246,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
                 Sélectionner un fichier vidéo
               </span>
               <span className="text-xs font-extralight text-[rgba(255,255,255,0.5)]">
-                (formats: mp4, mov - max 300 Mo)
+                (formats: mp4, mov - max 50 GB)
               </span>
             </label>
           </div>

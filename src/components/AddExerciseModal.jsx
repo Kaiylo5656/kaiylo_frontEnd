@@ -111,10 +111,10 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         return;
       }
 
-      // Validate file size (300MB max)
-      const maxSize = 300 * 1024 * 1024; // 300MB in bytes
+      // Validate file size (50GB max)
+      const maxSize = 50 * 1024 * 1024 * 1024; // 50GB in bytes
       if (file.size > maxSize) {
-        setVideoError('File size must be less than 300MB');
+        setVideoError('File size must be less than 50GB');
         return;
       }
 
@@ -374,7 +374,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
                     Sélectionner un fichier vidéo
                   </span>
                   <span className="text-xs font-extralight text-[rgba(255,255,255,0.5)]">
-                    (formats: mp4, mov - max 300 Mo)
+                    (formats: mp4, mov - max 50GB)
                   </span>
                 </label>
               </div>

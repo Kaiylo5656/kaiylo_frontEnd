@@ -11,11 +11,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
 
-  // Maximum file size: 48MB (Supabase free tier 50MB limit with 2MB safety margin)
-  // But with TUS we can theoretically handle larger files, check project config.
-  // Keeping 48MB limit warning for now, or relax it if TUS handles it well.
-  // Relaxing to 500MB for TUS if backend allows it.
-  const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+  // Maximum file size: 50GB (Upgraded plan)
+  const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50GB
 
   // Initialize with existing video data when modal opens
   useEffect(() => {
@@ -155,7 +152,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       const file = e.target.files[0];
       if (file) {
         if (file.size > MAX_FILE_SIZE) {
-          alert(`❌ Vidéo trop volumineuse ! (Max ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
+          alert(`❌ Vidéo trop volumineuse ! (Max ${MAX_FILE_SIZE / 1024 / 1024 / 1024}GB)`);
           return;
         }
         setVideoFile(file);

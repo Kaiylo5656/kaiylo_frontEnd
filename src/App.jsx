@@ -28,6 +28,7 @@ import StudentChatPage from './pages/StudentChatPage';
 import VideoLibrary from './pages/VideoLibrary';
 import StudentVideoLibrary from './pages/StudentVideoLibrary';
 import FinancialTracking from './pages/FinancialTracking';
+import LandingPage from './pages/LandingPage';
 
 import './App.css';
 
@@ -130,6 +131,7 @@ function App() {
           <div className="App">
             <Routes>
             {/* Public Routes */}
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/register/student" element={<StudentRegisterPage />} />
