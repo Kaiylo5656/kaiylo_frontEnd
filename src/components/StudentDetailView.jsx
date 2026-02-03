@@ -1743,9 +1743,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
-  const fetchStudentDetails = async () => {
+  const fetchStudentDetails = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = localStorage.getItem('authToken');
       
       // Fetch student details
@@ -1817,7 +1817,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } catch (error) {
       console.error('Error fetching student details:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -5579,7 +5579,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         )}
 
         {activeTab === 'periodization' && (
-          <PeriodizationTab studentId={student?.id} />
+          <PeriodizationTab studentId={student?.id} onUpdate={() => fetchStudentDetails(true)} />
         )}
 
         {activeTab === 'analyse' && (
