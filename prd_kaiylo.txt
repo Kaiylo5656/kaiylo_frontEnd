@@ -1,0 +1,128 @@
+<context>
+# Overview
+Kaiylo is a premium all‑in‑one coaching platform for Streetlifting and Powerlifting. It replaces today’s fragmented workflow (spreadsheets for programming, WhatsApp for chat, cloud drives for videos) with a single product that saves time and scales coaching businesses.
+
+**Audience & positioning**
+- Coaches manage 10–50 students and need professional tooling to scale.
+- Students want a clear plan, fast logging, and easy feedback.
+- **Platform focus:** Coach = desktop‑first. Student = mobile‑first.
+
+# Core Features
+1) **Student Interface**
+   - What: Weekly plan, session details, per‑set logging (success/fail/skip), RPE entry, video upload, session completion.
+   - Why: Completes the end‑to‑end loop between program and feedback.
+   - How (high level): React PWA UI + Supabase auth/storage + REST API.
+
+2) **Video Management**
+   - What: Upload, store, watch, and comment on training videos; link videos to exercises/sets.
+   - Why: Asynchronous form checks, objective feedback, and history.
+   - How: Supabase Storage, metadata in Postgres, player in app.
+
+3) **Messaging**
+   - What: 1‑to‑1 coach–student chat with text and video attachments, inline from student profile/session.
+   - Why: Replace external messengers; centralize context.
+   - How: Realtime DB/subscriptions (Supabase), message threads per pair.
+
+4) **Payments (Stripe)**
+   - What: Accept payments; track status; show revenue to coach.
+   - Why: Monetization and student lifecycle in one place.
+   - How: Stripe Checkout/Customer Portal; webhook → payment events.
+
+5) **Progress Tracking**
+   - What: Completion rates, RPE trends, history and simple analytics on coach dashboard.
+   - Why: Show outcomes, drive retention, spot issues.
+   - How: Aggregations over session_completions + cached metrics.
+
+# User Experience
+**Personas**
+- Coach “Alex”: full‑time coach, time‑poor, wants scale and professionalism.
+- Student “Marie”: intermediate lifter, mobile‑first, values clarity and feedback.
+
+**Key flows**
+- Coach onboarding → invite student
+- Student onboarding via invite → profile
+- Coach creates/assigns session(s)
+- Student completes session (log sets, RPE, upload video) → coach review
+- Ongoing chat, payments, progress view
+
+**UI constraints**
+- Apple‑like, dark, minimal; clear hierarchy; fast single‑click actions.
+- Notifications for unread chat, pending reviews, and payment issues.
+</context>
+
+<PRD>
+# Technical Architecture
+**Frontend**: React (Vite + TypeScript), Tailwind, PWA.  
+**Backend**: Node.js (Express) REST API.  
+**Database**: Postgres (Supabase).  
+**Auth**: Supabase Auth (JWT, roles Coach/Student).  
+**Storage**: Supabase Storage for videos.  
+**Payments**: Stripe (Checkout/Portal), no card data stored on Kaiylo.
+
+**Core Data Models**
+- users, exercises, workout_sessions, assigned_sessions,
+- session_completions (per‑set: status, RPE, notes, video refs),
+- videos (owner, url, exercise_id, session_id, set_index),
+- messages (thread_id, sender_id, body, attachments),
+- payments (student_id, status, amount, stripe_ids),
+- coach_students (coach_id, student_id), invitations.
+
+# Development Roadmap
+## MVP Requirements (must‑have)
+1. Student Interface (calendar, session view, set logging, RPE, upload, complete)
+2. Video Management (upload, link to set/exercise, watch, delete)
+3. Messaging (1‑to‑1, text + video attachments, unread indicators)
+4. Payments (Stripe Checkout + webhooks, payment status on coach view)
+5. Progress Tracking (completion %, recent RPE trend, last 7/30‑day activity)
+6. Coach basics (invite student, manage roster, assign sessions)
+
+## Nice‑to‑have (post‑MVP)
+- Advanced analytics, templates, mobile apps, calendar integrations, community features.
+
+# Logical Dependency Chain
+1. Foundation: Auth, roles, base schema, exercise library, coach roster.
+2. Student Interface: calendar → session detail → per‑set logging.
+3. Video Uploads: attach to set; metadata + storage + player.
+4. Coach Review UI: per‑session review, comments; link to chat.
+5. Messaging: realtime threads; notifications.
+6. Payments: Stripe integration + payment status surfaces.
+7. Progress widgets: simple aggregates on coach dashboard.
+
+# Acceptance Criteria (per module)
+**Student Interface**
+- Can view current week sessions and open a session.
+- Can log each set with status (success/fail/skip) and RPE (0–10).
+- Can upload video per set and at session end; see upload progress.
+- Can mark session complete and see success toast + recap.
+
+**Video Management**
+- Uploads persist (metadata + file). Playback works on mobile/desktop.
+- Each video is linked to user + session + exercise + optional set_index.
+- Coach can comment on a video; student sees it in chat.
+- Coach/student can delete own video; soft‑delete retained in DB.
+
+**Messaging**
+- 1‑to‑1 threads auto‑created per coach–student pair.
+- Text + video attachment messages; unread badges and last‑message preview.
+- Realtime delivery; offline-safe queue (retry) on client.
+
+**Payments**
+- Coach can create a Stripe checkout link or portal link for a student.
+- Webhook events update payments.status (paid/past_due/canceled).
+- Coach dashboard shows current MRR/last payment per student.
+
+**Progress Tracking**
+- Completion % (7/30 days) and average RPE trend render within 200ms from cache.
+- Drill down from coach dashboard to student history.
+
+# Risks and Mitigations
+- Realtime complexity → use Supabase channels; keep payloads minimal.
+- Video cost/latency → limit max size per upload; transcode later (post‑MVP).
+- Scope creep → hard gate to MVP list; defer templates/advanced analytics.
+
+# Technical Specs
+- Mobile‑first for students; desktop‑first for coaches.
+- PWA installable; JWT auth; RBAC guards client + server.
+- Secure public/private buckets; signed URLs for video access.
+- Performance: P95 < 3s; video upload chunking; lazy loading.
+</PRD>
