@@ -1,5 +1,4 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@200;400;500;600;700&display=swap");
 
 /* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind base;
@@ -27,33 +26,33 @@
 
     --card: 240 6% 6%;
     --card-foreground: 0 0% 98%;
- 
+
     --popover: 240 6% 6%;
     --popover-foreground: 0 0% 98%;
- 
+
     --primary: 21 59% 59%;
     --primary-foreground: 0 0% 98%;
- 
+
     --secondary: 240 4% 20%;
     --secondary-foreground: 0 0% 98%;
- 
+
     --muted: 240 4% 20%;
     --muted-foreground: 240 5% 70%;
- 
+
     --accent: 240 4% 20%;
     --accent-foreground: 0 0% 98%;
- 
+
     --destructive: 0 63% 36%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 240 5% 24%;
     --input: 240 5% 24%;
     --ring: 21 59% 59%;
- 
+
     --radius: 0.5rem;
   }
 }
- 
+
 @layer base {
   * {
     /* stylelint-disable-next-line at-rule-no-unknown */
@@ -62,10 +61,17 @@
   body {
     /* stylelint-disable-next-line at-rule-no-unknown */
     @apply text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     background-color: rgba(5, 5, 5, 1);
-    background-image:
-      radial-gradient(ellipse 150% 100% at 50% -30%, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.1) 20%, rgba(100, 100, 100, 0.25) 40%, rgba(40, 40, 40, 0.5) 60%, rgba(12, 12, 12, 0.85) 80%, rgba(0, 0, 0, 1) 100%);
+    background-image: radial-gradient(
+      ellipse 150% 100% at 50% -30%,
+      rgba(255, 255, 255, 0.25) 0%,
+      rgba(255, 255, 255, 0.1) 20%,
+      rgba(100, 100, 100, 0.25) 40%,
+      rgba(40, 40, 40, 0.5) 60%,
+      rgba(12, 12, 12, 0.85) 80%,
+      rgba(0, 0, 0, 1) 100%
+    );
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
@@ -75,7 +81,12 @@
     content: "";
     position: fixed;
     inset: 0;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 0%, transparent 50%, rgba(0, 0, 0, 0.55) 100%);
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08) 0%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
     filter: blur(150px);
     opacity: 0.8;
     pointer-events: none;
@@ -205,7 +216,7 @@
       top: -40vh;
       height: 60vh;
     }
-    
+
     .angular-gradient-cone::before,
     .angular-gradient-cone::after {
       opacity: 1.3;
@@ -218,7 +229,7 @@
       top: -30vh;
       height: 50vh;
     }
-    
+
     .angular-gradient-cone::before,
     .angular-gradient-cone::after {
       opacity: 1.5;
@@ -228,12 +239,12 @@
 
   .angular-gradient-cone::before,
   .angular-gradient-cone::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     height: 100%;
     animation: brightnessPulse 10s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    background: 
+    background:
       radial-gradient(
         ellipse 120% 100% at 50% 0%,
         rgba(255, 255, 255, 1) 0%,
@@ -529,8 +540,16 @@
   .angular-gradient-cone::before {
     left: 0;
     width: 50%;
-    mask-image: linear-gradient(to right, black calc(100% - 3px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 3px), transparent 100%);
+    mask-image: linear-gradient(
+      to right,
+      black calc(100% - 3px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      black calc(100% - 3px),
+      transparent 100%
+    );
     animation: brightnessPulse 10s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
@@ -539,8 +558,16 @@
     left: 50%;
     width: 50%;
     transform: scaleX(-1);
-    mask-image: linear-gradient(to left, black calc(100% - 3px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to left, black calc(100% - 3px), transparent 100%);
+    mask-image: linear-gradient(
+      to left,
+      black calc(100% - 3px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to left,
+      black calc(100% - 3px),
+      transparent 100%
+    );
     animation: brightnessPulse 10s cubic-bezier(0.4, 0, 0.6, 1) infinite 1.5s;
   }
 
@@ -670,7 +697,7 @@
   /* Note importante: Les popups des menus déroulants natifs sont contrôlés par le système d'exploitation */
   /* Le CSS a des limitations pour styliser ces popups directement */
   /* color-scheme: dark aide mais ne garantit pas une bordure noire */
-  
+
   /* Pour forcer le mode sombre sur tous les éléments select */
   select {
     color-scheme: dark;
@@ -818,13 +845,13 @@
 
 /* Dropdown menu items hover - ensure text children inherit orange color and font-weight */
 [data-radix-collection-item]:hover {
-  color: #D48459;
+  color: #d48459;
   font-weight: 400;
 }
 
 [data-radix-collection-item]:hover span,
 [data-radix-collection-item]:hover > *:not(svg):not([class*="absolute"]) {
-  color: #D48459;
+  color: #d48459;
   font-weight: 400;
 }
 
@@ -970,24 +997,23 @@ input:autofill {
   display: inline-block;
 }
 
-  .tab-button-fixed-width::before {
-    content: attr(data-text);
-    font-weight: 400;
-    visibility: hidden;
-    display: block;
-    height: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: 0.875rem; /* text-sm */
-    line-height: 1.25rem;
-    padding: 0;
-    margin: 0;
-  }
+.tab-button-fixed-width::before {
+  content: attr(data-text);
+  font-weight: 400;
+  visibility: hidden;
+  display: block;
+  height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.25rem;
+  padding: 0;
+  margin: 0;
+}
 
 /* Grid for 52 weeks of the year - 8 columns on large screens */
 .periodization-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: start;
 }
 
 @media (min-width: 768px) {

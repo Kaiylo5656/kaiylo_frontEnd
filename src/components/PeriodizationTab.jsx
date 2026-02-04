@@ -10,7 +10,7 @@ import WeekNotesModal from './WeekNotesModal';
 import BaseModal from './ui/modal/BaseModal';
 import { useModalManager } from './ui/modal/ModalManager';
 
-const PeriodizationTab = ({ studentId }) => {
+const PeriodizationTab = ({ studentId, onUpdate }) => {
   const { isTopMost } = useModalManager();
   // Initialize to current year
   const [selectedYear, setSelectedYear] = useState(() => {
@@ -248,6 +248,7 @@ const PeriodizationTab = ({ studentId }) => {
 
   const handleBlockSaved = () => {
     fetchBlocks();
+    if (onUpdate) onUpdate();
     setIsCreateModalOpen(false);
     setBlockToEdit(null);
   };
@@ -302,6 +303,7 @@ const PeriodizationTab = ({ studentId }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBlocks(blocks.filter(b => b.id !== blockToDelete.id));
+      if (onUpdate) onUpdate();
       setIsDeleteModalOpen(false);
       setBlockToDelete(null);
     } catch (err) {
@@ -566,6 +568,7 @@ const PeriodizationTab = ({ studentId }) => {
           
           // 4. Sync with server (silent) to get real IDs and ensure consistency
           await fetchBlocks(true);
+          if (onUpdate) onUpdate();
           
         } catch (err) {
           console.error('Error moving block:', err);
@@ -666,6 +669,7 @@ const PeriodizationTab = ({ studentId }) => {
           
           // 4. Sync with server
           await fetchBlocks(true); 
+          if (onUpdate) onUpdate(); 
         } catch (err) {
           console.error('Error resizing block:', err);
           await fetchBlocks(true);
