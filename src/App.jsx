@@ -85,7 +85,7 @@ const ChatRouteWrapper = () => {
     return user?.role === 'coach' ? (
       <MainLayout>
         <div className="h-full flex items-center justify-center">
-          <div 
+          <div
             className="rounded-full border-2 border-transparent animate-spin"
             style={{
               borderTopColor: '#d4845a',
@@ -128,169 +128,169 @@ function App() {
       <PWAProvider>
         <ModalManagerProvider>
           <>
-          <div className="App">
-            <Routes>
-            {/* Public Routes */}
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/register/student" element={<StudentRegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/invite" element={<StudentInvitationPage />} />
-            <Route path="/auth/confirm-email" element={<ConfirmEmailPage />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/registration/success" element={<RegistrationSuccessPage />} />
-            <Route path="/onboarding" element={
-              <ProtectedRoute allowedRoles={['student']} excludeLayout={true}>
-                <OnboardingPage />
-              </ProtectedRoute>
-            } />
-            
-            {/* Protected Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Coach Routes */}
-            <Route 
-              path="/coach/dashboard" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <CoachDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/exercises" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <ExerciseManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/sessions" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <WorkoutSessionManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/assignments" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <WorkoutAssignmentManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/progress" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <CoachProgressDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/videotheque" 
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <VideoLibrary />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/coach/financial"
-              element={
-                <ProtectedRoute allowedRoles={['coach']}>
-                  <FinancialTracking />
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Student Routes */}
-            <Route 
-              path="/student/dashboard" 
-              element={
-                <ProtectedRoute allowedRoles={['student']}>
-                  <StudentDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/student/monthly" 
-              element={
-                <ProtectedRoute allowedRoles={['student']}>
-                  <StudentMonthlyView />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/student/history" 
-              element={
-                <ProtectedRoute allowedRoles={['student']}>
-                  <StudentHistoryPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/student/videos" 
-              element={
-                <ProtectedRoute allowedRoles={['student']}>
-                  <StudentVideoLibrary />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Admin Routes */}
-            <Route 
-              path="/admin/dashboard" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin/exercises" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <ExerciseManagement />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin/sessions" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <WorkoutSessionManagement />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Chat Route - Conditionally renders StudentChatPage for students, ChatPage for coaches */}
-            <Route 
-              path="/chat" 
-              element={
-                <ProtectedRoute allowedRoles={['coach', 'student']} excludeLayout={true}>
-                  <ChatRouteWrapper />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </div>
-      </>
+            <div className="App">
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/landing" element={<LandingPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/register/student" element={<StudentRegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/invite" element={<StudentInvitationPage />} />
+                <Route path="/auth/confirm-email" element={<ConfirmEmailPage />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/registration/success" element={<RegistrationSuccessPage />} />
+                <Route path="/onboarding" element={
+                  <ProtectedRoute allowedRoles={['student']} excludeLayout={true}>
+                    <OnboardingPage />
+                  </ProtectedRoute>
+                } />
+
+                {/* Protected Routes */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Coach Routes */}
+                <Route
+                  path="/coach/dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <CoachDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/exercises"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <ExerciseManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/sessions"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <WorkoutSessionManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/assignments"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <WorkoutAssignmentManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/progress"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <CoachProgressDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/videotheque"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <VideoLibrary />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/coach/financial"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach']}>
+                      <FinancialTracking />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Student Routes */}
+                <Route
+                  path="/student/dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['student']}>
+                      <StudentDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/student/monthly"
+                  element={
+                    <ProtectedRoute allowedRoles={['student']}>
+                      <StudentMonthlyView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/student/history"
+                  element={
+                    <ProtectedRoute allowedRoles={['student']}>
+                      <StudentHistoryPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/student/videos"
+                  element={
+                    <ProtectedRoute allowedRoles={['student']}>
+                      <StudentVideoLibrary />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Admin Routes */}
+                <Route
+                  path="/admin/dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/exercises"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <ExerciseManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/sessions"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <WorkoutSessionManagement />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Chat Route - Conditionally renders StudentChatPage for students, ChatPage for coaches */}
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute allowedRoles={['coach', 'student']} excludeLayout={true}>
+                      <ChatRouteWrapper />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Default redirect */}
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </div>
+          </>
         </ModalManagerProvider>
       </PWAProvider>
     </AuthProvider>
