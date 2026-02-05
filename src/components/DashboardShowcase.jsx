@@ -10,10 +10,10 @@ const DashboardShowcase = ({ isActive }) => {
 
 
     const views = [
-        "/Landingpage/Page DB.png",
-        "/Landingpage/page clients.png",
-        "/Landingpage/Page Entrainement.png",
-        "/Landingpage/Page Périodisation.png"
+        "/Landingpage/page-db.png",
+        "/Landingpage/page-clients.png",
+        "/Landingpage/page-entrainement.png",
+        "/Landingpage/page-periodisation.png"
     ];
 
     const nextSlide = () => {
