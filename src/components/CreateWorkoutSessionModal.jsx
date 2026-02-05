@@ -19,7 +19,7 @@ import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import { getApiBaseUrlWithApi } from '../config/api';
 import { getTagColor } from '../utils/tagColors';
 
-const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession }) => {
+const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession, onCopySession }) => {
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState([]);
@@ -704,6 +704,35 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     handleSubmit(e, 'published');
   };
 
+  /** Build session payload for copy (includes video requested per set for coach). */
+  const handleCopyFromModal = () => {
+    if (!onCopySession || exercises.length === 0) return;
+    const sessionForCopy = {
+      title: sessionName.trim() || `Séance du ${format(sessionDate, 'dd/MM/yyyy')}`,
+      description: description.trim(),
+      exercises: exercises.map(ex => ({
+        exerciseId: ex.exerciseId,
+        name: ex.name,
+        tags: ex.tags,
+        sets: ex.sets.map(set => ({
+          serie: set.serie,
+          weight: ex.useRir ? (parseFloat(set.weight) || 0) : (set.weight || ''),
+          reps: set.repType === 'hold' ? set.reps : (set.reps || ''),
+          rest: set.rest,
+          video: set.video === true || set.video === 1 || set.video === 'true', // coach asks for video (included in copy)
+          repType: set.repType || 'reps',
+          previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+        })),
+        notes: ex.notes,
+        tempo: ex.tempo,
+        per_side: ex.per_side || false,
+        useRir: ex.useRir || false
+      })),
+      status: existingSession?.status || 'published'
+    };
+    onCopySession(sessionForCopy, format(sessionDate, 'yyyy-MM-dd'));
+  };
+
   // Function to check if there are unsaved changes
   const hasUnsavedChanges = useCallback(() => {
     if (!initialState) return false;
@@ -1171,6 +1200,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
+                  {onCopySession && exercises.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCopyFromModal}
+                      className="px-3 py-2 text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
+                      aria-label="Copier la séance"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                        <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                      </svg>
+                      Copier
+                    </button>
+                  )}
                   <button
                     onClick={() => handleClose(false)}
                     className="text-white/50 hover:text-white transition-colors"

@@ -1441,13 +1441,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             // Clear the actual RPE rating for the new session
             rpe_rating: undefined,
             rpeRating: undefined,
-            // Clear student comments and video data
+            // Clear student comments and uploaded video data; keep coach "video requested" flag (set.video)
             feedback: undefined,
             comment: undefined,
             notes: undefined,
             student_comment: undefined,
             video_url: undefined,
-            video: undefined,
+            video: set.video, // preserve coach request for video (boolean)
             hasVideo: undefined,
             videoStatus: undefined
           })) : ex.sets.map(set => ({
@@ -6048,6 +6048,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           onSessionCreated={handleSessionCreated}
           studentId={student.id}
           existingSession={selectedSession}
+          onCopySession={(sessionForCopy, fromDate) => {
+            setCopiedSession({ session: sessionForCopy, fromDate });
+          }}
         />
 
         <WorkoutSessionDetailsModal
@@ -6055,6 +6058,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           onClose={() => setIsDetailsModalOpen(false)}
           session={selectedSession}
           selectedDate={selectedDate}
+          onCopySession={(sessionForCopy, fromDate) => {
+            setCopiedSession({ session: sessionForCopy, fromDate });
+          }}
         />
 
         <StudentProfileModal

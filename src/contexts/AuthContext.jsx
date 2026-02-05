@@ -117,6 +117,16 @@ export const AuthProvider = ({ children }) => {
       }
     }
     safeRemoveItem('supabaseRefreshToken');
+    // Ensure the main Supabase persistance token is also removed
+    safeRemoveItem('sb-auth-token');
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('sb-auth-token');
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+    
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setError(null);
@@ -125,7 +135,9 @@ export const AuthProvider = ({ children }) => {
     
     // Ne pas appeler signOut() si on est déjà déconnecté (évite la boucle)
     if (!skipSignOut) {
-      supabase.auth.signOut().finally(() => {
+      // Use await if possible, but since logout is not async in signature (to be safe with UI),
+      // we just fire and forget, but we CLEARED local tokens first so UI is safe.
+      supabase.auth.signOut().catch(err => console.error('SignOut error:', err)).finally(() => {
         isLoggingOutRef.current = false;
       });
     } else {
@@ -448,21 +460,22 @@ export const AuthProvider = ({ children }) => {
               tokenLength: session.access_token?.length
             });
             
-            // Si le backend retourne 401, le token Supabase est peut-être invalide
+            // Si le backend retourne 401, le token Supabase est invalide
             if (error.response?.status === 401) {
-              console.warn('⚠️ Supabase session token invalid with backend');
-              console.warn('⚠️ Token preview:', session.access_token?.substring(0, 50) + '...');
-              // Ne pas nettoyer immédiatement - peut-être que le backend a besoin de plus de temps
-              // ou que la vérification échoue pour une autre raison
-              // Essayer quand même d'utiliser les infos Supabase comme fallback
-              setUser({
-                id: session.user.id,
-                email: session.user.email,
-                name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || 'User',
-                role: session.user.user_metadata?.role || 'student'
-              });
-              console.log('✅ Using Supabase user metadata as fallback');
-              return; // Succès avec infos Supabase (backend peut être temporairement indisponible)
+              console.error('❌ Backend rejected token (401). Clearing session to prevent loop.');
+              
+              // Token invalide, on doit déconnecter l'utilisateur
+              safeRemoveItem('authToken');
+              safeRemoveItem('supabaseRefreshToken');
+              // On nettoie aussi le wrapper de session complet
+              safeRemoveItem('sb-auth-token');
+              if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('sb-auth-token');
+              }
+              
+              delete axios.defaults.headers.common['Authorization'];
+              setUser(null);
+              return; 
             } else {
               // Si le backend échoue pour une autre raison (timeout, réseau, etc.)
               console.error('Backend request failed (non-401):', error.message);
@@ -542,9 +555,21 @@ export const AuthProvider = ({ children }) => {
     // On ignore complètement SIGNED_OUT et INITIAL_SESSION car on gère la déconnexion manuellement
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Ignorer complètement les événements SIGNED_OUT et INITIAL_SESSION (on les gère manuellement)
-        if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+        // Ignorer INITIAL_SESSION
+        if (event === 'INITIAL_SESSION') {
           return;
+        }
+
+        // Handle SIGNED_OUT for multi-tab synchronization
+        if (event === 'SIGNED_OUT') {
+           console.log('🔄 Auth state changed: SIGNED_OUT');
+           // Si ce n'est pas nous qui avons initié la déconnexion (isLoggingOutRef est false),
+           // alors ça vient d'un autre onglet -> on doit se déconnecter localement
+           if (!isLoggingOutRef.current) {
+             console.log('🔄 Detected logout from another source, syncing local state...');
+             logout(true); // skipSignOut=true car déjà déconnecté côté Supabase
+           }
+           return;
         }
 
         // Handle PASSWORD_RECOVERY event specifically
