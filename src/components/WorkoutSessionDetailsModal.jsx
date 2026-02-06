@@ -5,7 +5,7 @@ import { X, PlayCircle, CheckCircle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { getTagColor } from '../utils/tagColors';
 
-const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) => {
+const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, onCopySession }) => {
   if (!session) return null;
 
   const getStatusIcon = (status) => {
@@ -63,11 +63,26 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate }) 
                   {getStatusText(session.status)}
                 </span>
               </div>
-              {session.startTime && (
-                <div className="text-sm text-gray-400">
-                  Début: {format(new Date(session.startTime), 'HH:mm')}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {onCopySession && session.exercises?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onCopySession(session, format(selectedDate, 'yyyy-MM-dd'))}
+                    className="px-3 py-2 text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
+                    aria-label="Copier la séance"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                      <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                    </svg>
+                    Copier
+                  </button>
+                )}
+                {session.startTime && (
+                  <div className="text-sm text-gray-400">
+                    Début: {format(new Date(session.startTime), 'HH:mm')}
+                  </div>
+                )}
+              </div>
             </div>
             
             {session.description && (

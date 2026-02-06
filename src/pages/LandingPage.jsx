@@ -58,7 +58,7 @@ const LandingPage = () => {
         {/* Logo en haut à gauche */}
         <div className="absolute top-6 left-6 md:top-8 md:left-8 z-20">
           <img
-            src="/Logo vectorisé icon + text.svg"
+            src="/logo-full.svg"
             alt="Kaiylo Logo"
             className="h-6 md:h-7 w-auto"
           />
