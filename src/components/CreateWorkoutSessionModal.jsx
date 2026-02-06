@@ -1319,10 +1319,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           e.stopPropagation();
                           const updatedExercises = [...exercises];
                           updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                          // Réinitialiser toutes les valeurs de poids à 0 (ou vide) lors du changement de mode
+                          // Réinitialiser toutes les valeurs de poids à 0 (ou vide) et previousRpe à null lors du changement de mode
                           updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
                             ...set,
-                            weight: ''
+                            weight: '',
+                            previousRpe: null // Réinitialiser previousRpe car la valeur précédente n'est plus valide dans le nouveau mode
                           }));
                           setExercises(updatedExercises);
                         }}

@@ -8,9 +8,9 @@ const BetaSignupSection = () => {
         {/* Text Side */}
         <div className="w-full max-w-[500px] flex flex-col gap-6 text-center">
           <h2 className="font-['Inter'] font-light text-[28px] md:text-[36px] text-white leading-[1.1]">
-            Fais partie des <span className="text-[#d4845a]">premiers</span> à coacher avec Kaiylo
+            Fais partie des <span className="text-[#d4845a]">premiers</span> à tester Kaiylo
           </h2>
-          <p className="font-['Inter'] font-extralight text-base md:text-[20px] text-white/50 leading-tight">
+          <p className="font-['Inter'] font-extralight text-sm md:text-base text-white/50 leading-tight">
             Laisse ton email, on t'envoie les accès à la bêta dès qu'elle est disponible.
           </p>
         </div>
