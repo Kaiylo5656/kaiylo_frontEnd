@@ -121,8 +121,8 @@ const LandingPage = () => {
           <h1
             className={`mb-12 font-['Inter'] font-light text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
-            Tu passes plus de temps à <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">organiser</span><br />
-            qu'à coacher ?
+            Enfin un outil professionnel pour<br />
+            coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span>
           </h1>
 
           {/* Subtext */}
@@ -130,7 +130,7 @@ const LandingPage = () => {
             className={`mb-12 font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ opacity: 1 }}
           >
-            Kaiylo centralise tout ce dont tu as besoin pour coacher tes élèves en <strong className="text-[#D4845A] font-medium" style={{ opacity: 1 }}>streetlifting</strong> : programmes, feedbacks vidéos, suivi de progression.
+            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi. Passe moins de temps à gérer, plus de temps à coacher.
           </p>
 
           {/* CTA Section */}

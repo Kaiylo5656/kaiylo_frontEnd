@@ -81,6 +81,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
+  const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5 or 8
 
   // Video analysis state
   const [studentVideos, setStudentVideos] = useState([]);
@@ -2975,16 +2976,36 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const hasMultipleSessions = sessions.length > 1;
     const hasMoreThanTwoSessions = sessions.length > 2;
 
+    // Calculate dynamic height based on visible exercises count
+    // Base height: ~100px (header + padding + footer)
+    // Each exercise: ~20px + gap: ~6px
+    const calculateContainerHeight = () => {
+      if (hasMoreThanTwoSessions) {
+        return '280px'; // Keep fixed height for multiple sessions with scroll
+      }
+      // For single session, calculate based on visible exercises
+      const baseHeight = 100; // Header, padding, footer
+      const exerciseHeight = 20; // Height per exercise line
+      const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
+      const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
+      const totalHeight = baseHeight + exercisesHeight;
+      // Add some margin for comfort, minimum 240px for 5 exercises, 300px for 8 exercises
+      const minHeight = visibleExercisesCount === 5 ? 240 : 300;
+      return `${Math.max(totalHeight, minHeight)}px`;
+    };
+
+    const containerHeight = calculateContainerHeight();
+
     const sessionList = sessions.length > 0 ? (
       <div
         className={`session-container flex flex-col gap-2 transition-all duration-300 ease-out relative`}
         style={{
-          height: '280px',
+          height: containerHeight,
           overflowY: hasMoreThanTwoSessions ? 'auto' : 'hidden',
           backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
           borderRadius: '0.75rem',
           padding: isDropTarget ? '4px' : '0',
-          transition: 'background-color 0.2s ease-out, padding 0.2s ease-out'
+          transition: 'background-color 0.2s ease-out, padding 0.2s ease-out, height 0.3s ease-out'
         }}
       >
         {sessions.map((session, sessionIndex) => {
@@ -3141,7 +3162,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     <div className="border-b border-white/10 mb-2"></div>
 
                     <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
-                      {exercises.slice(0, 7).map((exercise, index) => {
+                      {exercises.slice(0, visibleExercisesCount).map((exercise, index) => {
                         // Déterminer la couleur du nombre de séries basée sur les statuts de validation
                         const getSetsColor = () => {
                           // Seulement pour les séances terminées
@@ -3177,9 +3198,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           </div>
                         );
                       })}
-                      {exercises.length > 7 && (
+                      {exercises.length > visibleExercisesCount && (
                         <div className="text-[11px] text-white/50 font-extralight">
-                          + {exercises.length - 7} exercice{(exercises.length - 7) > 1 ? 's' : ''}
+                          + {exercises.length - visibleExercisesCount} exercice{(exercises.length - visibleExercisesCount) > 1 ? 's' : ''}
                         </div>
                       )}
                     </div>
@@ -4214,6 +4235,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             })()}
                           </span>
                         </div>
+                        {/* Toggle exercises view button - aligned to right */}
+                        <div className="flex items-center justify-end ml-auto">
+                          <button
+                            onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : 5)}
+                            className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm"
+                            style={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              color: 'rgba(250, 250, 250, 0.5)',
+                              fontWeight: '400'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                              e.currentTarget.style.color = '#D48459';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                            title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : 'Afficher 5 exercices'}
+                          >
+                            {visibleExercisesCount === 5 ? '5 exercices' : '8 exercices'}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Week Navigation with Day Labels */}
@@ -4247,16 +4293,49 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           const isToday = dayKey === format(new Date(), 'yyyy-MM-dd');
                           const isDropTarget = dragOverDate === dayKey;
 
+                          // Calculate minimum height for the day container based on visible exercises
+                          const calculateDayMinHeight = () => {
+                            const dateHeaderHeight = 30; // Date header height
+                            const paddingHeight = 8; // Top and bottom padding (pt-1 pb-2)
+                            const baseHeight = dateHeaderHeight + paddingHeight;
+                            
+                            // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
+                            // Base height: ~100px (header + padding + footer)
+                            // Each exercise: ~20px + gap: ~6px
+                            const sessionBaseHeight = 100; // Header, padding, footer
+                            const exerciseHeight = 20; // Height per exercise line
+                            const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
+                            const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
+                            const sessionHeight = sessionBaseHeight + exercisesHeight;
+                            
+                            // When in 5 exercises view, use the calculated height (minimum 240px for session)
+                            // When in 8 exercises view, keep minimum 300px
+                            const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
+                            const totalHeight = baseHeight + minSessionHeight;
+                            
+                            return totalHeight;
+                          };
+
+                          const dayMinHeight = calculateDayMinHeight();
+                          // In 5 exercises view, use height instead of minHeight to match child container height exactly
+                          const useFixedHeight = visibleExercisesCount === 5;
+                          const dayStyle = {
+                            backgroundColor: copiedSession && hoveredPasteDate === dayKey ? 'rgba(212, 132, 90, 0.08)' : 'unset',
+                            border: 'none',
+                            width: '100%',
+                            transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s ease-out, height 0.3s ease-out'
+                          };
+                          if (useFixedHeight) {
+                            dayStyle.height = `${dayMinHeight}px`;
+                          } else {
+                            dayStyle.minHeight = `${dayMinHeight}px`;
+                          }
+
                           return (
                             <div
                               key={day}
-                              className="rounded-xl px-1 pt-1 pb-2 cursor-pointer transition-all duration-300 relative group min-h-[320px] overflow-hidden"
-                              style={{
-                                backgroundColor: copiedSession && hoveredPasteDate === dayKey ? 'rgba(212, 132, 90, 0.08)' : 'unset',
-                                border: 'none',
-                                width: '100%',
-                                transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                              }}
+                              className="rounded-xl px-1 pt-1 pb-2 cursor-pointer transition-all duration-300 relative group overflow-hidden"
+                              style={dayStyle}
                               onClick={() => handleDayClick(dayDate)}
                               onDragOver={(event) => handleDayDragOver(event, dayDate)}
                               onDragEnter={(event) => handleDayDragOver(event, dayDate)}
@@ -5093,16 +5172,60 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                                   const isDropTarget = dragOverDate === dateKey;
 
+                                  // Calculate dynamic height for detailed view based on visible exercises count
+                                  const calculateTrainingDayHeight = () => {
+                                    if (!isDetailedView) {
+                                      return null; // Use fixed height h-[142px] for non-detailed view
+                                    }
+                                    
+                                    const dateHeaderHeight = 30; // Date header height
+                                    const paddingHeight = 12; // Top and bottom padding (p-1.5 md:p-2)
+                                    const baseHeight = dateHeaderHeight + paddingHeight;
+                                    
+                                    // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
+                                    // Base height: ~100px (header + padding + footer)
+                                    // Each exercise: ~20px + gap: ~6px
+                                    const sessionBaseHeight = 100; // Header, padding, footer
+                                    const exerciseHeight = 20; // Height per exercise line
+                                    const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
+                                    const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
+                                    const sessionHeight = sessionBaseHeight + exercisesHeight;
+                                    
+                                    // When in 5 exercises view, use the calculated height (minimum 240px for session)
+                                    // When in 8 exercises view, keep minimum 300px
+                                    const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
+                                    const totalHeight = baseHeight + minSessionHeight;
+                                    
+                                    return totalHeight;
+                                  };
+
+                                  const trainingDayHeight = calculateTrainingDayHeight();
+                                  // In 5 exercises view with detailed view, use height instead of minHeight to match child container height exactly
+                                  const useFixedHeight = isDetailedView && visibleExercisesCount === 5;
+                                  
+                                  const trainingDayStyle = {
+                                    backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)',
+                                    transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s ease-out, height 0.3s ease-out'
+                                  };
+                                  
+                                  if (isDetailedView && trainingDayHeight !== null) {
+                                    if (useFixedHeight) {
+                                      trainingDayStyle.height = `${trainingDayHeight}px`;
+                                    } else {
+                                      trainingDayStyle.minHeight = `${trainingDayHeight}px`;
+                                    }
+                                  }
+
                                   return (
                                     <div
                                       key={dateKey}
-                                      className={`bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col transition-all duration-300 relative group cursor-pointer ${isDetailedView
+                                      className={`bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col transition-all duration-300 relative group cursor-pointer ${isDetailedView && trainingDayHeight === null
                                         ? 'min-h-[260px]'
-                                        : 'h-[142px]'
+                                        : !isDetailedView
+                                        ? 'h-[142px]'
+                                        : ''
                                         }`}
-                                      style={{
-                                        backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)'
-                                      }}
+                                      style={trainingDayStyle}
                                       onClick={() => handleDayClick(day)}
                                       onDragOver={(e) => handleDayDragOver(e, day)}
                                       onDragEnter={(e) => handleDayDragOver(e, day)}
