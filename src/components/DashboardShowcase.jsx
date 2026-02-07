@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -7,7 +7,9 @@ const DashboardShowcase = ({ isActive }) => {
     const containerRef = useRef(null);
     const [currentIndex, setCurrentIndex] = useState(0);
 
-
+    // Manual scroll progress tracking (avoids useScroll warning)
+    const scrollProgress = useMotionValue(0);
+    const smoothProgress = useSpring(scrollProgress, { stiffness: 100, damping: 30 });
 
     const views = [
         "/Landingpage/page-db.png",
@@ -33,21 +35,60 @@ const DashboardShowcase = ({ isActive }) => {
         return () => clearInterval(timer);
     }, [views.length]);
 
+    // Custom scroll tracking that avoids the "static position" warning
+    useEffect(() => {
+        const handleScroll = () => {
+            if (!containerRef.current) return;
+            
+            const rect = containerRef.current.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            
+            // Calculate progress: 0 when element enters viewport, 1 when it leaves
+            // "start end" to "end start" offset
+            const start = windowHeight; // Element top at viewport bottom
+            const end = -rect.height; // Element bottom at viewport top
+            const current = rect.top;
+            
+            const progress = Math.max(0, Math.min(1, (start - current) / (start - end)));
+            scrollProgress.set(progress);
+        };
 
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll(); // Initial calculation
 
-    const { scrollYProgress } = useScroll({
-        target: containerRef,
-        offset: ["start end", "end start"]
-    });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [scrollProgress]);
 
     // Tilt effect: Strong symmetric tilt for "upward and downward" motion
-    const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [40, 0, -40]);
+    // Map 0-1 progress to rotation: 40 -> 0 -> -40
+    const rotateX = useSpring(
+        useMotionValue(0),
+        { stiffness: 100, damping: 30 }
+    );
+    
+    const scale = useSpring(
+        useMotionValue(1),
+        { stiffness: 100, damping: 30 }
+    );
 
-    const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.8, 1, 0.8]);
+    // Update transforms based on scroll progress
+    useEffect(() => {
+        const unsubscribe = smoothProgress.on('change', (v) => {
+            // rotateX: 40 at 0, 0 at 0.5, -40 at 1
+            const newRotateX = 40 - (v * 80);
+            rotateX.set(newRotateX);
+            
+            // scale: 0.8 at 0, 1 at 0.5, 0.8 at 1
+            const newScale = 0.8 + (0.2 * (1 - Math.abs(v - 0.5) * 2));
+            scale.set(newScale);
+        });
+
+        return () => unsubscribe();
+    }, [smoothProgress, rotateX, scale]);
 
     return (
-        <section ref={containerRef} className="relative z-10 w-full py-20 min-h-screen flex flex-col items-center justify-center perspective-1000">
-
+        <section ref={containerRef} className="relative z-10 w-full py-20 min-h-screen flex flex-col items-center justify-center perspective-1000 overflow-hidden">
+            
             {/* Background Glow for this section - Accentuated */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[600px] bg-[#d4845a]/30 blur-[140px] rounded-full -z-10" />
 

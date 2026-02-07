@@ -1,12 +1,37 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import DashboardShowcase from '../components/DashboardShowcase';
 import BorderBeam from '../components/ui/BorderBeam';
 import DashboardCoachCard from '../components/DashboardCoachCard';
 import BetaSignupSection from '../components/BetaSignupSection';
+import axios from 'axios';
+import { getApiBaseUrlWithApi } from '../config/api';
 
 const LandingPage = () => {
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [isEmailFocused, setIsEmailFocused] = React.useState(false);
+  
+  // Hero waitlist state
+  const [heroEmail, setHeroEmail] = useState('');
+  const [heroStatus, setHeroStatus] = useState('idle'); // idle, loading, success, error
+  const [heroMessage, setHeroMessage] = useState('');
+
+  const handleHeroSubmit = async (e) => {
+    e.preventDefault();
+    if (!heroEmail) return;
+
+    setHeroStatus('loading');
+    try {
+      const apiUrl = `${getApiBaseUrlWithApi()}/waitlist`;
+      await axios.post(apiUrl, { email: heroEmail });
+      
+      setHeroStatus('success');
+      setHeroMessage("Merci ! Tu es bien inscrit sur la liste d'attente.");
+      setHeroEmail('');
+    } catch (error) {
+      setHeroStatus('error');
+      setHeroMessage(error.response?.data?.message || "Une erreur est survenue.");
+    }
+  };
 
   useEffect(() => {
     setIsLoaded(true);
@@ -64,6 +89,22 @@ const LandingPage = () => {
           />
         </div>
 
+        {/* Login Button en haut à droite */}
+        <div className="absolute top-6 right-6 md:top-8 md:right-8 z-20">
+          <a
+            href="/login"
+            className="flex items-center justify-center px-4 py-2 text-sm font-light text-white transition-all duration-300 hover:bg-white/5 active:scale-95"
+            style={{
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(10px)'
+            }}
+          >
+            Se connecter
+          </a>
+        </div>
+
         {/* Hero Content Wrapper */}
         <div className="flex flex-col items-center text-center max-w-[1000px] mx-auto">
 
@@ -96,41 +137,57 @@ const LandingPage = () => {
           <div
             className={`w-full max-w-md transition-all duration-1000 ease-out delay-500 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
-            {/* Input with integrated button */}
-            <div className="relative w-full group">
-              <input
-                type="email"
-                placeholder="Ton email"
-                onFocus={() => setIsEmailFocused(true)}
-                onClick={() => setIsEmailFocused(true)}
-                className="w-full h-12 bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
-              />
-              {/* Button */}
-              <button
-                onClick={() => setIsEmailFocused(true)}
-                className="absolute right-0 top-0 bottom-0 h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100"
-              >
-                <span className="relative z-10 font-normal">Rejoins la liste</span>
-                <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
-              </button>
+            {heroStatus === 'success' ? (
+              <div className="text-center mb-4 text-[#D4845A] font-light">
+                {heroMessage}
+              </div>
+            ) : (
+              <form onSubmit={handleHeroSubmit} className="relative w-full group">
+                <input
+                  type="email"
+                  placeholder="Ton email"
+                  value={heroEmail}
+                  onChange={(e) => setHeroEmail(e.target.value)}
+                  onFocus={() => setIsEmailFocused(true)}
+                  onClick={() => setIsEmailFocused(true)}
+                  className="w-full h-12 bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
+                  required
+                />
+                {/* Button */}
+                <button
+                  type="submit"
+                  disabled={heroStatus === 'loading'}
+                  className="absolute right-0 top-0 bottom-0 h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="relative z-10 font-normal">
+                    {heroStatus === 'loading' ? '...' : 'Rejoins la liste'}
+                  </span>
+                  <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
+                </button>
 
-              <BorderBeam
-                size={80}
-                duration={3}
-                delay={0}
-                borderWidth={1.5}
-                colorFrom="#d4845a"
-                colorTo="transparent"
-                radius={24}
-                className="rounded-full pointer-events-none after:bg-no-repeat"
-              />
+                <BorderBeam
+                  size={80}
+                  duration={3}
+                  delay={0}
+                  borderWidth={1.5}
+                  colorFrom="#d4845a"
+                  colorTo="transparent"
+                  radius={24}
+                  className="rounded-full pointer-events-none after:bg-no-repeat"
+                />
+              </form>
+            )}
+            
+            {heroStatus === 'error' && (
+              <p className="mt-2 text-red-400 text-sm">{heroMessage}</p>
+            )}
 
-
-            </div>
             {/* Helper text */}
-            <p className="mt-4 text-xs md:text-sm text-[rgba(212,132,90,1)] font-['Inter'] font-extralight text-center">
-              Laisse ton mail si tu souhaites faire partie des premiers bêta testeurs
-            </p>
+            {heroStatus !== 'success' && (
+              <p className="mt-4 text-xs md:text-sm text-[rgba(212,132,90,1)] font-['Inter'] font-extralight text-center">
+                Laisse ton mail si tu souhaites faire partie des premiers bêta testeurs
+              </p>
+            )}
           </div>
         </div>
 

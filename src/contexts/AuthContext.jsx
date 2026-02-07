@@ -590,6 +590,42 @@ export const AuthProvider = ({ children }) => {
         try {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
             if (session) {
+              // --- WHITELIST CHECK ---
+              // TODO: REMOVE THIS WHITELIST CHECK WHEN DEPLOYMENT IS 100% DONE
+              const WHITELISTED_EMAILS = ['charlycoachingsl@gmail.com', 'fairytail491@gmail.com'];
+              const isGoogleLogin = session.user?.app_metadata?.provider === 'google';
+              const userEmail = session.user?.email?.toLowerCase();
+
+              if (isGoogleLogin && userEmail && !WHITELISTED_EMAILS.includes(userEmail)) {
+                console.warn(`🚫 Unauthorized Google access attempt: ${userEmail}. Logging out.`);
+                
+                // Prevent infinite loop by marking as logging out
+                isLoggingOutRef.current = true;
+                
+                // Perform local cleanup
+                safeRemoveItem('authToken');
+                safeRemoveItem('supabaseRefreshToken');
+                safeRemoveItem('sb-auth-token');
+                try {
+                  if (typeof localStorage !== 'undefined') localStorage.removeItem('sb-auth-token');
+                  if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('authToken');
+                } catch (e) { /* ignore */ }
+                
+                delete axios.defaults.headers.common['Authorization'];
+                setUser(null);
+                
+                // Sign out from Supabase
+                await supabase.auth.signOut();
+                
+                isLoggingOutRef.current = false;
+                
+                // Redirect with error message
+                navigate('/login?error=Accès refusé : cet email n\'est pas autorisé.');
+                return;
+              }
+              // TODO: END OF WHITELIST CHECK
+              // -----------------------
+
               console.log('✅ Supabase auto-refresh completed, persisting new tokens...');
               // Synchroniser le token avec localStorage et axios
               persistSessionTokens(session);
