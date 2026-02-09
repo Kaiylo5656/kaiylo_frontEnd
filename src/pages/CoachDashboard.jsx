@@ -10,6 +10,7 @@ import DeleteStudentModal from '../components/DeleteStudentModal';
 import StudentDetailView from '../components/StudentDetailView';
 import SortControl from '../components/SortControl';
 import useSortParams from '../hooks/useSortParams';
+import { sortStudents } from '../utils/studentSorting';
 import useSocket from '../hooks/useSocket';
 import {
   DropdownMenu,
@@ -56,19 +57,9 @@ const CoachDashboard = () => {
     fetchCoachData();
   }, []);
 
-  // Fetch next sessions when students are loaded
+  // Effect for polling and WebSocket updates (initial fetch is done in fetchCoachData)
   useEffect(() => {
     if (students.length > 0) {
-      fetchNextSessions(students);
-    }
-  }, [students]);
-
-  // Effect for polling and WebSocket updates
-  useEffect(() => {
-    if (students.length > 0) {
-      // Fetch immediately on component mount or when students are loaded
-      fetchDashboardCounts();
-
       // Set up polling every 30 seconds as a fallback
       const intervalId = setInterval(fetchDashboardCounts, 30000);
 
@@ -128,93 +119,6 @@ const CoachDashboard = () => {
   }, [location.search, students, selectedStudent]);
 
 
-  // Sort students function
-  const sortStudents = (studentsList, sortBy, direction) => {
-    if (!studentsList || studentsList.length === 0) return studentsList;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return [...studentsList].sort((a, b) => {
-      // Calculate priority scores
-      // Priority 1: Students with pending feedback (feedbackCount > 0)
-      const feedbackCountA = studentVideoCounts[a.id] ? Number(studentVideoCounts[a.id]) : 0;
-      const feedbackCountB = studentVideoCounts[b.id] ? Number(studentVideoCounts[b.id]) : 0;
-      const hasPendingFeedbackA = feedbackCountA > 0;
-      const hasPendingFeedbackB = feedbackCountB > 0;
-
-      // Priority 2: Students with no upcoming sessions
-      const nextSessionDateA = studentNextSessions[a.id];
-      const nextSessionDateB = studentNextSessions[b.id];
-      
-      let hasNoUpcomingSessionA = false;
-      if (!nextSessionDateA) {
-        hasNoUpcomingSessionA = true;
-      } else {
-        const sessionDateA = new Date(nextSessionDateA);
-        sessionDateA.setHours(0, 0, 0, 0);
-        hasNoUpcomingSessionA = sessionDateA < today;
-      }
-      
-      let hasNoUpcomingSessionB = false;
-      if (!nextSessionDateB) {
-        hasNoUpcomingSessionB = true;
-      } else {
-        const sessionDateB = new Date(nextSessionDateB);
-        sessionDateB.setHours(0, 0, 0, 0);
-        hasNoUpcomingSessionB = sessionDateB < today;
-      }
-
-      // Priority comparison: first by pending feedback, then by no upcoming session
-      if (hasPendingFeedbackA !== hasPendingFeedbackB) {
-        return hasPendingFeedbackB ? 1 : -1; // Students with feedback first
-      }
-
-      // If both have or don't have feedback, check for no upcoming sessions
-      if (hasNoUpcomingSessionA !== hasNoUpcomingSessionB) {
-        return hasNoUpcomingSessionB ? 1 : -1; // Students with no upcoming session first
-      }
-
-      // If both have pending feedback, sort by feedback count (descending)
-      if (hasPendingFeedbackA && hasPendingFeedbackB && feedbackCountA !== feedbackCountB) {
-        return feedbackCountB - feedbackCountA;
-      }
-
-      // If feedback counts are equal (or both have no feedback), sort by the selected criteria
-      let comparison = 0;
-
-      if (sortBy === 'createdAt' || sortBy === 'joinedAt') {
-        // Sort by joined date
-        const dateA = a.joinedAt ? new Date(a.joinedAt).getTime() : 0;
-        const dateB = b.joinedAt ? new Date(b.joinedAt).getTime() : 0;
-        
-        // Push items with missing dates to bottom
-        if (!a.joinedAt && !b.joinedAt) return 0;
-        if (!a.joinedAt) return 1;
-        if (!b.joinedAt) return -1;
-        
-        comparison = dateA - dateB;
-      } else if (sortBy === 'name') {
-        // Handle name sorting with locale-aware comparison
-        const nameA = (a.name || '').trim();
-        const nameB = (b.name || '').trim();
-        
-        // Push items with missing names to bottom
-        if (!nameA && !nameB) return 0;
-        if (!nameA) return 1;
-        if (!nameB) return -1;
-        
-        comparison = nameA.localeCompare(nameB, undefined, {
-          sensitivity: 'base',
-          numeric: true
-        });
-      }
-
-      // Apply direction
-      return direction === 'desc' ? -comparison : comparison;
-    });
-  };
-
   // Filter and sort students based on search term, filters and sort params
   useEffect(() => {
     let filtered = students;
@@ -263,7 +167,7 @@ const CoachDashboard = () => {
     }
     
     // Apply sorting
-    const sorted = sortStudents(filtered, sort || 'name', dir || 'asc');
+    const sorted = sortStudents(filtered, sort || 'name', dir || 'asc', studentVideoCounts, studentNextSessions);
     setFilteredStudents(sorted);
   }, [searchTerm, students, sort, dir, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
@@ -341,6 +245,14 @@ const CoachDashboard = () => {
         
         setStudents(transformedStudents);
         console.log('✅ Fetched real students:', transformedStudents);
+
+        // Charger les données de tri AVANT d'afficher la liste pour éviter le réordonnancement
+        if (transformedStudents.length > 0) {
+          await Promise.all([
+            fetchDashboardCounts(),
+            fetchNextSessions(transformedStudents)
+          ]);
+        }
       } else {
         console.log('⚠️ No students found or API returned unexpected format');
         console.log('🔍 Available fields in response:', Object.keys(studentsResponse.data));
@@ -535,7 +447,10 @@ const CoachDashboard = () => {
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
     setSelectedStudentInitialTab('overview');
-    navigate(`?studentId=${student.id}`, { replace: true });
+    const params = new URLSearchParams({ studentId: student.id });
+    if (sort) params.set('sort', sort);
+    if (dir) params.set('dir', dir);
+    navigate(`?${params}`, { replace: true });
   };
 
   // Handle clicking on feedback icon to go to video analysis
@@ -543,7 +458,10 @@ const CoachDashboard = () => {
     e.stopPropagation(); // Prevent triggering the row click
     setSelectedStudent(student);
     setSelectedStudentInitialTab('analyse');
-    navigate(`?studentId=${student.id}`, { replace: true });
+    const params = new URLSearchParams({ studentId: student.id });
+    if (sort) params.set('sort', sort);
+    if (dir) params.set('dir', dir);
+    navigate(`?${params}`, { replace: true });
   };
 
   // Handle clicking on message icon to go to chat
@@ -558,11 +476,14 @@ const CoachDashboard = () => {
     setSelectedStudent(null);
     setSelectedStudentInitialTab('overview');
     
-    // Return to clean dashboard URL
-    navigate('/coach/dashboard', { replace: true });
+    // Preserve sort params when returning to list
+    const params = new URLSearchParams();
+    if (sort) params.set('sort', sort);
+    if (dir) params.set('dir', dir);
+    const query = params.toString();
+    navigate(query ? `/coach/dashboard?${query}` : '/coach/dashboard', { replace: true });
     
     // Refresh dashboard counts when returning from student detail view
-    // This ensures the video feedback count is up to date after giving feedback
     fetchDashboardCounts();
   };
 
@@ -653,25 +574,32 @@ const CoachDashboard = () => {
               <DropdownMenu open={isFilterDropdownOpenDesktop} onOpenChange={setIsFilterDropdownOpenDesktop} modal={false}>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none ${
-                      isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
+                    className={`group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none overflow-hidden ${
+                      isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '' : ''
                     }`}
                     style={{
-                      backgroundColor: isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       color: isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
                     }}
                     title="Filtres"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                    <span
+                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                        isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
+                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                      }`}
+                      aria-hidden
+                    />
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
                       <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
                     </svg>
-                    <span>Filtres</span>
+                    <span className="relative z-10">Filtres</span>
                     {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
-                      <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                      <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
                         {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
                       </span>
                     )}
-                    <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpenDesktop ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${isFilterDropdownOpenDesktop ? 'rotate-180' : ''}`} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -852,25 +780,30 @@ const CoachDashboard = () => {
             <DropdownMenu open={isFilterDropdownOpenMobile} onOpenChange={setIsFilterDropdownOpenMobile}>
               <DropdownMenuTrigger asChild>
                 <button
-                  className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center flex-1 ${
-                    isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'bg-primary/90' : ''
-                  }`}
+                  className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground justify-center flex-1 overflow-hidden"
                   style={{
-                    backgroundColor: isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                     color: isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
                   }}
                   title="Filtres"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+                  <span
+                    className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                      isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
+                        ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                        : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                    }`}
+                    aria-hidden
+                  />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
                     <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
                   </svg>
-                  <span>Filtres</span>
+                  <span className="relative z-10">Filtres</span>
                   {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
-                    <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+                    <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
                       {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
                     </span>
                   )}
-                  <ChevronDown className={`h-4 w-4 transition-transform ${isFilterDropdownOpenMobile ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${isFilterDropdownOpenMobile ? 'rotate-180' : ''}`} />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -1317,7 +1250,7 @@ const CoachDashboard = () => {
                       : 'text-[14px] font-normal text-[#d4845a]'
                   }`}>
                     {studentNextSessions[student.id] ? (
-                      new Date(studentNextSessions[student.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\w+) (\d{4})/, '$1 .$2')
+                      new Date(studentNextSessions[student.id]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\p{L}+)\.?\s*(\d{4})/u, '$1 .$2')
                     ) : (
                       'aucune séance à venir'
                     )}

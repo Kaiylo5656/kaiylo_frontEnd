@@ -76,60 +76,60 @@ const LandingPage = () => {
             </span>
           </div>
 
-          {/* Main Heading */}
+          {/* Main Heading — toujours 2 lignes sur mobile, toujours plus grand que le sous-titre */}
           <h1
-            className={`mb-12 font-['Inter'] font-light text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`mb-8 font-['Inter'] font-light tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} text-[clamp(1.0625rem,3vw+0.65rem,2.125rem)] sm:text-3xl md:text-4xl lg:text-6xl`}
           >
-            Enfin un outil professionnel pour<br />
-            coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span>
+            <span className="block whitespace-nowrap">Enfin un outil professionnel pour</span>
+            <span className="block whitespace-nowrap">coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span></span>
           </h1>
 
-          {/* Subtext */}
+          {/* Subtext — toujours plus petit que le titre ; 2e phrase masquée sur mobile */}
           <p
-            className={`mb-12 font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`mb-12 font-['Inter'] font-light text-xs sm:text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ opacity: 1 }}
           >
-            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi. Passe moins de temps à gérer, plus de temps à coacher.
+            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi.<span className="hidden sm:inline"> Passe moins de temps à gérer, plus de temps à coacher.</span>
           </p>
 
           {/* CTA Section */}
           <div
             className={`w-full max-w-md transition-all duration-1000 ease-out delay-500 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
-            {/* Input with integrated button */}
-            <div className="relative w-full group">
-              <input
-                type="email"
-                placeholder="Ton email"
-                onFocus={() => setIsEmailFocused(true)}
-                onClick={() => setIsEmailFocused(true)}
-                className="w-full h-12 bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
-              />
-              {/* Button */}
+            {/* Input with integrated button — empilés sur mobile, intégrés sur desktop */}
+            <div className="flex flex-col gap-3 md:block md:relative w-full group">
+              {/* Input avec BorderBeam uniquement autour du champ email */}
+              <div className="relative w-full">
+                <input
+                  type="email"
+                  placeholder="Ton email"
+                  onFocus={() => setIsEmailFocused(true)}
+                  onClick={() => setIsEmailFocused(true)}
+                  className="w-full h-12 bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-5 md:pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
+                />
+                <BorderBeam
+                  size={80}
+                  duration={3}
+                  delay={0}
+                  borderWidth={1.5}
+                  colorFrom="#d4845a"
+                  colorTo="transparent"
+                  radius={24}
+                  className="rounded-full pointer-events-none after:bg-no-repeat"
+                />
+              </div>
+              {/* Button — sous l'input sur mobile, intégré à droite sur desktop */}
               <button
                 onClick={() => setIsEmailFocused(true)}
-                className="absolute right-0 top-0 bottom-0 h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100"
+                className="relative w-full md:absolute md:right-0 md:top-0 md:bottom-0 md:w-auto h-12 px-6 bg-gradient-to-r from-[#D4845A] to-[#A05A3A] text-white hover:opacity-90 active:opacity-90 font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100"
               >
-                <span className="relative z-10 font-normal">Rejoins la liste</span>
-                <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
+                <span className="relative z-10 font-normal">Réserver mon accès</span>
+                <div className="absolute inset-0 left-[-100%] w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] group-active/btn:left-[100%] transition-[left] duration-700 ease-in-out pointer-events-none" />
               </button>
-
-              <BorderBeam
-                size={80}
-                duration={3}
-                delay={0}
-                borderWidth={1.5}
-                colorFrom="#d4845a"
-                colorTo="transparent"
-                radius={24}
-                className="rounded-full pointer-events-none after:bg-no-repeat"
-              />
-
-
             </div>
             {/* Helper text */}
             <p className="mt-4 text-xs md:text-sm text-[rgba(212,132,90,1)] font-['Inter'] font-extralight text-center">
-              Laisse ton mail si tu souhaites faire partie des premiers à tester Kaiylo
+              Laisse ton email si tu souhaites découvrir Kaiylo en avant-première.
             </p>
           </div>
         </div>

@@ -19,6 +19,7 @@ import { useModalManager } from './ui/modal/ModalManager';
 import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, addMonths, subMonths, differenceInYears, addWeeks, differenceInCalendarWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
+import useSortParams from '../hooks/useSortParams';
 import PeriodizationTab from './PeriodizationTab';
 import StudentSidebar from './StudentSidebar';
 import {
@@ -31,6 +32,7 @@ import {
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange }) => {
   const navigate = useNavigate();
+  const { sort, dir } = useSortParams('name', 'asc');
   const { isTopMost: isDeleteNoteModalTopMost } = useModalManager();
   const { isTopMost: isDeleteLimitationModalTopMost } = useModalManager();
   const { isTopMost: isDeleteWeekModalTopMost } = useModalManager();
@@ -82,6 +84,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
   const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5 or 8
+
+  // Refs pour le scroll horizontal des séances multiples par jour (comme vue entrainement)
+  const dayScrollRefs = useRef({});
+  const daySessionIndicesRef = useRef({});
 
   // Video analysis state
   const [studentVideos, setStudentVideos] = useState([]);
@@ -1160,11 +1166,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             studentComment: undefined,
             sets: Array.isArray(ex.sets) ? (session.status === 'completed' ? ex.sets.map(set => ({
               ...set,
-              // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
-              // Sinon, stocker le RPE précédent
-              previousRpe: ex.useRir || ex.use_rir
-                ? (set.studentWeight || set.student_weight || null)
-                : (set.rpe_rating || set.rpeRating || null),
+              // Conserver les deux pour que le switch Charge/RPE dans la modal ne perde pas les valeurs
+              previousRpe: set.rpe_rating ?? set.rpeRating ?? null,
+              previousCharge: set.studentWeight ?? set.student_weight ?? null,
               // Clear the actual RPE rating for the new session
               rpe_rating: undefined,
               rpeRating: undefined,
@@ -1179,8 +1183,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               videoStatus: undefined
             })) : ex.sets.map(set => ({
               ...set,
-              // Préserver previousRpe même si la séance n'est pas completed (au cas où elle aurait déjà un previousRpe)
-              previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+              previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
+              previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
             }))) : ex.sets
           }));
         }
@@ -1434,11 +1438,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           studentComment: undefined,
           sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({
             ...set,
-            // Si useRir est true, stocker la charge précédente (studentWeight) au lieu du RPE
-            // Sinon, stocker le RPE précédent
-            previousRpe: ex.useRir || ex.use_rir
-              ? (set.studentWeight || set.student_weight || null)
-              : (set.rpe_rating || set.rpeRating || null),
+            // Conserver les deux pour que le switch Charge/RPE dans la modal ne perde pas les valeurs
+            previousRpe: set.rpe_rating ?? set.rpeRating ?? null,
+            previousCharge: set.studentWeight ?? set.student_weight ?? null,
             // Clear the actual RPE rating for the new session
             rpe_rating: undefined,
             rpeRating: undefined,
@@ -1453,8 +1455,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             videoStatus: undefined
           })) : ex.sets.map(set => ({
             ...set,
-            // Préserver previousRpe même si la séance n'est pas completed (au cas où elle aurait déjà un previousRpe)
-            previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+            previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
+            previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
           }))) : ex.sets
         }));
       }
@@ -2645,7 +2647,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     viewBox="0 0 256 512"
                     className={`text-white/50 transition-transform flex-shrink-0 ${isOpen ? 'rotate-90' : ''
                       }`}
-                    style={{ width: '20px', height: '20px' }}
+                    style={{ width: '16px', height: '16px' }}
                     fill="currentColor"
                     aria-hidden="true"
                   >
@@ -2980,10 +2982,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     // Base height: ~100px (header + padding + footer)
     // Each exercise: ~20px + gap: ~6px
     const calculateContainerHeight = () => {
-      if (hasMoreThanTwoSessions) {
-        return '280px'; // Keep fixed height for multiple sessions with scroll
-      }
-      // For single session, calculate based on visible exercises
+      // For single or multiple sessions: same full height to show exercises
       const baseHeight = 100; // Header, padding, footer
       const exerciseHeight = 20; // Height per exercise line
       const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
@@ -2996,16 +2995,69 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
     const containerHeight = calculateContainerHeight();
 
+    const setDayScrollRef = (el, dayKey) => {
+      const prev = dayScrollRefs.current[dayKey];
+      if (prev && prev._wheelHandler) {
+        prev.removeEventListener('wheel', prev._wheelHandler, { passive: false });
+      }
+      if (el) {
+        dayScrollRefs.current[dayKey] = el;
+        if (hasMultipleSessions) {
+          const handler = (e) => {
+            const container = dayScrollRefs.current[dayKey];
+            if (!container || sessions.length <= 1) return;
+            const currentIndex = daySessionIndicesRef.current[dayKey] ?? 0;
+            const containerWidth = container.clientWidth;
+            const gap = 8;
+            const totalCardWidth = containerWidth + gap;
+            const willNavigate = (e.deltaY > 0 && currentIndex < sessions.length - 1) || (e.deltaY < 0 && currentIndex > 0);
+            if (willNavigate) {
+              e.preventDefault();
+              if (e.deltaY > 0 && currentIndex < sessions.length - 1) {
+                const newIndex = currentIndex + 1;
+                daySessionIndicesRef.current[dayKey] = newIndex;
+                container.scrollTo({ left: newIndex * totalCardWidth, behavior: 'auto' });
+              } else if (e.deltaY < 0 && currentIndex > 0) {
+                const newIndex = currentIndex - 1;
+                daySessionIndicesRef.current[dayKey] = newIndex;
+                container.scrollTo({ left: newIndex * totalCardWidth, behavior: 'auto' });
+              }
+            }
+          };
+          el._wheelHandler = handler;
+          el.addEventListener('wheel', handler, { passive: false });
+        }
+      }
+    };
+
     const sessionList = sessions.length > 0 ? (
       <div
-        className={`session-container flex flex-col gap-2 transition-all duration-300 ease-out relative`}
+        className={`session-container flex transition-all duration-300 ease-out relative ${hasMultipleSessions ? 'flex-row overflow-x-auto gap-2 scrollbar-hide' : 'flex-col gap-2'}`}
         style={{
           height: containerHeight,
-          overflowY: hasMoreThanTwoSessions ? 'auto' : 'hidden',
+          overflowY: hasMultipleSessions ? 'hidden' : (hasMoreThanTwoSessions ? 'auto' : 'hidden'),
+          overflowX: hasMultipleSessions ? 'auto' : 'hidden',
           backgroundColor: isDropTarget ? 'rgba(212, 132, 90, 0.10)' : 'transparent',
           borderRadius: '0.75rem',
           padding: isDropTarget ? '4px' : '0',
-          transition: 'background-color 0.2s ease-out, padding 0.2s ease-out, height 0.3s ease-out'
+          transition: 'background-color 0.2s ease-out, padding 0.2s ease-out, height 0.3s ease-out',
+          ...(hasMultipleSessions && {
+            scrollSnapType: 'x mandatory',
+            WebkitOverflowScrolling: 'touch'
+          })
+        }}
+        ref={(el) => setDayScrollRef(el, dayKey)}
+        data-day-key={dayKey}
+        onScroll={(e) => {
+          if (hasMultipleSessions) {
+            const container = e.target;
+            const scrollLeft = container.scrollLeft;
+            const containerWidth = container.clientWidth;
+            const gap = 8;
+            const totalCardWidth = containerWidth + gap;
+            const newIndex = Math.round(scrollLeft / totalCardWidth);
+            daySessionIndicesRef.current[dayKey] = Math.min(Math.max(0, newIndex), sessions.length - 1);
+          }
         }}
       >
         {sessions.map((session, sessionIndex) => {
@@ -3016,11 +3068,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           return (
             <div
               key={session.id || sessionIndex}
-              className={`rounded-xl transition-all duration-200 ${hasMultipleSessions && !hasMoreThanTwoSessions ? '' : hasMoreThanTwoSessions ? 'flex-shrink-0' : 'h-full'} flex flex-col ${session.status === 'draft'
+              className={`rounded-xl transition-all duration-200 flex flex-col ${session.status === 'draft'
                 ? 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
                 : 'bg-[rgba(255,255,255,0.05)] hover:bg-[#2a2a2a]'
                 } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${draggedSession && draggedSession.id === (session.id || session.assignmentId) ? 'opacity-50 scale-95' : ''
-                }`}
+                } ${hasMultipleSessions ? 'flex-shrink-0 min-w-full w-full' : (hasMoreThanTwoSessions ? 'flex-shrink-0' : 'h-full')}`}
+              style={hasMultipleSessions ? { scrollSnapAlign: 'start' } : undefined}
               draggable
               onDragStart={(event) => handleSessionDragStart(event, session, dayDate)}
               onDragEnd={handleSessionDragEnd}
@@ -3029,13 +3082,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 handleSessionClick(session, dayDate);
               }}
             >
-              <div className={`${hasMoreThanTwoSessions ? 'pt-2 pb-2 px-2' : 'pt-3 pb-3 px-3'} space-y-2 flex-1 flex flex-col overflow-visible`} style={{ width: '100%' }}>
+              <div className="pt-3 pb-3 px-3 space-y-2 flex-1 flex flex-col overflow-visible min-h-0" style={{ width: '100%' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`${hasMoreThanTwoSessions ? 'w-3 h-3' : 'w-3.5 h-3.5'} flex-shrink-0`} style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                       <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z" />
                     </svg>
-                    <span className={`truncate ${hasMoreThanTwoSessions ? 'text-[12px]' : 'text-[14px]'} font-normal`} style={{ color: 'var(--kaiylo-primary-hex)' }}>{session.title || 'Séance'}</span>
+                    <span className="truncate text-[14px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{session.title || 'Séance'}</span>
+                    {hasMultipleSessions && (
+                      <span className="text-white/40 text-[12px] font-light flex-shrink-0">{sessionIndex + 1}/{sessions.length}</span>
+                    )}
                   </div>
 
                   {(session.status !== 'completed' && session.status !== 'in_progress') || session.status === 'completed' ? (
@@ -3147,21 +3203,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   ) : null}
                 </div>
 
-                {/* Ligne du nombre d'exercices pour les séances compactées */}
-                {(hasMultipleSessions || hasMoreThanTwoSessions) && (
-                  <>
-                    <div className="border-b border-white/10 mb-2"></div>
-                    <div className="flex items-center justify-between text-[9px] md:text-[11px] text-white/75">
-                      <span className="font-light">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
-                    </div>
-                  </>
-                )}
+                <div className="border-b border-white/10 mb-2"></div>
 
-                {!hasMultipleSessions && (
-                  <>
-                    <div className="border-b border-white/10 mb-2"></div>
-
-                    <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
+                <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0" style={{ marginTop: '12px' }}>
                       {exercises.slice(0, visibleExercisesCount).map((exercise, index) => {
                         // Déterminer la couleur du nombre de séries basée sur les statuts de validation
                         const getSetsColor = () => {
@@ -3203,9 +3247,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           + {exercises.length - visibleExercisesCount} exercice{(exercises.length - visibleExercisesCount) > 1 ? 's' : ''}
                         </div>
                       )}
-                    </div>
-                  </>
-                )}
+                </div>
 
                 <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
                   <div className="flex items-center gap-1 md:gap-2 flex-1">
@@ -3740,6 +3782,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             studentMessageCounts={studentMessageCounts}
             studentNextSessions={studentNextSessions}
             onFeedbackBadgeClick={handleFeedbackBadgeClick}
+            sort={sort}
+            dir={dir}
           />
         </div>
       )}

@@ -15,9 +15,67 @@ const ExerciseArrangementModal = ({
   onDrop,
   onMoveUp,
   onMoveDown,
-  useAbsolute = false
+  useAbsolute = false,
+  embedded = false
 }) => {
-  if (!isOpen) return null;
+  if (!isOpen && !embedded) return null;
+  if (embedded) {
+    return (
+      <div className="flex-1 min-h-0 px-6 py-6 overflow-y-auto overscroll-contain modal-scrollable-body">
+        <div className="space-y-1.5">
+          {exercises.map((exercise, index) => (
+            <div
+              key={exercise.id}
+              className={`flex items-center justify-between px-4 py-3 cursor-move transition-colors ${
+                draggedIndex === index 
+                  ? 'bg-[rgba(212,132,90,0.25)] opacity-50' 
+                  : dragOverIndex === index 
+                    ? 'bg-[rgba(212,132,90,0.25)]' 
+                    : 'bg-black/50 hover:bg-black/40'
+              }`}
+              style={{ 
+                borderRadius: '14px',
+                ...(dragOverIndex === index && draggedIndex !== index && { color: 'var(--kaiylo-primary-hex)' })
+              }}
+              draggable
+              onDragStart={(e) => onDragStart(e, index)}
+              onDragEnd={onDragEnd}
+              onDragOver={onDragOver}
+              onDragEnter={(e) => onDragEnter(e, index)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, index)}
+            >
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4 flex-shrink-0" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                </svg>
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <span className="text-base font-normal break-words leading-relaxed text-left">{exercise.name}</span>
+                  {exercise.sets && exercise.sets.length > 0 && exercise.sets[0] && (
+                    <span className="text-sm font-extralight text-white/50">
+                      {exercise.sets.length}×{exercise.sets[0]?.reps || '?'} {exercise.useRir ? (
+                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {exercise.sets[0]?.weight || 0}</span>
+                      ) : (
+                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{exercise.sets[0]?.weight || 0}kg</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                <path d="M128 40c0-22.1-17.9-40-40-40L40 0C17.9 0 0 17.9 0 40L0 88c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zm0 192c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM0 424l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 40c0-22.1-17.9-40-40-40L232 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM192 232l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 424c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48z"/>
+              </svg>
+            </div>
+          ))}
+          {exercises.length === 0 && (
+            <div className="rounded-2xl px-6 py-12 text-center text-xs text-white/50 font-extralight">
+              Aucun exercice ajouté
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const style = position
     ? {

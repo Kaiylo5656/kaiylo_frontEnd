@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, Plus, MoreHorizontal, User, GripVertical, BookOpen, Check } from 'lucide-react';
 import { Button } from './ui/button';
@@ -48,6 +48,15 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     width: 340,
     height: 0
   });
+
+  // Planning d'entrainement (right panel view)
+  const [rightPanelView, setRightPanelView] = useState('agencement'); // 'agencement' | 'planning'
+  const [planningSessions, setPlanningSessions] = useState({}); // dateKey -> sessions[]
+  const [planningBlocks, setPlanningBlocks] = useState([]); // blocs de périodisation pour calculer le bloc de chaque séance
+  const [planningLoading, setPlanningLoading] = useState(false);
+  const [collapsedPlanningSessionIds, setCollapsedPlanningSessionIds] = useState(new Set());
+  const [planningViewDate, setPlanningViewDate] = useState(null); // date affichée dans le planning (détail du jour)
+  const [planningCalendarExpanded, setPlanningCalendarExpanded] = useState(false); // calendrier : 3 semaines visibles ou tout le mois
   
   // Exercise Library Modal State
   const [libraryPosition, setLibraryPosition] = useState({ 
@@ -81,8 +90,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       fetchExercises();
-      // Force les deux panneaux à être toujours ouverts
+      // Ouvrir par défaut le panneau agencement des exercices
       setShowSidebar(true);
+      setRightPanelView('agencement');
       setOpenSheet(true);
     } else {
       document.body.style.overflow = '';
@@ -115,16 +125,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             rest: set.rest || '03:00',
             video: set.video || false,
             repType: set.repType || 'reps',
-            // Store previous RPE if the session was completed
-            // Store previous RPE if the session was completed
-            previousRpe: (ex.useRir || ex.use_rir)
-              ? (set.studentWeight || set.student_weight || null)
-              : (set.rpe_rating || set.rpeRating || set.previousRpe || null)
+            // Conserver les deux pour permettre le switch Charge/RPE sans perdre les valeurs
+            previousRpe: set.rpe_rating ?? set.rpeRating ?? set.previousRpe ?? null,
+            previousCharge: set.studentWeight ?? set.student_weight ?? set.previousCharge ?? null
           }));
         } else {
           // Default sets if none exist or not an array
           sets = [
-            { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps', previousRpe: null }
+            { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps', previousRpe: null, previousCharge: null }
           ];
         }
 
@@ -244,6 +252,86 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }, 50); // Reduced delay since ResizeObserver handles most updates
     return () => clearTimeout(timer);
   }, [exercises.length, showSidebar, isOpen, updateArrangementPosition]);
+
+  // Fetch planning (sessions par jour) pour l'étudiant quand on affiche l'onglet Planning (mois ± 1 pour le calendrier)
+  const fetchPlanningSessions = useCallback(async () => {
+    const dateRef = planningViewDate || sessionDate;
+    if (!studentId || !dateRef) return;
+    setPlanningLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const monthStart = startOfMonth(dateRef);
+      const monthEnd = endOfMonth(dateRef);
+      const rangeStart = format(addDays(monthStart, -31), 'yyyy-MM-dd');
+      const rangeEnd = format(addDays(monthEnd, 31), 'yyyy-MM-dd');
+      const response = await fetch(
+        `${getApiBaseUrlWithApi()}/assignments/student/${studentId}?startDate=${rangeStart}&endDate=${rangeEnd}&limit=200`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      const sessionsMap = {};
+      (data.data || []).forEach((assignment) => {
+        if (!assignment.workout_sessions) return;
+        const assignmentDate = assignment.scheduled_date || assignment.due_date;
+        if (!assignmentDate) return;
+        const dateKey = format(parseISO(assignmentDate), 'yyyy-MM-dd');
+        if (!sessionsMap[dateKey]) sessionsMap[dateKey] = [];
+        sessionsMap[dateKey].push({
+          id: assignment.id,
+          assignmentId: assignment.id,
+          title: assignment.workout_sessions.title,
+          exercises: assignment.workout_sessions.exercises || [],
+          status: assignment.status,
+          workoutSessionId: assignment.workout_session_id,
+          scheduled_date: assignmentDate,
+        });
+      });
+      setPlanningSessions(sessionsMap);
+    } catch (err) {
+      console.error('Error fetching planning sessions:', err);
+      setPlanningSessions({});
+    } finally {
+      setPlanningLoading(false);
+    }
+  }, [studentId, sessionDate, planningViewDate]);
+
+  // Fetch periodization blocks for the student (to display block number per session)
+  const fetchPlanningBlocks = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `${getApiBaseUrlWithApi()}/periodization/blocks/student/${studentId}?t=${Date.now()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json();
+      if (data.success && Array.isArray(data.data)) {
+        setPlanningBlocks(data.data);
+      } else {
+        setPlanningBlocks([]);
+      }
+    } catch (err) {
+      console.error('Error fetching planning blocks:', err);
+      setPlanningBlocks([]);
+    }
+  }, [studentId]);
+
+  // Clé mois pour ne refetch que quand le mois change (pas à chaque changement de jour = instantané)
+  const planningMonthKey = (planningViewDate || sessionDate) ? format(planningViewDate || sessionDate, 'yyyy-MM') : null;
+
+  useEffect(() => {
+    if (isOpen && showSidebar && rightPanelView === 'planning' && studentId) {
+      fetchPlanningSessions();
+      fetchPlanningBlocks();
+    }
+  }, [isOpen, showSidebar, rightPanelView, studentId, planningMonthKey, fetchPlanningSessions, fetchPlanningBlocks]);
+
+  // Synchroniser la date du planning avec la date de la séance à l'ouverture de l'onglet Planning
+  useEffect(() => {
+    if (rightPanelView === 'planning' && sessionDate) {
+      setPlanningViewDate((prev) => (prev ? prev : sessionDate));
+    }
+  }, [rightPanelView, sessionDate]);
 
   // Calculate position for library modal - MUST be defined before useEffect that uses it
   const updateLibraryPosition = useCallback(() => {
@@ -434,7 +522,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       rest: previousRest,
       video: false,
       repType: previousRepType,
-      previousRpe: null // New sets don't have previous RPE
+      previousRpe: null,
+      previousCharge: null
     });
     setExercises(updatedExercises);
   };
@@ -449,11 +538,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises(updatedExercises);
   };
 
-  // Helper function to check if session was copied from a completed session
+  // Helper function to check if session was copied from a completed session (charge ou RPE précédent)
   const hasPreviousRpeData = () => {
     return exercises.some(exercise => 
       exercise.sets?.some(set => 
-        set.previousRpe !== null && set.previousRpe !== undefined
+        (set.previousRpe != null && set.previousRpe !== undefined) ||
+        (set.previousCharge != null && set.previousCharge !== undefined)
       )
     );
   };
@@ -659,7 +749,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           rest: set.rest,
           video: set.video,
           repType: set.repType || 'reps',
-          previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+          previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
+          previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
         })),
         notes: ex.notes,
         tempo: ex.tempo,
@@ -721,7 +812,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           rest: set.rest,
           video: set.video === true || set.video === 1 || set.video === 'true', // coach asks for video (included in copy)
           repType: set.repType || 'reps',
-          previousRpe: set.previousRpe !== null && set.previousRpe !== undefined ? set.previousRpe : null
+          previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
+          previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
         })),
         notes: ex.notes,
         tempo: ex.tempo,
@@ -1061,83 +1153,488 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               e.stopPropagation();
             }}
           >
-            {/* Arrangement button */}
-            <button
-              ref={arrangementButtonRef}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowSidebar((prev) => {
-                  const next = !prev;
-                  if (next) {
+            <div className="flex flex-row items-center" style={{ gap: '6px' }}>
+              {/* Arrangement button */}
+              <button
+                ref={arrangementButtonRef}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const isAgencementActive = showSidebar && rightPanelView === 'agencement';
+                  if (isAgencementActive) {
+                    setShowSidebar(false);
+                  } else {
+                    setRightPanelView('agencement');
+                    setShowSidebar(true);
                     setTimeout(() => updateArrangementPosition(), 0);
                   }
-                  return next;
-                });
-              }}
-              aria-expanded={showSidebar}
-              aria-label={showSidebar ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150"
-              style={{
-                backgroundColor: showSidebar ? 'var(--kaiylo-primary-hex)' : 'rgba(255, 255, 255, 0.2)',
-                borderWidth: '0px',
-                borderStyle: 'none',
-                borderColor: 'rgba(0, 0, 0, 0)',
-                borderImage: 'none',
-                pointerEvents: 'auto',
-                cursor: 'pointer',
-                zIndex: 1003,
-                position: 'relative',
-                minWidth: '40px',
-                minHeight: '40px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = showSidebar ? 'var(--kaiylo-primary-hex)' : 'rgba(255, 255, 255, 0.3)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = showSidebar ? 'var(--kaiylo-primary-hex)' : 'rgba(255, 255, 255, 0.2)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-              title="Agencement des exercices"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 512 512" 
-                className="h-4 w-4 text-white" 
-                fill="currentColor"
-                style={{ pointerEvents: 'none' }}
+                }}
+                aria-expanded={showSidebar && rightPanelView === 'agencement'}
+                aria-label={showSidebar && rightPanelView === 'agencement' ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
+                style={{
+                  backgroundColor: showSidebar && rightPanelView === 'agencement' ? 'var(--kaiylo-primary-hex)' : undefined,
+                  borderWidth: '0px',
+                  borderStyle: 'none',
+                  borderColor: 'rgba(0, 0, 0, 0)',
+                  borderImage: 'none',
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                  zIndex: 1003,
+                  position: 'relative',
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                }}
+                onMouseEnter={(e) => {
+                  const active = showSidebar && rightPanelView === 'agencement';
+                  if (active) {
+                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const active = showSidebar && rightPanelView === 'agencement';
+                  if (active) {
+                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                title="Agencement des exercices"
               >
-                <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z"/>
-              </svg>
-            </button>
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 512 512" 
+                  className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'agencement' ? 'opacity-100' : 'opacity-50'}`}
+                  fill="currentColor"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z"/>
+                </svg>
+              </button>
 
-            {/* Exercise Arrangement Modal */}
+              {/* Calendrier d'entraînement (Planning) button */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const isPlanningActive = showSidebar && rightPanelView === 'planning';
+                  if (isPlanningActive) {
+                    setShowSidebar(false);
+                  } else {
+                    setRightPanelView('planning');
+                    setShowSidebar(true);
+                    setTimeout(() => updateArrangementPosition(), 0);
+                  }
+                }}
+                aria-expanded={showSidebar && rightPanelView === 'planning'}
+                aria-label={showSidebar && rightPanelView === 'planning' ? "Masquer le calendrier d'entraînement" : "Afficher le calendrier d'entraînement"}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
+                style={{
+                  backgroundColor: showSidebar && rightPanelView === 'planning' ? 'var(--kaiylo-primary-hex)' : undefined,
+                  borderWidth: '0px',
+                  borderStyle: 'none',
+                  borderColor: 'rgba(0, 0, 0, 0)',
+                  borderImage: 'none',
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                  zIndex: 1003,
+                  position: 'relative',
+                  minWidth: '40px',
+                  minHeight: '40px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                }}
+                onMouseEnter={(e) => {
+                  const active = showSidebar && rightPanelView === 'planning';
+                  if (active) {
+                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const active = showSidebar && rightPanelView === 'planning';
+                  if (active) {
+                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                title="Calendrier d'entraînement"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'planning' ? 'opacity-100' : 'opacity-50'}`} fill="currentColor" style={{ pointerEvents: 'none' }}>
+                  <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Right panel: Agencement ou Planning d'entrainement */}
             {showSidebar && (
-              <ExerciseArrangementModal
-                isOpen={showSidebar}
-                onClose={() => {
-                  setShowSidebar(false);
+              <div
+                role="region"
+                aria-label={rightPanelView === 'planning' ? "Planning d'entrainement" : "Agencement des exercices"}
+                className="relative z-[1001] text-white pointer-events-auto w-[340px] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
+                style={{
+                  ...(arrangementPosition && {
+                    width: arrangementPosition.width ?? 340,
+                    height: arrangementPosition.height ? `${arrangementPosition.height}px` : 'auto',
+                    maxHeight: arrangementPosition.height ? `${arrangementPosition.height}px` : '600px',
+                  }),
+                  background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+                  opacity: 0.95,
                 }}
-                exercises={exercises}
-                position={{
-                  ...arrangementPosition,
-                  left: 0, // Aligned with button on the left
-                }}
-                draggedIndex={draggedIndex}
-                dragOverIndex={dragOverIndex}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDragOver={handleDragOver}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onMoveUp={moveExerciseUp}
-                onMoveDown={moveExerciseDown}
-                useAbsolute={true}
-              />
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Title - same style as ExerciseLibraryModal */}
+                <div className="shrink-0 px-6 pt-6 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {rightPanelView === 'agencement' ? (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                            <path d="M0 72C0 58.8 10.7 48 24 48l48 0c13.3 0 24 10.7 24 24l0 104 24 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-96 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-80-24 0C10.7 96 0 85.3 0 72zM30.4 301.2C41.8 292.6 55.7 288 70 288l4.9 0c33.7 0 61.1 27.4 61.1 61.1 0 19.6-9.4 37.9-25.2 49.4l-24 17.5 33.2 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-90.7 0C13.1 464 0 450.9 0 434.7 0 425.3 4.5 416.5 12.1 411l70.5-51.3c3.4-2.5 5.4-6.4 5.4-10.6 0-7.2-5.9-13.1-13.1-13.1L70 336c-3.9 0-7.7 1.3-10.8 3.6L38.4 355.2c-10.6 8-25.6 5.8-33.6-4.8S-1 324.8 9.6 316.8l20.8-15.6zM224 64l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/>
+                          </svg>
+                          <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                            Agencement des exercices
+                          </h2>
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                            <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                          </svg>
+                          <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                            Planning d'entraînement
+                          </h2>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="border-b border-white/10 mx-6"></div>
+
+                {/* Content */}
+                {rightPanelView === 'agencement' && (
+                  <ExerciseArrangementModal
+                    isOpen={true}
+                    exercises={exercises}
+                    position={{}}
+                    draggedIndex={draggedIndex}
+                    dragOverIndex={dragOverIndex}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onMoveUp={moveExerciseUp}
+                    onMoveDown={moveExerciseDown}
+                    useAbsolute={false}
+                    embedded={true}
+                  />
+                )}
+
+                {rightPanelView === 'planning' && (() => {
+                  const displayMonth = planningViewDate || sessionDate;
+                  const selectedCalendarDate = planningViewDate || sessionDate;
+                  const dateKey = format(selectedCalendarDate, 'yyyy-MM-dd');
+                  const sessionsOnDay = planningSessions[dateKey] || [];
+                  // Calcule le bloc et la semaine pour une séance à partir des blocs de périodisation
+                  const getBlockInfoForSession = (scheduledDate) => {
+                    if (!scheduledDate || !planningBlocks?.length) return null;
+                    const sessionWeekStart = startOfWeek(parseISO(scheduledDate), { weekStartsOn: 1 });
+                    const sortedBlocks = [...planningBlocks].sort((a, b) => new Date(a.start_week_date) - new Date(b.start_week_date));
+                    const activeBlock = sortedBlocks.find(b => {
+                      const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                      const bEnd = addWeeks(bStart, parseInt(b.duration, 10) || 0);
+                      return sessionWeekStart >= bStart && sessionWeekStart < bEnd;
+                    });
+                    if (!activeBlock) return null;
+                    const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
+                    const weekInBlock = differenceInCalendarWeeks(sessionWeekStart, bStart, { weekStartsOn: 1 }) + 1;
+                    const totalWeeks = parseInt(activeBlock.duration, 10) || 1;
+                    const blockNumber = sortedBlocks.findIndex(bl => bl.id === activeBlock.id) + 1;
+                    return { blockNumber, weekInBlock, totalWeeks };
+                  };
+                  const monthStart = startOfMonth(displayMonth);
+                  const monthEnd = endOfMonth(displayMonth);
+                  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+                  const allDays = eachDayOfInterval({ start: calStart, end: calEnd });
+                  const weeks = [];
+                  for (let i = 0; i < allDays.length; i += 7) {
+                    weeks.push(allDays.slice(i, i + 7));
+                  }
+                  const showExpandCollapse = weeks.length > 3;
+                  const visibleWeeks = weeks;
+                  const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+                  const formatSetsForDisplay = (exercise) => {
+                    const sets = exercise.sets || [];
+                    if (sets.length === 0) return '';
+                    if (exercise.useRir) {
+                      const firstReps = sets[0]?.reps ?? '?';
+                      const firstRpe = sets[0]?.weight ?? 0;
+                      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+                      const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
+                      if (allSameReps && allSameRpe) return `${sets.length}x${firstReps} RPE ${firstRpe}`;
+                      return sets.map(s => `${s.reps ?? '?'} RPE ${s.weight ?? 0}`).join(', ');
+                    }
+                    const withWeight = sets.every(s => s.weight != null && s.weight !== '');
+                    const firstReps = sets[0]?.reps ?? '?';
+                    const firstWeight = sets[0]?.weight;
+                    const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+                    const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
+                    if (withWeight && allSameReps && allSameWeight && firstWeight != null) return `${sets.length}x${firstReps} @${firstWeight}kg`;
+                    if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
+                    return sets.map(s => s.weight ? `${s.reps ?? '?'}@${s.weight}kg` : `${s.reps ?? '?'}reps`).join(', ');
+                  };
+                  return (
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body flex flex-col">
+                      {/* Calendrier mensuel */}
+                      <div className="shrink-0 px-4 pt-4 pb-0">
+                        <div className="flex items-center justify-center gap-0 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setPlanningViewDate(subMonths(monthStart, 1))}
+                            className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
+                            aria-label="Mois précédent"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
+                              <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
+                            </svg>
+                          </button>
+                          <span className="text-sm font-light text-white/75 min-w-[120px] text-center capitalize">
+                            {format(displayMonth, 'MMMM yyyy', { locale: fr })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPlanningViewDate(addMonths(monthStart, 1))}
+                            className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
+                            aria-label="Mois suivant"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
+                              <path d="M246.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L178.7 256 41.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1 md:gap-2 mb-0 pt-2 pb-2">
+                          {weekDays.map((wd, i) => (
+                            <div key={i} className="text-center text-[10px] md:text-[12px] text-white/50 font-normal">{wd}</div>
+                          ))}
+                        </div>
+                        <div
+                          className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${
+                            showExpandCollapse
+                              ? planningCalendarExpanded
+                                ? 'max-h-[420px]'
+                                : 'max-h-[132px]'
+                              : 'max-h-none'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1">
+                            {visibleWeeks.map((week, wi) => (
+                              <div key={wi} className="grid grid-cols-7 gap-0.5">
+                                {week.map((day) => {
+                                const dayKey = format(day, 'yyyy-MM-dd');
+                                const sessionsOnDay = planningSessions[dayKey] || [];
+                                const hasSessions = sessionsOnDay.length > 0;
+                                const isSelected = isSameDay(day, selectedCalendarDate);
+                                const isCurrentMonth = isSameMonth(day, displayMonth);
+                                const isTodayDate = isToday(day);
+                                // Statut du jour pour la couleur du point : terminé = vert, en cours = gris
+                                const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
+                                const dayStatus = hasSessions
+                                  ? sessionsOnDay.reduce((acc, s) => {
+                                      const st = s.status || 'assigned';
+                                      return !acc || (statusOrder[st] || 0) > (statusOrder[acc] || 0) ? st : acc;
+                                    }, null)
+                                  : null;
+                                const dotColor = hasSessions
+                                  ? (isSelected
+                                      ? 'bg-white'
+                                      : dayStatus === 'completed'
+                                        ? 'bg-[#2FA064]'
+                                        : (dayStatus === 'in_progress' || dayStatus === 'assigned' || dayStatus === 'draft')
+                                          ? 'bg-gray-400'
+                                          : null)
+                                  : null;
+                                return (
+                                  <button
+                                    key={dayKey}
+                                    type="button"
+                                    onClick={() => setPlanningViewDate(day)}
+                                    className={`relative flex flex-col items-center justify-center min-h-[40px] w-9 max-w-[36px] mx-auto rounded-lg text-sm font-light transition-colors duration-200 ${
+                                      !isCurrentMonth ? 'text-white/35' : 'text-white'
+                                    } ${
+                                      isSelected
+                                        ? 'bg-[var(--kaiylo-primary-hex)] text-white shadow-none'
+                                        : isCurrentMonth
+                                          ? 'hover:bg-[#D4845A]/25 hover:text-white'
+                                          : ''
+                                    }`}
+                                  >
+                                    <span className={`block -mt-1 ${isSelected ? 'font-medium' : isTodayDate && isCurrentMonth ? 'text-[var(--kaiylo-primary-hex)] font-medium' : ''}`}>
+                                      {format(day, 'd')}
+                                    </span>
+                                    {dotColor && (
+                                      <span className={`absolute bottom-1.5 w-1 h-1 rounded-full ${dotColor}`} style={isSelected ? {} : { opacity: 0.9 }} />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ))}
+                          </div>
+                        </div>
+                        {!planningCalendarExpanded && showExpandCollapse && (
+                          <button
+                            type="button"
+                            onClick={() => setPlanningCalendarExpanded(true)}
+                            className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10"
+                            aria-label="Afficher tout le mois"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 text-white/50 group-hover:text-white transition-colors duration-300 ease-in-out" fill="currentColor">
+                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                            </svg>
+                          </button>
+                        )}
+                        {planningCalendarExpanded && showExpandCollapse && (
+                          <button
+                            type="button"
+                            onClick={() => setPlanningCalendarExpanded(false)}
+                            className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10 mt-1"
+                            aria-label="Réduire le calendrier"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-white transition-colors duration-200" fill="currentColor">
+                              <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-0 mt-2">
+                        <div className="mx-6 border-t border-white/10" aria-hidden="true" />
+                        <div className="flex items-center justify-between gap-2 flex-wrap pt-4 pb-4 px-6">
+                          <span className="text-sm font-light text-white/50">
+                            {format(selectedCalendarDate, 'd MMM yyyy', { locale: fr })}
+                          </span>
+                          {(() => {
+                            // Statut du jour : priorité in_progress > completed > assigned > draft
+                            const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
+                            const dayStatus = sessionsOnDay.length === 0
+                              ? null
+                              : sessionsOnDay.reduce((acc, s) => {
+                                  const st = s.status || 'assigned';
+                                  return !acc || (statusOrder[st] || 0) > (statusOrder[acc] || 0) ? st : acc;
+                                }, null);
+                            if (dayStatus == null) return null;
+                            const statusConfig = {
+                              completed: { label: 'Terminé', className: 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20', dotColor: '#2FA064' },
+                              in_progress: { label: 'En cours', className: 'bg-[#d4845a] text-white', dotColor: null },
+                              assigned: { label: 'Assigné', className: 'bg-[#3B6591] text-white', dotColor: '#5B85B1' },
+                              draft: { label: 'Brouillon', className: 'bg-[#686762] text-white', dotColor: '#4a4a47' },
+                            };
+                            const config = statusConfig[dayStatus] || { label: 'Pas commencé', className: 'bg-gray-600 text-gray-200', dotColor: null };
+                            return (
+                              <span className={`px-2 py-0.5 rounded-full text-[12px] font-normal shadow-sm flex items-center gap-1.5 ${config.className}`}>
+                                {config.dotColor && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: config.dotColor }} />}
+                                {config.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        {sessionsOnDay.length > 0 ? (
+                          <div className="flex flex-col gap-2 px-3 pb-4">
+                            {sessionsOnDay.map((session, idx) => {
+                              const sessionId = session.id || session.assignmentId || idx;
+                              const isExpanded = !collapsedPlanningSessionIds.has(sessionId);
+                              const exercisesList = session.exercises || session.workout_sessions?.exercises || [];
+                              const blockInfo = getBlockInfoForSession(session.scheduled_date);
+                              const toggleExpanded = () => {
+                                setCollapsedPlanningSessionIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(sessionId)) next.delete(sessionId);
+                                  else next.add(sessionId);
+                                  return next;
+                                });
+                              };
+                              return (
+                                <div key={sessionId} className="rounded-xl bg-white/5 overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={toggleExpanded}
+                                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left bg-black/50 hover:bg-black/60 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-1 min-w-0 flex-1">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                        <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z"/>
+                                      </svg>
+                                      <span className="text-[14px] font-medium text-white min-w-0 truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                        {session.title || session.workout_sessions?.title || 'Séance'}
+                                      </span>
+                                      {blockInfo && (
+                                        <>
+                                          <span className="text-[14px] text-white/50 flex-shrink-0"> : </span>
+                                          <span className="text-[12px] text-white/50 flex-shrink-0 whitespace-nowrap pt-0.5 pb-0.5">
+                                            Bloc {blockInfo.blockNumber} - S {blockInfo.weekInBlock}/{blockInfo.totalWeeks}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`h-4 w-4 flex-shrink-0 text-white/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-90'}`} fill="currentColor">
+                                      <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"/>
+                                    </svg>
+                                  </button>
+                                  {isExpanded && exercisesList.length > 0 && (
+                                    <div className="px-3 pb-3 pt-1.5 bg-black/50">
+                                      <div className="relative flex flex-col">
+                                        {exercisesList.map((exercise, exIdx) => {
+                                          const setsStr = formatSetsForDisplay(exercise);
+                                          const setCount = exercise.sets?.length || 0;
+                                          return (
+                                            <div key={exIdx} className="flex items-center gap-2 py-1.5">
+                                              <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 flex-shrink-0 relative z-10 my-auto" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }} aria-hidden>
+                                                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                                </svg>
+                                              </div>
+                                              <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="text-[14px] font-normal text-white truncate">{exercise.name}</div>
+                                                  {setsStr && (
+                                                    <div className="text-[10px] text-white/75 font-normal truncate">
+                                                      {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
+                                                        part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
+                                                          <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
+                                                        ) : (
+                                                          <span key={i}>{part}</span>
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                {setCount > 0 && (
+                                                  <span className="text-[12px] text-white/75 flex-shrink-0">x{setCount}</span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-white/40 font-light px-6 pb-4">Aucune séance ce jour</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             )}
           </div>
         ) : null
@@ -1200,19 +1697,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  {onCopySession && exercises.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleCopyFromModal}
-                      className="px-3 py-2 text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
-                      aria-label="Copier la séance"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
-                        <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
-                      </svg>
-                      Copier
-                    </button>
-                  )}
                   <button
                     onClick={() => handleClose(false)}
                     className="text-white/50 hover:text-white transition-colors"
@@ -1361,11 +1845,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           e.stopPropagation();
                           const updatedExercises = [...exercises];
                           updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                          // Réinitialiser toutes les valeurs de poids à 0 (ou vide) et previousRpe à null lors du changement de mode
+                          // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
                           updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
                             ...set,
-                            weight: '',
-                            previousRpe: null // Réinitialiser previousRpe car la valeur précédente n'est plus valide dans le nouveau mode
+                            weight: ''
                           }));
                           setExercises(updatedExercises);
                         }}
@@ -1769,21 +2252,25 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                 {hasPreviousRpeData() && (
                                   <td className="py-1.5 min-w-24">
                                     <div className="flex items-center justify-center">
-                                      {set.previousRpe && set.previousRpe !== null && set.previousRpe !== undefined ? (
-                                        <div 
-                                          className="flex items-center justify-center px-2 py-1 rounded"
-                                          title={exercise.useRir 
-                                            ? `Charge renseignée lors de la séance précédente: ${set.previousRpe}kg`
-                                            : `RPE renseigné lors de la séance précédente: ${set.previousRpe}`
-                                          }
-                                        >
-                                          <span className="text-[#d4845a] text-sm font-normal">
-                                            {exercise.useRir ? `${set.previousRpe}kg` : set.previousRpe}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-white/25 text-sm font-light">-</span>
-                                    )}
+                                      {(() => {
+                                        const prevVal = exercise.useRir ? set.previousCharge : set.previousRpe;
+                                        const hasVal = prevVal != null && prevVal !== '';
+                                        return hasVal ? (
+                                          <div 
+                                            className="flex items-center justify-center px-2 py-1 rounded"
+                                            title={exercise.useRir 
+                                              ? `Charge renseignée lors de la séance précédente: ${prevVal}kg`
+                                              : `RPE renseigné lors de la séance précédente: ${prevVal}`
+                                            }
+                                          >
+                                            <span className="text-[#d4845a] text-sm font-normal">
+                                              {exercise.useRir ? `${prevVal}kg` : prevVal}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-white/25 text-sm font-light">-</span>
+                                        );
+                                      })()}
                                   </div>
                                 </td>
                                 )}

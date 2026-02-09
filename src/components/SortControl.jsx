@@ -47,21 +47,26 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <button
-          className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none ${
-            isActive ? 'bg-primary/90' : ''
-          }`}
+          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none overflow-hidden"
           style={{
-            backgroundColor: isActive ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
             color: isActive ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
           }}
           title={`Trier: ${currentOption.label}`}
           aria-label={`Trier: ${currentOption.label}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+          <span
+            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+              isActive
+                ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+            }`}
+            aria-hidden
+          />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
             <path fill="currentColor" d="M470.6 566.6L566.6 470.6C575.8 461.4 578.5 447.7 573.5 435.7C568.5 423.7 556.9 416 544 416L480 416L480 96C480 78.3 465.7 64 448 64C430.3 64 416 78.3 416 96L416 416L352 416C339.1 416 327.4 423.8 322.4 435.8C317.4 447.8 320.2 461.5 329.3 470.7L425.3 566.7C437.8 579.2 458.1 579.2 470.6 566.7zM214.6 73.4C202.1 60.9 181.8 60.9 169.3 73.4L73.3 169.4C64.1 178.6 61.4 192.3 66.4 204.3C71.4 216.3 83.1 224 96 224L160 224L160 544C160 561.7 174.3 576 192 576C209.7 576 224 561.7 224 544L224 224L288 224C300.9 224 312.6 216.2 317.6 204.2C322.6 192.2 319.8 178.5 310.7 169.3L214.7 73.3z"/>
           </svg>
-          <span>Trier</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <span className="relative z-10">Trier</span>
+          <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${open ? 'rotate-180' : ''}`} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
+import { sortStudents } from '../utils/studentSorting';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,9 @@ const StudentSidebar = ({
   studentVideoCounts = {},
   studentMessageCounts = {},
   studentNextSessions = {},
-  onFeedbackBadgeClick
+  onFeedbackBadgeClick,
+  sort = 'name',
+  dir = 'asc'
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
@@ -79,18 +82,9 @@ const StudentSidebar = ({
       });
     }
     
-    // Sort: students with pending feedback first
-    filtered.sort((a, b) => {
-      const aHasPendingFeedback = studentVideoCounts[a.id] && Number(studentVideoCounts[a.id]) > 0;
-      const bHasPendingFeedback = studentVideoCounts[b.id] && Number(studentVideoCounts[b.id]) > 0;
-      
-      if (aHasPendingFeedback && !bHasPendingFeedback) return -1;
-      if (!aHasPendingFeedback && bHasPendingFeedback) return 1;
-      return 0;
-    });
-    
-    return filtered;
-  }, [students, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
+    // Tri identique à la page d'accueil (priorité feedback, puis séances à venir, puis critère choisi)
+    return sortStudents(filtered, sort, dir, studentVideoCounts, studentNextSessions);
+  }, [students, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions, sort, dir]);
 
   return (
     <div 

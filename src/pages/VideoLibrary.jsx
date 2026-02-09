@@ -928,7 +928,7 @@ const VideoLibrary = () => {
                     className={`text-white/50 transition-transform flex-shrink-0 ${
                       isOpen ? '' : '-rotate-90'
                     }`}
-                    style={{ width: '20px', height: '20px' }}
+                    style={{ width: '16px', height: '16px' }}
                     fill="currentColor"
                     aria-hidden="true"
                   >
@@ -1394,9 +1394,8 @@ const VideoLibrary = () => {
                 <DropdownMenuTrigger asChild>
                   <button
                     ref={statusFilterButtonRef}
-                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none"
+                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
                     style={{
-                      backgroundColor: isStatusFilterOpen || statusFilter !== 'all' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       color: isStatusFilterOpen || statusFilter !== 'all' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                       fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : '200',
                       ...(!isMobile && {
@@ -1405,11 +1404,19 @@ const VideoLibrary = () => {
                       })
                     }}
                   >
-                    <span ref={statusFilterTextRef} style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{getStatusFilterLabel(statusFilter)}</span>
+                    <span
+                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                        isStatusFilterOpen || statusFilter !== 'all'
+                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                      }`}
+                      aria-hidden
+                    />
+                    <span ref={statusFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{getStatusFilterLabel(statusFilter)}</span>
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
-                      viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform"
+viewBox="0 0 384 512"
+                      className="h-4 w-4 transition-transform relative z-10"
                       style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                       fill="currentColor"
                       aria-hidden="true"
@@ -1430,8 +1437,8 @@ const VideoLibrary = () => {
                     borderColor: 'rgba(255, 255, 255, 0.1)'
                   }}
                 >
-                  <DropdownMenuRadioGroup 
-                    value={statusFilter} 
+                  <DropdownMenuRadioGroup
+                    value={statusFilter}
                     onValueChange={(value) => {
                       setStatus(value);
                       setIsStatusFilterOpen(false);
@@ -1585,9 +1592,8 @@ const VideoLibrary = () => {
                 <DropdownMenuTrigger asChild>
                   <button
                     ref={studentFilterButtonRef}
-                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none"
+                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
                     style={{
-                      backgroundColor: isStudentFilterOpen || selectedStudent !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       color: isStudentFilterOpen || selectedStudent !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                       fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : '200',
                       ...(!isMobile && {
@@ -1596,11 +1602,19 @@ const VideoLibrary = () => {
                       })
                     }}
                   >
-                    <span ref={studentFilterTextRef} style={{ fontSize: '14px', fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedStudent ? (studentMap.get(selectedStudent) || selectedStudent) : 'Client'}</span>
+                    <span
+                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                        isStudentFilterOpen || selectedStudent !== ''
+                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                      }`}
+                      aria-hidden
+                    />
+                    <span ref={studentFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedStudent ? (studentMap.get(selectedStudent) || selectedStudent) : 'Client'}</span>
                     <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
+xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform"
+                      className="h-4 w-4 transition-transform relative z-10"
                       style={{ transform: isStudentFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                       fill="currentColor"
                       aria-hidden="true"
@@ -1621,8 +1635,8 @@ const VideoLibrary = () => {
                     borderColor: 'rgba(255, 255, 255, 0.1)'
                   }}
                 >
-                  <DropdownMenuRadioGroup 
-                    value={selectedStudent} 
+                  <DropdownMenuRadioGroup
+                    value={selectedStudent}
                     onValueChange={(value) => {
                       setSelectedStudent(value);
                       setIsStudentFilterOpen(false);
@@ -1742,9 +1756,8 @@ const VideoLibrary = () => {
                 <DropdownMenuTrigger asChild>
                   <button
                     ref={exerciseFilterButtonRef}
-                    className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none"
+                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
                     style={{
-                      backgroundColor: isExerciseFilterOpen || selectedExercise !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                       color: isExerciseFilterOpen || selectedExercise !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                       fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : '200',
                       ...(!isMobile && {
@@ -1753,11 +1766,19 @@ const VideoLibrary = () => {
                       })
                     }}
                   >
-                    <span ref={exerciseFilterTextRef} style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedExercise || 'Exercice'}</span>
+                    <span
+                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                        isExerciseFilterOpen || selectedExercise !== ''
+                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                      }`}
+                      aria-hidden
+                    />
+                    <span ref={exerciseFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedExercise || 'Exercice'}</span>
                     <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
+xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform"
+                      className="h-4 w-4 transition-transform relative z-10"
                       style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                       fill="currentColor"
                       aria-hidden="true"
@@ -1916,9 +1937,8 @@ const VideoLibrary = () => {
                 <div 
                   ref={dateFilterButtonRef}
                   onClick={() => dateInputRef.current?.showPicker()}
-                  className="relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors gap-2 w-full sm:w-auto"
+                  className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 w-full sm:w-auto overflow-hidden"
                   style={{
-                    backgroundColor: selectedDate ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                     color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
                     fontWeight: selectedDate ? '400' : '200',
                     ...(!isMobile && {
@@ -1927,17 +1947,25 @@ const VideoLibrary = () => {
                     })
                   }}
                 >
+                  <span
+                    className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                      selectedDate
+                        ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                        : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                    }`}
+                    aria-hidden
+                  />
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 448 512" 
-                    className="h-4 w-4 pointer-events-none flex-shrink-0"
+                    className="h-4 w-4 pointer-events-none flex-shrink-0 relative z-10"
                     style={{ color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
                     fill="currentColor"
                   >
                     <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
                   </svg>
                   {/* Custom Display */}
-                  <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap" style={{ 
+                  <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap relative z-10" style={{ 
                     fontSize: '14px',
                     fontWeight: selectedDate ? '400' : 'inherit',
                     flex: '1'

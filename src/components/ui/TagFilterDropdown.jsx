@@ -186,25 +186,30 @@ const TagFilterDropdown = ({
       <button
         onClick={handleButtonClick}
         disabled={disabled}
-        className={`bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground ${
-          isOpen || selectedTags.length > 0 ? 'bg-primary/90' : ''
-        }`}
+        className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground overflow-hidden"
         style={{
-          backgroundColor: isOpen || selectedTags.length > 0 ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
           color: isOpen || selectedTags.length > 0 ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
         }}
         title="Filtres"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
+        <span
+          className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+            isOpen || selectedTags.length > 0
+              ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+              : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+          }`}
+          aria-hidden
+        />
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
           <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
         </svg>
-        <span>Filtres</span>
+        <span className="relative z-10">Filtres</span>
         {selectedTags.length > 0 && (
-          <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
+          <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
             {selectedTags.length}
           </span>
         )}
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
