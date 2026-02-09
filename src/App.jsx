@@ -132,7 +132,7 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/landing" element={<LandingPage />} />
+                <Route path="/waitlist" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/register/student" element={<StudentRegisterPage />} />
