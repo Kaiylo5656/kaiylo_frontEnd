@@ -461,12 +461,14 @@ const LoginPage = () => {
               </span>
             </button>
             
+            {/* 
             <p className="mt-6 text-sm text-muted-foreground text-center" style={{ fontWeight: '300', color: 'rgba(255, 255, 255, 0.75)' }}>
               Pas encore de compte ?{' '}
               <Link to="/register" className="text-primary hover:underline font-semibold">
                 Inscrivez-vous
               </Link>
-            </p>
+            </p> 
+            */}
           </div>
         </div>
       </main>
