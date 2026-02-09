@@ -32,7 +32,7 @@ const BetaSignupSection = () => {
         {/* Text Side */}
         <div className="w-full max-w-[500px] flex flex-col gap-6 text-center">
           <h2 className="font-['Inter'] font-light text-[28px] md:text-[36px] text-white leading-[1.1]">
-            Fais partie des <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">premiers</span> à tester Kaiylo
+            Fais partie des <span className="text-[#d4845a]">premiers</span> à tester Kaiylo
           </h2>
           <p className="font-['Inter'] font-extralight text-sm md:text-base text-white/50 leading-tight">
             Laisse ton email, on t'envoie les accès à la bêta dès qu'elle est disponible.
@@ -77,7 +77,7 @@ const BetaSignupSection = () => {
                 className="w-full h-12 px-6 flex items-center justify-center bg-[#d4845a] hover:bg-[#bf7348] rounded-full transition-all cursor-pointer group relative overflow-hidden group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                  <span className="text-sm text-white font-['Inter'] font-normal relative z-10">
-                   {status === 'loading' ? 'Inscription...' : 'Rejoins la liste'}
+                   {status === 'loading' ? 'Inscription...' : 'Réserver mon accès'}
                  </span>
                  <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
               </button>

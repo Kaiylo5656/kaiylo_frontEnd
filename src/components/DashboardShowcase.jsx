@@ -1,9 +1,9 @@
-import { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const DashboardShowcase = ({ isActive }) => {
+const DashboardShowcase = ({ isActive, children }) => {
     const containerRef = useRef(null);
     const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -71,15 +71,15 @@ const DashboardShowcase = ({ isActive }) => {
         { stiffness: 100, damping: 30 }
     );
 
-    // Update transforms based on scroll progress
+    // Update transforms based on scroll progress (subtle tilt and scale)
     useEffect(() => {
         const unsubscribe = smoothProgress.on('change', (v) => {
-            // rotateX: 40 at 0, 0 at 0.5, -40 at 1
-            const newRotateX = 40 - (v * 80);
+            // rotateX: subtle 12° at 0, 0 at 0.5, -12° at 1
+            const newRotateX = 12 - (v * 24);
             rotateX.set(newRotateX);
             
-            // scale: 0.8 at 0, 1 at 0.5, 0.8 at 1
-            const newScale = 0.8 + (0.2 * (1 - Math.abs(v - 0.5) * 2));
+            // scale: 0.94 at edges, 1 at center
+            const newScale = 0.94 + (0.06 * (1 - Math.abs(v - 0.5) * 2));
             scale.set(newScale);
         });
 
@@ -87,52 +87,43 @@ const DashboardShowcase = ({ isActive }) => {
     }, [smoothProgress, rotateX, scale]);
 
     return (
-        <section ref={containerRef} className="relative z-10 w-full py-20 min-h-screen flex flex-col items-center justify-center perspective-1000 overflow-hidden">
+        <section ref={containerRef} className="relative z-10 w-full py-0 min-h-screen flex flex-col items-center justify-center perspective-1000 overflow-hidden">
             
             {/* Background Glow for this section - Accentuated */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[600px] bg-[#d4845a]/30 blur-[140px] rounded-full -z-10" />
 
             <div className="container mx-auto px-4 z-10 flex flex-col items-center">
-                <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-100px" }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="text-center mb-16"
-                >
-                    <h2 className="font-['Inter'] font-light text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white mb-6">
-                        Tout ton <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">coaching</span> au même endroit
-                    </h2>
-                    <p className="font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl mx-auto leading-relaxed">
-                        Une interface pensée pour les coachs StreetLifting
-                    </p>
-                </motion.div>
+                {React.Children.toArray(children)[0]}
+                <div className="w-full flex flex-col items-center pt-20 pb-20">
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-100px" }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className="text-center mb-16"
+                    >
+                        <h2 className="font-['Inter'] font-light text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white mb-6">
+                            Tout ton <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">coaching</span> au même endroit
+                        </h2>
+                        <p className="font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl mx-auto leading-relaxed">
+                            Une interface pensée pour les coachs StreetLifting
+                        </p>
+                    </motion.div>
 
-                <div className="relative w-full max-w-[1000px] md:max-w-[1200px] px-6 perspective-[1200px]">
-                    <div className="absolute top-1/2 left-[-60px] -translate-y-1/2 z-20">
-                        <button
-                            onClick={prevSlide}
-                            className="w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light"
-                        >
-                            <ChevronLeft className="w-8 h-8 stroke-[1]" />
-                        </button>
-                    </div>
-
-                    <div className="absolute top-1/2 right-[-60px] -translate-y-1/2 z-20">
-                        <button
-                            onClick={nextSlide}
-                            className="w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light"
-                        >
-                            <ChevronRight className="w-8 h-8 stroke-[1]" />
-                        </button>
-                    </div>
+                    <div className="relative w-full max-w-[1000px] md:max-w-[1200px] px-6 perspective-[1200px] flex items-center justify-center gap-4 md:gap-0">
+                    <button
+                        onClick={prevSlide}
+                        className="shrink-0 w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light z-20 md:absolute md:left-[-60px] md:top-1/2 md:-translate-y-1/2"
+                    >
+                        <ChevronLeft className="w-8 h-8 stroke-[1]" />
+                    </button>
 
                     <motion.div
                         style={{
                             rotateX,
                             scale,
                         }}
-                        className="w-full relative rounded-xl bg-[#0a0a0a] border border-white/10 shadow-2xl overflow-hidden antialiased will-change-transform"
+                        className="flex-1 min-w-0 w-full relative rounded-xl bg-[#0a0a0a] border border-white/10 shadow-2xl overflow-hidden antialiased will-change-transform"
                     >
 
 
@@ -176,7 +167,16 @@ const DashboardShowcase = ({ isActive }) => {
 
                         </div>
                     </motion.div>
+
+                    <button
+                        onClick={nextSlide}
+                        className="shrink-0 w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light z-20 md:absolute md:right-[-60px] md:top-1/2 md:-translate-y-1/2"
+                    >
+                        <ChevronRight className="w-8 h-8 stroke-[1]" />
+                    </button>
+                    </div>
                 </div>
+                {React.Children.toArray(children)[1]}
             </div>
         </section>
     );

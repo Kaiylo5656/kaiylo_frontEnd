@@ -89,22 +89,6 @@ const LandingPage = () => {
           />
         </div>
 
-        {/* Login Button en haut à droite */}
-        <div className="absolute top-6 right-6 md:top-8 md:right-8 z-20">
-          <a
-            href="/login"
-            className="flex items-center justify-center px-4 py-2 text-sm font-light text-white transition-all duration-300 hover:bg-white/5 active:scale-95"
-            style={{
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            Se connecter
-          </a>
-        </div>
-
         {/* Hero Content Wrapper */}
         <div className="flex flex-col items-center text-center max-w-[1000px] mx-auto">
 
@@ -117,20 +101,20 @@ const LandingPage = () => {
             </span>
           </div>
 
-          {/* Main Heading — toujours 2 lignes sur mobile, toujours plus grand que le sous-titre */}
+          {/* Main Heading — 2 lines on mobile: smaller size so both lines fit */}
           <h1
-            className={`mb-8 font-['Inter'] font-light tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} text-[clamp(1.0625rem,3vw+0.65rem,2.125rem)] sm:text-3xl md:text-4xl lg:text-6xl`}
+            className={`mb-12 font-['Inter'] font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
-            <span className="block whitespace-nowrap">Enfin un outil professionnel pour</span>
-            <span className="block whitespace-nowrap">coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span></span>
+            <span className="block">Enfin un outil professionnel pour</span>
+            <span className="block">coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span></span>
           </h1>
 
-          {/* Subtext — toujours plus petit que le titre ; 2e phrase masquée sur mobile */}
+          {/* Subtext */}
           <p
-            className={`mb-12 font-['Inter'] font-light text-xs sm:text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`mb-12 font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ opacity: 1 }}
           >
-            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi.<span className="hidden sm:inline"> Passe moins de temps à gérer, plus de temps à coacher.</span>
+            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi.<span className="hidden md:inline"> Passe moins de temps à gérer, plus de temps à coacher.</span>
           </p>
 
           {/* CTA Section */}
@@ -142,39 +126,40 @@ const LandingPage = () => {
                 {heroMessage}
               </div>
             ) : (
-              <form onSubmit={handleHeroSubmit} className="relative w-full group">
-                <input
-                  type="email"
-                  placeholder="Ton email"
-                  value={heroEmail}
-                  onChange={(e) => setHeroEmail(e.target.value)}
-                  onFocus={() => setIsEmailFocused(true)}
-                  onClick={() => setIsEmailFocused(true)}
-                  className="w-full h-12 bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
-                  required
-                />
-                {/* Button */}
+              <form onSubmit={handleHeroSubmit} className="relative w-full group flex flex-col gap-3 md:block">
+                <div className="relative w-full h-12">
+                  <input
+                    type="email"
+                    placeholder="Ton email"
+                    value={heroEmail}
+                    onChange={(e) => setHeroEmail(e.target.value)}
+                    onFocus={() => setIsEmailFocused(true)}
+                    onClick={() => setIsEmailFocused(true)}
+                    className="absolute inset-0 w-full h-full bg-zinc-900/50 border border-zinc-800 rounded-full px-5 pr-5 md:pr-32 text-sm text-zinc-200 placeholder-zinc-500 outline-none transition-all"
+                    required
+                  />
+                  <BorderBeam
+                    size={80}
+                    duration={3}
+                    delay={0}
+                    borderWidth={1.5}
+                    colorFrom="#d4845a"
+                    colorTo="transparent"
+                    radius={24}
+                    className="rounded-full pointer-events-none"
+                  />
+                </div>
+                {/* Button: below input on mobile, inside on right from md */}
                 <button
                   type="submit"
                   disabled={heroStatus === 'loading'}
-                  className="absolute right-0 top-0 bottom-0 h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative w-full md:absolute md:right-0 md:top-0 md:bottom-0 md:w-auto h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="relative z-10 font-normal">
-                    {heroStatus === 'loading' ? '...' : 'Rejoins la liste'}
+                    {heroStatus === 'loading' ? '...' : 'Réserver mon accès'}
                   </span>
                   <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
                 </button>
-
-                <BorderBeam
-                  size={80}
-                  duration={3}
-                  delay={0}
-                  borderWidth={1.5}
-                  colorFrom="#d4845a"
-                  colorTo="transparent"
-                  radius={24}
-                  className="rounded-full pointer-events-none after:bg-no-repeat"
-                />
               </form>
             )}
             
@@ -196,14 +181,25 @@ const LandingPage = () => {
       {/* Pain Points Section */}
       <PainPointsSection />
 
-      {/* Dashboard Coach Card */}
-      <DashboardCoachCard />
+      {/* Dashboard Showcase (inclut Coach Card + Carousel + Beta Signup) */}
+      <DashboardShowcase isActive={true}>
+        <DashboardCoachCard />
+        <BetaSignupSection />
+      </DashboardShowcase>
 
-      {/* 3D Dashboard Showcase */}
-      <DashboardShowcase isActive={true} />
-
-      {/* Beta Signup Section */}
-      <BetaSignupSection />
+      {/* Login Button en bas à droite (position absolue) */}
+      <div className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-20">
+        <a
+          href="/login"
+          className="flex items-center justify-center px-4 py-2 text-sm font-light text-white/50 transition-all duration-300 hover:bg-white/5 active:scale-95"
+          style={{
+            borderRadius: '8px',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          Se connecter
+        </a>
+      </div>
     </div>
   );
 };
