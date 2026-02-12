@@ -130,8 +130,8 @@ function App() {
           <>
             <div className="App">
               <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<LandingPage />} />
+                {/* Public Routes - root is login; landing/waitlist at /waitlist */}
+                <Route path="/" element={<LoginPage />} />
                 <Route path="/waitlist" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />

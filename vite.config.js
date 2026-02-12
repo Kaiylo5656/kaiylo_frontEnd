@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import path from 'path'
 
 // https://vite.dev/config/
@@ -36,8 +37,16 @@ export default defineConfig(({ mode }) => {
       __VERCEL_ENV__: JSON.stringify(vercelEnv),
       __VERCEL_URL__: JSON.stringify(vercelUrl),
     },
+    build: {
+      sourcemap: true,
+    },
     plugins: [
     react(),
+    sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
