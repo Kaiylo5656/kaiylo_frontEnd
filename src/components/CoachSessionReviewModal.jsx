@@ -1058,7 +1058,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           }}
                           placeholder="Ajouter un commentaire ..."
                           rows={1}
-                          className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                          className="flex-1 bg-transparent text-base font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
                           style={{ 
                             minHeight: '24px', 
                             maxHeight: '100px', 

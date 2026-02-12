@@ -168,7 +168,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="ex: Comment effectuer un squat"
             required
-            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
           />
         </div>
 
@@ -183,7 +183,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Une courte description du contenu vidéo"
             rows={3}
-            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
+            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
           />
         </div>
 
@@ -197,7 +197,7 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
               id="folder"
               value={selectedFolder}
               onChange={(e) => setSelectedFolder(e.target.value)}
-              className="select-dark-kaiylo w-full px-[14px] py-3 pr-10 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] appearance-none"
+              className="select-dark-kaiylo w-full px-[14px] py-3 pr-10 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] appearance-none"
               style={{ 
                 appearance: 'none',
                 WebkitAppearance: 'none',

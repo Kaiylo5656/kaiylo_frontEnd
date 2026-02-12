@@ -873,7 +873,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                           value={feedback}
                           onChange={(e) => setFeedback(e.target.value)}
                           placeholder="Ajouter un commentaire..."
-                          className="w-full flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] text-sm font-light"
+                          className="w-full flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-white/40 resize-none focus:outline-none focus:ring-2 focus:ring-[var(--kaiylo-primary-hex)] text-base font-light"
                         />
                         <button
                           onClick={handleSubmitFeedback}
@@ -941,7 +941,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                               onChange={(e) => setFeedback(e.target.value)}
                               placeholder="Ajouter un commentaire ..."
                               rows={1}
-                              className="flex-1 bg-transparent text-[11px] md:text-[13px] font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                              className="flex-1 bg-transparent text-base font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
                               style={{ paddingTop: '1px', paddingBottom: '1px', lineHeight: '1.5' }}
                             />
                             <button

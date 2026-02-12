@@ -231,7 +231,7 @@ const WeekNotesModal = ({ isOpen, onClose, weekStartDate, studentId, onSave }) =
                       textarea.style.height = textarea.scrollHeight + 'px';
                     }}
                     placeholder="Ajouter une note"
-                    className={`flex-1 px-[14px] py-2.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight outline-none focus:outline-none focus:border-[0.5px] transition-colors resize-none min-h-[42px] overflow-hidden ${
+                    className={`flex-1 px-[14px] py-2.5 rounded-[10px] bg-[rgba(0,0,0,0.5)] border-[0.5px] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight outline-none focus:outline-none focus:border-[0.5px] transition-colors resize-none min-h-[42px] overflow-hidden ${
                       isFirstDisplayedNote 
                         ? 'border-[var(--kaiylo-primary-hex)] focus:border-[var(--kaiylo-primary-hex)]' 
                         : 'border-[rgba(255,255,255,0.05)] focus:border-[rgba(255,255,255,0.2)]'
