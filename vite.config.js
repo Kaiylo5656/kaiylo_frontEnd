@@ -42,11 +42,14 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
     react(),
-    sentryVitePlugin({
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-    }),
+    // Only run Sentry source map upload when auth token is set (avoids build failure on Vercel)
+    ...(process.env.SENTRY_AUTH_TOKEN ? [
+      sentryVitePlugin({
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+      }),
+    ] : []),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
@@ -61,6 +64,8 @@ export default defineConfig(({ mode }) => {
         cleanupOutdatedCaches: true,
         sourcemap: true,
         mode: 'production',
+        // Allow precaching assets larger than Workbox default 2 MiB (main JS bundle can exceed it)
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
