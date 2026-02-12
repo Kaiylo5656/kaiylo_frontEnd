@@ -187,19 +187,6 @@ const LandingPage = () => {
         <BetaSignupSection />
       </DashboardShowcase>
 
-      {/* Login Button en bas à droite (position absolue) */}
-      <div className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-20">
-        <a
-          href="/login"
-          className="flex items-center justify-center px-4 py-2 text-sm font-light text-white/50 transition-all duration-300 hover:bg-white/5 active:scale-95"
-          style={{
-            borderRadius: '8px',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          Se connecter
-        </a>
-      </div>
     </div>
   );
 };
