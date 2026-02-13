@@ -31,7 +31,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
   // Helper function to check if exercise has videos
   const hasVideos = (exercise, exerciseIndex) => {
     if (!sessionVideos || sessionVideos.length === 0) return false;
-    
+
     // Check by exercise_index and exercise_name (most specific)
     if (exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByIndex = sessionVideos.filter(
@@ -39,7 +39,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosByIndex.length > 0) return true;
     }
-    
+
     // Check by exercise_id
     const exerciseId = exercise.id || exercise.exercise_id || exercise.exerciseId;
     if (exerciseId) {
@@ -48,13 +48,13 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosById.length > 0) return true;
     }
-    
+
     // Check by exercise name only if exercise_index is not available on the video
     // This prevents false positives when multiple exercises have the same name
     if (exercise.name && exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByName = sessionVideos.filter(
-        (video) => video.exercise_name === exercise.name && 
-        (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
+        (video) => video.exercise_name === exercise.name &&
+          (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
       );
       if (videosByName.length > 0) return true;
     } else if (exercise.name && (exerciseIndex === undefined || exerciseIndex === null)) {
@@ -64,14 +64,14 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosByName.length > 0) return true;
     }
-    
+
     return false;
   };
 
   // Helper function to count videos for an exercise
   const getVideoCount = (exercise, exerciseIndex) => {
     if (!sessionVideos || sessionVideos.length === 0) return 0;
-    
+
     // Check by exercise_index and exercise_name (most specific)
     if (exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByIndex = sessionVideos.filter(
@@ -79,7 +79,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosByIndex.length > 0) return videosByIndex.length;
     }
-    
+
     // Check by exercise_id
     const exerciseId = exercise.id || exercise.exercise_id || exercise.exerciseId;
     if (exerciseId) {
@@ -88,13 +88,13 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosById.length > 0) return videosById.length;
     }
-    
+
     // Check by exercise name only if exercise_index is not available on the video
     // This prevents false positives when multiple exercises have the same name
     if (exercise.name && exerciseIndex !== undefined && exerciseIndex !== null) {
       const videosByName = sessionVideos.filter(
-        (video) => video.exercise_name === exercise.name && 
-        (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
+        (video) => video.exercise_name === exercise.name &&
+          (video.exercise_index === null || video.exercise_index === undefined || video.exercise_index === exerciseIndex)
       );
       if (videosByName.length > 0) return videosByName.length;
     } else if (exercise.name && (exerciseIndex === undefined || exerciseIndex === null)) {
@@ -104,7 +104,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       );
       if (videosByName.length > 0) return videosByName.length;
     }
-    
+
     return 0;
   };
 
@@ -126,7 +126,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       <div className="shrink-0 pl-6 pr-0 pt-6 pb-3 flex items-center justify-between">
         <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
-            <path d="M88 289.6L64.4 360.2L64.4 160C64.4 124.7 93.1 96 128.4 96L267.1 96C280.9 96 294.4 100.5 305.5 108.8L343.9 137.6C349.4 141.8 356.2 144 363.1 144L480.4 144C515.7 144 544.4 172.7 544.4 208L544.4 224L179 224C137.7 224 101 250.4 87.9 289.6zM509.8 512L131 512C98.2 512 75.1 479.9 85.5 448.8L133.5 304.8C140 285.2 158.4 272 179 272L557.8 272C590.6 272 613.7 304.1 603.3 335.2L555.3 479.2C548.8 498.8 530.4 512 509.8 512z"/>
+            <path d="M88 289.6L64.4 360.2L64.4 160C64.4 124.7 93.1 96 128.4 96L267.1 96C280.9 96 294.4 100.5 305.5 108.8L343.9 137.6C349.4 141.8 356.2 144 363.1 144L480.4 144C515.7 144 544.4 172.7 544.4 208L544.4 224L179 224C137.7 224 101 250.4 87.9 289.6zM509.8 512L131 512C98.2 512 75.1 479.9 85.5 448.8L133.5 304.8C140 285.2 158.4 272 179 272L557.8 272C590.6 272 613.7 304.1 603.3 335.2L555.3 479.2C548.8 498.8 530.4 512 509.8 512z" />
           </svg>
           Séance complète
         </h2>
@@ -147,27 +147,26 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
                     onExerciseSelect(index);
                   }
                 }}
-                className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${
-                  isSelected 
-                    ? 'bg-[rgba(212,132,90,0.25)]' 
-                    : 'bg-black/50 text-white/50 hover:bg-black/40'
-                }`}
-                style={{ 
+                className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${isSelected
+                  ? 'bg-[rgba(212,132,90,0.25)]'
+                  : 'bg-black/50 text-white/50 hover:bg-black/40'
+                  }`}
+                style={{
                   borderRadius: '14px',
                   ...(isSelected && { color: 'var(--kaiylo-primary-hex)' })
                 }}
               >
                 <div className="flex-1 flex items-center gap-4">
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 256 512" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 256 512"
                     className="h-4 w-4 flex-shrink-0"
                     fill="currentColor"
                     style={{ color: 'var(--kaiylo-primary-hex)' }}
                   >
-                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                   </svg>
-                  <span 
+                  <span
                     className={`text-base ${isSelected ? 'font-medium' : 'font-normal'}`}
                     style={!isSelected ? { color: 'rgba(255, 255, 255, 1)' } : undefined}
                   >
@@ -176,40 +175,40 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
                   <div className="flex items-center gap-1.5">
                     {/* Comment Indicator */}
                     <div className="flex items-center" title={hasComment(exercise) ? "Commentaire ajouté" : "Aucun commentaire"}>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 640 640" 
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 640 640"
                         className="h-4 w-4"
-                        style={{ 
-                          fill: hasComment(exercise) 
-                            ? 'rgba(212, 132, 89, 0.8)' 
-                            : 'rgba(255, 255, 255, 0.2)' 
+                        style={{
+                          fill: hasComment(exercise)
+                            ? 'rgba(212, 132, 89, 0.8)'
+                            : 'rgba(255, 255, 255, 0.2)'
                         }}
                       >
-                        <path d="M576 304C576 436.5 461.4 544 320 544C282.9 544 247.7 536.6 215.9 523.3L97.5 574.1C88.1 578.1 77.3 575.8 70.4 568.3C63.5 560.8 62 549.8 66.8 540.8L115.6 448.6C83.2 408.3 64 358.3 64 304C64 171.5 178.6 64 320 64C461.4 64 576 171.5 576 304z"/>
+                        <path d="M576 304C576 436.5 461.4 544 320 544C282.9 544 247.7 536.6 215.9 523.3L97.5 574.1C88.1 578.1 77.3 575.8 70.4 568.3C63.5 560.8 62 549.8 66.8 540.8L115.6 448.6C83.2 408.3 64 358.3 64 304C64 171.5 178.6 64 320 64C461.4 64 576 171.5 576 304z" />
                       </svg>
                     </div>
                     {/* Video Indicator */}
                     <div className="flex items-center gap-0.5" title={hasVideos(exercise, index) ? `${getVideoCount(exercise, index)} vidéo(s) ajoutée(s)` : "Aucune vidéo"}>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 640 640" 
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 640 640"
                         className="h-4 w-4"
-                        style={{ 
-                          fill: hasVideos(exercise, index) 
-                            ? 'rgba(212, 132, 89, 0.8)' 
-                            : 'rgba(255, 255, 255, 0.2)' 
+                        style={{
+                          fill: hasVideos(exercise, index)
+                            ? 'rgba(212, 132, 89, 0.8)'
+                            : 'rgba(255, 255, 255, 0.2)'
                         }}
                       >
-                        <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z"/>
+                        <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" />
                       </svg>
                       {getVideoCount(exercise, index) > 1 && (
-                        <span 
+                        <span
                           className="text-xs font-medium"
-                          style={{ 
-                            color: hasVideos(exercise, index) 
-                              ? 'rgba(212, 132, 89, 0.8)' 
-                              : 'rgba(255, 255, 255, 0.2)' 
+                          style={{
+                            color: hasVideos(exercise, index)
+                              ? 'rgba(212, 132, 89, 0.8)'
+                              : 'rgba(255, 255, 255, 0.2)'
                           }}
                         >
                           x{getVideoCount(exercise, index)}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, MoreHorizontal, User, GripVertical, BookOpen, Check } from 'lucide-react';
+import { X, Plus, MoreHorizontal, User, GripVertical, BookOpen, Check, ListOrdered, Calendar, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -32,7 +32,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const exerciseRefs = useRef({});
   const [animatingIndex, setAnimatingIndex] = useState(null);
-  
+
   // Exercise Library Side Sheet State
   const [openSheet, setOpenSheet] = useState(true);
   const [libraryMode, setLibraryMode] = useState('browse'); // 'browse' or 'create'
@@ -42,8 +42,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [replacingExerciseIndex, setReplacingExerciseIndex] = useState(null);
 
   // Exercise Arrangement Modal State
-  const [arrangementPosition, setArrangementPosition] = useState({ 
-    top: 0, 
+  const [arrangementPosition, setArrangementPosition] = useState({
+    top: 0,
     left: 800,
     width: 340,
     height: 0
@@ -57,15 +57,15 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [collapsedPlanningSessionIds, setCollapsedPlanningSessionIds] = useState(new Set());
   const [planningViewDate, setPlanningViewDate] = useState(null); // date affichée dans le planning (détail du jour)
   const [planningCalendarExpanded, setPlanningCalendarExpanded] = useState(false); // calendrier : 3 semaines visibles ou tout le mois
-  
+
   // Exercise Library Modal State
-  const [libraryPosition, setLibraryPosition] = useState({ 
-    top: 0, 
+  const [libraryPosition, setLibraryPosition] = useState({
+    top: 0,
     left: -380,
     width: 360,
     height: 0
   });
-  
+
   const modalRef = useRef(null);
   const dateInputRef = useRef(null);
   const backdropRef = useRef(null);
@@ -79,11 +79,22 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [initialState, setInitialState] = useState(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [showStudentPreview, setShowStudentPreview] = useState(false);
-  
+
   // Video modal state for student preview
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedSetForVideo, setSelectedSetForVideo] = useState({});
   const [videoUploadExerciseIndex, setVideoUploadExerciseIndex] = useState(null);
+
+  // Mobile responsiveness
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -91,13 +102,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       document.body.style.overflow = 'hidden';
       fetchExercises();
       // Ouvrir par défaut le panneau agencement des exercices
-      setShowSidebar(true);
+      const mobile = window.innerWidth < 768;
+      setShowSidebar(!mobile);
       setRightPanelView('agencement');
-      setOpenSheet(true);
+      setOpenSheet(!mobile);
     } else {
       document.body.style.overflow = '';
     }
-    
+
     return () => {
       document.body.style.overflow = '';
     };
@@ -112,7 +124,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       if (existingSession.scheduled_date) {
         date = parseISO(existingSession.scheduled_date);
       }
-      
+
       // Convert session exercises to form format
       const formExercises = existingSession.exercises?.map(ex => {
         // Ensure sets is an array before mapping
@@ -150,7 +162,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           useRir: ex.useRir || false
         };
       }) || [];
-      
+
       setSessionName(name);
       setDescription(desc);
       setSessionDate(date);
@@ -184,12 +196,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Calculate position for arrangement modal
   const updateArrangementPosition = useCallback(() => {
     if (!arrangementButtonRef.current || !modalRef.current) return;
-    
+
     const buttonRect = arrangementButtonRef.current.getBoundingClientRect();
     const modalRect = modalRef.current.getBoundingClientRect();
     const gap = 10; // 10px gap below button
     const panelWidth = 340;
-    
+
     // Position relative to the parent container (externalContent which is positioned relative to the modal)
     // The modal should be positioned 10px below the button
     const buttonHeight = buttonRect.height;
@@ -205,8 +217,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const modalHeight = modalRect.height;
     const availableHeight = modalHeight - externalContentTopOffset - topOffset;
 
-    setArrangementPosition({ 
-      top: topOffset, 
+    setArrangementPosition({
+      top: topOffset,
       left: 0, // Aligned with button on the left
       width: panelWidth,
       height: Math.max(0, availableHeight) // Height to align bottom with main modal
@@ -216,7 +228,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Update arrangement position when sidebar opens or window resizes
   useEffect(() => {
     if (!showSidebar || !modalRef.current) return;
-    
+
     // Use setTimeout to ensure button ref and modal ref are available after render
     const timer = setTimeout(() => {
       updateArrangementPosition();
@@ -226,7 +238,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const resizeObserver = new ResizeObserver(() => {
       updateArrangementPosition();
     });
-    
+
     resizeObserver.observe(modalRef.current);
 
     const handleResize = () => updateArrangementPosition();
@@ -336,7 +348,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Calculate position for library modal - MUST be defined before useEffect that uses it
   const updateLibraryPosition = useCallback(() => {
     if (!modalRef.current) return;
-    
+
+    // Mobile: Fullscreen
+    if (window.innerWidth < 768) {
+      setLibraryPosition({
+        top: 16,
+        left: 16,
+        width: window.innerWidth - 32,
+        height: window.innerHeight - 32
+      });
+      return;
+    }
+
     const modalRect = modalRef.current.getBoundingClientRect();
     const gap = 0; // Pas d'espace entre les modales
     const panelWidth = 360; // Réduit de 400 à 360 pour mieux s'adapter
@@ -350,7 +373,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     // Vérifier si on a assez d'espace à gauche de la modale
     const spaceOnLeft = modalRect.left;
     const spaceOnRight = window.innerWidth - modalRect.right;
-    
+
     // Priorité à gauche : seulement si vraiment pas d'espace, on passe à droite
     // On accepte un léger débordement si nécessaire
     if (spaceOnLeft < minMargin) {
@@ -360,9 +383,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       }
     }
 
-    setLibraryPosition({ 
-      top, 
-      left, 
+    setLibraryPosition({
+      top,
+      left,
       width: panelWidth,
       height: modalRect.height
     });
@@ -370,7 +393,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   // Update button position when modal opens or resizes
   const [buttonPosition, setButtonPosition] = useState({ left: 'auto', top: '1.125rem' });
-  
+
   const updateButtonPosition = useCallback(() => {
     if (!modalRef.current) return;
     const modalRect = modalRef.current.getBoundingClientRect();
@@ -384,7 +407,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   useEffect(() => {
     if (!isOpen || !modalRef.current) return;
-    
+
     // Initial position
     const timer = setTimeout(() => {
       if (modalRef.current && isOpen) {
@@ -404,7 +427,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         updateLibraryPosition();
       }
     });
-    
+
     try {
       if (modalRef.current) {
         resizeObserver.observe(modalRef.current);
@@ -444,7 +467,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Note: The ResizeObserver in the main useEffect handles instant updates when modal size changes
   useEffect(() => {
     if (!openSheet || !isOpen || !modalRef.current) return;
-    
+
     // Initial position update when library opens
     const timer = setTimeout(() => {
       updateLibraryPosition();
@@ -464,7 +487,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setAvailableExercises(data.exercises || []);
@@ -493,7 +516,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       per_side: false,
       useRir: false
     };
-    
+
     setExercises([...exercises, newExercise]);
     setShowExerciseSelector(false);
     setSearchTerm('');
@@ -507,13 +530,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const updatedExercises = [...exercises];
     const currentSets = updatedExercises[exerciseIndex].sets;
     const newSetNumber = currentSets.length + 1;
-    
+
     // Récupérer les valeurs de la dernière série
     const lastSet = currentSets[currentSets.length - 1];
     const previousWeight = lastSet?.weight || '';
     const previousReps = lastSet?.reps || '';
     const previousRest = lastSet?.rest || '03:00';
-    
+
     const previousRepType = lastSet?.repType || 'reps';
     updatedExercises[exerciseIndex].sets.push({
       serie: newSetNumber,
@@ -540,8 +563,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   // Helper function to check if session was copied from a completed session (charge ou RPE précédent)
   const hasPreviousRpeData = () => {
-    return exercises.some(exercise => 
-      exercise.sets?.some(set => 
+    return exercises.some(exercise =>
+      exercise.sets?.some(set =>
         (set.previousRpe != null && set.previousRpe !== undefined) ||
         (set.previousCharge != null && set.previousCharge !== undefined)
       )
@@ -581,12 +604,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const animateExerciseMove = (fromIndex, toIndex) => {
     const fromExercise = exercises[fromIndex];
     const toExercise = exercises[toIndex];
-    
+
     if (!fromExercise || !toExercise) return;
 
     const fromElement = exerciseRefs.current[fromExercise.id];
     const toElement = exerciseRefs.current[toExercise.id];
-    
+
     if (!fromElement || !toElement) {
       // Fallback if refs not available
       const updatedExercises = [...exercises];
@@ -599,7 +622,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const fromInitialRect = fromElement.getBoundingClientRect();
     const toInitialRect = toElement.getBoundingClientRect();
     const containerRect = fromElement.parentElement.getBoundingClientRect();
-    
+
     const fromInitialTop = fromInitialRect.top - containerRect.top;
     const toInitialTop = toInitialRect.top - containerRect.top;
     const distance = Math.abs(toInitialTop - fromInitialTop);
@@ -615,13 +638,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         // Get elements after re-render (they've swapped positions in DOM)
         const newFromElement = exerciseRefs.current[fromExercise.id];
         const newToElement = exerciseRefs.current[toExercise.id];
-        
+
         if (!newFromElement || !newToElement) return;
 
         const fromFinalRect = newFromElement.getBoundingClientRect();
         const toFinalRect = newToElement.getBoundingClientRect();
         const newContainerRect = newFromElement.parentElement.getBoundingClientRect();
-        
+
         const fromFinalTop = fromFinalRect.top - newContainerRect.top;
         const toFinalTop = toFinalRect.top - newContainerRect.top;
 
@@ -632,7 +655,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         newFromElement.style.transform = `translateY(${fromDelta}px)`;
         newFromElement.style.transition = 'none';
         newFromElement.style.zIndex = '10';
-        
+
         newToElement.style.transform = `translateY(${toDelta}px)`;
         newToElement.style.transition = 'none';
         newToElement.style.zIndex = '9';
@@ -641,7 +664,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         requestAnimationFrame(() => {
           newFromElement.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
           newToElement.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
-          
+
           newFromElement.style.transform = 'translateY(0)';
           newToElement.style.transform = 'translateY(0)';
         });
@@ -709,26 +732,26 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const handleDrop = (e, dropIndex) => {
     e.preventDefault();
     setDragOverIndex(null);
-    
+
     const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
-    
+
     if (dragIndex !== dropIndex && dragIndex !== undefined && !isNaN(dragIndex)) {
       const updatedExercises = [...exercises];
       const draggedExercise = updatedExercises[dragIndex];
-      
+
       // Remove the dragged exercise
       updatedExercises.splice(dragIndex, 1);
-      
+
       // Insert it at the new position
       updatedExercises.splice(dropIndex, 0, draggedExercise);
-      
+
       setExercises(updatedExercises);
     }
   };
 
   const handleSubmit = async (e, status = 'published') => {
     e.preventDefault();
-    
+
     // Validate exercises
     if (exercises.length === 0) {
       alert('Veuillez ajouter au moins un exercice');
@@ -859,10 +882,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
       // Check exercise properties
       if (current.name !== initial.name ||
-          current.exerciseId !== initial.exerciseId ||
-          current.notes !== initial.notes ||
-          current.tempo !== initial.tempo ||
-          current.per_side !== initial.per_side) {
+        current.exerciseId !== initial.exerciseId ||
+        current.notes !== initial.notes ||
+        current.tempo !== initial.tempo ||
+        current.per_side !== initial.per_side) {
         return true;
       }
 
@@ -879,9 +902,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         if (!initialSet) return true;
 
         if (currentSet.weight !== initialSet.weight ||
-            currentSet.reps !== initialSet.reps ||
-            currentSet.rest !== initialSet.rest ||
-            currentSet.video !== initialSet.video) {
+          currentSet.reps !== initialSet.reps ||
+          currentSet.rest !== initialSet.rest ||
+          currentSet.video !== initialSet.video) {
           return true;
         }
       }
@@ -901,7 +924,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       setShowUnsavedWarning(true);
       return;
     }
-    
+
     // Reset all state
     setSessionName('');
     setDescription('');
@@ -936,7 +959,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     if (!isTopMost && !showUnsavedWarning) {
       return;
     }
-    
+
     // Check for unsaved changes
     if (hasUnsavedChanges()) {
       setShowUnsavedWarning(true);
@@ -953,7 +976,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        
+
         if (hasUnsavedChanges()) {
           setShowUnsavedWarning(true);
         } else {
@@ -994,7 +1017,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       tempo: '',
       useRir: false
     };
-    
+
     // If we're replacing an exercise, replace it at the specified index
     if (replacingExerciseIndex !== null) {
       const updatedExercises = [...exercises];
@@ -1042,7 +1065,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     try {
       setLibraryLoading(true);
       const token = localStorage.getItem('authToken');
-      
+
       const response = await fetch(`${getApiBaseUrlWithApi()}/exercises`, {
         method: 'POST',
         headers: {
@@ -1057,17 +1080,17 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       }
 
       const result = await response.json();
-      
+
       // Add the new exercise to the top of the available exercises list
       // (it will appear at the top when no filters are active)
       setAvailableExercises(prev => [result.exercise, ...prev]);
-      
+
       // Close the modal
       setIsAddExerciseModalOpen(false);
-      
+
       // Optionally add the exercise directly to the session
       handleAddExerciseToSession(result.exercise);
-      
+
     } catch (error) {
       console.error('Error creating exercise:', error);
       alert('Failed to create exercise. Please try again.');
@@ -1080,7 +1103,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     try {
       setLibraryLoading(true);
       const token = localStorage.getItem('authToken');
-      
+
       const response = await fetch(`${getApiBaseUrlWithApi()}/exercises/${exerciseId}`, {
         method: 'PATCH',
         headers: {
@@ -1095,18 +1118,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       }
 
       const result = await response.json();
-      
+
       // Update the exercise in the available exercises list
-      setAvailableExercises(prev => 
-        prev.map(exercise => 
+      setAvailableExercises(prev =>
+        prev.map(exercise =>
           exercise.id === exerciseId ? result.exercise : exercise
         )
       );
-      
+
       // Close the modal and reset editing exercise
       setIsAddExerciseModalOpen(false);
       setEditingExercise(null);
-      
+
     } catch (error) {
       console.error('Error updating exercise:', error);
       alert('Failed to update exercise. Please try again.');
@@ -1123,596 +1146,637 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
   return (
     <>
-    <BaseModal
-      ref={modalRef}
-      isOpen={isOpen}
-      onClose={() => handleClose(false)}
-      modalId={modalId}
-      zIndex={60}
-      closeOnEsc={false}
-      closeOnBackdrop={false}
-      onBackdropClick={handleBackdropClick}
-      size="2xl"
-      noPadding={true}
-      className="!p-0 relative mx-auto w-full max-w-[700px] md:max-w-[700px] max-h-[92vh] overflow-visible flex flex-col"
-      borderRadius={openSheet ? "0px 16px 16px 0px" : "16px"}
-      externalContent={
-        isOpen ? (
-          <div 
-            className="fixed flex flex-col gap-2.5"
-            style={{
-              left: buttonPosition.left,
-              top: buttonPosition.top,
-              zIndex: 1002,
-              pointerEvents: 'auto',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <div className="flex flex-row items-center" style={{ gap: '6px' }}>
-              {/* Arrangement button */}
-              <button
-                ref={arrangementButtonRef}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const isAgencementActive = showSidebar && rightPanelView === 'agencement';
-                  if (isAgencementActive) {
-                    setShowSidebar(false);
-                  } else {
-                    setRightPanelView('agencement');
-                    setShowSidebar(true);
-                    setTimeout(() => updateArrangementPosition(), 0);
-                  }
-                }}
-                aria-expanded={showSidebar && rightPanelView === 'agencement'}
-                aria-label={showSidebar && rightPanelView === 'agencement' ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
-                style={{
-                  backgroundColor: showSidebar && rightPanelView === 'agencement' ? 'var(--kaiylo-primary-hex)' : undefined,
-                  borderWidth: '0px',
-                  borderStyle: 'none',
-                  borderColor: 'rgba(0, 0, 0, 0)',
-                  borderImage: 'none',
-                  pointerEvents: 'auto',
-                  cursor: 'pointer',
-                  zIndex: 1003,
-                  position: 'relative',
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-                }}
-                onMouseEnter={(e) => {
-                  const active = showSidebar && rightPanelView === 'agencement';
-                  if (active) {
-                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  const active = showSidebar && rightPanelView === 'agencement';
-                  if (active) {
-                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
-                    e.currentTarget.style.transform = 'scale(1)';
-                  }
-                }}
-                title="Agencement des exercices"
-              >
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 512 512" 
-                  className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'agencement' ? 'opacity-100' : 'opacity-50'}`}
-                  fill="currentColor"
-                  style={{ pointerEvents: 'none' }}
+      <BaseModal
+        ref={modalRef}
+        isOpen={isOpen}
+        onClose={() => handleClose(false)}
+        modalId={modalId}
+        zIndex={60}
+        closeOnEsc={false}
+        closeOnBackdrop={false}
+        onBackdropClick={handleBackdropClick}
+        size="2xl"
+        noPadding={true}
+        className={`!p-0 relative mx-auto w-full ${isMobile ? 'h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] my-4 w-[calc(100vw-2rem)] rounded-2xl' : 'max-w-[700px] md:max-w-[700px] max-h-[92vh] rounded-2xl'} overflow-visible flex flex-col`}
+        borderRadius={openSheet ? "0px 16px 16px 0px" : "16px"}
+        externalContent={
+          isOpen ? (
+            <div
+              className={`fixed flex flex-col gap-2.5 ${isMobile ? 'inset-0 w-full h-full pointer-events-none' : ''}`}
+              style={isMobile ? { zIndex: 1002 } : {
+                left: buttonPosition.left,
+                top: buttonPosition.top,
+                zIndex: 1002,
+                pointerEvents: 'auto',
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              {!isMobile && (
+                <div className="flex flex-row items-center" style={{ gap: '6px' }}>
+                  {/* Arrangement button */}
+                  <button
+                    ref={arrangementButtonRef}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const isAgencementActive = showSidebar && rightPanelView === 'agencement';
+                      if (isAgencementActive) {
+                        setShowSidebar(false);
+                      } else {
+                        setRightPanelView('agencement');
+                        setShowSidebar(true);
+                        setTimeout(() => updateArrangementPosition(), 0);
+                      }
+                    }}
+                    aria-expanded={showSidebar && rightPanelView === 'agencement'}
+                    aria-label={showSidebar && rightPanelView === 'agencement' ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
+                    style={{
+                      backgroundColor: showSidebar && rightPanelView === 'agencement' ? 'var(--kaiylo-primary-hex)' : undefined,
+                      borderWidth: '0px',
+                      borderStyle: 'none',
+                      borderColor: 'rgba(0, 0, 0, 0)',
+                      borderImage: 'none',
+                      pointerEvents: 'auto',
+                      cursor: 'pointer',
+                      zIndex: 1003,
+                      position: 'relative',
+                      minWidth: '40px',
+                      minHeight: '40px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                    }}
+                    onMouseEnter={(e) => {
+                      const active = showSidebar && rightPanelView === 'agencement';
+                      if (active) {
+                        e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const active = showSidebar && rightPanelView === 'agencement';
+                      if (active) {
+                        e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }
+                    }}
+                    title="Agencement des exercices"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 512 512"
+                      className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'agencement' ? 'opacity-100' : 'opacity-50'}`}
+                      fill="currentColor"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z" />
+                    </svg>
+                  </button>
+
+                  {/* Calendrier d'entraînement (Planning) button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const isPlanningActive = showSidebar && rightPanelView === 'planning';
+                      if (isPlanningActive) {
+                        setShowSidebar(false);
+                      } else {
+                        setRightPanelView('planning');
+                        setShowSidebar(true);
+                        setTimeout(() => updateArrangementPosition(), 0);
+                      }
+                    }}
+                    aria-expanded={showSidebar && rightPanelView === 'planning'}
+                    aria-label={showSidebar && rightPanelView === 'planning' ? "Masquer le calendrier d'entraînement" : "Afficher le calendrier d'entraînement"}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
+                    style={{
+                      backgroundColor: showSidebar && rightPanelView === 'planning' ? 'var(--kaiylo-primary-hex)' : undefined,
+                      borderWidth: '0px',
+                      borderStyle: 'none',
+                      borderColor: 'rgba(0, 0, 0, 0)',
+                      borderImage: 'none',
+                      pointerEvents: 'auto',
+                      cursor: 'pointer',
+                      zIndex: 1003,
+                      position: 'relative',
+                      minWidth: '40px',
+                      minHeight: '40px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                    }}
+                    onMouseEnter={(e) => {
+                      const active = showSidebar && rightPanelView === 'planning';
+                      if (active) {
+                        e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const active = showSidebar && rightPanelView === 'planning';
+                      if (active) {
+                        e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }
+                    }}
+                    title="Calendrier d'entraînement"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'planning' ? 'opacity-100' : 'opacity-50'}`} fill="currentColor" style={{ pointerEvents: 'none' }}>
+                      <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Right panel: Agencement ou Planning d'entrainement */}
+              {showSidebar && (
+                <div
+                  role="region"
+                  aria-label={rightPanelView === 'planning' ? "Planning d'entrainement" : "Agencement des exercices"}
+                  className={`relative z-[1001] text-white pointer-events-auto flex flex-col ${isMobile ? '!fixed !inset-4 !w-[calc(100vw-2rem)] !h-[calc(100dvh-2rem)] !max-h-[calc(100dvh-2rem)] !rounded-2xl' : 'w-[340px] overflow-hidden rounded-2xl shadow-2xl'}`}
+                  style={isMobile ? { background: '#131416' } : {
+                    ...(arrangementPosition && {
+                      width: arrangementPosition.width ?? 340,
+                      height: arrangementPosition.height ? `${arrangementPosition.height}px` : 'auto',
+                      maxHeight: arrangementPosition.height ? `${arrangementPosition.height}px` : '600px',
+                    }),
+                    background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+                    opacity: 0.95,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z"/>
-                </svg>
-              </button>
-
-              {/* Calendrier d'entraînement (Planning) button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const isPlanningActive = showSidebar && rightPanelView === 'planning';
-                  if (isPlanningActive) {
-                    setShowSidebar(false);
-                  } else {
-                    setRightPanelView('planning');
-                    setShowSidebar(true);
-                    setTimeout(() => updateArrangementPosition(), 0);
-                  }
-                }}
-                aria-expanded={showSidebar && rightPanelView === 'planning'}
-                aria-label={showSidebar && rightPanelView === 'planning' ? "Masquer le calendrier d'entraînement" : "Afficher le calendrier d'entraînement"}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
-                style={{
-                  backgroundColor: showSidebar && rightPanelView === 'planning' ? 'var(--kaiylo-primary-hex)' : undefined,
-                  borderWidth: '0px',
-                  borderStyle: 'none',
-                  borderColor: 'rgba(0, 0, 0, 0)',
-                  borderImage: 'none',
-                  pointerEvents: 'auto',
-                  cursor: 'pointer',
-                  zIndex: 1003,
-                  position: 'relative',
-                  minWidth: '40px',
-                  minHeight: '40px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-                }}
-                onMouseEnter={(e) => {
-                  const active = showSidebar && rightPanelView === 'planning';
-                  if (active) {
-                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  const active = showSidebar && rightPanelView === 'planning';
-                  if (active) {
-                    e.currentTarget.style.backgroundColor = 'var(--kaiylo-primary-hex)';
-                    e.currentTarget.style.transform = 'scale(1)';
-                  }
-                }}
-                title="Calendrier d'entraînement"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'planning' ? 'opacity-100' : 'opacity-50'}`} fill="currentColor" style={{ pointerEvents: 'none' }}>
-                  <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* Right panel: Agencement ou Planning d'entrainement */}
-            {showSidebar && (
-              <div
-                role="region"
-                aria-label={rightPanelView === 'planning' ? "Planning d'entrainement" : "Agencement des exercices"}
-                className="relative z-[1001] text-white pointer-events-auto w-[340px] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
-                style={{
-                  ...(arrangementPosition && {
-                    width: arrangementPosition.width ?? 340,
-                    height: arrangementPosition.height ? `${arrangementPosition.height}px` : 'auto',
-                    maxHeight: arrangementPosition.height ? `${arrangementPosition.height}px` : '600px',
-                  }),
-                  background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
-                  opacity: 0.95,
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Title - same style as ExerciseLibraryModal */}
-                <div className="shrink-0 px-6 pt-6 pb-3">
-                  <div className="flex items-start justify-between gap-3">
+                  {/* Title - same style as ExerciseLibraryModal */}
+                  <div className="shrink-0 px-6 pt-6 pb-3">
                     <div className="flex items-center gap-3">
+                      {isMobile && (
+                        <button
+                          onClick={() => setShowSidebar(false)}
+                          className="text-white/50 hover:text-white p-1"
+                          aria-label="Retour"
+                        >
+                          <ArrowLeft className="w-5 h-5" />
+                        </button>
+                      )}
+
                       {rightPanelView === 'agencement' ? (
-                        <>
+                        <div className="flex items-center gap-3">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                            <path d="M0 72C0 58.8 10.7 48 24 48l48 0c13.3 0 24 10.7 24 24l0 104 24 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-96 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-80-24 0C10.7 96 0 85.3 0 72zM30.4 301.2C41.8 292.6 55.7 288 70 288l4.9 0c33.7 0 61.1 27.4 61.1 61.1 0 19.6-9.4 37.9-25.2 49.4l-24 17.5 33.2 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-90.7 0C13.1 464 0 450.9 0 434.7 0 425.3 4.5 416.5 12.1 411l70.5-51.3c3.4-2.5 5.4-6.4 5.4-10.6 0-7.2-5.9-13.1-13.1-13.1L70 336c-3.9 0-7.7 1.3-10.8 3.6L38.4 355.2c-10.6 8-25.6 5.8-33.6-4.8S-1 324.8 9.6 316.8l20.8-15.6zM224 64l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/>
+                            <path d="M0 72C0 58.8 10.7 48 24 48l48 0c13.3 0 24 10.7 24 24l0 104 24 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-96 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-80-24 0C10.7 96 0 85.3 0 72zM30.4 301.2C41.8 292.6 55.7 288 70 288l4.9 0c33.7 0 61.1 27.4 61.1 61.1 0 19.6-9.4 37.9-25.2 49.4l-24 17.5 33.2 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-90.7 0C13.1 464 0 450.9 0 434.7 0 425.3 4.5 416.5 12.1 411l70.5-51.3c3.4-2.5 5.4-6.4 5.4-10.6 0-7.2-5.9-13.1-13.1-13.1L70 336c-3.9 0-7.7 1.3-10.8 3.6L38.4 355.2c-10.6 8-25.6 5.8-33.6-4.8S-1 324.8 9.6 316.8l20.8-15.6zM224 64l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32z" />
                           </svg>
                           <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                             Agencement des exercices
                           </h2>
-                        </>
+                        </div>
                       ) : (
-                        <>
+                        <div className="flex items-center gap-3">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                            <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                            <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
                           </svg>
                           <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                             Planning d'entraînement
                           </h2>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="border-b border-white/10 mx-6"></div>
+                  <div className="border-b border-white/10 mx-6"></div>
 
-                {/* Content */}
-                {rightPanelView === 'agencement' && (
-                  <ExerciseArrangementModal
-                    isOpen={true}
-                    exercises={exercises}
-                    position={{}}
-                    draggedIndex={draggedIndex}
-                    dragOverIndex={dragOverIndex}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={handleDragOver}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onMoveUp={moveExerciseUp}
-                    onMoveDown={moveExerciseDown}
-                    useAbsolute={false}
-                    embedded={true}
-                  />
-                )}
+                  {/* Content */}
+                  {rightPanelView === 'agencement' && (
+                    <ExerciseArrangementModal
+                      isOpen={true}
+                      exercises={exercises}
+                      position={{}}
+                      draggedIndex={draggedIndex}
+                      dragOverIndex={dragOverIndex}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onMoveUp={moveExerciseUp}
+                      onMoveDown={moveExerciseDown}
+                      useAbsolute={false}
+                      embedded={true}
+                    />
+                  )}
 
-                {rightPanelView === 'planning' && (() => {
-                  const displayMonth = planningViewDate || sessionDate;
-                  const selectedCalendarDate = planningViewDate || sessionDate;
-                  const dateKey = format(selectedCalendarDate, 'yyyy-MM-dd');
-                  const sessionsOnDay = planningSessions[dateKey] || [];
-                  // Calcule le bloc et la semaine pour une séance à partir des blocs de périodisation
-                  const getBlockInfoForSession = (scheduledDate) => {
-                    if (!scheduledDate || !planningBlocks?.length) return null;
-                    const sessionWeekStart = startOfWeek(parseISO(scheduledDate), { weekStartsOn: 1 });
-                    const sortedBlocks = [...planningBlocks].sort((a, b) => new Date(a.start_week_date) - new Date(b.start_week_date));
-                    const activeBlock = sortedBlocks.find(b => {
-                      const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
-                      const bEnd = addWeeks(bStart, parseInt(b.duration, 10) || 0);
-                      return sessionWeekStart >= bStart && sessionWeekStart < bEnd;
-                    });
-                    if (!activeBlock) return null;
-                    const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
-                    const weekInBlock = differenceInCalendarWeeks(sessionWeekStart, bStart, { weekStartsOn: 1 }) + 1;
-                    const totalWeeks = parseInt(activeBlock.duration, 10) || 1;
-                    const blockNumber = sortedBlocks.findIndex(bl => bl.id === activeBlock.id) + 1;
-                    return { blockNumber, weekInBlock, totalWeeks };
-                  };
-                  const monthStart = startOfMonth(displayMonth);
-                  const monthEnd = endOfMonth(displayMonth);
-                  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-                  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-                  const allDays = eachDayOfInterval({ start: calStart, end: calEnd });
-                  const weeks = [];
-                  for (let i = 0; i < allDays.length; i += 7) {
-                    weeks.push(allDays.slice(i, i + 7));
-                  }
-                  const showExpandCollapse = weeks.length > 3;
-                  const visibleWeeks = weeks;
-                  const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-                  const formatSetsForDisplay = (exercise) => {
-                    const sets = exercise.sets || [];
-                    if (sets.length === 0) return '';
-                    if (exercise.useRir) {
-                      const firstReps = sets[0]?.reps ?? '?';
-                      const firstRpe = sets[0]?.weight ?? 0;
-                      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-                      const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
-                      if (allSameReps && allSameRpe) return `${sets.length}x${firstReps} RPE ${firstRpe}`;
-                      return sets.map(s => `${s.reps ?? '?'} RPE ${s.weight ?? 0}`).join(', ');
+                  {rightPanelView === 'planning' && (() => {
+                    const displayMonth = planningViewDate || sessionDate;
+                    const selectedCalendarDate = planningViewDate || sessionDate;
+                    const dateKey = format(selectedCalendarDate, 'yyyy-MM-dd');
+                    const sessionsOnDay = planningSessions[dateKey] || [];
+                    // Calcule le bloc et la semaine pour une séance à partir des blocs de périodisation
+                    const getBlockInfoForSession = (scheduledDate) => {
+                      if (!scheduledDate || !planningBlocks?.length) return null;
+                      const sessionWeekStart = startOfWeek(parseISO(scheduledDate), { weekStartsOn: 1 });
+                      const sortedBlocks = [...planningBlocks].sort((a, b) => new Date(a.start_week_date) - new Date(b.start_week_date));
+                      const activeBlock = sortedBlocks.find(b => {
+                        const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                        const bEnd = addWeeks(bStart, parseInt(b.duration, 10) || 0);
+                        return sessionWeekStart >= bStart && sessionWeekStart < bEnd;
+                      });
+                      if (!activeBlock) return null;
+                      const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
+                      const weekInBlock = differenceInCalendarWeeks(sessionWeekStart, bStart, { weekStartsOn: 1 }) + 1;
+                      const totalWeeks = parseInt(activeBlock.duration, 10) || 1;
+                      const blockNumber = sortedBlocks.findIndex(bl => bl.id === activeBlock.id) + 1;
+                      return { blockNumber, weekInBlock, totalWeeks };
+                    };
+                    const monthStart = startOfMonth(displayMonth);
+                    const monthEnd = endOfMonth(displayMonth);
+                    const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+                    const allDays = eachDayOfInterval({ start: calStart, end: calEnd });
+                    const weeks = [];
+                    for (let i = 0; i < allDays.length; i += 7) {
+                      weeks.push(allDays.slice(i, i + 7));
                     }
-                    const withWeight = sets.every(s => s.weight != null && s.weight !== '');
-                    const firstReps = sets[0]?.reps ?? '?';
-                    const firstWeight = sets[0]?.weight;
-                    const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-                    const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
-                    if (withWeight && allSameReps && allSameWeight && firstWeight != null) return `${sets.length}x${firstReps} @${firstWeight}kg`;
-                    if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
-                    return sets.map(s => s.weight ? `${s.reps ?? '?'}@${s.weight}kg` : `${s.reps ?? '?'}reps`).join(', ');
-                  };
-                  return (
-                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body flex flex-col">
-                      {/* Calendrier mensuel */}
-                      <div className="shrink-0 px-4 pt-4 pb-0">
-                        <div className="flex items-center justify-center gap-0 mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setPlanningViewDate(subMonths(monthStart, 1))}
-                            className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
-                            aria-label="Mois précédent"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
-                              <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
-                            </svg>
-                          </button>
-                          <span className="text-sm font-light text-white/75 min-w-[120px] text-center capitalize">
-                            {format(displayMonth, 'MMMM yyyy', { locale: fr })}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setPlanningViewDate(addMonths(monthStart, 1))}
-                            className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
-                            aria-label="Mois suivant"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
-                              <path d="M246.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L178.7 256 41.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-7 gap-1 md:gap-2 mb-0 pt-2 pb-2">
-                          {weekDays.map((wd, i) => (
-                            <div key={i} className="text-center text-[10px] md:text-[12px] text-white/50 font-normal">{wd}</div>
-                          ))}
-                        </div>
-                        <div
-                          className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${
-                            showExpandCollapse
+                    const showExpandCollapse = weeks.length > 3;
+                    const visibleWeeks = weeks;
+                    const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+                    const formatSetsForDisplay = (exercise) => {
+                      const sets = exercise.sets || [];
+                      if (sets.length === 0) return '';
+                      if (exercise.useRir) {
+                        const firstReps = sets[0]?.reps ?? '?';
+                        const firstRpe = sets[0]?.weight ?? 0;
+                        const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+                        const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
+                        if (allSameReps && allSameRpe) return `${sets.length}x${firstReps} RPE ${firstRpe}`;
+                        return sets.map(s => `${s.reps ?? '?'} RPE ${s.weight ?? 0}`).join(', ');
+                      }
+                      const withWeight = sets.every(s => s.weight != null && s.weight !== '');
+                      const firstReps = sets[0]?.reps ?? '?';
+                      const firstWeight = sets[0]?.weight;
+                      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+                      const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
+                      if (withWeight && allSameReps && allSameWeight && firstWeight != null) return `${sets.length}x${firstReps} @${firstWeight}kg`;
+                      if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
+                      return sets.map(s => s.weight ? `${s.reps ?? '?'}@${s.weight}kg` : `${s.reps ?? '?'}reps`).join(', ');
+                    };
+                    return (
+                      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body flex flex-col">
+                        {/* Calendrier mensuel */}
+                        <div className="shrink-0 px-4 pt-4 pb-0">
+                          <div className="flex items-center justify-center gap-0 mb-2">
+                            <button
+                              type="button"
+                              onClick={() => setPlanningViewDate(subMonths(monthStart, 1))}
+                              className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
+                              aria-label="Mois précédent"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
+                                <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z" />
+                              </svg>
+                            </button>
+                            <span className="text-sm font-light text-white/75 min-w-[120px] text-center capitalize">
+                              {format(displayMonth, 'MMMM yyyy', { locale: fr })}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPlanningViewDate(addMonths(monthStart, 1))}
+                              className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
+                              aria-label="Mois suivant"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
+                                <path d="M246.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L178.7 256 41.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-7 gap-1 md:gap-2 mb-0 pt-2 pb-2">
+                            {weekDays.map((wd, i) => (
+                              <div key={i} className="text-center text-[10px] md:text-[12px] text-white/50 font-normal">{wd}</div>
+                            ))}
+                          </div>
+                          <div
+                            className={`overflow-hidden transition-[max-height] duration-300 ease-in-out ${showExpandCollapse
                               ? planningCalendarExpanded
                                 ? 'max-h-[420px]'
                                 : 'max-h-[132px]'
                               : 'max-h-none'
-                          }`}
-                        >
-                          <div className="flex flex-col gap-1">
-                            {visibleWeeks.map((week, wi) => (
-                              <div key={wi} className="grid grid-cols-7 gap-0.5">
-                                {week.map((day) => {
-                                const dayKey = format(day, 'yyyy-MM-dd');
-                                const sessionsOnDay = planningSessions[dayKey] || [];
-                                const hasSessions = sessionsOnDay.length > 0;
-                                const isSelected = isSameDay(day, selectedCalendarDate);
-                                const isCurrentMonth = isSameMonth(day, displayMonth);
-                                const isTodayDate = isToday(day);
-                                // Statut du jour pour la couleur du point : terminé = vert, en cours = gris
-                                const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
-                                const dayStatus = hasSessions
-                                  ? sessionsOnDay.reduce((acc, s) => {
-                                      const st = s.status || 'assigned';
-                                      return !acc || (statusOrder[st] || 0) > (statusOrder[acc] || 0) ? st : acc;
-                                    }, null)
-                                  : null;
-                                const dotColor = hasSessions
-                                  ? (isSelected
-                                      ? 'bg-white'
-                                      : dayStatus === 'completed'
-                                        ? 'bg-[#2FA064]'
-                                        : (dayStatus === 'in_progress' || dayStatus === 'assigned' || dayStatus === 'draft')
-                                          ? 'bg-gray-400'
-                                          : null)
-                                  : null;
-                                return (
-                                  <button
-                                    key={dayKey}
-                                    type="button"
-                                    onClick={() => setPlanningViewDate(day)}
-                                    className={`relative flex flex-col items-center justify-center min-h-[40px] w-9 max-w-[36px] mx-auto rounded-lg text-sm font-light transition-colors duration-200 ${
-                                      !isCurrentMonth ? 'text-white/35' : 'text-white'
-                                    } ${
-                                      isSelected
-                                        ? 'bg-[var(--kaiylo-primary-hex)] text-white shadow-none'
-                                        : isCurrentMonth
-                                          ? 'hover:bg-[#D4845A]/25 hover:text-white'
-                                          : ''
-                                    }`}
-                                  >
-                                    <span className={`block -mt-1 ${isSelected ? 'font-medium' : isTodayDate && isCurrentMonth ? 'text-[var(--kaiylo-primary-hex)] font-medium' : ''}`}>
-                                      {format(day, 'd')}
-                                    </span>
-                                    {dotColor && (
-                                      <span className={`absolute bottom-1.5 w-1 h-1 rounded-full ${dotColor}`} style={isSelected ? {} : { opacity: 0.9 }} />
-                                    )}
-                                  </button>
-                                );
-                              })}
+                              }`}
+                          >
+                            <div className="flex flex-col gap-1">
+                              {visibleWeeks.map((week, wi) => (
+                                <div key={wi} className="grid grid-cols-7 gap-0.5">
+                                  {week.map((day) => {
+                                    const dayKey = format(day, 'yyyy-MM-dd');
+                                    const sessionsOnDay = planningSessions[dayKey] || [];
+                                    const hasSessions = sessionsOnDay.length > 0;
+                                    const isSelected = isSameDay(day, selectedCalendarDate);
+                                    const isCurrentMonth = isSameMonth(day, displayMonth);
+                                    const isTodayDate = isToday(day);
+                                    // Statut du jour pour la couleur du point : terminé = vert, en cours = gris
+                                    const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
+                                    const dayStatus = hasSessions
+                                      ? sessionsOnDay.reduce((acc, s) => {
+                                        const st = s.status || 'assigned';
+                                        return !acc || (statusOrder[st] || 0) > (statusOrder[acc] || 0) ? st : acc;
+                                      }, null)
+                                      : null;
+                                    const dotColor = hasSessions
+                                      ? (isSelected
+                                        ? 'bg-white'
+                                        : dayStatus === 'completed'
+                                          ? 'bg-[#2FA064]'
+                                          : (dayStatus === 'in_progress' || dayStatus === 'assigned' || dayStatus === 'draft')
+                                            ? 'bg-gray-400'
+                                            : null)
+                                      : null;
+                                    return (
+                                      <button
+                                        key={dayKey}
+                                        type="button"
+                                        onClick={() => setPlanningViewDate(day)}
+                                        className={`relative flex flex-col items-center justify-center min-h-[40px] w-9 max-w-[36px] mx-auto rounded-lg text-sm font-light transition-colors duration-200 ${!isCurrentMonth ? 'text-white/35' : 'text-white'
+                                          } ${isSelected
+                                            ? 'bg-[var(--kaiylo-primary-hex)] text-white shadow-none'
+                                            : isCurrentMonth
+                                              ? 'hover:bg-[#D4845A]/25 hover:text-white'
+                                              : ''
+                                          }`}
+                                      >
+                                        <span className={`block -mt-1 ${isSelected ? 'font-medium' : isTodayDate && isCurrentMonth ? 'text-[var(--kaiylo-primary-hex)] font-medium' : ''}`}>
+                                          {format(day, 'd')}
+                                        </span>
+                                        {dotColor && (
+                                          <span className={`absolute bottom-1.5 w-1 h-1 rounded-full ${dotColor}`} style={isSelected ? {} : { opacity: 0.9 }} />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ))}
                             </div>
-                          ))}
                           </div>
+                          {!planningCalendarExpanded && showExpandCollapse && (
+                            <button
+                              type="button"
+                              onClick={() => setPlanningCalendarExpanded(true)}
+                              className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10"
+                              aria-label="Afficher tout le mois"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 text-white/50 group-hover:text-white transition-colors duration-300 ease-in-out" fill="currentColor">
+                                <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                              </svg>
+                            </button>
+                          )}
+                          {planningCalendarExpanded && showExpandCollapse && (
+                            <button
+                              type="button"
+                              onClick={() => setPlanningCalendarExpanded(false)}
+                              className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10 mt-1"
+                              aria-label="Réduire le calendrier"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-white transition-colors duration-200" fill="currentColor">
+                                <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
-                        {!planningCalendarExpanded && showExpandCollapse && (
-                          <button
-                            type="button"
-                            onClick={() => setPlanningCalendarExpanded(true)}
-                            className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10"
-                            aria-label="Afficher tout le mois"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 text-white/50 group-hover:text-white transition-colors duration-300 ease-in-out" fill="currentColor">
-                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                            </svg>
-                          </button>
-                        )}
-                        {planningCalendarExpanded && showExpandCollapse && (
-                          <button
-                            type="button"
-                            onClick={() => setPlanningCalendarExpanded(false)}
-                            className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10 mt-1"
-                            aria-label="Réduire le calendrier"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-white transition-colors duration-200" fill="currentColor">
-                              <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"/>
-                            </svg>
-                          </button>
-                        )}
-                      </div>
 
-                      <div className="flex flex-col gap-2 pt-0 mt-2">
-                        <div className="mx-6 border-t border-white/10" aria-hidden="true" />
-                        <div className="flex items-center justify-between gap-2 flex-wrap pt-4 pb-4 px-6">
-                          <span className="text-sm font-light text-white/50">
-                            {format(selectedCalendarDate, 'd MMM yyyy', { locale: fr })}
-                          </span>
-                          {(() => {
-                            // Statut du jour : priorité in_progress > completed > assigned > draft
-                            const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
-                            const dayStatus = sessionsOnDay.length === 0
-                              ? null
-                              : sessionsOnDay.reduce((acc, s) => {
+                        <div className="flex flex-col gap-2 pt-0 mt-2">
+                          <div className="mx-6 border-t border-white/10" aria-hidden="true" />
+                          <div className="flex items-center justify-between gap-2 flex-wrap pt-4 pb-4 px-6">
+                            <span className="text-sm font-light text-white/50">
+                              {format(selectedCalendarDate, 'd MMM yyyy', { locale: fr })}
+                            </span>
+                            {(() => {
+                              // Statut du jour : priorité in_progress > completed > assigned > draft
+                              const statusOrder = { in_progress: 4, completed: 3, assigned: 2, draft: 1 };
+                              const dayStatus = sessionsOnDay.length === 0
+                                ? null
+                                : sessionsOnDay.reduce((acc, s) => {
                                   const st = s.status || 'assigned';
                                   return !acc || (statusOrder[st] || 0) > (statusOrder[acc] || 0) ? st : acc;
                                 }, null);
-                            if (dayStatus == null) return null;
-                            const statusConfig = {
-                              completed: { label: 'Terminé', className: 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20', dotColor: '#2FA064' },
-                              in_progress: { label: 'En cours', className: 'bg-[#d4845a] text-white', dotColor: null },
-                              assigned: { label: 'Assigné', className: 'bg-[#3B6591] text-white', dotColor: '#5B85B1' },
-                              draft: { label: 'Brouillon', className: 'bg-[#686762] text-white', dotColor: '#4a4a47' },
-                            };
-                            const config = statusConfig[dayStatus] || { label: 'Pas commencé', className: 'bg-gray-600 text-gray-200', dotColor: null };
-                            return (
-                              <span className={`px-2 py-0.5 rounded-full text-[12px] font-normal shadow-sm flex items-center gap-1.5 ${config.className}`}>
-                                {config.dotColor && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: config.dotColor }} />}
-                                {config.label}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                        {sessionsOnDay.length > 0 ? (
-                          <div className="flex flex-col gap-2 px-3 pb-4">
-                            {sessionsOnDay.map((session, idx) => {
-                              const sessionId = session.id || session.assignmentId || idx;
-                              const isExpanded = !collapsedPlanningSessionIds.has(sessionId);
-                              const exercisesList = session.exercises || session.workout_sessions?.exercises || [];
-                              const blockInfo = getBlockInfoForSession(session.scheduled_date);
-                              const toggleExpanded = () => {
-                                setCollapsedPlanningSessionIds(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(sessionId)) next.delete(sessionId);
-                                  else next.add(sessionId);
-                                  return next;
-                                });
+                              if (dayStatus == null) return null;
+                              const statusConfig = {
+                                completed: { label: 'Terminé', className: 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20', dotColor: '#2FA064' },
+                                in_progress: { label: 'En cours', className: 'bg-[#d4845a] text-white', dotColor: null },
+                                assigned: { label: 'Assigné', className: 'bg-[#3B6591] text-white', dotColor: '#5B85B1' },
+                                draft: { label: 'Brouillon', className: 'bg-[#686762] text-white', dotColor: '#4a4a47' },
                               };
+                              const config = statusConfig[dayStatus] || { label: 'Pas commencé', className: 'bg-gray-600 text-gray-200', dotColor: null };
                               return (
-                                <div key={sessionId} className="rounded-xl bg-white/5 overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={toggleExpanded}
-                                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left bg-black/50 hover:bg-black/60 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-1 min-w-0 flex-1">
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                                        <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z"/>
+                                <span className={`px-2 py-0.5 rounded-full text-[12px] font-normal shadow-sm flex items-center gap-1.5 ${config.className}`}>
+                                  {config.dotColor && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: config.dotColor }} />}
+                                  {config.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          {sessionsOnDay.length > 0 ? (
+                            <div className="flex flex-col gap-2 px-3 pb-4">
+                              {sessionsOnDay.map((session, idx) => {
+                                const sessionId = session.id || session.assignmentId || idx;
+                                const isExpanded = !collapsedPlanningSessionIds.has(sessionId);
+                                const exercisesList = session.exercises || session.workout_sessions?.exercises || [];
+                                const blockInfo = getBlockInfoForSession(session.scheduled_date);
+                                const toggleExpanded = () => {
+                                  setCollapsedPlanningSessionIds(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(sessionId)) next.delete(sessionId);
+                                    else next.add(sessionId);
+                                    return next;
+                                  });
+                                };
+                                return (
+                                  <div key={sessionId} className="rounded-xl bg-white/5 overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={toggleExpanded}
+                                      className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left bg-black/50 hover:bg-black/60 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                          <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z" />
+                                        </svg>
+                                        <span className="text-[14px] font-medium text-white min-w-0 truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                          {session.title || session.workout_sessions?.title || 'Séance'}
+                                        </span>
+                                        {blockInfo && (
+                                          <>
+                                            <span className="text-[14px] text-white/50 flex-shrink-0"> : </span>
+                                            <span className="text-[12px] text-white/50 flex-shrink-0 whitespace-nowrap pt-0.5 pb-0.5">
+                                              Bloc {blockInfo.blockNumber} - S {blockInfo.weekInBlock}/{blockInfo.totalWeeks}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`h-4 w-4 flex-shrink-0 text-white/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-90'}`} fill="currentColor">
+                                        <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
                                       </svg>
-                                      <span className="text-[14px] font-medium text-white min-w-0 truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                        {session.title || session.workout_sessions?.title || 'Séance'}
-                                      </span>
-                                      {blockInfo && (
-                                        <>
-                                          <span className="text-[14px] text-white/50 flex-shrink-0"> : </span>
-                                          <span className="text-[12px] text-white/50 flex-shrink-0 whitespace-nowrap pt-0.5 pb-0.5">
-                                            Bloc {blockInfo.blockNumber} - S {blockInfo.weekInBlock}/{blockInfo.totalWeeks}
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`h-4 w-4 flex-shrink-0 text-white/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-90'}`} fill="currentColor">
-                                      <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"/>
-                                    </svg>
-                                  </button>
-                                  {isExpanded && exercisesList.length > 0 && (
-                                    <div className="px-3 pb-3 pt-1.5 bg-black/50">
-                                      <div className="relative flex flex-col">
-                                        {exercisesList.map((exercise, exIdx) => {
-                                          const setsStr = formatSetsForDisplay(exercise);
-                                          const setCount = exercise.sets?.length || 0;
-                                          return (
-                                            <div key={exIdx} className="flex items-center gap-2 py-1.5">
-                                              <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 flex-shrink-0 relative z-10 my-auto" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }} aria-hidden>
-                                                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                                                </svg>
-                                              </div>
-                                              <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
-                                                <div className="min-w-0 flex-1">
-                                                  <div className="text-[14px] font-normal text-white truncate">{exercise.name}</div>
-                                                  {setsStr && (
-                                                    <div className="text-[10px] text-white/75 font-normal truncate">
-                                                      {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
-                                                        part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
-                                                          <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
-                                                        ) : (
-                                                          <span key={i}>{part}</span>
-                                                        )
-                                                      )}
-                                                    </div>
+                                    </button>
+                                    {isExpanded && exercisesList.length > 0 && (
+                                      <div className="px-3 pb-3 pt-1.5 bg-black/50">
+                                        <div className="relative flex flex-col">
+                                          {exercisesList.map((exercise, exIdx) => {
+                                            const setsStr = formatSetsForDisplay(exercise);
+                                            const setCount = exercise.sets?.length || 0;
+                                            return (
+                                              <div key={exIdx} className="flex items-center gap-2 py-1.5">
+                                                <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
+                                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 flex-shrink-0 relative z-10 my-auto" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }} aria-hidden>
+                                                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                                                  </svg>
+                                                </div>
+                                                <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                                                  <div className="min-w-0 flex-1">
+                                                    <div className="text-[14px] font-normal text-white truncate">{exercise.name}</div>
+                                                    {setsStr && (
+                                                      <div className="text-[10px] text-white/75 font-normal truncate">
+                                                        {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
+                                                          part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
+                                                            <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
+                                                          ) : (
+                                                            <span key={i}>{part}</span>
+                                                          )
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  {setCount > 0 && (
+                                                    <span className="text-[12px] text-white/75 flex-shrink-0">x{setCount}</span>
                                                   )}
                                                 </div>
-                                                {setCount > 0 && (
-                                                  <span className="text-[12px] text-white/75 flex-shrink-0">x{setCount}</span>
-                                                )}
                                               </div>
-                                            </div>
-                                          );
-                                        })}
+                                            );
+                                          })}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-white/40 font-light px-6 pb-4">Aucune séance ce jour</p>
-                        )}
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-white/40 font-light px-6 pb-4">Aucune séance ce jour</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        ) : null
-      }
-    >
-            {/* Library button - arrow on the left side of modal */}
-            <button
-              onClick={() => {
-                setOpenSheet((prev) => {
-                  const next = !prev;
-                  if (next) {
-                    setTimeout(() => updateLibraryPosition(), 0);
-                  }
-                  return next;
-                });
-              }}
-              aria-expanded={openSheet}
-              aria-label={openSheet ? "Masquer la bibliothèque" : "Afficher la bibliothèque d'exercices"}
-              className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1002] inline-flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 ${
-                openSheet 
-                  ? 'scale-95 hover:scale-105' 
-                  : 'hover:scale-105'
-              }`}
-              style={{
-                backgroundColor: 'rgba(19, 20, 22, 1)',
-                borderWidth: '1px',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}
-              title="Bibliothèque d'exercices"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 256 512" 
-                className={`h-4 w-4 transition-transform duration-150 ${openSheet ? 'rotate-180' : ''}`}
-                fill="currentColor"
-              >
-                <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
-              </svg>
-            </button>
-
-            {/* Fixed Header */}
-            <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                    <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"/>
-                  </svg>
-                  <h2 className="text-base md:text-xl font-normal text-white flex items-center gap-1 md:gap-2 min-w-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    <span className="truncate">{existingSession ? 'Modifier la séance' : 'Nouvelle séance'}</span>
-                    <span className="hidden sm:inline font-light"> - </span>
-                    <span className="font-light truncate hidden sm:inline">
-                      {(() => {
-                        const formattedDate = format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr });
-                        return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
-                      })()}
-                    </span>
-                    <span className="font-light truncate sm:hidden text-xs">
-                      {format(selectedDate, 'd MMM', { locale: fr })}
-                    </span>
-                  </h2>
+                    );
+                  })()}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleClose(false)}
-                    className="text-white/50 hover:text-white transition-colors"
-                    aria-label="Close modal"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
-                      <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
-            <div className="border-b border-white/10 mx-4 md:mx-6"></div>
+          ) : null
+        }
+      >
+        {/* Library button - arrow on the left side of modal */}
+        <button
+          onClick={() => {
+            setOpenSheet((prev) => {
+              const next = !prev;
+              if (next) {
+                setTimeout(() => updateLibraryPosition(), 0);
+              }
+              return next;
+            });
+          }}
+          aria-expanded={openSheet}
+          aria-label={openSheet ? "Masquer la bibliothèque" : "Afficher la bibliothèque d'exercices"}
+          className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1002] h-8 w-8 items-center justify-center rounded-full transition-all duration-150 hidden md:inline-flex ${openSheet
+            ? 'scale-95 hover:scale-105'
+            : 'hover:scale-105'
+            }`}
+          style={{
+            backgroundColor: 'rgba(19, 20, 22, 1)',
+            borderWidth: '1px',
+            borderColor: 'rgba(255, 255, 255, 0.1)'
+          }}
+          title="Bibliothèque d'exercices"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 256 512"
+            className={`h-4 w-4 transition-transform duration-150 ${openSheet ? 'rotate-180' : ''}`}
+            fill="currentColor"
+          >
+            <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z" />
+          </svg>
+        </button>
+
+        {/* Fixed Header */}
+        <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z" />
+              </svg>
+              <h2 className="text-base md:text-xl font-normal text-white flex items-center gap-1 md:gap-2 min-w-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                <span className="truncate">{existingSession ? 'Modifier la séance' : 'Nouvelle séance'}</span>
+                <span className="hidden sm:inline font-light"> - </span>
+                <span className="font-light truncate hidden sm:inline">
+                  {(() => {
+                    const formattedDate = format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr });
+                    return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+                  })()}
+                </span>
+                <span className="font-light truncate sm:hidden text-xs">
+                  {format(selectedDate, 'd MMM', { locale: fr })}
+                </span>
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="md:hidden flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSheet(true);
+                    setTimeout(() => updateLibraryPosition(), 0);
+                  }}
+                  className="text-white/50 hover:text-white p-2"
+                >
+                  <BookOpen className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSidebar(true);
+                    setRightPanelView('agencement');
+                    setTimeout(() => updateArrangementPosition(), 0);
+                  }}
+                  className="text-white/50 hover:text-white p-2"
+                >
+                  <ListOrdered className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSidebar(true);
+                    setRightPanelView('planning');
+                    setTimeout(() => updateArrangementPosition(), 0);
+                  }}
+                  className="text-white/50 hover:text-white p-2"
+                >
+                  <Calendar className="w-5 h-5" />
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleClose(false)}
+                className="text-white/50 hover:text-white transition-colors"
+                aria-label="Close modal"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
+                  <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="border-b border-white/10 mx-4 md:mx-6"></div>
 
         {/* Scrollable Body */}
-        <div 
+        <div
           className="flex-1 min-h-0 px-4 md:px-6 py-4 md:py-6"
         >
           <div className="workout-modal-content w-full flex min-h-0">
@@ -1723,14 +1787,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   Nom de la séance
                 </label>
                 <div className="relative flex items-center">
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 448 512" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 448 512"
                     className="absolute left-3 md:left-[14px] h-3.5 w-3.5 md:h-4 md:w-4 pointer-events-none flex-shrink-0"
                     style={{ color: '#d4845a' }}
                     fill="currentColor"
                   >
-                    <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z"/>
+                    <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z" />
                   </svg>
                   <Input
                     placeholder="Saisir le nom de la séance"
@@ -1745,18 +1809,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <label className="block text-xs md:text-sm font-extralight text-white/50">
                   Date de la séance
                 </label>
-                <div 
+                <div
                   onClick={() => dateInputRef.current?.showPicker()}
                   className="relative rounded-[10px] flex items-center cursor-pointer w-full px-3 md:px-[14px] py-2.5 md:py-3 bg-[rgba(0,0,0,0.5)] h-10 md:h-[44px]"
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 448 512" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 448 512"
                     className="h-3.5 w-3.5 md:h-4 md:w-4 pointer-events-none mr-2 md:mr-3 flex-shrink-0"
                     style={{ color: 'rgba(255, 255, 255, 0.5)' }}
                     fill="currentColor"
                   >
-                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
+                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
                   </svg>
                   {/* Custom Display */}
                   <div className="flex-1 text-xs md:text-sm text-white font-normal">
@@ -1769,7 +1833,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       <span className="text-[rgba(255,255,255,0.25)]">Date de la séance</span>
                     )}
                   </div>
-                  
+
                   {/* Native Input */}
                   <input
                     ref={dateInputRef}
@@ -1790,185 +1854,368 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               {/* Description removed as per coach request */}
 
               <div className="space-y-4">
-              {exercises.map((exercise, exerciseIndex) => (
-                <div 
-                  key={exercise.id} 
-                  ref={(el) => {
-                    if (el) {
-                      exerciseRefs.current[exercise.id] = el;
-                    } else {
-                      delete exerciseRefs.current[exercise.id];
-                    }
-                  }}
-                  className="rounded-[12px] overflow-hidden bg-[rgba(0,0,0,0.3)]"
-                  style={{
-                    willChange: 'transform'
-                  }}
-                >
-                  {/* Exercise Header */}
-                  <div className="flex items-center justify-between p-3 md:p-4 bg-[rgba(0,0,0,0.2)]">
-                    <div 
-                      onClick={(e) => {
-                        handleReplaceExercise(exerciseIndex);
-                        // Force blur immediately to remove hover state
-                        if (e.currentTarget instanceof HTMLElement) {
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors min-w-0 ${
-                        replacingExerciseIndex === exerciseIndex 
-                          ? 'bg-[rgba(255,255,255,0.10)]' 
-                          : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                        <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                      </svg>
-                      <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
-                      <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px]">
-                        {exercise.tags && exercise.tags.map((tag, tagIndex) => {
-                          const tagStyle = getTagColor(tag);
-                          return (
-                            <span 
-                              key={tagIndex} 
-                              className="px-2 py-0.5 rounded-full text-xs font-light"
-                              style={tagStyle}
-                            >
-                              {tag}
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <button
-                        type="button"
+                {exercises.map((exercise, exerciseIndex) => (
+                  <div
+                    key={exercise.id}
+                    ref={(el) => {
+                      if (el) {
+                        exerciseRefs.current[exercise.id] = el;
+                      } else {
+                        delete exerciseRefs.current[exercise.id];
+                      }
+                    }}
+                    className="rounded-[12px] overflow-hidden bg-[rgba(0,0,0,0.3)]"
+                    style={{
+                      willChange: 'transform'
+                    }}
+                  >
+                    {/* Exercise Header */}
+                    <div className="flex items-center justify-between p-3 md:p-4 bg-[rgba(0,0,0,0.2)]">
+                      <div
                         onClick={(e) => {
-                          e.stopPropagation();
-                          const updatedExercises = [...exercises];
-                          updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                          // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
-                          updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
-                            ...set,
-                            weight: ''
-                          }));
-                          setExercises(updatedExercises);
+                          handleReplaceExercise(exerciseIndex);
+                          // Force blur immediately to remove hover state
+                          if (e.currentTarget instanceof HTMLElement) {
+                            e.currentTarget.blur();
+                          }
                         }}
-                        className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${
-                          exercise.useRir
+                        className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors min-w-0 ${replacingExerciseIndex === exerciseIndex
+                          ? 'bg-[rgba(255,255,255,0.10)]'
+                          : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
+                          }`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                          <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                        </svg>
+                        <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
+                        <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px]">
+                          {exercise.tags && exercise.tags.map((tag, tagIndex) => {
+                            const tagStyle = getTagColor(tag);
+                            return (
+                              <span
+                                key={tagIndex}
+                                className="px-2 py-0.5 rounded-full text-xs font-light"
+                                style={tagStyle}
+                              >
+                                {tag}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updatedExercises = [...exercises];
+                            updatedExercises[exerciseIndex].useRir = !exercise.useRir;
+                            // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
+                            updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
+                              ...set,
+                              weight: ''
+                            }));
+                            setExercises(updatedExercises);
+                          }}
+                          className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${exercise.useRir
                             ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
                             : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
-                        }`}
-                        title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
-                          <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"/>
-                        </svg>
-                        <span className="hidden sm:inline">{exercise.useRir ? 'RPE' : 'Charge'}</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-0 px-0">
-                      <div className="flex items-center gap-0" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => moveExerciseUp(exerciseIndex)}
-                          disabled={exerciseIndex === 0}
-                          className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1 py-1.5 rounded"
-                          title="Monter l'exercice"
+                            }`}
+                          title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
-                            <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"/>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
+                            <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z" />
                           </svg>
+                          <span className="hidden sm:inline">{exercise.useRir ? 'RPE' : 'Charge'}</span>
                         </button>
+                      </div>
+                      <div className="flex items-center gap-0 px-0">
+                        <div className="flex items-center gap-0" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => moveExerciseUp(exerciseIndex)}
+                            disabled={exerciseIndex === 0}
+                            className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1 py-1.5 rounded"
+                            title="Monter l'exercice"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
+                              <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveExerciseDown(exerciseIndex)}
+                            disabled={exerciseIndex === exercises.length - 1}
+                            className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors py-1.5 pl-1 pr-1 rounded"
+                            title="Descendre l'exercice"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
+                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="w-px h-4 bg-white/10"></div>
                         <button
                           type="button"
-                          onClick={() => moveExerciseDown(exerciseIndex)}
-                          disabled={exerciseIndex === exercises.length - 1}
-                          className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors py-1.5 pl-1 pr-1 rounded"
-                          title="Descendre l'exercice"
+                          onClick={() => handleRemoveExercise(exercise.id)}
+                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-2.5 pr-2.5 rounded"
+                          title="Supprimer l'exercice"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
-                            <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
+                            <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z" />
                           </svg>
                         </button>
                       </div>
-                      <div className="w-px h-4 bg-white/10"></div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExercise(exercise.id)}
-                        className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-2.5 pr-2.5 rounded"
-                        title="Supprimer l'exercice"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
-                          <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
-                        </svg>
-                      </button>
                     </div>
-                  </div>
 
-                  {/* Exercise Table */}
-                  {exercise.isExpanded && (
-                    <div className="bg-[rgba(0,0,0,0.2)] p-3 md:p-4">
-                      {/* Table Container with Scroll */}
-                      <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
-                        <table className="w-full text-xs md:text-sm min-w-[500px]">
-                          <thead className="sticky top-0 z-10">
-                            <tr className="text-white/50 text-xs font-extralight">
-                              <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                                <DropdownMenu modal={false}>
-                                  <DropdownMenuTrigger asChild>
-                                    <button 
-                                      type="button"
-                                      className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
-                                      style={{ color: 'rgba(255, 255, 255, 0.25)' }}
-                                    >
-                                      <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
-                                        <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                                      </svg>
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent 
-                                    align="start" 
-                                    sideOffset={5} 
-                                    disablePortal={true}
-                                    className="rounded-lg shadow-2xl z-[9999]"
-                                    style={{
-                                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                                      backdropFilter: 'blur(10px)',
-                                      borderColor: 'rgba(255, 255, 255, 0.15)',
-                                      borderWidth: '1px',
-                                      borderStyle: 'solid',
-                                      marginLeft: '12px'
-                                    }}
-                                  >
-                                    <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
-                                      Reps
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
-                                      Hold
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </th>
-                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
-                              {hasPreviousRpeData() && (
+                    {/* Exercise Table */}
+                    {exercise.isExpanded && (
+                      <div className="bg-[rgba(0,0,0,0.2)] p-3 md:p-4">
+                        {/* Table Container with Scroll */}
+                        <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
+                          <table className="w-full text-xs md:text-sm min-w-[500px]">
+                            <thead className="sticky top-0 z-10">
+                              <tr className="text-white/50 text-xs font-extralight">
+                                <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
                                 <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                                  {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
+                                  <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
+                                        style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                      >
+                                        <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                          <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                                        </svg>
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="start"
+                                      sideOffset={5}
+                                      disablePortal={true}
+                                      className="rounded-lg shadow-2xl z-[9999]"
+                                      style={{
+                                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                        backdropFilter: 'blur(10px)',
+                                        borderColor: 'rgba(255, 255, 255, 0.15)',
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid',
+                                        marginLeft: '12px'
+                                      }}
+                                    >
+                                      <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
+                                        Reps
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
+                                        Hold
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </th>
-                              )}
-                              <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
-                              <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
-                              <th className="pb-3"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {exercise.sets.map((set, setIndex) => (
-                              <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
-                                <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
-                                <td className="py-1.5 min-w-24">
-                                  {set.repType === 'hold' ? (
-                                    <div 
-                                      className="relative flex items-center justify-center mx-auto w-[82px]"
+                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
+                                {hasPreviousRpeData() && (
+                                  <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                                    {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
+                                  </th>
+                                )}
+                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                                <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
+                                <th className="pb-3"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {exercise.sets.map((set, setIndex) => (
+                                <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
+                                  <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
+                                  <td className="py-1.5 min-w-24">
+                                    {set.repType === 'hold' ? (
+                                      <div
+                                        className="relative flex items-center justify-center mx-auto w-[82px]"
+                                        onMouseEnter={(e) => {
+                                          const input = e.currentTarget.querySelector('input');
+                                          if (input) {
+                                            input.style.borderStyle = 'solid';
+                                            input.style.borderWidth = '0.5px';
+                                            input.style.borderColor = '#d4845a';
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          const input = e.currentTarget.querySelector('input');
+                                          if (input && document.activeElement !== input) {
+                                            input.style.borderStyle = 'none';
+                                            input.style.borderWidth = '0px';
+                                            input.style.borderColor = 'transparent';
+                                          }
+                                        }}
+                                      >
+                                        <Input
+                                          type="text"
+                                          value={set.reps || ''}
+                                          maxLength={8}
+                                          onChange={(e) => {
+                                            const inputValue = e.target.value.slice(0, 8);
+                                            const previousValue = set.reps || '';
+
+                                            // Allow empty string
+                                            if (inputValue === '') {
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', '');
+                                              return;
+                                            }
+
+                                            // Prevent deleting 's' at the end - if user tries to delete 's', restore it
+                                            let cleanValue = inputValue.replace(/s/gi, '');
+
+                                            // If previous value was "0s" or "0" and user types a digit, replace the 0
+                                            if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                              return;
+                                            }
+
+                                            // Check if it contains colon (MM:SS format) - don't add 's' for this format
+                                            if (cleanValue.includes(':')) {
+                                              const parts = cleanValue.split(':');
+                                              if (parts.length === 2) {
+                                                const minutes = parseInt(parts[0], 10);
+                                                const seconds = parseInt(parts[1], 10);
+                                                if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
+                                                  handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
+                                                }
+                                              }
+                                              return;
+                                            }
+
+                                            // Allow only digits - always add 's' at the end
+                                            if (/^\d+$/.test(cleanValue)) {
+                                              const numValue = parseInt(cleanValue, 10);
+                                              if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
+                                                // Store with 's' appended
+                                                handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                              }
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            const input = e.target;
+                                            const cursorPosition = input.selectionStart;
+                                            const value = input.value;
+
+                                            const allowedKeys = [
+                                              'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+                                              'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
+                                            ];
+
+                                            // Prevent deleting 's' at the end
+                                            if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
+                                              e.preventDefault();
+                                              // Move cursor before 's' to allow deleting the number
+                                              input.setSelectionRange(value.length - 1, value.length - 1);
+                                              return;
+                                            }
+
+                                            // Prevent typing at the end if it would overwrite 's'
+                                            if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
+                                              if (/^\d$/.test(e.key)) {
+                                                // Allow digits but insert before 's', limit to 8 characters
+                                                e.preventDefault();
+                                                const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
+                                                handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
+                                                setTimeout(() => {
+                                                  input.setSelectionRange(newValue.length - 1, newValue.length - 1);
+                                                }, 0);
+                                                return;
+                                              }
+                                            }
+
+                                            if (allowedKeys.includes(e.key)) {
+                                              return;
+                                            }
+
+                                            // Allow digits and ':' (but not 's')
+                                            if (/^\d$/.test(e.key) || e.key === ':') {
+                                              return;
+                                            }
+
+                                            e.preventDefault();
+                                          }}
+                                          placeholder="40s"
+                                          className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
+                                          onFocus={(e) => {
+                                            const input = e.target;
+                                            const value = input.value;
+                                            // If value is "0s", select the "0" so it can be easily replaced
+                                            if (value === '0s') {
+                                              setTimeout(() => {
+                                                input.setSelectionRange(0, 1);
+                                              }, 0);
+                                            } else if (value.endsWith('s') && !value.includes(':')) {
+                                              // If value ends with 's' (but not "0s"), position cursor before 's'
+                                              setTimeout(() => {
+                                                input.setSelectionRange(value.length - 1, value.length - 1);
+                                              }, 0);
+                                            }
+                                            e.target.style.borderStyle = 'solid';
+                                            e.target.style.borderWidth = '0.5px';
+                                            e.target.style.borderColor = '#d4845a';
+                                          }}
+                                          onBlur={(e) => {
+                                            e.target.style.borderStyle = 'none';
+                                            e.target.style.borderWidth = '0px';
+                                            e.target.style.borderColor = 'transparent';
+                                            // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
+                                            const value = e.target.value;
+                                            if (value && !value.includes(':') && !value.endsWith('s')) {
+                                              handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className="flex items-center justify-center w-[82px] mx-auto"
+                                        onMouseEnter={(e) => {
+                                          const input = e.currentTarget.querySelector('input');
+                                          if (input) {
+                                            input.style.borderStyle = 'solid';
+                                            input.style.borderWidth = '0.5px';
+                                            input.style.borderColor = '#d4845a';
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          const input = e.currentTarget.querySelector('input');
+                                          if (input && document.activeElement !== input) {
+                                            input.style.borderStyle = 'none';
+                                            input.style.borderWidth = '0px';
+                                            input.style.borderColor = 'transparent';
+                                          }
+                                        }}
+                                      >
+                                        <Input
+                                          type="text"
+                                          value={set.reps || ''}
+                                          maxLength={8}
+                                          onChange={(e) => {
+                                            // Allow any character - free text input, limit to 8 characters
+                                            const value = e.target.value.slice(0, 8);
+                                            handleSetChange(exerciseIndex, setIndex, 'reps', value);
+                                          }}
+                                          placeholder=""
+                                          className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
+                                          onFocus={(e) => {
+                                            e.target.style.borderStyle = 'solid';
+                                            e.target.style.borderWidth = '0.5px';
+                                            e.target.style.borderColor = '#d4845a';
+                                          }}
+                                          onBlur={(e) => {
+                                            e.target.style.borderStyle = 'none';
+                                            e.target.style.borderWidth = '0px';
+                                            e.target.style.borderColor = 'transparent';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-1.5 min-w-24">
+                                    <div
+                                      className="relative flex items-center justify-center mx-auto w-20"
                                       onMouseEnter={(e) => {
                                         const input = e.currentTarget.querySelector('input');
                                         if (input) {
@@ -1987,109 +2234,68 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       }}
                                     >
                                       <Input
-                                        type="text"
-                                        value={set.reps || ''}
-                                        maxLength={8}
+                                        type={exercise.useRir ? "number" : "text"}
+                                        step={exercise.useRir ? "1" : undefined}
+                                        maxLength={exercise.useRir ? undefined : 5}
+                                        value={set.weight}
                                         onChange={(e) => {
-                                          const inputValue = e.target.value.slice(0, 8);
-                                          const previousValue = set.reps || '';
-                                          
-                                          // Allow empty string
-                                          if (inputValue === '') {
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', '');
-                                            return;
-                                          }
-                                          
-                                          // Prevent deleting 's' at the end - if user tries to delete 's', restore it
-                                          let cleanValue = inputValue.replace(/s/gi, '');
-                                          
-                                          // If previous value was "0s" or "0" and user types a digit, replace the 0
-                                          if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                            return;
-                                          }
-                                          
-                                          // Check if it contains colon (MM:SS format) - don't add 's' for this format
-                                          if (cleanValue.includes(':')) {
-                                            const parts = cleanValue.split(':');
-                                            if (parts.length === 2) {
-                                              const minutes = parseInt(parts[0], 10);
-                                              const seconds = parseInt(parts[1], 10);
-                                              if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
-                                                handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
+                                          let value = e.target.value;
+                                          if (exercise.useRir) {
+                                            // En mode RPE, seulement des nombres entiers (pas de virgule/point)
+                                            // Limité entre 1 et 10
+                                            value = value.replace(/[,.]/g, '');
+                                            if (value === '' || value === '-') {
+                                              handleSetChange(exerciseIndex, setIndex, 'weight', value);
+                                              return;
+                                            }
+                                            const numValue = parseInt(value, 10);
+                                            if (!isNaN(numValue) && numValue >= 1) {
+                                              // Limiter entre 1 et 10
+                                              const limitedValue = Math.min(10, Math.max(1, numValue));
+                                              handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
+                                            } else if (numValue === 0 || value === '') {
+                                              // Allow empty but don't allow 0
+                                              if (value === '') {
+                                                handleSetChange(exerciseIndex, setIndex, 'weight', '');
                                               }
+                                              // If user typed 0, don't update (invalid RPE)
                                             }
-                                            return;
-                                          }
-                                          
-                                          // Allow only digits - always add 's' at the end
-                                          if (/^\d+$/.test(cleanValue)) {
-                                            const numValue = parseInt(cleanValue, 10);
-                                            if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
-                                              // Store with 's' appended
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                            }
+                                          } else {
+                                            // En mode Charge, permettre texte libre, limité à 5 caractères
+                                            const limitedValue = value.slice(0, 5);
+                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue);
                                           }
                                         }}
                                         onKeyDown={(e) => {
-                                          const input = e.target;
-                                          const cursorPosition = input.selectionStart;
-                                          const value = input.value;
-                                          
-                                          const allowedKeys = [
-                                            'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 
-                                            'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
-                                          ];
-                                          
-                                          // Prevent deleting 's' at the end
-                                          if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
-                                            e.preventDefault();
-                                            // Move cursor before 's' to allow deleting the number
-                                            input.setSelectionRange(value.length - 1, value.length - 1);
-                                            return;
-                                          }
-                                          
-                                          // Prevent typing at the end if it would overwrite 's'
-                                          if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
-                                            if (/^\d$/.test(e.key)) {
-                                              // Allow digits but insert before 's', limit to 8 characters
+                                          if (exercise.useRir) {
+                                            const input = e.target;
+                                            const currentValue = input.value || '';
+
+                                            // Empêcher la saisie de virgule, point et autres caractères non numériques
+                                            if (e.key === ',' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
                                               e.preventDefault();
-                                              const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
-                                              setTimeout(() => {
-                                                input.setSelectionRange(newValue.length - 1, newValue.length - 1);
-                                              }, 0);
                                               return;
                                             }
+
+                                            // Empêcher la saisie de 0 seul
+                                            if (e.key === '0' && currentValue === '') {
+                                              e.preventDefault();
+                                              return;
+                                            }
+
+                                            // Si l'input a déjà une valeur, empêcher d'ajouter des chiffres qui dépasseraient 10
+                                            if (/^\d$/.test(e.key) && currentValue !== '') {
+                                              const newValue = parseInt(currentValue + e.key, 10);
+                                              if (newValue > 10) {
+                                                e.preventDefault();
+                                                return;
+                                              }
+                                            }
                                           }
-                                          
-                                          if (allowedKeys.includes(e.key)) {
-                                            return;
-                                          }
-                                          
-                                          // Allow digits and ':' (but not 's')
-                                          if (/^\d$/.test(e.key) || e.key === ':') {
-                                            return;
-                                          }
-                                          
-                                          e.preventDefault();
                                         }}
-                                        placeholder="40s"
-                                        className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
+                                        placeholder=""
+                                        className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${exercise.useRir ? '' : 'pr-6'} transition-colors`}
                                         onFocus={(e) => {
-                                          const input = e.target;
-                                          const value = input.value;
-                                          // If value is "0s", select the "0" so it can be easily replaced
-                                          if (value === '0s') {
-                                            setTimeout(() => {
-                                              input.setSelectionRange(0, 1);
-                                            }, 0);
-                                          } else if (value.endsWith('s') && !value.includes(':')) {
-                                            // If value ends with 's' (but not "0s"), position cursor before 's'
-                                            setTimeout(() => {
-                                              input.setSelectionRange(value.length - 1, value.length - 1);
-                                            }, 0);
-                                          }
                                           e.target.style.borderStyle = 'solid';
                                           e.target.style.borderWidth = '0.5px';
                                           e.target.style.borderColor = '#d4845a';
@@ -2098,17 +2304,41 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                           e.target.style.borderStyle = 'none';
                                           e.target.style.borderWidth = '0px';
                                           e.target.style.borderColor = 'transparent';
-                                          // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
-                                          const value = e.target.value;
-                                          if (value && !value.includes(':') && !value.endsWith('s')) {
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
-                                          }
                                         }}
                                       />
+                                      {!exercise.useRir && (
+                                        <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
+                                      )}
                                     </div>
-                                  ) : (
+                                  </td>
+                                  {hasPreviousRpeData() && (
+                                    <td className="py-1.5 min-w-24">
+                                      <div className="flex items-center justify-center">
+                                        {(() => {
+                                          const prevVal = exercise.useRir ? set.previousCharge : set.previousRpe;
+                                          const hasVal = prevVal != null && prevVal !== '';
+                                          return hasVal ? (
+                                            <div
+                                              className="flex items-center justify-center px-2 py-1 rounded"
+                                              title={exercise.useRir
+                                                ? `Charge renseignée lors de la séance précédente: ${prevVal}kg`
+                                                : `RPE renseigné lors de la séance précédente: ${prevVal}`
+                                              }
+                                            >
+                                              <span className="text-[#d4845a] text-sm font-normal">
+                                                {exercise.useRir ? `${prevVal}kg` : prevVal}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-white/25 text-sm font-light">-</span>
+                                          );
+                                        })()}
+                                      </div>
+                                    </td>
+                                  )}
+                                  <td className="py-1.5 min-w-24">
                                     <div
-                                      className="flex items-center justify-center w-[82px] mx-auto"
+                                      className="flex items-center justify-center"
                                       onMouseEnter={(e) => {
                                         const input = e.currentTarget.querySelector('input');
                                         if (input) {
@@ -2128,15 +2358,34 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     >
                                       <Input
                                         type="text"
-                                        value={set.reps || ''}
-                                        maxLength={8}
-                                        onChange={(e) => {
-                                          // Allow any character - free text input, limit to 8 characters
-                                          const value = e.target.value.slice(0, 8);
-                                          handleSetChange(exerciseIndex, setIndex, 'reps', value);
+                                        value={set.rest}
+                                        onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
+                                        placeholder="03:00"
+                                        className="text-white text-sm text-center h-8 w-20 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                            e.preventDefault();
+                                            const currentValue = set.rest || '00:00';
+                                            const parts = currentValue.split(':');
+                                            if (parts.length === 2) {
+                                              const minutes = parseInt(parts[0], 10) || 0;
+                                              const seconds = parseInt(parts[1], 10) || 0;
+                                              const totalSeconds = minutes * 60 + seconds;
+
+                                              // Add or subtract 1 minute (60 seconds)
+                                              const newTotalSeconds = e.key === 'ArrowUp'
+                                                ? totalSeconds + 60
+                                                : Math.max(0, totalSeconds - 60);
+
+                                              const newMinutes = Math.floor(newTotalSeconds / 60);
+                                              const newSeconds = newTotalSeconds % 60;
+
+                                              // Format as MM:SS with leading zeros
+                                              const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
+                                              handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
+                                            }
+                                          }
                                         }}
-                                        placeholder=""
-                                        className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
                                         onFocus={(e) => {
                                           e.target.style.borderStyle = 'solid';
                                           e.target.style.borderWidth = '0.5px';
@@ -2149,448 +2398,259 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                         }}
                                       />
                                     </div>
-                                  )}
-                                </td>
-                                <td className="py-1.5 min-w-24">
-                                  <div 
-                                    className="relative flex items-center justify-center mx-auto w-20"
-                                    onMouseEnter={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input) {
-                                        input.style.borderStyle = 'solid';
-                                        input.style.borderWidth = '0.5px';
-                                        input.style.borderColor = '#d4845a';
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input && document.activeElement !== input) {
-                                        input.style.borderStyle = 'none';
-                                        input.style.borderWidth = '0px';
-                                        input.style.borderColor = 'transparent';
-                                      }
-                                    }}
-                                  >
-                                    <Input
-                                      type={exercise.useRir ? "number" : "text"}
-                                      step={exercise.useRir ? "1" : undefined}
-                                      maxLength={exercise.useRir ? undefined : 5}
-                                      value={set.weight}
-                                      onChange={(e) => {
-                                        let value = e.target.value;
-                                        if (exercise.useRir) {
-                                          // En mode RPE, seulement des nombres entiers (pas de virgule/point)
-                                          // Limité entre 1 et 10
-                                          value = value.replace(/[,.]/g, '');
-                                          if (value === '' || value === '-') {
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', value);
-                                            return;
-                                          }
-                                          const numValue = parseInt(value, 10);
-                                          if (!isNaN(numValue) && numValue >= 1) {
-                                            // Limiter entre 1 et 10
-                                            const limitedValue = Math.min(10, Math.max(1, numValue));
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
-                                          } else if (numValue === 0 || value === '') {
-                                            // Allow empty but don't allow 0
-                                            if (value === '') {
-                                              handleSetChange(exerciseIndex, setIndex, 'weight', '');
-                                            }
-                                            // If user typed 0, don't update (invalid RPE)
-                                          }
-                                        } else {
-                                          // En mode Charge, permettre texte libre, limité à 5 caractères
-                                          const limitedValue = value.slice(0, 5);
-                                          handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue);
-                                        }
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (exercise.useRir) {
-                                          const input = e.target;
-                                          const currentValue = input.value || '';
-                                          
-                                          // Empêcher la saisie de virgule, point et autres caractères non numériques
-                                          if (e.key === ',' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
-                                            e.preventDefault();
-                                            return;
-                                          }
-                                          
-                                          // Empêcher la saisie de 0 seul
-                                          if (e.key === '0' && currentValue === '') {
-                                            e.preventDefault();
-                                            return;
-                                          }
-                                          
-                                          // Si l'input a déjà une valeur, empêcher d'ajouter des chiffres qui dépasseraient 10
-                                          if (/^\d$/.test(e.key) && currentValue !== '') {
-                                            const newValue = parseInt(currentValue + e.key, 10);
-                                            if (newValue > 10) {
-                                              e.preventDefault();
-                                              return;
-                                            }
-                                          }
-                                        }
-                                      }}
-                                      placeholder=""
-                                      className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${exercise.useRir ? '' : 'pr-6'} transition-colors`}
-                                      onFocus={(e) => {
-                                        e.target.style.borderStyle = 'solid';
-                                        e.target.style.borderWidth = '0.5px';
-                                        e.target.style.borderColor = '#d4845a';
-                                      }}
-                                      onBlur={(e) => {
-                                        e.target.style.borderStyle = 'none';
-                                        e.target.style.borderWidth = '0px';
-                                        e.target.style.borderColor = 'transparent';
-                                      }}
-                                    />
-                                    {!exercise.useRir && (
-                                      <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
-                                    )}
-                                  </div>
-                                </td>
-                                {hasPreviousRpeData() && (
-                                  <td className="py-1.5 min-w-24">
+                                  </td>
+                                  <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
                                     <div className="flex items-center justify-center">
-                                      {(() => {
-                                        const prevVal = exercise.useRir ? set.previousCharge : set.previousRpe;
-                                        const hasVal = prevVal != null && prevVal !== '';
-                                        return hasVal ? (
-                                          <div 
-                                            className="flex items-center justify-center px-2 py-1 rounded"
-                                            title={exercise.useRir 
-                                              ? `Charge renseignée lors de la séance précédente: ${prevVal}kg`
-                                              : `RPE renseigné lors de la séance précédente: ${prevVal}`
-                                            }
-                                          >
-                                            <span className="text-[#d4845a] text-sm font-normal">
-                                              {exercise.useRir ? `${prevVal}kg` : prevVal}
-                                            </span>
-                                          </div>
-                                        ) : (
-                                          <span className="text-white/25 text-sm font-light">-</span>
-                                        );
-                                      })()}
-                                  </div>
-                                </td>
-                                )}
-                                <td className="py-1.5 min-w-24">
-                                  <div
-                                    className="flex items-center justify-center"
-                                    onMouseEnter={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input) {
-                                        input.style.borderStyle = 'solid';
-                                        input.style.borderWidth = '0.5px';
-                                        input.style.borderColor = '#d4845a';
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      const input = e.currentTarget.querySelector('input');
-                                      if (input && document.activeElement !== input) {
-                                        input.style.borderStyle = 'none';
-                                        input.style.borderWidth = '0px';
-                                        input.style.borderColor = 'transparent';
-                                      }
-                                    }}
-                                  >
-                                    <Input
-                                      type="text"
-                                      value={set.rest}
-                                      onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
-                                      placeholder="03:00"
-                                      className="text-white text-sm text-center h-8 w-20 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                          e.preventDefault();
-                                          const currentValue = set.rest || '00:00';
-                                          const parts = currentValue.split(':');
-                                          if (parts.length === 2) {
-                                            const minutes = parseInt(parts[0], 10) || 0;
-                                            const seconds = parseInt(parts[1], 10) || 0;
-                                            const totalSeconds = minutes * 60 + seconds;
-                                            
-                                            // Add or subtract 1 minute (60 seconds)
-                                            const newTotalSeconds = e.key === 'ArrowUp' 
-                                              ? totalSeconds + 60 
-                                              : Math.max(0, totalSeconds - 60);
-                                            
-                                            const newMinutes = Math.floor(newTotalSeconds / 60);
-                                            const newSeconds = newTotalSeconds % 60;
-                                            
-                                            // Format as MM:SS with leading zeros
-                                            const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
-                                            handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
-                                          }
-                                        }
-                                      }}
-                                      onFocus={(e) => {
-                                        e.target.style.borderStyle = 'solid';
-                                        e.target.style.borderWidth = '0.5px';
-                                        e.target.style.borderColor = '#d4845a';
-                                      }}
-                                      onBlur={(e) => {
-                                        e.target.style.borderStyle = 'none';
-                                        e.target.style.borderWidth = '0px';
-                                        e.target.style.borderColor = 'transparent';
-                                      }}
-                                    />
-                                  </div>
-                                </td>
-                                <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSetChange(exerciseIndex, setIndex, 'video', !set.video);
-                                      }}
-                                      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary ${
-                                        set.video
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSetChange(exerciseIndex, setIndex, 'video', !set.video);
+                                        }}
+                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary ${set.video
                                           ? 'bg-primary border-primary text-primary-foreground'
                                           : ''
-                                      }`}
-                                      style={{
-                                        borderWidth: '1px',
-                                        borderColor: set.video ? undefined : 'rgba(255, 255, 255, 0.1)'
-                                      }}
-                                    >
-                                      {set.video && (
-                                        <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                      )}
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="py-1.5 text-center pr-[10px]">
-                                  {exercise.sets.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                                      className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-[#d4845a] transition-all p-1 rounded"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
-                                        <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/>
-                                      </svg>
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                                          }`}
+                                        style={{
+                                          borderWidth: '1px',
+                                          borderColor: set.video ? undefined : 'rgba(255, 255, 255, 0.1)'
+                                        }}
+                                      >
+                                        {set.video && (
+                                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="py-1.5 text-center pr-[10px]">
+                                    {exercise.sets.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                                        className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-[#d4845a] transition-all p-1 rounded"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                          <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z" />
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
 
-                      {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
-                        {/* Left side: Charge par main checkbox and Tempo input */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
-                          {/* Charge par main checkbox */}
-                          <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const updatedExercises = [...exercises];
-                                updatedExercises[exerciseIndex].per_side = !exercise.per_side;
-                                setExercises(updatedExercises);
-                              }}
-                              className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary cursor-pointer ${
-                                exercise.per_side
+                        {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
+                          {/* Left side: Charge par main checkbox and Tempo input */}
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
+                            {/* Charge par main checkbox */}
+                            <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updatedExercises = [...exercises];
+                                  updatedExercises[exerciseIndex].per_side = !exercise.per_side;
+                                  setExercises(updatedExercises);
+                                }}
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary cursor-pointer ${exercise.per_side
                                   ? 'bg-primary border-primary text-primary-foreground'
                                   : ''
-                              }`}
-                              style={{
-                                borderWidth: '1px',
-                                borderColor: exercise.per_side ? undefined : 'rgba(255, 255, 255, 0.1)'
-                              }}
-                            >
-                              {exercise.per_side && (
-                                <Check className="h-3.5 w-3.5 stroke-[3]" />
-                              )}
-                            </button>
-                            <label 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const updatedExercises = [...exercises];
-                                updatedExercises[exerciseIndex].per_side = !exercise.per_side;
-                                setExercises(updatedExercises);
-                              }}
-                              className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
-                            >
-                              Charge par main
-                            </label>
-                          </div>
-                          
-                          {/* Tempo input */}
-                          <Input
-                            type="text"
-                            value={exercise.tempo || ''}
-                            onChange={(e) => {
-                              let value = e.target.value;
-                              
-                              // Si l'utilisateur supprime ou modifie, permettre l'édition libre
-                              // Filtrer pour n'accepter que les chiffres et les tirets
-                              value = value.replace(/[^0-9-]/g, '');
-                              
-                              // Si l'utilisateur tape uniquement des chiffres, formater automatiquement
-                              const digitsOnly = value.replace(/-/g, '');
-                              
-                              // Limiter à 4 chiffres maximum
-                              if (digitsOnly.length > 4) {
-                                const limitedDigits = digitsOnly.slice(0, 4);
-                                // Formater en x-x-x-x
-                                value = `${limitedDigits[0]}-${limitedDigits[1]}-${limitedDigits[2]}-${limitedDigits[3]}`;
-                              } else if (digitsOnly.length > 0) {
-                                // Formater progressivement selon le nombre de chiffres
-                                const digits = digitsOnly.split('');
-                                if (digits.length === 1) {
-                                  value = digits[0];
-                                } else if (digits.length === 2) {
-                                  value = `${digits[0]}-${digits[1]}`;
-                                } else if (digits.length === 3) {
-                                  value = `${digits[0]}-${digits[1]}-${digits[2]}`;
-                                } else if (digits.length === 4) {
-                                  value = `${digits[0]}-${digits[1]}-${digits[2]}-${digits[3]}`;
+                                  }`}
+                                style={{
+                                  borderWidth: '1px',
+                                  borderColor: exercise.per_side ? undefined : 'rgba(255, 255, 255, 0.1)'
+                                }}
+                              >
+                                {exercise.per_side && (
+                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                )}
+                              </button>
+                              <label
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updatedExercises = [...exercises];
+                                  updatedExercises[exerciseIndex].per_side = !exercise.per_side;
+                                  setExercises(updatedExercises);
+                                }}
+                                className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
+                              >
+                                Charge par main
+                              </label>
+                            </div>
+
+                            {/* Tempo input */}
+                            <Input
+                              type="text"
+                              value={exercise.tempo || ''}
+                              onChange={(e) => {
+                                let value = e.target.value;
+
+                                // Si l'utilisateur supprime ou modifie, permettre l'édition libre
+                                // Filtrer pour n'accepter que les chiffres et les tirets
+                                value = value.replace(/[^0-9-]/g, '');
+
+                                // Si l'utilisateur tape uniquement des chiffres, formater automatiquement
+                                const digitsOnly = value.replace(/-/g, '');
+
+                                // Limiter à 4 chiffres maximum
+                                if (digitsOnly.length > 4) {
+                                  const limitedDigits = digitsOnly.slice(0, 4);
+                                  // Formater en x-x-x-x
+                                  value = `${limitedDigits[0]}-${limitedDigits[1]}-${limitedDigits[2]}-${limitedDigits[3]}`;
+                                } else if (digitsOnly.length > 0) {
+                                  // Formater progressivement selon le nombre de chiffres
+                                  const digits = digitsOnly.split('');
+                                  if (digits.length === 1) {
+                                    value = digits[0];
+                                  } else if (digits.length === 2) {
+                                    value = `${digits[0]}-${digits[1]}`;
+                                  } else if (digits.length === 3) {
+                                    value = `${digits[0]}-${digits[1]}-${digits[2]}`;
+                                  } else if (digits.length === 4) {
+                                    value = `${digits[0]}-${digits[1]}-${digits[2]}-${digits[3]}`;
+                                  }
+                                } else {
+                                  // Si vide, permettre la suppression
+                                  value = '';
                                 }
-                              } else {
-                                // Si vide, permettre la suppression
-                                value = '';
-                              }
-                              
-                              const updatedExercises = [...exercises];
-                              updatedExercises[exerciseIndex].tempo = value;
-                              setExercises(updatedExercises);
-                              
-                              // Mettre à jour la bordure selon si une valeur est présente (seulement si le champ n'est pas en focus)
-                              const inputElement = e.target;
-                              if (document.activeElement !== inputElement) {
-                                inputElement.style.borderStyle = 'none';
-                                inputElement.style.borderWidth = '0px';
-                                inputElement.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                inputElement.style.borderImage = 'none';
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              // Permettre toutes les touches de navigation et suppression
-                              if (e.key === 'Backspace' || e.key === 'Delete' || 
+
+                                const updatedExercises = [...exercises];
+                                updatedExercises[exerciseIndex].tempo = value;
+                                setExercises(updatedExercises);
+
+                                // Mettre à jour la bordure selon si une valeur est présente (seulement si le champ n'est pas en focus)
+                                const inputElement = e.target;
+                                if (document.activeElement !== inputElement) {
+                                  inputElement.style.borderStyle = 'none';
+                                  inputElement.style.borderWidth = '0px';
+                                  inputElement.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                  inputElement.style.borderImage = 'none';
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                // Permettre toutes les touches de navigation et suppression
+                                if (e.key === 'Backspace' || e.key === 'Delete' ||
                                   e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
                                   e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
                                   e.key === 'Tab' || e.key === 'Enter' ||
                                   e.key === 'Home' || e.key === 'End' ||
                                   (e.ctrlKey && (e.key === 'a' || e.key === 'c' || e.key === 'v' || e.key === 'x'))) {
-                                return; // Laisser le comportement par défaut
-                              }
-                              
-                              // Empêcher uniquement les caractères non numériques
-                              if (!/[0-9]/.test(e.key)) {
-                                e.preventDefault();
-                              }
-                            }}
-                            onFocus={(e) => {
-                              // Sélectionner tout le texte pour faciliter la modification
-                              e.target.select();
-                              if (!e.target.value) {
-                                e.target.placeholder = 'X-X-X-X';
-                              }
-                              // Ajouter la bordure orange au focus
-                              e.target.style.borderStyle = 'none';
-                              e.target.style.borderWidth = '0px';
-                              e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
-                              e.target.style.borderImage = 'none';
-                            }}
-                            onBlur={(e) => {
-                              if (!e.target.value) {
-                                e.target.placeholder = 'Tempo';
-                                // Restaurer la bordure par défaut si vide
+                                  return; // Laisser le comportement par défaut
+                                }
+
+                                // Empêcher uniquement les caractères non numériques
+                                if (!/[0-9]/.test(e.key)) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              onFocus={(e) => {
+                                // Sélectionner tout le texte pour faciliter la modification
+                                e.target.select();
+                                if (!e.target.value) {
+                                  e.target.placeholder = 'X-X-X-X';
+                                }
+                                // Ajouter la bordure orange au focus
                                 e.target.style.borderStyle = 'none';
                                 e.target.style.borderWidth = '0px';
                                 e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
                                 e.target.style.borderImage = 'none';
-                              } else {
-                                // Garder une bordure blanche visible si une valeur est présente
-                                e.target.style.borderStyle = 'none';
-                                e.target.style.borderWidth = '0px';
-                                e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                e.target.style.borderImage = 'none';
-                              }
+                              }}
+                              onBlur={(e) => {
+                                if (!e.target.value) {
+                                  e.target.placeholder = 'Tempo';
+                                  // Restaurer la bordure par défaut si vide
+                                  e.target.style.borderStyle = 'none';
+                                  e.target.style.borderWidth = '0px';
+                                  e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                  e.target.style.borderImage = 'none';
+                                } else {
+                                  // Garder une bordure blanche visible si une valeur est présente
+                                  e.target.style.borderStyle = 'none';
+                                  e.target.style.borderWidth = '0px';
+                                  e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                  e.target.style.borderImage = 'none';
+                                }
+                              }}
+                              placeholder="Tempo"
+                              className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[12px] md:text-[12px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
+                            />
+                          </div>
+
+                          {/* Right side: Ajouter une série button */}
+                          <button
+                            type="button"
+                            onClick={() => handleAddSet(exerciseIndex)}
+                            className="text-[10px] md:text-[11px] font-normal py-1.5 md:py-1 px-3 md:px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap sm:ml-auto hover:bg-[rgba(212,132,90,0.25)] w-full sm:w-auto"
+                            style={{
+                              fontFamily: "'Inter', sans-serif",
+                              color: 'var(--kaiylo-primary-hex)',
+                              borderColor: 'var(--kaiylo-primary-hex)',
+                              borderWidth: '1px'
                             }}
-                            placeholder="Tempo"
-                            className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[12px] md:text-[12px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
-                          />
+                          >
+                            Ajouter une série
+                          </button>
                         </div>
 
-                        {/* Right side: Ajouter une série button */}
-                        <button
-                          type="button"
-                          onClick={() => handleAddSet(exerciseIndex)}
-                          className="text-[10px] md:text-[11px] font-normal py-1.5 md:py-1 px-3 md:px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap sm:ml-auto hover:bg-[rgba(212,132,90,0.25)] w-full sm:w-auto"
-                          style={{ 
-                            fontFamily: "'Inter', sans-serif",
-                            color: 'var(--kaiylo-primary-hex)',
-                            borderColor: 'var(--kaiylo-primary-hex)',
-                            borderWidth: '1px'
+                        {/* Notes Input */}
+                        <Input
+                          value={exercise.notes}
+                          onChange={(e) => {
+                            const updatedExercises = [...exercises];
+                            updatedExercises[exerciseIndex].notes = e.target.value;
+                            setExercises(updatedExercises);
                           }}
-                        >
-                          Ajouter une série
-                        </button>
+                          placeholder="Ajouter une note pour cet exercice"
+                          className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
+                          onFocus={(e) => {
+                            e.target.style.borderStyle = 'none';
+                            e.target.style.borderWidth = '0px';
+                            e.target.style.borderColor = 'transparent';
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.borderStyle = 'none';
+                            e.target.style.borderWidth = '0px';
+                            e.target.style.borderColor = 'transparent';
+                          }}
+                        />
                       </div>
-
-                      {/* Notes Input */}
-                      <Input
-                        value={exercise.notes}
-                        onChange={(e) => {
-                          const updatedExercises = [...exercises];
-                          updatedExercises[exerciseIndex].notes = e.target.value;
-                          setExercises(updatedExercises);
-                        }}
-                        placeholder="Ajouter une note pour cet exercice"
-                        className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
-                        onFocus={(e) => {
-                          e.target.style.borderStyle = 'none';
-                          e.target.style.borderWidth = '0px';
-                          e.target.style.borderColor = 'transparent';
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderStyle = 'none';
-                          e.target.style.borderWidth = '0px';
-                          e.target.style.borderColor = 'transparent';
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Exercise Selector */}
-            {showExerciseSelector && (
-              <div className="px-4 pb-4">
-                <div className="bg-[rgba(0,0,0,0.3)] rounded-[10px]">
-                  <div className="relative border-b border-white/5">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40 h-4 w-4" aria-hidden="true" fill="currentColor">
-                      <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-                    </svg>
-                    <Input
-                      type="text"
-                      placeholder="Choisir un exercice"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 bg-transparent border-none text-white placeholder:text-white/30 h-12 text-sm focus-visible:ring-0 focus-visible:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowExerciseSelector(false);
-                        setSearchTerm('');
-                      }}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors text-sm"
-                    >
-                      Annuler
-                    </button>
+                    )}
                   </div>
+                ))}
+              </div>
 
-                  {/* Exercise List */}
-                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              {/* Exercise Selector */}
+              {showExerciseSelector && (
+                <div className="px-4 pb-4">
+                  <div className="bg-[rgba(0,0,0,0.3)] rounded-[10px]">
+                    <div className="relative border-b border-white/5">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40 h-4 w-4" aria-hidden="true" fill="currentColor">
+                        <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z" />
+                      </svg>
+                      <Input
+                        type="text"
+                        placeholder="Choisir un exercice"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 pr-4 bg-transparent border-none text-white placeholder:text-white/30 h-12 text-sm focus-visible:ring-0 focus-visible:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowExerciseSelector(false);
+                          setSearchTerm('');
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors text-sm"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+
+                    {/* Exercise List */}
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
                       {filteredExercises.map(exercise => (
                         <div
                           key={exercise.id}
@@ -2629,50 +2689,58 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         </div>
                       )}
                     </div>
+                    {isMobile && (
+                      <button
+                        onClick={() => setShowSidebar(false)}
+                        className="text-white/50 hover:text-white p-1"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Add Exercise Button */}
-            {!showExerciseSelector && (
-              <div className="pt-0 flex justify-center">
+              {/* Add Exercise Button */}
+              {!showExerciseSelector && (
+                <div className="pt-0 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowExerciseSelector(true)}
+                    className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                  >
+                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    Ajouter exercice
+                  </button>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-0">
                 <button
                   type="button"
-                  onClick={() => setShowExerciseSelector(true)}
-                  className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                  onClick={() => handleClose(false)}
+                  className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-3 sm:order-1"
                 >
-                  <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                  Ajouter exercice
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-2"
+                >
+                  <span className="hidden sm:inline">Publier comme brouillon</span>
+                  <span className="sm:hidden">Brouillon</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors order-1 sm:order-3"
+                  style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
+                >
+                  Publier
                 </button>
               </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-0">
-              <button
-                type="button"
-                onClick={() => handleClose(false)}
-                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-3 sm:order-1"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] order-2"
-              >
-                <span className="hidden sm:inline">Publier comme brouillon</span>
-                <span className="sm:hidden">Brouillon</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePublish}
-                className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors order-1 sm:order-3"
-                style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
-              >
-                Publier
-              </button>
-            </div>
             </div>
           </div>
         </div>
@@ -2690,394 +2758,394 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
             onExerciseUpdated={handleExerciseUpdated}
             onEditExercise={handleEditExercise}
             focusSearch={replacingExerciseIndex !== null}
+            isMobile={isMobile}
           />
         )}
-    </BaseModal>
-    
-    {/* Add Exercise Modal */}
-    <AddExerciseModal
-      isOpen={isAddExerciseModalOpen}
-      onClose={() => {
-        setIsAddExerciseModalOpen(false);
-        setEditingExercise(null);
-      }}
-      onExerciseCreated={handleExerciseCreated}
-      onExerciseUpdated={handleExerciseUpdated}
-      editingExercise={editingExercise}
-      existingExercises={availableExercises}
-    />
+      </BaseModal>
 
-    {/* Unsaved Changes Warning Modal */}
-    <UnsavedChangesWarningModal
-      isOpen={showUnsavedWarning}
-      onClose={handleCancelQuit}
-      onConfirm={handleConfirmQuit}
-    />
+      {/* Add Exercise Modal */}
+      <AddExerciseModal
+        isOpen={isAddExerciseModalOpen}
+        onClose={() => {
+          setIsAddExerciseModalOpen(false);
+          setEditingExercise(null);
+        }}
+        onExerciseCreated={handleExerciseCreated}
+        onExerciseUpdated={handleExerciseUpdated}
+        editingExercise={editingExercise}
+        existingExercises={availableExercises}
+      />
 
-    {/* Student Preview Modal */}
-    {showStudentPreview && exercises.length > 0 && (() => {
-      const firstExercise = exercises[0];
-      const sets = firstExercise.sets || [];
-      
-      return (
-        <ModalPortal>
-          <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10000]" onClick={() => setShowStudentPreview(false)}>
-            <div 
-              className="text-white rounded-[27px] w-full max-w-[375px] max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-xl bg-[#0a0a0a]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header avec titre */}
-              <div className="px-12 pt-8 pb-0">
-                <div className="mb-6">
-                  {/* Navigation et titre */}
-                  <div className="flex items-center justify-between mb-[7px]">
-                    <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-left flex-1">
-                      {firstExercise.name}
-                    </h1>
-                    <button
-                      onClick={() => setShowStudentPreview(false)}
-                      className="text-white/50 hover:text-white transition-colors"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-[15px] items-start w-full">
-                    {/* Tempo et Charge par main - Affichés si définis par le coach */}
-                    {(firstExercise.tempo || firstExercise.per_side) && (
-                      <div className="flex flex-col gap-[15px] items-start">
-                        <p className="text-[12px] font-light text-white/50">
-                          {firstExercise.tempo ? `Tempo : ${firstExercise.tempo}` : ''}
-                          {firstExercise.tempo && firstExercise.per_side ? ' | ' : ''}
-                          {firstExercise.per_side ? 'Charge par main' : ''}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Points d'avancement */}
-                    {exercises.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        {exercises.map((_, exIndex) => (
-                          <div
-                            key={exIndex}
-                            className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
-                              exIndex === 0 ? 'bg-[#d4845a]' : 'bg-white/30'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Progress bar */}
-                    <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#d4845a] transition-all duration-300"
-                        style={{ width: `${(1 / exercises.length) * 100}%` }}
-                      />
-                    </div>
-                    
-                    {/* Icônes information et commentaire */}
-                    <div className="flex gap-[10px] items-center">
-                      <div className="w-5 h-5 flex items-center justify-center rounded-full cursor-not-allowed opacity-50">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 512 512"
-                          className="w-5 h-5 text-white/25"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/>
-                        </svg>
-                      </div>
-                      <div className="cursor-pointer relative w-5 h-5 flex items-center justify-center opacity-50">
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 512 512"
-                          className="w-5 h-5 text-white/25"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path d="M51.9 384.9C19.3 344.6 0 294.4 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240 397.4 480 256 480c-36.5 0-71.2-7.2-102.6-20L37 509.9c-3.7 1.6-7.5 2.1-11.5 2.1-14.1 0-25.5-11.4-25.5-25.5 0-4.3 1.1-8.5 3.1-12.2l48.8-89.4zm37.3-30.2c12.2 15.1 14.1 36.1 4.8 53.2l-18 33.1 58.5-25.1c11.8-5.1 25.2-5.2 37.1-.3 25.7 10.5 54.2 16.4 84.3 16.4 117.8 0 208-88.8 208-192S373.8 48 256 48 48 136.8 48 240c0 42.8 15.1 82.4 41.2 114.7z"/>
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+      {/* Unsaved Changes Warning Modal */}
+      <UnsavedChangesWarningModal
+        isOpen={showUnsavedWarning}
+        onClose={handleCancelQuit}
+        onConfirm={handleConfirmQuit}
+      />
 
-              {/* Commentaire coach */}
-              <div className="px-12 mb-6">
-                <div className="flex flex-col gap-[7px] items-start w-full">
-                  <p className="text-[10px] font-normal text-white/35 leading-normal">
-                    Commentaire coach :
-                  </p>
-                  <p className="text-[10px] text-white/25 leading-normal">
-                    Aucun commentaire pour le moment
-                  </p>
-                </div>
-              </div>
+      {/* Student Preview Modal */}
+      {showStudentPreview && exercises.length > 0 && (() => {
+        const firstExercise = exercises[0];
+        const sets = firstExercise.sets || [];
 
-              {/* Liste des séries */}
-              <div className="pl-6 pr-12 space-y-[10px] pb-6">
-                {/* Headers - Positionnés au-dessus des séries */}
-                <div className="flex items-center mb-2">
-                  <div className="w-[20px] flex-shrink-0 mr-1" />
-                  <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]">
-                    <div className="flex items-center w-full gap-3">
-                      <div className="w-[42px] flex justify-center items-center flex-shrink-0">
-                        <p className="text-[8px] font-normal text-white/25 leading-none">
-                          {(() => {
-                            const repType = sets[0]?.repType || 'reps';
-                            if (repType === 'hold') {
-                              return 'Hold';
-                            }
-                            return 'Rep.';
-                          })()}
-                        </p>
-                      </div>
-                      <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                        <p className="text-[8px] font-normal text-white/25 leading-none">{firstExercise.useRir ? 'RPE' : 'Charge'}</p>
-                      </div>
-                      <div className="flex-1 flex justify-center items-center gap-[15px]">
-                        <div className="w-[17px] h-[17px]" />
-                        <div className="w-[17px] h-[17px]" />
-                      </div>
-                      <div className="w-[24px] flex justify-center items-center flex-shrink-0">
-                        <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
-                          {firstExercise.useRir ? 'Charge' : 'RPE'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="w-[24px] flex-shrink-0 ml-[10px]" />
-                </div>
-                {/* Header icône vidéo */}
-                <div className="flex items-center mb-2">
-                  <div className="w-[20px] flex-shrink-0 mr-1" />
-                  <div className="rounded-[5px] flex items-center px-[15px] pr-[30px] flex-1 min-w-[200px] max-w-[400px]" />
-                  <div className="w-[24px] flex-shrink-0 ml-[10px]" />
-                </div>
-
-                {/* Séries */}
-                {sets.map((set, setIndex) => {
-                  const setNumber = setIndex + 1;
-                  const weight = set.weight ?? '';
-                  const repType = set.repType || 'reps';
-                  let reps = '?';
-                  if (repType === 'hold') {
-                    const repsValue = set.reps || '';
-                    if (repsValue.includes(':')) {
-                      reps = repsValue;
-                    } else {
-                      reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
-                    }
-                  } else {
-                    reps = set.reps || '?';
-                  }
-
-                  return (
-                    <div key={setIndex} className="flex items-center">
-                      {/* Numéro de série - À l'extérieur de la box */}
-                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
-                      <div 
-                        className="bg-white/10 rounded-[5px] flex items-center px-[15px] pr-[30px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors"
-                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+        return (
+          <ModalPortal>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10000]" onClick={() => setShowStudentPreview(false)}>
+              <div
+                className="text-white rounded-[27px] w-full max-w-[375px] max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-xl bg-[#0a0a0a]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header avec titre */}
+                <div className="px-12 pt-8 pb-0">
+                  <div className="mb-6">
+                    {/* Navigation et titre */}
+                    <div className="flex items-center justify-between mb-[7px]">
+                      <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-left flex-1">
+                        {firstExercise.name}
+                      </h1>
+                      <button
+                        onClick={() => setShowStudentPreview(false)}
+                        className="text-white/50 hover:text-white transition-colors"
                       >
-                        <div className="flex items-center w-full gap-3">
-                          {/* Colonne Rep - Centrée */}
-                          <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
-                            <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
-                          </div>
-                          {/* Colonne Charge/RPE - Centrée */}
-                          <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                            {firstExercise.useRir ? (
-                              <span className="text-[15px] text-[#d4845a] leading-none">
-                                {weight || '-'}
-                              </span>
-                            ) : (
-                              <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">
-                                {weight}
-                                {weight && weight.toString().match(/^\d+\.?\d*$/) ? <span className="text-[12px] font-normal">kg</span> : null}
-                              </span>
-                            )}
-                          </div>
-                          {/* Boutons de validation - Centrés */}
-                          <div className="flex-1 flex justify-center items-center gap-[15px]">
-                            <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
-                              <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0">
-                                <path 
-                                  d="M1 3.5L3.5 6L9 1" 
-                                  stroke="#FFF" 
-                                  strokeWidth="1.5" 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round"
-                                  strokeOpacity="0.25"
-                                />
-                              </svg>
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-[15px] items-start w-full">
+                      {/* Tempo et Charge par main - Affichés si définis par le coach */}
+                      {(firstExercise.tempo || firstExercise.per_side) && (
+                        <div className="flex flex-col gap-[15px] items-start">
+                          <p className="text-[12px] font-light text-white/50">
+                            {firstExercise.tempo ? `Tempo : ${firstExercise.tempo}` : ''}
+                            {firstExercise.tempo && firstExercise.per_side ? ' | ' : ''}
+                            {firstExercise.per_side ? 'Charge par main' : ''}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Points d'avancement */}
+                      {exercises.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          {exercises.map((_, exIndex) => (
+                            <div
+                              key={exIndex}
+                              className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${exIndex === 0 ? 'bg-[#d4845a]' : 'bg-white/30'
+                                }`}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Progress bar */}
+                      <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#d4845a] transition-all duration-300"
+                          style={{ width: `${(1 / exercises.length) * 100}%` }}
+                        />
+                      </div>
+
+                      {/* Icônes information et commentaire */}
+                      <div className="flex gap-[10px] items-center">
+                        <div className="w-5 h-5 flex items-center justify-center rounded-full cursor-not-allowed opacity-50">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 512 512"
+                            className="w-5 h-5 text-white/25"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z" />
+                          </svg>
+                        </div>
+                        <div className="cursor-pointer relative w-5 h-5 flex items-center justify-center opacity-50">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 512 512"
+                            className="w-5 h-5 text-white/25"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M51.9 384.9C19.3 344.6 0 294.4 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240 397.4 480 256 480c-36.5 0-71.2-7.2-102.6-20L37 509.9c-3.7 1.6-7.5 2.1-11.5 2.1-14.1 0-25.5-11.4-25.5-25.5 0-4.3 1.1-8.5 3.1-12.2l48.8-89.4zm37.3-30.2c12.2 15.1 14.1 36.1 4.8 53.2l-18 33.1 58.5-25.1c11.8-5.1 25.2-5.2 37.1-.3 25.7 10.5 54.2 16.4 84.3 16.4 117.8 0 208-88.8 208-192S373.8 48 256 48 48 136.8 48 240c0 42.8 15.1 82.4 41.2 114.7z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Commentaire coach */}
+                <div className="px-12 mb-6">
+                  <div className="flex flex-col gap-[7px] items-start w-full">
+                    <p className="text-[10px] font-normal text-white/35 leading-normal">
+                      Commentaire coach :
+                    </p>
+                    <p className="text-[10px] text-white/25 leading-normal">
+                      Aucun commentaire pour le moment
+                    </p>
+                  </div>
+                </div>
+
+                {/* Liste des séries */}
+                <div className="pl-6 pr-12 space-y-[10px] pb-6">
+                  {/* Headers - Positionnés au-dessus des séries */}
+                  <div className="flex items-center mb-2">
+                    <div className="w-[20px] flex-shrink-0 mr-1" />
+                    <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]">
+                      <div className="flex items-center w-full gap-3">
+                        <div className="w-[42px] flex justify-center items-center flex-shrink-0">
+                          <p className="text-[8px] font-normal text-white/25 leading-none">
+                            {(() => {
+                              const repType = sets[0]?.repType || 'reps';
+                              if (repType === 'hold') {
+                                return 'Hold';
+                              }
+                              return 'Rep.';
+                            })()}
+                          </p>
+                        </div>
+                        <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                          <p className="text-[8px] font-normal text-white/25 leading-none">{firstExercise.useRir ? 'RPE' : 'Charge'}</p>
+                        </div>
+                        <div className="flex-1 flex justify-center items-center gap-[15px]">
+                          <div className="w-[17px] h-[17px]" />
+                          <div className="w-[17px] h-[17px]" />
+                        </div>
+                        <div className="w-[24px] flex justify-center items-center flex-shrink-0">
+                          <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
+                            {firstExercise.useRir ? 'Charge' : 'RPE'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                  </div>
+                  {/* Header icône vidéo */}
+                  <div className="flex items-center mb-2">
+                    <div className="w-[20px] flex-shrink-0 mr-1" />
+                    <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]" />
+                    <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                  </div>
+
+                  {/* Séries */}
+                  {sets.map((set, setIndex) => {
+                    const setNumber = setIndex + 1;
+                    const weight = set.weight ?? '';
+                    const repType = set.repType || 'reps';
+                    let reps = '?';
+                    if (repType === 'hold') {
+                      const repsValue = set.reps || '';
+                      if (repsValue.includes(':')) {
+                        reps = repsValue;
+                      } else {
+                        reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
+                      }
+                    } else {
+                      reps = set.reps || '?';
+                    }
+
+                    return (
+                      <div key={setIndex} className="flex items-center">
+                        {/* Numéro de série - À l'extérieur de la box */}
+                        <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{setNumber}</span>
+                        <div
+                          className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors"
+                          style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                        >
+                          <div className="flex items-center w-full gap-3">
+                            {/* Colonne Rep - Centrée */}
+                            <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                              <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
                             </div>
-                            <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
-                              <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0">
-                                <path 
-                                  d="M5 12L12 5M5 5L12 12" 
-                                  stroke="white" 
-                                  strokeOpacity="0.25" 
-                                  strokeWidth="1.5" 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          </div>
-                          {/* Input RPE / Charge */}
-                          <div className={`${firstExercise.useRir ? 'w-auto min-w-[45px]' : 'w-[24px]'} flex justify-center items-center`}>
-                            <div className="flex justify-center items-center w-full">
+                            {/* Colonne Charge/RPE - Centrée */}
+                            <div className="w-[50px] flex justify-center items-center flex-shrink-0">
                               {firstExercise.useRir ? (
-                                // Si coach demande RPE : l'élève saisit une charge
-                                <div className="relative flex items-center gap-[2px]">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value=""
-                                    readOnly
-                                    disabled
-                                    className="w-[22px] h-[18px] bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none text-[9px] font-medium text-center transition-colors focus:outline-none focus:border-[#d4845a] cursor-not-allowed text-white/50"
-                                    style={{ 
-                                      padding: '0',
-                                      fontSize: '9px',
-                                      lineHeight: 1
-                                    }}
-                                  />
-                                  <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
-                                </div>
+                                <span className="text-[15px] text-[#d4845a] leading-none">
+                                  {weight || '-'}
+                                </span>
                               ) : (
-                                // Si coach demande charge : l'élève saisit un RPE
-                                <button
-                                  disabled
-                                  className="bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
-                                >
-                                  <span className="text-[9px] font-medium leading-none text-white/50">
-                                    {''}
-                                  </span>
-                                </button>
+                                <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">
+                                  {weight}
+                                  {weight && weight.toString().match(/^\d+\.?\d*$/) ? <span className="text-[12px] font-normal">kg</span> : null}
+                                </span>
                               )}
+                            </div>
+                            {/* Boutons de validation - Centrés */}
+                            <div className="flex-1 flex justify-center items-center gap-[15px]">
+                              <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
+                                <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0">
+                                  <path
+                                    d="M1 3.5L3.5 6L9 1"
+                                    stroke="#FFF"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeOpacity="0.25"
+                                  />
+                                </svg>
+                              </div>
+                              <div className="w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] bg-white/15">
+                                <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0">
+                                  <path
+                                    d="M5 12L12 5M5 5L12 12"
+                                    stroke="white"
+                                    strokeOpacity="0.25"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                            {/* Input RPE / Charge */}
+                            <div className={`${firstExercise.useRir ? 'w-auto min-w-[45px]' : 'w-[24px]'} flex justify-center items-center`}>
+                              <div className="flex justify-center items-center w-full">
+                                {firstExercise.useRir ? (
+                                  // Si coach demande RPE : l'élève saisit une charge
+                                  <div className="relative flex items-center gap-[2px]">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value=""
+                                      readOnly
+                                      disabled
+                                      className="w-[22px] h-[18px] bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none text-[9px] font-medium text-center transition-colors focus:outline-none focus:border-[#d4845a] cursor-not-allowed text-white/50"
+                                      style={{
+                                        padding: '0',
+                                        fontSize: '9px',
+                                        lineHeight: 1
+                                      }}
+                                    />
+                                    <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                                  </div>
+                                ) : (
+                                  // Si coach demande charge : l'élève saisit un RPE
+                                  <button
+                                    disabled
+                                    className="bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors opacity-50 cursor-not-allowed"
+                                  >
+                                    <span className="text-[9px] font-medium leading-none text-white/50">
+                                      {''}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Icône vidéo - À l'extérieur de la box - 4 états */}
-                      <div className="relative flex-shrink-0 ml-[10px]">
-                        {(() => {
-                          const videoEnabled = set.video === true || set.video === 1 || set.video === 'true';
-                          // En prévisualisation, on simule qu'aucune vidéo n'a été uploadée
-                          const hasVideoOrNoVideo = false;
-                          
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (videoEnabled) {
-                                  setSelectedSetForVideo(prev => ({
-                                    ...prev,
-                                    0: setIndex
-                                  }));
-                                  setVideoUploadExerciseIndex(0);
-                                  setIsVideoModalOpen(true);
+                        {/* Icône vidéo - À l'extérieur de la box - 4 états */}
+                        <div className="relative flex-shrink-0 ml-[10px]">
+                          {(() => {
+                            const videoEnabled = set.video === true || set.video === 1 || set.video === 'true';
+                            // En prévisualisation, on simule qu'aucune vidéo n'a été uploadée
+                            const hasVideoOrNoVideo = false;
+
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (videoEnabled) {
+                                    setSelectedSetForVideo(prev => ({
+                                      ...prev,
+                                      0: setIndex
+                                    }));
+                                    setVideoUploadExerciseIndex(0);
+                                    setIsVideoModalOpen(true);
+                                  }
+                                }}
+                                disabled={!videoEnabled}
+                                className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
+                                  // État 1: Coach ne demande pas de vidéo - visible mais disabled
+                                  !videoEnabled
+                                    ? 'bg-white/5 opacity-50 cursor-not-allowed'
+                                    : // État 2: Vidéo requise mais pas renseignée - orange
+                                    !hasVideoOrNoVideo
+                                      ? 'bg-[#d4845a] hover:bg-[#e87c3e] cursor-pointer'
+                                      : // État 3 & 4: Vidéo renseignée (uploadée ou "pas de vidéo") - grisé mais cliquable
+                                      'bg-white/10 hover:bg-white/20 cursor-pointer'
+                                  }`}
+                                title={
+                                  !videoEnabled
+                                    ? "Vidéo non requise"
+                                    : "⚠️ Vidéo requise - Cliquez pour ajouter"
                                 }
-                              }}
-                              disabled={!videoEnabled}
-                              className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
-                                // État 1: Coach ne demande pas de vidéo - visible mais disabled
-                                !videoEnabled
-                                  ? 'bg-white/5 opacity-50 cursor-not-allowed'
-                                  : // État 2: Vidéo requise mais pas renseignée - orange
-                                  !hasVideoOrNoVideo
-                                  ? 'bg-[#d4845a] hover:bg-[#e87c3e] cursor-pointer'
-                                  : // État 3 & 4: Vidéo renseignée (uploadée ou "pas de vidéo") - grisé mais cliquable
-                                  'bg-white/10 hover:bg-white/20 cursor-pointer'
-                              }`}
-                              title={
-                                !videoEnabled
-                                  ? "Vidéo non requise"
-                                  : "⚠️ Vidéo requise - Cliquez pour ajouter"
-                              }
-                            >
-                              {/* Icône caméra barrée */}
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" 
-                                  fill={!videoEnabled ? "#9CA3AF" : !hasVideoOrNoVideo ? "white" : "#9CA3AF"} 
-                                  fillOpacity={!videoEnabled ? "0.4" : !hasVideoOrNoVideo ? "1" : "0.6"}
-                                />
-                                {/* Ligne de barré - affichée pour les états 1, 3 et 4 */}
-                                {(!videoEnabled || hasVideoOrNoVideo) && (
-                                  <line 
-                                    x1="1" 
-                                    y1="1" 
-                                    x2="11" 
-                                    y2="11" 
-                                    stroke={!videoEnabled ? "#9CA3AF" : "#9CA3AF"} 
-                                    strokeWidth="1.5" 
-                                    strokeOpacity={!videoEnabled ? "0.4" : "0.6"} 
-                                    strokeLinecap="round"
+                              >
+                                {/* Icône caméra barrée */}
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                  <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z"
+                                    fill={!videoEnabled ? "#9CA3AF" : !hasVideoOrNoVideo ? "white" : "#9CA3AF"}
+                                    fillOpacity={!videoEnabled ? "0.4" : !hasVideoOrNoVideo ? "1" : "0.6"}
                                   />
-                                )}
-                              </svg>
-                            </button>
-                          );
-                        })()}
+                                  {/* Ligne de barré - affichée pour les états 1, 3 et 4 */}
+                                  {(!videoEnabled || hasVideoOrNoVideo) && (
+                                    <line
+                                      x1="1"
+                                      y1="1"
+                                      x2="11"
+                                      y2="11"
+                                      stroke={!videoEnabled ? "#9CA3AF" : "#9CA3AF"}
+                                      strokeWidth="1.5"
+                                      strokeOpacity={!videoEnabled ? "0.4" : "0.6"}
+                                      strokeLinecap="round"
+                                    />
+                                  )}
+                                </svg>
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
 
-              {/* Bouton Fermer */}
-              <div className="px-12 pb-8">
-                <button
-                  onClick={() => setShowStudentPreview(false)}
-                  className="w-full py-3 bg-white/10 hover:bg-white/15 text-white font-normal text-sm rounded-[10px] transition-colors"
-                >
-                  Fermer
-                </button>
+                {/* Bouton Fermer */}
+                <div className="px-12 pb-8">
+                  <button
+                    onClick={() => setShowStudentPreview(false)}
+                    className="w-full py-3 bg-white/10 hover:bg-white/15 text-white font-normal text-sm rounded-[10px] transition-colors"
+                  >
+                    Fermer
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </ModalPortal>
-      );
-    })()}
+          </ModalPortal>
+        );
+      })()}
 
-    {/* Video Upload Modal for Student Preview */}
-    {showStudentPreview && exercises.length > 0 && (() => {
-      const activeExerciseIndex = videoUploadExerciseIndex ?? 0;
-      const activeSetIndex = selectedSetForVideo[activeExerciseIndex] ?? 0;
-      const activeExercise = exercises[activeExerciseIndex];
-      const activeSet = activeExercise?.sets?.[activeSetIndex];
-      
-      return (
-        <WorkoutVideoUploadModal
-          key={`upload-modal-preview-${activeExerciseIndex}-${activeSetIndex}`}
-          isOpen={isVideoModalOpen}
-          onClose={() => setIsVideoModalOpen(false)}
-          onUploadSuccess={() => {
-            // En prévisualisation, on ne fait rien mais on ferme la modale
-            setIsVideoModalOpen(false);
-          }}
-          onDeleteVideo={() => {
-            // En prévisualisation, on ne fait rien mais on ferme la modale
-            setIsVideoModalOpen(false);
-          }}
-          exerciseInfo={{
-            exerciseName: activeExercise?.name || 'Exercice',
-            exerciseId: activeExercise?.exerciseId,
-            exerciseIndex: activeExerciseIndex
-          }}
-          setInfo={{
-            setIndex: activeSetIndex,
-            setNumber: activeSetIndex + 1
-          }}
-          existingVideo={null}
-        />
-      );
-    })()}
+      {/* Video Upload Modal for Student Preview */}
+      {showStudentPreview && exercises.length > 0 && (() => {
+        const activeExerciseIndex = videoUploadExerciseIndex ?? 0;
+        const activeSetIndex = selectedSetForVideo[activeExerciseIndex] ?? 0;
+        const activeExercise = exercises[activeExerciseIndex];
+        const activeSet = activeExercise?.sets?.[activeSetIndex];
+
+        return (
+          <WorkoutVideoUploadModal
+            key={`upload-modal-preview-${activeExerciseIndex}-${activeSetIndex}`}
+            isOpen={isVideoModalOpen}
+            onClose={() => setIsVideoModalOpen(false)}
+            onUploadSuccess={() => {
+              // En prévisualisation, on ne fait rien mais on ferme la modale
+              setIsVideoModalOpen(false);
+            }}
+            onDeleteVideo={() => {
+              // En prévisualisation, on ne fait rien mais on ferme la modale
+              setIsVideoModalOpen(false);
+            }}
+            exerciseInfo={{
+              exerciseName: activeExercise?.name || 'Exercice',
+              exerciseId: activeExercise?.exerciseId,
+              exerciseIndex: activeExerciseIndex
+            }}
+            setInfo={{
+              setIndex: activeSetIndex,
+              setNumber: activeSetIndex + 1
+            }}
+            existingVideo={null}
+          />
+        );
+      })()}
 
     </>
   );

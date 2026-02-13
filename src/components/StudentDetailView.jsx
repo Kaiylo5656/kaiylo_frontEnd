@@ -112,6 +112,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [dateFilterMinWidth, setDateFilterMinWidth] = useState(100); // Default width in px
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
   const [hoveredSessionId, setHoveredSessionId] = useState(null); // Track which session is hovered
+  const [hoveringValidateButtonSessionId, setHoveringValidateButtonSessionId] = useState(null);
+  const [hoveredVideoId, setHoveredVideoId] = useState(null);
+  const [hoveringValidateVideoId, setHoveringValidateVideoId] = useState(null);
+  const [isMarkingAllCompleted, setIsMarkingAllCompleted] = useState(false);
+  const [markingSessionId, setMarkingSessionId] = useState(null);
+  const [markingVideoId, setMarkingVideoId] = useState(null);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
 
@@ -1558,6 +1564,81 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setIsVideoDetailModalOpen(true);
   };
 
+  // Mark all pending videos as completed (no comment) - analyse tab
+  const handleMarkAllPendingAsCompleted = async () => {
+    const pendingVideos = studentVideos.filter(v => v.status === 'pending');
+    if (pendingVideos.length === 0) return;
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    setIsMarkingAllCompleted(true);
+    try {
+      await Promise.all(
+        pendingVideos.map((video) =>
+          axios.patch(
+            `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+            { feedback: '', rating: null, status: 'completed' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        )
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      console.error('Error marking all as completed:', err);
+    } finally {
+      setIsMarkingAllCompleted(false);
+    }
+  };
+
+  // Mark all pending videos of one session as completed - analyse tab
+  const handleMarkSessionAsCompleted = async (e, sessionId) => {
+    e.stopPropagation();
+    const pendingInSession = studentVideos.filter(
+      (v) => (v.workout_session_id === sessionId || v.assignment_id === sessionId) && v.status === 'pending'
+    );
+    if (pendingInSession.length === 0) return;
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    setMarkingSessionId(sessionId);
+    try {
+      await Promise.all(
+        pendingInSession.map((video) =>
+          axios.patch(
+            `${getApiBaseUrlWithApi()}/workout-sessions/videos/${video.id}/feedback`,
+            { feedback: '', rating: null, status: 'completed' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        )
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      console.error('Error marking session as completed:', err);
+    } finally {
+      setMarkingSessionId(null);
+    }
+  };
+
+  // Mark a single video as completed (no comment) - analyse tab
+  const handleMarkVideoAsCompleted = async (e, videoId) => {
+    e.stopPropagation();
+    const video = studentVideos.find((v) => v.id === videoId);
+    if (!video || video.status !== 'pending') return;
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    setMarkingVideoId(videoId);
+    try {
+      await axios.patch(
+        `${getApiBaseUrlWithApi()}/workout-sessions/videos/${videoId}/feedback`,
+        { feedback: '', rating: null, status: 'completed' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      console.error('Error marking video as completed:', err);
+    } finally {
+      setMarkingVideoId(null);
+    }
+  };
+
   // Handle feedback update
   const handleFeedbackUpdate = async (videoId, feedback, rating, deleted = false, status = 'completed') => {
     console.log('🔄 handleFeedbackUpdate called:', { videoId, deleted, status });
@@ -2532,6 +2613,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     });
   }, [studentVideos, statusFilter, exerciseFilter, dateFilter]);
 
+  const videosNeedingFeedback = studentVideos.filter((v) => v.status === 'pending').length;
+
   // Toggle session open/closed
   const toggleSession = (sessionId) => {
     setOpenSessions(prev => ({
@@ -2582,6 +2665,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return { weight: weight || 0, reps: reps || 0 };
   };
 
+  const CircleCheckIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+    </svg>
+  );
+
   // Render student videos grouped by session
   const renderStudentVideosGrouped = () => {
     if (groupedVideosBySession.length === 0) {
@@ -2617,10 +2706,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         {groupedVideosBySession.map((session) => {
           const isOpen = openSessions[session.sessionId];
           const isHovered = hoveredSessionId === session.sessionId;
+          const isHoveringValidateButton = hoveringValidateButtonSessionId === session.sessionId;
           const sessionName = session.sessionName;
           const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
-          // Si le toggle est ouvert, ne pas changer le background au survol
-          const backgroundColor = (isHovered && !isOpen)
+          const backgroundColor = (isHovered && !isOpen && !isHoveringValidateButton)
             ? 'rgba(255, 255, 255, 0.16)'
             : 'rgba(255, 255, 255, 0.05)';
 
@@ -2666,12 +2755,45 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </div>
                 </div>
 
-                {/* Status indicator */}
+                {/* Status indicator + Mark session completed */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                      A feedback
-                    </span>
+                    <>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                        À feedback
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
+                        disabled={markingSessionId === session.sessionId}
+                        title="Marquer cette séance en complété"
+                        className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'rgba(250, 250, 250, 0.5)',
+                          fontWeight: '400'
+                        }}
+                        onMouseEnter={(e) => {
+                          setHoveringValidateButtonSessionId(session.sessionId);
+                          if (markingSessionId === session.sessionId) return;
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                          e.currentTarget.style.color = '#D48459';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                        onMouseLeave={(e) => {
+                          setHoveringValidateButtonSessionId(null);
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                      >
+                        {markingSessionId === session.sessionId ? (
+                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                        ) : (
+                          <CircleCheckIcon className="w-4 h-4" />
+                        )}
+                      </button>
+                    </>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
                     <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
@@ -2685,17 +2807,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               {isOpen && (
                 <div className="mt-2 pt-2 pl-6">
                   <div className="flex flex-col gap-[7px]">
-                    {session.videos.map((video) => (
+                    {session.videos.map((video) => {
+                      const isVideoRowHovered = hoveredVideoId === video.id;
+                      const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
+                      const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
+                        ? 'rgba(255, 255, 255, 0.14)'
+                        : 'rgba(255, 255, 255, 0.07)';
+                      return (
                       <div
                         key={video.id}
-                        className="px-2 py-2 transition-all duration-200 cursor-pointer rounded-2xl bg-white/[0.07] hover:bg-white/[0.14]"
+                        className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
                         style={{
+                          backgroundColor: videoRowBg,
                           borderWidth: '0px',
                           borderColor: 'rgba(0, 0, 0, 0)',
                           borderStyle: 'none',
                           borderImage: 'none'
                         }}
-                        onClick={() => handleVideoClick(video)}
+                        onMouseEnter={() => setHoveredVideoId(video.id)}
+                        onMouseLeave={() => setHoveredVideoId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleVideoClick(video);
+                        }}
                       >
                         <div className="flex items-center gap-4">
                           {/* Video Thumbnail */}
@@ -2789,7 +2923,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             )}
                           </div>
 
-                          {/* Status Tag - Show based on feedback presence (text or audio) */}
+                          {/* Status Badge + Validate button */}
                           {(() => {
                             const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
                             const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
@@ -2802,19 +2936,50 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                   </span>
                                 </div>
                               );
-                            } else {
-                              return (
-                                <div className="flex-shrink-0 flex items-center">
-                                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                    A feedback
-                                  </span>
-                                </div>
-                              );
                             }
+                            return (
+                              <div className="flex-shrink-0 flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                  À feedback
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                  disabled={markingVideoId === video.id}
+                                  title="Marquer cet exercice en complété"
+                                  className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                  style={{
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    color: 'rgba(250, 250, 250, 0.5)',
+                                    fontWeight: '400'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    setHoveringValidateVideoId(video.id);
+                                    if (markingVideoId === video.id) return;
+                                    e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                    e.currentTarget.style.color = '#D48459';
+                                    e.currentTarget.style.fontWeight = '400';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    setHoveringValidateVideoId(null);
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                    e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                    e.currentTarget.style.fontWeight = '400';
+                                  }}
+                                >
+                                  {markingVideoId === video.id ? (
+                                    <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                  ) : (
+                                    <CircleCheckIcon className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            );
                           })()}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               )}
@@ -5731,20 +5896,27 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <DropdownMenuTrigger asChild>
                         <button
                           ref={statusFilterButtonRef}
-                          className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm"
+                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
                           style={{
-                            backgroundColor: isStatusFilterOpen || statusFilter !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                             color: isStatusFilterOpen || statusFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                             fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : '200',
                             width: `${statusFilterMinWidth}px`,
                             minWidth: `${statusFilterMinWidth}px`
                           }}
                         >
-                          <span ref={statusFilterTextRef} style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{statusFilter || 'Tous les statuts'}</span>
+                          <span
+                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                              isStatusFilterOpen || statusFilter !== ''
+                                ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                                : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                            }`}
+                            aria-hidden
+                          />
+                          <span ref={statusFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{statusFilter || 'Tous les statuts'}</span>
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 384 512"
-                            className="h-4 w-4 transition-transform"
+                            className="h-4 w-4 transition-transform relative z-10"
                             style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                             fill="currentColor"
                             aria-hidden="true"
@@ -5923,9 +6095,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <DropdownMenuTrigger asChild>
                         <button
                           ref={exerciseFilterButtonRef}
-                          className="bg-primary hover:bg-primary/90 font-extralight py-2 px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-sm focus:outline-none focus-visible:outline-none"
+                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
                           style={{
-                            backgroundColor: isExerciseFilterOpen || exerciseFilter !== '' ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                             color: isExerciseFilterOpen || exerciseFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                             fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : '200',
                             width: `${exerciseFilterMinWidth}px`,
@@ -5933,11 +6104,19 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             outline: 'none'
                           }}
                         >
-                          <span ref={exerciseFilterTextRef} style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exerciseFilter || 'Exercice'}</span>
+                          <span
+                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                              isExerciseFilterOpen || exerciseFilter !== ''
+                                ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                                : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                            }`}
+                            aria-hidden
+                          />
+                          <span ref={exerciseFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exerciseFilter || 'Exercice'}</span>
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             viewBox="0 0 384 512"
-                            className="h-4 w-4 transition-transform"
+                            className="h-4 w-4 transition-transform relative z-10"
                             style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                             fill="currentColor"
                             aria-hidden="true"
@@ -6092,26 +6271,33 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <div
                         ref={dateFilterButtonRef}
                         onClick={() => dateInputRef.current?.showPicker()}
-                        className="relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors gap-2"
+                        className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 overflow-hidden"
                         style={{
-                          backgroundColor: dateFilter ? 'rgba(212, 132, 89, 0.15)' : 'rgba(255, 255, 255, 0.05)',
                           color: dateFilter ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
                           fontWeight: dateFilter ? '400' : '200',
                           width: `${dateFilterMinWidth}px`,
                           minWidth: `${dateFilterMinWidth}px`
                         }}
                       >
+                        <span
+                          className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                            dateFilter
+                              ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                              : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                          }`}
+                          aria-hidden
+                        />
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 448 512"
-                          className="h-4 w-4 pointer-events-none flex-shrink-0"
+                          className="h-4 w-4 pointer-events-none flex-shrink-0 relative z-10"
                           style={{ color: dateFilter ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
                           fill="currentColor"
                         >
                           <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
                         </svg>
                         {/* Custom Display */}
-                        <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap" style={{
+                        <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap relative z-10" style={{
                           fontSize: '14px',
                           fontWeight: dateFilter ? '400' : 'inherit',
                           flex: '1'
@@ -6131,9 +6317,47 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </div>
                     </div>
 
-                    {/* Video Count */}
-                    <div className="ml-auto text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                      {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                    {/* Video Count + Mark all completed button */}
+                    <div className="ml-auto flex items-center gap-3">
+                      <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                        {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                      </span>
+                      {videosNeedingFeedback > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllPendingAsCompleted}
+                          disabled={isMarkingAllCompleted}
+                          className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-xs md:text-sm disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                          style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: 'rgba(250, 250, 250, 0.5)',
+                            fontWeight: '400'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (isMarkingAllCompleted) return;
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                            e.currentTarget.style.color = '#D48459';
+                            e.currentTarget.style.fontWeight = '400';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                            e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                            e.currentTarget.style.fontWeight = '400';
+                          }}
+                        >
+                          {isMarkingAllCompleted ? (
+                            <>
+                              <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+                              En cours...
+                            </>
+                          ) : (
+                            <>
+                              <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
+                              Tout marquer complété ({videosNeedingFeedback})
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 

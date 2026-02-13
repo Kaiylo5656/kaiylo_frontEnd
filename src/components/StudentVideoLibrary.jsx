@@ -237,22 +237,6 @@ const StudentVideoLibrary = () => {
     }));
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-gray-400">Chargement...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-red-400">{error}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#121212] text-white">
       {/* Header */}
@@ -345,9 +329,26 @@ const StudentVideoLibrary = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="px-4">
-        {activeTab === 'mes-videos' && (
+      {/* Main Content - loading overlay only here */}
+      <div className="px-4 relative min-h-[320px]">
+        {loading && (
+          <div className="absolute inset-0 flex justify-center items-center z-10">
+            <div
+              className="rounded-full border-2 border-transparent animate-spin"
+              style={{
+                borderTopColor: '#d4845a',
+                borderRightColor: '#d4845a',
+                width: '40px',
+                height: '40px'
+              }}
+            />
+          </div>
+        )}
+        {error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="text-red-400 mb-4">{error}</div>
+          </div>
+        ) : activeTab === 'mes-videos' && (
           <div className="space-y-4">
             {groupedVideosBySession.length > 0 ? (
               groupedVideosBySession.map((session) => {
@@ -483,7 +484,7 @@ const StudentVideoLibrary = () => {
           </div>
         )}
 
-        {activeTab === 'ressource' && (
+        {activeTab === 'ressource' && !loading && !error && (
           <div className="space-y-4">
             {/* Folder List */}
             {folders.map(folder => {

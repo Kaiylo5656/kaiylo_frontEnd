@@ -39,16 +39,16 @@ const DashboardShowcase = ({ isActive, children }) => {
     useEffect(() => {
         const handleScroll = () => {
             if (!containerRef.current) return;
-            
+
             const rect = containerRef.current.getBoundingClientRect();
             const windowHeight = window.innerHeight;
-            
+
             // Calculate progress: 0 when element enters viewport, 1 when it leaves
             // "start end" to "end start" offset
             const start = windowHeight; // Element top at viewport bottom
             const end = -rect.height; // Element bottom at viewport top
             const current = rect.top;
-            
+
             const progress = Math.max(0, Math.min(1, (start - current) / (start - end)));
             scrollProgress.set(progress);
         };
@@ -65,7 +65,7 @@ const DashboardShowcase = ({ isActive, children }) => {
         useMotionValue(0),
         { stiffness: 100, damping: 30 }
     );
-    
+
     const scale = useSpring(
         useMotionValue(1),
         { stiffness: 100, damping: 30 }
@@ -77,7 +77,7 @@ const DashboardShowcase = ({ isActive, children }) => {
             // rotateX: subtle 12° at 0, 0 at 0.5, -12° at 1
             const newRotateX = 12 - (v * 24);
             rotateX.set(newRotateX);
-            
+
             // scale: 0.94 at edges, 1 at center
             const newScale = 0.94 + (0.06 * (1 - Math.abs(v - 0.5) * 2));
             scale.set(newScale);
@@ -88,9 +88,8 @@ const DashboardShowcase = ({ isActive, children }) => {
 
     return (
         <section ref={containerRef} className="relative z-10 w-full py-0 min-h-screen flex flex-col items-center justify-center perspective-1000 overflow-hidden">
-            
-            {/* Background Glow for this section - Accentuated */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[600px] bg-[#d4845a]/30 blur-[140px] rounded-full -z-10" />
+
+
 
             <div className="container mx-auto px-4 z-10 flex flex-col items-center">
                 {React.Children.toArray(children)[0]}
@@ -110,70 +109,73 @@ const DashboardShowcase = ({ isActive, children }) => {
                         </p>
                     </motion.div>
 
-                    <div className="relative w-full max-w-[1000px] md:max-w-[1200px] px-6 perspective-[1200px] flex items-center justify-center gap-4 md:gap-0">
-                    <button
-                        onClick={prevSlide}
-                        className="shrink-0 w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light z-20 md:absolute md:left-[-60px] md:top-1/2 md:-translate-y-1/2"
-                    >
-                        <ChevronLeft className="w-8 h-8 stroke-[1]" />
-                    </button>
+                    <div className="relative w-full max-w-[1000px] md:max-w-[1200px] px-0 md:px-6 perspective-[1200px] flex items-center justify-center">
 
-                    <motion.div
-                        style={{
-                            rotateX,
-                            scale,
-                        }}
-                        className="flex-1 min-w-0 w-full relative rounded-xl bg-[#0a0a0a] border border-white/10 shadow-2xl overflow-hidden antialiased will-change-transform"
-                    >
+                        {/* Background Glow - Repositioned to stay behind preview */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-[#d4845a]/30 blur-[100px] rounded-full -z-10 pointer-events-none" />
+                        <button
+                            onClick={prevSlide}
+                            className="absolute left-2 md:left-[-60px] top-1/2 -translate-y-1/2 z-30 w-8 h-8 flex items-center justify-center text-white/75 bg-black/50 md:bg-transparent md:text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light rounded-full backdrop-blur-sm md:backdrop-blur-none"
+                        >
+                            <ChevronLeft className="w-6 h-6 md:w-8 md:h-8 stroke-[1]" />
+                        </button>
+
+                        <motion.div
+                            style={{
+                                rotateX,
+                                scale,
+                            }}
+                            className="flex-1 min-w-0 w-full relative rounded-xl bg-[#0a0a0a] border border-white/10 shadow-2xl overflow-hidden antialiased will-change-transform"
+                        >
 
 
-                        {/* Mac Browser Header */}
-                        <div className="h-10 bg-[#1e1e1e] border-b border-white/5 flex items-center px-4 w-full relative z-20">
-                            <div className="flex space-x-2">
-                                <div className="w-3 h-3 rounded-full bg-[#FF5F56] border border-black/10" />
-                                <div className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-black/10" />
-                                <div className="w-3 h-3 rounded-full bg-[#27C93F] border border-black/10" />
-                            </div>
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="bg-[#2a2a2a] px-3 py-1 rounded-md text-[11px] font-medium text-white/40 border border-white/5 flex items-center gap-1.5 shadow-sm">
-                                    <div className="w-2 h-2 rounded-full bg-white/10" />
-                                    app.kaiylo.com
+                            {/* Mac Browser Header */}
+                            <div className="h-10 bg-[#1e1e1e] border-b border-white/5 flex items-center px-4 w-full relative z-20 shrink-0">
+                                <div className="flex space-x-2 shrink-0">
+                                    <div className="w-3 h-3 rounded-full bg-[#FF5F56] border border-black/10" />
+                                    <div className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-black/10" />
+                                    <div className="w-3 h-3 rounded-full bg-[#27C93F] border border-black/10" />
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-12">
+                                    <div className="bg-[#2a2a2a] px-3 py-1 rounded-md text-[11px] font-medium text-white/40 border border-white/5 flex items-center gap-1.5 shadow-sm max-w-full overflow-hidden">
+                                        <div className="w-2 h-2 rounded-full bg-white/10 shrink-0" />
+                                        <span className="truncate">app.kaiylo.com</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Carousel Container */}
-                        <div className="relative w-full h-auto group/carousel bg-[#050505]">
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={currentIndex}
-                                    className="w-full flex items-center justify-center p-0"
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    transition={{ duration: 0.3 }}
-                                >
-                                    <img
-                                        src={views[currentIndex]}
-                                        alt="Kaiylo Dashboard Interface"
-                                        className="w-full h-auto object-contain"
-                                    />
-                                </motion.div>
-                            </AnimatePresence>
+                            {/* Carousel Container */}
+                            <div className="relative w-full h-auto group/carousel bg-[#050505]">
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={currentIndex}
+                                        className="w-full flex items-center justify-center p-0"
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        transition={{ duration: 0.3 }}
+                                    >
+                                        <img
+                                            src={views[currentIndex]}
+                                            alt="Kaiylo Dashboard Interface"
+                                            className="w-full h-auto object-contain"
+                                        />
+                                    </motion.div>
+                                </AnimatePresence>
 
-                            {/* Reflection/Sheen overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none z-10" />
+                                {/* Reflection/Sheen overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none z-10" />
 
 
-                        </div>
-                    </motion.div>
+                            </div>
+                        </motion.div>
 
-                    <button
-                        onClick={nextSlide}
-                        className="shrink-0 w-8 h-8 flex items-center justify-center text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light z-20 md:absolute md:right-[-60px] md:top-1/2 md:-translate-y-1/2"
-                    >
-                        <ChevronRight className="w-8 h-8 stroke-[1]" />
-                    </button>
+                        <button
+                            onClick={nextSlide}
+                            className="absolute right-2 md:right-[-60px] top-1/2 -translate-y-1/2 z-30 w-8 h-8 flex items-center justify-center text-white/75 bg-black/50 md:bg-transparent md:text-white/25 hover:text-[#d4845a] hover:scale-110 transition-all font-light rounded-full backdrop-blur-sm md:backdrop-blur-none"
+                        >
+                            <ChevronRight className="w-6 h-6 md:w-8 md:h-8 stroke-[1]" />
+                        </button>
                     </div>
                 </div>
                 {React.Children.toArray(children)[1]}

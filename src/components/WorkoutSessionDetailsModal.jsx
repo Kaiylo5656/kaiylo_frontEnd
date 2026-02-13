@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, PlayCircle, CheckCircle, Clock } from 'lucide-react';
@@ -6,6 +6,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { getTagColor } from '../utils/tagColors';
 
 const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, onCopySession }) => {
+  // Mobile responsiveness
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (!session) return null;
 
   const getStatusIcon = (status) => {
@@ -43,7 +54,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="dialog-content max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className={`dialog-content overflow-hidden ${isMobile ? 'w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-4rem)] max-h-none my-4 rounded-xl' : 'max-w-4xl max-h-[90vh]'}`}>
         <DialogHeader className="workout-modal-header">
           <DialogTitle className="text-lg font-medium text-white">
             {session.title || 'Séance d\'entraînement'}
@@ -56,7 +67,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
         <div className="workout-modal-content">
           {/* Session Info */}
           <div className="px-4 py-4 border-b border-[#1a1a1a]">
-            <div className="flex items-center justify-between mb-4">
+            <div className={`flex mb-4 ${isMobile ? 'flex-col gap-3 items-start' : 'items-center justify-between'}`}>
               <div className="flex items-center gap-3">
                 {getStatusIcon(session.status)}
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(session.status)}`}>
@@ -72,7 +83,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                     aria-label="Copier la séance"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
-                      <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z"/>
+                      <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
                     </svg>
                     Copier
                   </button>
@@ -84,7 +95,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                 )}
               </div>
             </div>
-            
+
             {session.description && (
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-gray-300 mb-2">Description</h3>
@@ -92,7 +103,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className={`grid gap-4 text-sm ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3'}`}>
               <div>
                 <span className="text-gray-400">Exercices:</span>
                 <span className="text-white ml-2">{session.exercises?.length || 0}</span>
@@ -124,8 +135,8 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                         {exercise.tags && exercise.tags.map((tag, tagIndex) => {
                           const tagStyle = getTagColor(tag);
                           return (
-                            <span 
-                              key={tagIndex} 
+                            <span
+                              key={tagIndex}
                               className="px-2 py-0.5 rounded-full text-xs font-medium"
                               style={tagStyle}
                             >
@@ -167,31 +178,31 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                               } else {
                                 repsDisplay = set.reps || '-';
                               }
-                              
+
                               return (
-                              <tr key={setIndex} className="border-b border-[#262626]">
-                                <td className="py-3 text-white font-medium">{set.serie || setIndex + 1}</td>
-                                <td className="py-3 text-center text-white overflow-hidden">
-                                  <span className="whitespace-nowrap inline-block" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '14px' }}>{repsDisplay}</span>
-                                </td>
-                                <td className="py-3 text-center text-white">
-                                  {exercise.useRir ? (
-                                    // Mode RPE : afficher le RPE demandé
-                                    set.weight || '-'
-                                  ) : (
-                                    // Mode Charge : afficher le poids avec "kg"
-                                    set.weight ? `${set.weight} kg` : '-'
-                                  )}
-                                </td>
-                                <td className="py-3 text-center text-white">{set.rest || '-'}</td>
-                                <td className="py-3 text-center">
-                                  {set.video ? (
-                                    <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
-                                  ) : (
-                                    <div className="h-4 w-4 border border-gray-500 rounded mx-auto"></div>
-                                  )}
-                                </td>
-                              </tr>
+                                <tr key={setIndex} className="border-b border-[#262626]">
+                                  <td className="py-3 text-white font-medium">{set.serie || setIndex + 1}</td>
+                                  <td className="py-3 text-center text-white overflow-hidden">
+                                    <span className="whitespace-nowrap inline-block" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '14px' }}>{repsDisplay}</span>
+                                  </td>
+                                  <td className="py-3 text-center text-white">
+                                    {exercise.useRir ? (
+                                      // Mode RPE : afficher le RPE demandé
+                                      set.weight || '-'
+                                    ) : (
+                                      // Mode Charge : afficher le poids avec "kg"
+                                      set.weight ? `${set.weight} kg` : '-'
+                                    )}
+                                  </td>
+                                  <td className="py-3 text-center text-white">{set.rest || '-'}</td>
+                                  <td className="py-3 text-center">
+                                    {set.video ? (
+                                      <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                                    ) : (
+                                      <div className="h-4 w-4 border border-gray-500 rounded mx-auto"></div>
+                                    )}
+                                  </td>
+                                </tr>
                               );
                             })}
                           </tbody>

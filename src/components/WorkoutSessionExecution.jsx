@@ -2646,6 +2646,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       {/* Missing Videos Warning Modal */}
       <MissingVideosWarningModal
         isOpen={isMissingVideosModalOpen}
+        showForceCompleteButton={pendingSessionCompletion && (() => {
+          const { missingVideosCount } = getMissingVideosAndRpeCount();
+          return missingVideosCount === 0;
+        })()}
         missingVideosCount={(() => {
           const { missingVideosCount } = getMissingVideosAndRpeCount();
           return missingVideosCount;
@@ -2665,19 +2669,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           setPendingSessionCompletion(false);
         }}
         onConfirm={() => {
-          // "Quitter quand même" - continuer malgré les vidéos manquantes (pour changement d'exercice)
-          // NE PAS permettre la validation de séance si des vidéos ou RPE sont manquants
+          // "Terminer quand même la séance" - permettre la validation malgré vidéos/RPE manquants
           setIsMissingVideosModalOpen(false);
           
-          // Si une validation de séance était en attente, vérifier à nouveau
           if (pendingSessionCompletion) {
-            // Re-vérifier si des vidéos ou RPE sont toujours manquants
-            if (hasMissingVideosForSession() || hasMissingRpeForSession()) {
-              // Toujours manquants, ne pas permettre la validation
-              setPendingSessionCompletion(false);
-              return;
-            }
-            // Plus de vidéos/RPE manquants, permettre la validation
             setPendingSessionCompletion(false);
             setIsCompletionModalOpen(true);
             return;

@@ -3,9 +3,9 @@ import { ArrowLeft } from 'lucide-react';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import ExerciseHistory from './ExerciseHistory';
 
-const ExerciseLibraryModal = ({ 
-  isOpen, 
-  onClose, 
+const ExerciseLibraryModal = ({
+  isOpen,
+  onClose,
   position,
   exercises,
   onSelect,
@@ -14,7 +14,8 @@ const ExerciseLibraryModal = ({
   onExerciseUpdated,
   onExerciseDetailOpen,
   onEditExercise,
-  focusSearch = false
+  focusSearch = false,
+  isMobile = false
 }) => {
   const [selectedExercise, setSelectedExercise] = useState(null);
 
@@ -22,11 +23,11 @@ const ExerciseLibraryModal = ({
 
   const style = position
     ? {
-        top: position.top ?? 0,
-        left: position.left ?? -380,
-        width: position.width ?? 360,
-        height: position.height ?? 'auto',
-      }
+      top: position.top ?? 0,
+      left: position.left ?? -380,
+      width: position.width ?? 360,
+      height: position.height ?? 'auto',
+    }
     : { top: 0, left: -380, width: 360, height: 'auto' };
 
   const handleExerciseClick = (exercise) => {
@@ -49,19 +50,19 @@ const ExerciseLibraryModal = ({
       className="fixed z-[1001] text-white pointer-events-auto"
       style={style}
     >
-      <div 
-        className="relative mx-auto w-full max-h-[92vh] overflow-hidden rounded-tl-2xl rounded-tr-none rounded-br-none rounded-bl-2xl shadow-2xl flex flex-col h-full"
+      <div
+        className={`relative mx-auto w-full max-h-[92vh] overflow-hidden ${isMobile ? 'rounded-2xl' : 'rounded-tl-2xl rounded-tr-none rounded-br-none rounded-bl-2xl'} shadow-2xl flex flex-col h-full`}
         style={{
-          backgroundColor: 'rgba(34, 35, 37, 0.75)',
-          opacity: 0.95
+          backgroundColor: isMobile ? '#131416' : 'rgba(34, 35, 37, 0.75)',
+          opacity: isMobile ? 1 : 0.95
         }}
       >
         <div className="shrink-0 px-6 pt-6 pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              {selectedExercise && (
+              {(selectedExercise || isMobile) && (
                 <button
-                  onClick={handleBackToList}
+                  onClick={selectedExercise ? handleBackToList : onClose}
                   className="text-white/50 hover:text-white transition-colors p-1"
                   aria-label="Retour"
                 >
@@ -69,7 +70,7 @@ const ExerciseLibraryModal = ({
                 </button>
               )}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z"/>
+                <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z" />
               </svg>
               <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 {selectedExercise ? selectedExercise.title : 'Bibliothèque d\'exercices'}
@@ -78,13 +79,13 @@ const ExerciseLibraryModal = ({
           </div>
         </div>
         <div className="border-b border-white/10 mx-6"></div>
-        
+
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain library-modal-scrollable-body px-3 pt-3 pb-6">
           {selectedExercise ? (
             // Afficher l'historique de l'exercice sélectionné
             <div className="flex flex-col">
               <ExerciseHistory exerciseId={selectedExercise.id} />
-              
+
               {/* Bouton pour ajouter à la séance */}
               <div className="mt-6 pt-4 border-t border-white/10">
                 <button

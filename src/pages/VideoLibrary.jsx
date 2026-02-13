@@ -2,7 +2,13 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 're
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, CheckCircle, Play, Video } from 'lucide-react';
+import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, Play, Video } from 'lucide-react';
+
+const CircleCheckIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
+    <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+  </svg>
+);
 import UploadVideoModal from '../components/UploadVideoModal';
 import VideoDetailModal from '../components/VideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
@@ -47,6 +53,9 @@ const VideoLibrary = () => {
   const [isDeleteVideoModalOpen, setIsDeleteVideoModalOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [isMarkingAllCompleted, setIsMarkingAllCompleted] = useState(false);
+  const [markingSessionId, setMarkingSessionId] = useState(null);
+  const [markingVideoId, setMarkingVideoId] = useState(null);
 
   // Filter states
   const [selectedStudent, setSelectedStudent] = useState('');
@@ -55,6 +64,9 @@ const VideoLibrary = () => {
   const [selectedFolder, setSelectedFolder] = useState(null); // For coach resources filtering
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
   const [hoveredSessionId, setHoveredSessionId] = useState(null); // Track which session is hovered
+  const [hoveringValidateButtonSessionId, setHoveringValidateButtonSessionId] = useState(null); // When hovering the validate icon, keep session background dim
+  const [hoveredVideoId, setHoveredVideoId] = useState(null); // Which video row is hovered
+  const [hoveringValidateVideoId, setHoveringValidateVideoId] = useState(null); // When hovering the validate icon on a video row, keep row background dim
   const [folderMinWidths, setFolderMinWidths] = useState({}); // Store min widths for each folder to prevent size change
 
   // Status filter dropdown states and refs
@@ -712,6 +724,102 @@ const VideoLibrary = () => {
     }
   };
 
+  // Mark all pending videos as completed (no comment)
+  const handleMarkAllPendingAsCompleted = async () => {
+    const pendingVideos = studentVideos.filter(v => v.status === 'pending');
+    if (pendingVideos.length === 0) return;
+    let token = await getAuthToken();
+    if (!token) {
+      try { token = await refreshAuthToken(); } catch {}
+    }
+    if (!token) {
+      setError('Non authentifié.');
+      return;
+    }
+    setIsMarkingAllCompleted(true);
+    setError(null);
+    try {
+      await Promise.all(
+        pendingVideos.map((video) =>
+          axios.patch(
+            buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
+            { feedback: '', rating: null, status: 'completed' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        )
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Erreur lors du passage en complété.');
+    } finally {
+      setIsMarkingAllCompleted(false);
+    }
+  };
+
+  // Mark all pending videos of one session as completed (no comment)
+  const handleMarkSessionAsCompleted = async (e, sessionId) => {
+    e.stopPropagation();
+    const pendingInSession = studentVideos.filter(
+      v => (v.workout_session_id === sessionId || v.assignment_id === sessionId) && v.status === 'pending'
+    );
+    if (pendingInSession.length === 0) return;
+    let token = await getAuthToken();
+    if (!token) {
+      try { token = await refreshAuthToken(); } catch {}
+    }
+    if (!token) {
+      setError('Non authentifié.');
+      return;
+    }
+    setMarkingSessionId(sessionId);
+    setError(null);
+    try {
+      await Promise.all(
+        pendingInSession.map((video) =>
+          axios.patch(
+            buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
+            { feedback: '', rating: null, status: 'completed' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        )
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Erreur lors du passage en complété.');
+    } finally {
+      setMarkingSessionId(null);
+    }
+  };
+
+  // Mark a single video (exercise) as completed (no comment)
+  const handleMarkVideoAsCompleted = async (e, videoId) => {
+    e.stopPropagation();
+    const video = studentVideos.find(v => v.id === videoId);
+    if (!video || video.status !== 'pending') return;
+    let token = await getAuthToken();
+    if (!token) {
+      try { token = await refreshAuthToken(); } catch {}
+    }
+    if (!token) {
+      setError('Non authentifié.');
+      return;
+    }
+    setMarkingVideoId(videoId);
+    setError(null);
+    try {
+      await axios.patch(
+        buildApiUrl(`/workout-sessions/videos/${videoId}/feedback`),
+        { feedback: '', rating: null, status: 'completed' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchStudentVideos();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Erreur lors du passage en complété.');
+    } finally {
+      setMarkingVideoId(null);
+    }
+  };
+
   // Get unique students and exercises for filters
   // Create a map of student emails to their names
   const studentMap = useMemo(() => {
@@ -897,10 +1005,11 @@ const VideoLibrary = () => {
         {groupedVideosBySession.map((session) => {
           const isOpen = openSessions[session.sessionId];
           const isHovered = hoveredSessionId === session.sessionId;
+          const isHoveringValidateButton = hoveringValidateButtonSessionId === session.sessionId;
           const sessionName = session.sessionName;
           const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
-          // Si le toggle est ouvert, ne pas changer le background au survol
-          const backgroundColor = (isHovered && !isOpen)
+          // Si le toggle est ouvert ou si la souris est sur l'icône valider, ne pas éclaircir le background
+          const backgroundColor = (isHovered && !isOpen && !isHoveringValidateButton)
             ? 'rgba(255, 255, 255, 0.16)' 
             : 'rgba(255, 255, 255, 0.05)';
           
@@ -954,12 +1063,45 @@ const VideoLibrary = () => {
                       </span>
                     </h3>
                     
-                    {/* Status indicator - Mobile: aligned horizontally with text, Desktop: separate */}
+                    {/* Status indicator + Mark session completed - Mobile */}
                     <div className="flex items-center gap-2 flex-shrink-0 md:hidden">
                       {session.videos.some(v => v.status === 'pending') && (
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                          A feedback
-                        </span>
+                        <>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                            À feedback
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
+                            disabled={markingSessionId === session.sessionId}
+                            title="Marquer cette séance en complété"
+                            className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                            style={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              color: 'rgba(250, 250, 250, 0.5)',
+                              fontWeight: '400'
+                            }}
+                            onMouseEnter={(e) => {
+                              setHoveringValidateButtonSessionId(session.sessionId);
+                              if (markingSessionId === session.sessionId) return;
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                              e.currentTarget.style.color = '#D48459';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                            onMouseLeave={(e) => {
+                              setHoveringValidateButtonSessionId(null);
+                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                          >
+                            {markingSessionId === session.sessionId ? (
+                              <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                            ) : (
+                              <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
+                            )}
+                          </button>
+                        </>
                       )}
                       {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
                         <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
@@ -970,12 +1112,45 @@ const VideoLibrary = () => {
                   </div>
                 </div>
                 
-                {/* Status indicator - Desktop only */}
+                {/* Status indicator + Mark session completed - Desktop */}
                 <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                      A feedback
-                    </span>
+                    <>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                        À feedback
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
+                        disabled={markingSessionId === session.sessionId}
+                        title="Marquer cette séance en complété"
+                        className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'rgba(250, 250, 250, 0.5)',
+                          fontWeight: '400'
+                        }}
+                        onMouseEnter={(e) => {
+                          setHoveringValidateButtonSessionId(session.sessionId);
+                          if (markingSessionId === session.sessionId) return;
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                          e.currentTarget.style.color = '#D48459';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                        onMouseLeave={(e) => {
+                          setHoveringValidateButtonSessionId(null);
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                      >
+                        {markingSessionId === session.sessionId ? (
+                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                        ) : (
+                          <CircleCheckIcon className="w-4 h-4" />
+                        )}
+                      </button>
+                    </>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
                     <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
@@ -989,17 +1164,29 @@ const VideoLibrary = () => {
               {isOpen && (
                 <div className="mt-2 pt-2 pl-4 md:pl-6">
                   <div className="flex flex-col gap-[7px]">
-                    {session.videos.map((video) => (
+                    {session.videos.map((video) => {
+                      const isVideoRowHovered = hoveredVideoId === video.id;
+                      const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
+                      const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
+                        ? 'rgba(255, 255, 255, 0.14)'
+                        : 'rgba(255, 255, 255, 0.07)';
+                      return (
                       <div 
                         key={video.id} 
-                        className="px-2 py-2 transition-all duration-200 cursor-pointer rounded-2xl bg-white/[0.07] hover:bg-white/[0.14]"
+                        className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
                         style={{ 
+                          backgroundColor: videoRowBg,
                           borderWidth: '0px',
                           borderColor: 'rgba(0, 0, 0, 0)',
                           borderStyle: 'none',
                           borderImage: 'none'
                         }}
-                        onClick={() => handleVideoClick(video)}
+                        onMouseEnter={() => setHoveredVideoId(video.id)}
+                        onMouseLeave={() => setHoveredVideoId(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleVideoClick(video);
+                        }}
                       >
                         <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
                           {/* Video Thumbnail */}
@@ -1094,12 +1281,45 @@ const VideoLibrary = () => {
                               )}
                             </div>
                             
-                            {/* Status Badge */}
-                            <div className="flex-shrink-0 md:self-auto self-start">
+                            {/* Status Badge + Validate button */}
+                            <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
                               {video.status === 'pending' && (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                  A feedback
-                                </span>
+                                <>
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                    À feedback
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                    disabled={markingVideoId === video.id}
+                                    title="Marquer cet exercice en complété"
+                                    className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                    style={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                      color: 'rgba(250, 250, 250, 0.5)',
+                                      fontWeight: '400'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      setHoveringValidateVideoId(video.id);
+                                      if (markingVideoId === video.id) return;
+                                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                      e.currentTarget.style.color = '#D48459';
+                                      e.currentTarget.style.fontWeight = '400';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      setHoveringValidateVideoId(null);
+                                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                      e.currentTarget.style.fontWeight = '400';
+                                    }}
+                                  >
+                                    {markingVideoId === video.id ? (
+                                      <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                    ) : (
+                                      <CircleCheckIcon className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </>
                               )}
                               {(video.status === 'completed' || video.status === 'reviewed') && (
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
@@ -1110,7 +1330,8 @@ const VideoLibrary = () => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               )}
@@ -1385,6 +1606,21 @@ const VideoLibrary = () => {
           </div>
         </div>
 
+        {/* Content area: loading overlay only here, header/tabs stay visible */}
+        <div className="relative min-h-[320px]">
+          {loading && (
+            <div className="absolute inset-0 flex justify-center items-center z-10">
+              <div
+                className="rounded-full border-2 border-transparent animate-spin"
+                style={{
+                  borderTopColor: '#d4845a',
+                  borderRightColor: '#d4845a',
+                  width: '40px',
+                  height: '40px'
+                }}
+              />
+            </div>
+          )}
         {activeTab === 'clients' && (
           <>
             {/* Filters Row */}
@@ -1985,32 +2221,56 @@ xmlns="http://www.w3.org/2000/svg"
                 </div>
               </div>
 
-              {/* Video Count */}
-              <div className="sm:ml-auto text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
-                {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+              {/* Video Count + Mark all completed button */}
+              <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
+                <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
+                  {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                </span>
+                {videosNeedingFeedback > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllPendingAsCompleted}
+                    disabled={isMarkingAllCompleted}
+                    className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-xs md:text-sm disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      color: 'rgba(250, 250, 250, 0.5)',
+                      fontWeight: '400'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (isMarkingAllCompleted) return;
+                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                      e.currentTarget.style.color = '#D48459';
+                      e.currentTarget.style.fontWeight = '400';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                      e.currentTarget.style.fontWeight = '400';
+                    }}
+                  >
+                    {isMarkingAllCompleted ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+                        En cours...
+                      </>
+                    ) : (
+                      <>
+                        <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
+                        Tout marquer complété ({videosNeedingFeedback})
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <div 
-                  className="rounded-full border-2 border-transparent animate-spin"
-                  style={{
-                    borderTopColor: '#d4845a',
-                    borderRightColor: '#d4845a',
-                    width: '40px',
-                    height: '40px'
-                  }}
-                />
-              </div>
-            )}
-            
             {error && (
               <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6">
                 <div className="text-destructive">Erreur: {error}</div>
               </div>
             )}
-            
+
             {!loading && !error && (
               filteredVideos.length > 0 ? (
                 renderStudentVideosGrouped()
@@ -2119,20 +2379,7 @@ xmlns="http://www.w3.org/2000/svg"
               </div>
             </div>
 
-            {loading && (
-              <div className="flex items-center justify-center py-12">
-                <div 
-                  className="rounded-full border-2 border-transparent animate-spin"
-                  style={{
-                    borderTopColor: '#d4845a',
-                    borderRightColor: '#d4845a',
-                    width: '40px',
-                    height: '40px'
-                  }}
-                />
-              </div>
-            )}
-            {error && <p className="text-destructive">Erreur: {error}</p>}
+            {error && <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6"><p className="text-destructive">Erreur: {error}</p></div>}
             {!loading && !error && (
               (selectedFolder 
                 ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
@@ -2151,6 +2398,7 @@ xmlns="http://www.w3.org/2000/svg"
             )}
           </>
         )}
+        </div>
       </div>
 
       <UploadVideoModal 

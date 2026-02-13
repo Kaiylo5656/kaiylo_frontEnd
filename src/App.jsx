@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { StudentPlanningProvider } from './contexts/StudentPlanningContext';
 import PWAProvider from './components/PWAProvider';
 import { ModalManagerProvider } from './components/ui/modal/ModalManager';
 import LoginPage from './pages/LoginPage';
@@ -125,6 +126,7 @@ const ChatRouteWrapper = () => {
 function App() {
   return (
     <AuthProvider>
+      <StudentPlanningProvider>
       <PWAProvider>
         <ModalManagerProvider>
           <>
@@ -293,6 +295,7 @@ function App() {
           </>
         </ModalManagerProvider>
       </PWAProvider>
+      </StudentPlanningProvider>
     </AuthProvider>
   );
 }

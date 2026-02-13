@@ -18,7 +18,8 @@ const ChatList = ({
   onSelectConversation, 
   onCreateConversation, 
   currentUser,
-  onDeleteConversation // New prop for handling deletion
+  onDeleteConversation,
+  conversationsLoading = false
 }) => {
   const { getAuthToken } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -621,7 +622,19 @@ const ChatList = ({
 
           {/* Conversations List - Scrollable */}
           <div className="overflow-y-auto flex-1 min-h-0">
-            {filteredConversations.length === 0 && !showUserList ? (
+            {conversationsLoading ? (
+              <div className="flex flex-col gap-[7px] px-1">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="px-3 py-3 rounded-2xl flex items-center gap-4 animate-pulse" style={{ backgroundColor: 'rgba(255, 255, 255, 0.04)' }}>
+                    <div className="w-10 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="h-4 rounded w-3/4" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                      <div className="h-3 rounded w-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.06)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredConversations.length === 0 && !showUserList ? (
               <div className="px-4 md:px-6 py-6 md:py-8 text-center font-light" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                 <div className="text-xl md:text-2xl mb-2">💬</div>
                 <div className="text-xs md:text-sm">

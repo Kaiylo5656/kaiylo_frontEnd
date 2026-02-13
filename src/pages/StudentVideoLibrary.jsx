@@ -31,7 +31,6 @@ const ChevronDownIcon = ({ className, style }) => (
 import { useNavigate } from 'react-router-dom';
 import StudentVideoDetailModal from '../components/StudentVideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
-import LoadingSpinner from '../components/LoadingSpinner';
 
 const StudentVideoLibrary = () => {
   const { user, getAuthToken } = useAuth();
@@ -329,14 +328,6 @@ const StudentVideoLibrary = () => {
 
   const filteredVideos = getFilteredVideos();
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background text-foreground">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
   return (
     <div 
       className="min-h-screen text-white relative overflow-hidden"
@@ -460,8 +451,21 @@ const StudentVideoLibrary = () => {
         <div className="border-t border-white/10"></div>
       </div>
 
-      {/* Content wrapper with z-index */}
-      <div className="relative z-10">
+      {/* Content wrapper with z-index - loading overlay only in this area */}
+      <div className="relative z-10 min-h-[320px]">
+      {loading && (
+        <div className="absolute inset-0 flex justify-center items-center z-20">
+          <div
+            className="rounded-full border-2 border-transparent animate-spin"
+            style={{
+              borderTopColor: '#d4845a',
+              borderRightColor: '#d4845a',
+              width: '40px',
+              height: '40px'
+            }}
+          />
+        </div>
+      )}
       {/* Search and Filters - Only show for "Mes vidéos" tab */}
       {activeTab === 'mes-videos' && (
         <div className="px-[26px] py-4 space-y-4">
@@ -645,7 +649,6 @@ const StudentVideoLibrary = () => {
       {/* Content based on active tab */}
       <div className="px-4 sm:px-4 pt-4 pb-20">
         {activeTab === 'mes-videos' ? (
-          // Mes vidéos tab content - Grouped by session
           groupedVideosBySession.length > 0 ? (
             <div className="space-y-4">
               {groupedVideosBySession.map((session) => {
@@ -824,16 +827,23 @@ const StudentVideoLibrary = () => {
         ) : (
           // Ressource tab content
           resourcesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div 
-                className="rounded-full border-2 border-transparent animate-spin"
-                style={{
-                  borderTopColor: '#d4845a',
-                  borderRightColor: '#d4845a',
-                  width: '40px',
-                  height: '40px'
-                }}
-              />
+            <div className="space-y-4 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-[20px] overflow-hidden bg-white/10">
+                  <div className="flex items-center gap-3 p-4">
+                    <div className="h-5 w-5 rounded bg-white/10 flex-shrink-0" />
+                    <div className="h-4 rounded bg-white/10 w-1/3" />
+                  </div>
+                  <div className="border-t border-white/10 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[1, 2, 3].map((j) => (
+                      <div key={j} className="rounded-[15px] overflow-hidden bg-white/5 p-3">
+                        <div className="aspect-video rounded-lg bg-white/10 mb-2" />
+                        <div className="h-4 rounded bg-white/10 w-3/4" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-4">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useStudentPlanning } from '../contexts/StudentPlanningContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format, addDays, startOfWeek, subDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -10,14 +11,19 @@ import { buildApiUrl } from '../config/api';
 import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SessionSuccessModal from '../components/SessionSuccessModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const StudentDashboard = () => {
   const { user, getAuthToken, refreshAuthToken } = useAuth();
+  const planningContext = useStudentPlanning();
+  const assignments = planningContext?.assignments ?? [];
+  const assignmentsLoading = planningContext?.assignmentsLoading ?? false;
+  const refreshAssignments = planningContext?.refreshAssignments ?? (() => { });
+  const loading = assignmentsLoading && assignments.length === 0;
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
+
   // Initialize dates from URL parameter if present, otherwise use current date
   const initializeDate = () => {
     const dateParam = searchParams.get('date');
@@ -41,6 +47,8 @@ const StudentDashboard = () => {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [shouldCloseCompletionModal, setShouldCloseCompletionModal] = useState(false);
+  const [direction, setDirection] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   const scrollContainerRef = useRef(null);
   const weekSwipeRef = useRef({ startX: null, startY: null });
 
@@ -74,16 +82,16 @@ const StudentDashboard = () => {
   // Determine which month to display based on which month has the most days in the week
   const displayMonth = useMemo(() => {
     const monthCounts = new Map();
-    
+
     week.forEach(day => {
       const monthKey = format(day, 'yyyy-MM');
       monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1);
     });
-    
+
     // Find the month with the most days
     let maxCount = 0;
     let dominantMonth = currentDate;
-    
+
     monthCounts.forEach((count, monthKey) => {
       if (count > maxCount) {
         maxCount = count;
@@ -92,12 +100,12 @@ const StudentDashboard = () => {
         dominantMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
       }
     });
-    
+
     return dominantMonth;
   }, [week, currentDate]);
 
   const selectedAssignments = useMemo(() => {
-    return assignments.filter(a => 
+    return assignments.filter(a =>
       format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
     );
   }, [assignments, selectedDate]);
@@ -108,83 +116,19 @@ const StudentDashboard = () => {
   }, [selectedAssignments.length]);
 
   const selectedAssignment = selectedAssignments[0]; // Keep for backward compatibility
-  
-  useEffect(() => {
-    fetchAssignments();
-  }, []);
 
-  const fetchAssignments = async () => {
-    try {
-      const token = await getAuthToken();
-      if (!token) {
-        console.error('No auth token available');
-        setLoading(false);
-        return;
-      }
+  // Données chargées par StudentPlanningContext (préchargées dès la connexion étudiant)
 
-      let response = await fetch(buildApiUrl('/api/assignments/student'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  const changeWeek = (dir) => {
+    if (isAnimating) return;
 
-      // If 401, try to refresh token and retry once
-      if (response.status === 401) {
-        console.warn('401 Unauthorized, attempting token refresh...');
-        const newToken = await refreshAuthToken();
-        
-        if (newToken && newToken !== token) {
-          console.log('Retrying request with refreshed token...');
-          // Retry with the new token directly returned by refreshAuthToken
-          response = await fetch(buildApiUrl('/api/assignments/student'), {
-            headers: {
-              'Authorization': `Bearer ${newToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          // If still 401 after refresh, the user might not be authenticated
-          if (response.status === 401) {
-            console.error('Still 401 after token refresh. User may need to re-authenticate.');
-            const errorText = await response.text();
-            console.error('Error response:', errorText);
-            // Don't throw here, just log and let the error handling below catch it
-          }
-        } else if (!newToken) {
-          console.error('Failed to refresh token');
-          throw new Error('Failed to refresh token');
-        } else {
-          console.warn('Token unchanged after refresh, may indicate refresh issue');
-          // Even if token is unchanged, try to retry with it
-          response = await fetch(buildApiUrl('/api/assignments/student'), {
-            headers: {
-              'Authorization': `Bearer ${newToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-        }
-      }
+    setIsAnimating(true);
+    setDirection(dir === 'next' ? 1 : -1);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to fetch assignments: ${response.status} ${response.statusText}`, errorText);
-        throw new Error(`Failed to fetch assignments: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setAssignments(data.data || []);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-      // Don't set assignments to empty array on error, keep previous state
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const changeWeek = (direction) => {
-    const newDate = direction === 'next' ? addDays(currentDate, 7) : subDays(currentDate, 7);
+    const newDate = dir === 'next' ? addDays(currentDate, 7) : subDays(currentDate, 7);
     setCurrentDate(newDate);
+    // Note: setSelectedDate might need to be removed generally if selectedDate shouldn't jump, 
+    // but the user requirement implies moving to next/prev week so updating selectedDate makes sense
     setSelectedDate(newDate);
   };
 
@@ -215,7 +159,7 @@ const StudentDashboard = () => {
 
     // Seuil minimum pour déclencher un swipe (50px)
     const minSwipeDistance = 50;
-    
+
     // Vérifier que c'est un swipe horizontal (plus horizontal que vertical)
     if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
       if (diffX > 0) {
@@ -239,7 +183,7 @@ const StudentDashboard = () => {
       alert('Cette séance est déjà terminée ! Vous ne pouvez pas la recommencer.');
       return;
     }
-    
+
     setExecutingSession(assignment);
     setCurrentView('execution');
   };
@@ -252,7 +196,7 @@ const StudentDashboard = () => {
   const handleCompleteSession = async (session) => {
     try {
       const token = await getAuthToken();
-      
+
       // Extract completion data and set statuses from session
       const completionData = session.completionData || {};
       const completedSets = session.completedSets || {};
@@ -267,12 +211,12 @@ const StudentDashboard = () => {
         if (exerciseComments[exerciseIndex]) {
           exercise.student_comment = exerciseComments[exerciseIndex];
         }
-        
+
         if (exercise.sets && Array.isArray(exercise.sets)) {
           exercise.sets.forEach((set, setIndex) => {
             const key = `${exerciseIndex}-${setIndex}`;
             const setData = completedSets[key];
-            
+
             if (setData && typeof setData === 'object') {
               // Inject validation_status
               if ('status' in setData) {
@@ -283,7 +227,7 @@ const StudentDashboard = () => {
                 set.rpe_rating = setData.rpeRating;
                 set.rpe = setData.rpeRating; // Also set rpe for compatibility
               }
-              
+
               // Inject studentWeight if present (CRITICAL FIX)
               if ('studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined) {
                 set.student_weight = setData.studentWeight;
@@ -315,7 +259,7 @@ const StudentDashboard = () => {
         try {
           const refreshedToken = await refreshAuthToken();
           console.log('✅ Token refreshed, retrying session completion...');
-          
+
           response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
             method: 'PUT',
             headers: {
@@ -339,21 +283,21 @@ const StudentDashboard = () => {
         if (session.onSuccess) {
           session.onSuccess();
         }
-        
+
         // Refresh assignments to show updated status
-        await fetchAssignments();
+        await refreshAssignments();
         setCurrentView('planning');
         setExecutingSession(null);
-        
+
         // Show success modal instead of alert
         setIsSuccessModalOpen(true);
       } else {
         const errorData = await response.json().catch(() => ({}));
-        
+
         if (response.status === 400 && errorData.message === 'Workout is already marked as completed') {
           alert('Cette séance est déjà terminée !');
           // Refresh assignments and go back to planning
-          await fetchAssignments();
+          await refreshAssignments();
           setCurrentView('planning');
           setExecutingSession(null);
         } else {
@@ -389,7 +333,7 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div 
+    <div
       className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
         background: 'unset',
@@ -398,7 +342,7 @@ const StudentDashboard = () => {
       }}
     >
       {/* Image de fond */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -413,9 +357,9 @@ const StudentDashboard = () => {
           backgroundColor: '#0a0a0a'
         }}
       />
-      
+
       {/* Layer blur sur l'écran */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -432,7 +376,7 @@ const StudentDashboard = () => {
       />
 
       {/* Gradient conique Figma - partie droite */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -451,9 +395,9 @@ const StudentDashboard = () => {
           animation: 'organicGradient 15s ease-in-out infinite'
         }}
       />
-      
+
       {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -500,9 +444,9 @@ const StudentDashboard = () => {
           opacity: 0.25
         }}
       />
-      <div 
+      <div
         className="px-10 pt-4 md:pt-6 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center"
-        style={{ 
+        style={{
           scrollBehavior: 'auto',
           minHeight: '100vh',
           paddingBottom: 'calc(100px + env(safe-area-inset-bottom, 0px))',
@@ -517,8 +461,8 @@ const StudentDashboard = () => {
         </div>
 
         {/* Planning de la semaine - Design Figma */}
-        <div 
-          className="relative mb-6 md:mb-8 -mx-4 md:-mx-10 px-2 md:px-5"
+        <div
+          className="relative mb-6 md:mb-8 -mx-10 md:-mx-10 px-2 md:px-5"
           onTouchStart={handleWeekSwipeStart}
           onTouchMove={handleWeekSwipeMove}
           onTouchEnd={handleWeekSwipeEnd}
@@ -532,69 +476,101 @@ const StudentDashboard = () => {
             >
               <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
-            
+
             {/* Jours de la semaine - 7 jours visibles */}
-            <div 
-              className="flex items-center gap-0 flex-1 min-w-0"
-            >
-              {week.map((day, index) => {
-                const dayStr = format(day, 'yyyy-MM-dd');
-                const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
-                const isSelected = format(selectedDate, 'yyyy-MM-dd') === dayStr;
-                const isToday = isSameDay(day, new Date());
-                
-                // Determine the overall status for the day
-                const completedCount = assignmentsForDay.filter(a => a.status === 'completed').length;
-                const totalCount = assignmentsForDay.length;
-                const allCompleted = totalCount > 0 && completedCount === totalCount;
-                const hasAssignments = totalCount > 0;
-                
-                return (
-                  <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '40px' }}>
-                    <button
-                      onClick={() => setSelectedDate(day)}
-                      className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1.5 sm:px-2.5 pt-2 md:pt-2.5 pb-[10px] md:pb-[12px] rounded-[7px] text-[10px] md:text-[11px] font-normal transition-colors ${
-                        isSelected 
-                          ? 'bg-[#d4845a] text-white' 
-                          : hasAssignments && !allCompleted
-                            ? 'text-white/75'
-                            : 'text-white/50'
-                      }`}
-                      style={{ width: 'calc(100% - 2px)' }}
-                    >
-                      <p className={`leading-normal whitespace-nowrap uppercase ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
-                        {format(day, 'eee', { locale: fr }).substring(0, 3)}
-                      </p>
-                      <p className={`leading-normal whitespace-nowrap ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
-                        {format(day, 'd')}
-                      </p>
-                      
-                      {/* Indicateur de statut sous chaque jour - un point par séance */}
-                      <div className="mt-[2px] flex items-center justify-center gap-0.5 h-[7px]">
-                        {hasAssignments ? (
-                          assignmentsForDay.map((assignment, idx) => (
-                            <div
-                              key={assignment.id || idx}
-                              className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${
-                                assignment.status === 'completed'
-                                  ? 'bg-[#2fa064]'
-                                  : isSelected
-                                    ? 'bg-white'
-                                    : 'bg-white/60'
+            <div className="flex-1 min-w-0 relative overflow-hidden">
+              <div className="grid grid-cols-1 grid-rows-1 w-full">
+                <AnimatePresence
+                  initial={false}
+                  custom={direction}
+                  mode="popLayout"
+                  onExitComplete={() => setIsAnimating(false)}
+                >
+                  <motion.div
+                    key={format(week[0], 'yyyy-MM-dd')}
+                    custom={direction}
+                    variants={{
+                      enter: (direction) => ({
+                        x: direction > 0 ? '100%' : '-100%',
+                        opacity: 0,
+                      }),
+                      center: {
+                        x: 0,
+                        opacity: 1,
+                      },
+                      exit: (direction) => ({
+                        x: direction > 0 ? '-100%' : '100%',
+                        opacity: 0,
+                      }),
+                    }}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{
+                      x: { type: "spring", stiffness: 300, damping: 30 },
+                      opacity: { duration: 0.2 }
+                    }}
+                    className="flex items-center gap-0 w-full col-start-1 row-start-1"
+                  >
+                    {week.map((day, index) => {
+                      const dayStr = format(day, 'yyyy-MM-dd');
+                      const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
+                      const isSelected = format(selectedDate, 'yyyy-MM-dd') === dayStr;
+                      const isToday = isSameDay(day, new Date());
+
+                      // Determine the overall status for the day
+                      const completedCount = assignmentsForDay.filter(a => a.status === 'completed').length;
+                      const totalCount = assignmentsForDay.length;
+                      const allCompleted = totalCount > 0 && completedCount === totalCount;
+                      const hasAssignments = totalCount > 0;
+
+                      return (
+                        <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '40px' }}>
+                          <button
+                            onClick={() => !isAnimating && setSelectedDate(day)}
+                            className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1.5 sm:px-2.5 pt-2 md:pt-2.5 pb-[10px] md:pb-[12px] rounded-[7px] text-[10px] md:text-[11px] font-normal transition-colors ${isSelected
+                              ? 'bg-[#d4845a] text-white'
+                              : hasAssignments && !allCompleted
+                                ? 'text-white/75'
+                                : 'text-white/50'
                               }`}
-                            />
-                          ))
-                        ) : (
-                          // Espace réservé invisible pour les jours sans séance pour garder la même hauteur
-                          <div className="w-[6px] h-[6px] flex-shrink-0 opacity-0" />
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                );
-              })}
+                            style={{ width: 'calc(100% - 2px)' }}
+                          >
+                            <p className={`leading-normal whitespace-nowrap uppercase ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
+                              {format(day, 'eee', { locale: fr }).substring(0, 3)}
+                            </p>
+                            <p className={`leading-normal whitespace-nowrap ${isSelected ? 'text-white font-normal' : isToday && !isSelected ? 'font-semibold !text-[#d4845a]' : hasAssignments && !allCompleted ? 'font-normal' : 'font-light'}`}>
+                              {format(day, 'd')}
+                            </p>
+
+                            {/* Indicateur de statut sous chaque jour - un point par séance */}
+                            <div className="mt-[2px] flex items-center justify-center gap-0.5 h-[7px]">
+                              {hasAssignments ? (
+                                assignmentsForDay.map((assignment, idx) => (
+                                  <div
+                                    key={assignment.id || idx}
+                                    className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${assignment.status === 'completed'
+                                      ? 'bg-[#2fa064]'
+                                      : isSelected
+                                        ? 'bg-white'
+                                        : 'bg-white/60'
+                                      }`}
+                                  />
+                                ))
+                              ) : (
+                                // Espace réservé invisible pour les jours sans séance pour garder la même hauteur
+                                <div className="w-[6px] h-[6px] flex-shrink-0 opacity-0" />
+                              )}
+                            </div>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
-            
+
             {/* Flèche droite */}
             <button
               onClick={() => changeWeek('next')}
@@ -610,10 +586,10 @@ const StudentDashboard = () => {
           selectedAssignments.length > 1 ? (
             // Mode horizontal avec scroll pour plusieurs séances
             <div className="w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
-              <div 
+              <div
                 ref={scrollContainerRef}
                 className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
-                style={{ 
+                style={{
                   scrollSnapType: 'x mandatory',
                   flex: '1 1 0',
                   minHeight: 0,
@@ -635,9 +611,9 @@ const StudentDashboard = () => {
                 }}
               >
                 {selectedAssignments.map((assignment, index) => (
-                  <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.07)', 
-                    borderImage: 'none', 
+                  <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                    borderImage: 'none',
                     borderColor: 'transparent',
                     marginBottom: '10px',
                     width: '100%',
@@ -676,12 +652,11 @@ const StudentDashboard = () => {
                       <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
                         {assignment.workout_sessions?.exercises?.length || 0} exercices
                       </p>
-                      <Button 
-                        className={`w-full py-2 rounded-lg font-normal ${
-                          assignment.status === 'completed'
-                            ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
-                            : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
-                        }`}
+                      <Button
+                        className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
+                          ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                          : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                          }`}
                         onClick={() => handleStartSession(assignment)}
                         disabled={assignment.status === 'completed'}
                       >
@@ -709,11 +684,10 @@ const StudentDashboard = () => {
                         });
                       }
                     }}
-                    className={`transition-all duration-200 rounded-full font-light ${
-                      index === currentCardIndex
-                        ? 'w-1.5 h-1.5 bg-[#e87c3e]'
-                        : 'w-1.5 h-1.5 bg-white/10'
-                    }`}
+                    className={`transition-all duration-200 rounded-full font-light ${index === currentCardIndex
+                      ? 'w-1.5 h-1.5 bg-[#e87c3e]'
+                      : 'w-1.5 h-1.5 bg-white/10'
+                      }`}
                     style={{
                       boxShadow: index === currentCardIndex ? '0 0 10px rgba(232, 124, 62, 0.6)' : '0 0 4px rgba(255, 255, 255, 0.2)',
                       fontWeight: index === currentCardIndex ? 300 : undefined
@@ -753,12 +727,11 @@ const StudentDashboard = () => {
                     <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
                       {assignment.workout_sessions?.exercises?.length || 0} exercices
                     </p>
-                    <Button 
-                      className={`w-full py-2 rounded-lg font-normal ${
-                        assignment.status === 'completed'
-                          ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
-                          : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
-                      }`}
+                    <Button
+                      className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
+                        ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                        : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                        }`}
                       onClick={() => handleStartSession(assignment)}
                       disabled={assignment.status === 'completed'}
                     >
@@ -783,7 +756,7 @@ const StudentDashboard = () => {
       </div>
 
       {/* Success Modal */}
-      <SessionSuccessModal 
+      <SessionSuccessModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
       />

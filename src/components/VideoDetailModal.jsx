@@ -27,6 +27,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const [studentWeight, setStudentWeight] = useState(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [audioRecording, setAudioRecording] = useState(null);
+  const [isMarkingCompletedNoFeedback, setIsMarkingCompletedNoFeedback] = useState(false);
 
   
   const videoRef = useRef(null);
@@ -384,6 +385,31 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     } catch (error) {
       console.error('Error deleting video:', error);
       alert('❌ Erreur lors de la suppression de la vidéo');
+    }
+  };
+
+  // Mark video as completed without writing feedback (student video, coach view only)
+  const handleMarkAsCompletedNoFeedback = async () => {
+    if (videoType !== 'student' || !video?.id) return;
+    const token = await getAuthToken();
+    if (!token) return;
+    setIsMarkingCompletedNoFeedback(true);
+    try {
+      await axios.patch(
+        buildApiUrl(`/workout-sessions/videos/${video.id}/feedback`),
+        { feedback: '', rating: null, status: 'completed' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setVideoStatus('completed');
+      if (onFeedbackUpdate) {
+        onFeedbackUpdate(video.id, '', null, false, 'completed', 'student');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error marking video as completed:', error);
+      alert('Erreur lors du passage en complété.');
+    } finally {
+      setIsMarkingCompletedNoFeedback(false);
     }
   };
 
@@ -974,6 +1000,38 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                           </>
                         )}
                       </div>
+                      {/* Marquer en complété sans commentaire - only when no feedback yet */}
+                      {videoStatus === 'pending' && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAsCompletedNoFeedback}
+                          disabled={isMarkingCompletedNoFeedback}
+                          className="mt-3 w-full py-2 px-4 rounded-[50px] text-xs md:text-sm font-normal transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                          style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: 'rgba(250, 250, 250, 0.5)',
+                            fontWeight: '400'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (isMarkingCompletedNoFeedback) return;
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                            e.currentTarget.style.color = '#D48459';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                            e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                          }}
+                        >
+                          {isMarkingCompletedNoFeedback ? (
+                            <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 flex-shrink-0" fill="currentColor">
+                              <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                            </svg>
+                          )}
+                          {isMarkingCompletedNoFeedback ? 'En cours...' : 'Marquer en complété sans commentaire'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

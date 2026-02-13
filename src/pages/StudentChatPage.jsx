@@ -518,90 +518,61 @@ const StudentChatPage = () => {
 
         {/* Content wrapper */}
         <div className="relative z-10 flex flex-col h-full overflow-hidden">
-        {loading ? (
+        {/* List view: show when loading (with skeleton), on error, or when no conversation selected */}
+        {(loading || error || (showConversationList && !selectedConversation)) ? (
           <>
-            {/* Header Component */}
             <Header />
-            
-            {/* Title - Same style as StudentDashboard with same spacing */}
             <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
               <h1 className="text-[28px] font-light text-center text-white mb-6">
                 Messages
               </h1>
             </div>
 
-            {/* Loading state - only in content area */}
-            <div className="flex-1 flex items-center justify-center pb-16">
-              <div className="flex flex-col items-center gap-4">
-                <div 
-                  className="rounded-full border-2 border-transparent animate-spin"
-                  style={{
-                    borderTopColor: '#d4845a',
-                    borderRightColor: '#d4845a',
-                    width: '40px',
-                    height: '40px'
-                  }}
-                />
-                <p className="text-white/50 text-sm font-light">Chargement des conversations...</p>
+            {!error && (
+              <div className="px-10 py-3 flex-shrink-0 w-full max-w-6xl mx-auto">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[99px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                    style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
+                  />
+                </div>
               </div>
-            </div>
-          </>
-        ) : error ? (
-          <>
-            {/* Header Component */}
-            <Header />
-            
-            {/* Title - Same style as StudentDashboard with same spacing */}
-            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
-              <h1 className="text-[28px] font-light text-center text-white mb-6">
-                Messages
-              </h1>
-            </div>
+            )}
 
-            {/* Error state - only in content area */}
-            <div className="flex-1 flex items-center justify-center pb-16">
-              <div className="text-center px-4">
-                <div className="text-red-400 text-lg font-semibold mb-2">Erreur</div>
-                <div className="text-gray-400 mb-4">{error}</div>
-                <button 
-                  onClick={fetchConversations}
-                  className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
-                >
-                  Réessayer
-                </button>
-              </div>
-            </div>
-          </>
-        ) : showConversationList && !selectedConversation ? (
-          <>
-            {/* Header Component */}
-            <Header />
-            
-            {/* Title - Same style as StudentDashboard with same spacing */}
-            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
-              <h1 className="text-[28px] font-light text-center text-white mb-6">
-                Messages
-              </h1>
-            </div>
-
-            {/* Search Bar */}
-            <div className="px-10 py-3 flex-shrink-0 w-full max-w-6xl mx-auto">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[99px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                  style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
-                />
-              </div>
-            </div>
-
-            {/* Conversations List - Add padding-bottom to account for bottom nav bar */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 px-10 w-full max-w-6xl mx-auto">
-              {filteredConversations.length === 0 ? (
+              {loading ? (
+                <div className="space-y-1">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="px-4 py-4 rounded-lg mb-2 animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '15px' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full flex-shrink-0 bg-white/10" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="h-4 rounded w-2/3 bg-white/10" />
+                          <div className="h-3 rounded w-full bg-white/5" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : error ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center px-4">
+                    <div className="text-red-400 text-lg font-semibold mb-2">Erreur</div>
+                    <div className="text-gray-400 mb-4">{error}</div>
+                    <button
+                      onClick={fetchConversations}
+                      className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
+                    >
+                      Réessayer
+                    </button>
+                  </div>
+                </div>
+              ) : filteredConversations.length === 0 ? (
                 <div className="p-6 text-center text-gray-400">
                   <div className="text-sm text-white/50">
                     {searchTerm ? 'Aucune conversation trouvée' : 'Aucune conversation'}

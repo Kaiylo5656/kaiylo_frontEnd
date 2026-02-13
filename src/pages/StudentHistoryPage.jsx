@@ -1,19 +1,21 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isSameDay, startOfDay, parseISO, startOfWeek, addWeeks, differenceInCalendarWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { buildApiUrl } from '../config/api';
+import { useStudentPlanning } from '../contexts/StudentPlanningContext';
 
 const StudentHistoryPage = () => {
   const navigate = useNavigate();
-  const { getAuthToken, user } = useAuth();
+  const planningContext = useStudentPlanning();
+  const assignments = planningContext?.assignments ?? [];
+  const planningBlocks = planningContext?.planningBlocks ?? [];
+  const assignmentsLoading = planningContext?.assignmentsLoading ?? false;
+  const planningBlocksLoading = planningContext?.planningBlocksLoading ?? false;
+  const loading = (assignmentsLoading || planningBlocksLoading) && assignments.length === 0;
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [assignments, setAssignments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [planningBlocks, setPlanningBlocks] = useState([]);
   const [collapsedUpcomingSessionIds, setCollapsedUpcomingSessionIds] = useState(new Set());
   const [collapsedCompletedSessionIds, setCollapsedCompletedSessionIds] = useState(new Set());
   const [sessionListView, setSessionListView] = useState('upcoming'); // 'upcoming' | 'past'
@@ -71,58 +73,7 @@ const StudentHistoryPage = () => {
     setCurrentMonth(addMonths(currentMonth, 1));
   };
 
-  // Fetch assignments on component mount
-  useEffect(() => {
-    fetchAssignments();
-  }, []);
-
-  // Fetch periodization blocks for block info (Bloc X - S Y/Z)
-  const fetchPlanningBlocks = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(
-        buildApiUrl(`/periodization/blocks/student/${user.id}?t=${Date.now()}`),
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = await response.json();
-      if (data.success && Array.isArray(data.data)) {
-        setPlanningBlocks(data.data);
-      } else {
-        setPlanningBlocks([]);
-      }
-    } catch (err) {
-      console.error('Error fetching planning blocks:', err);
-      setPlanningBlocks([]);
-    }
-  }, [user?.id, getAuthToken]);
-
-  useEffect(() => {
-    fetchPlanningBlocks();
-  }, [fetchPlanningBlocks]);
-
-  const fetchAssignments = async () => {
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/assignments/student'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
-      }
-
-      const data = await response.json();
-      setAssignments(data.data || []);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Données chargées par StudentPlanningContext (préchargées dès la connexion étudiant)
 
   // Check if a day has assignments
   const hasAssignments = (day) => {
@@ -467,14 +418,14 @@ const StudentHistoryPage = () => {
       {/* Séances à venir + Séances terminées du mois - même frame, vue toggle */}
       {(upcomingSessions.length > 0 || completedSessionsThisMonth.length > 0) && (
         <div className="px-4 pb-16 pt-6 relative z-10">
-          <div className="flex gap-2 mb-3">
+          <div className="flex bg-[rgba(255,255,255,0.05)] border border-white/10 rounded-full p-1 mb-3">
             <button
               type="button"
               onClick={() => setSessionListView('upcoming')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 px-1.5 py-1.5 text-sm rounded-full transition-all duration-200 ${
                 sessionListView === 'upcoming'
-                  ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                  : 'bg-white/10 text-white/60 hover:bg-white/15 hover:text-white/75'
+                  ? 'bg-[#e87c3e] text-white shadow-lg font-normal'
+                  : 'text-white/50 hover:text-white font-light'
               }`}
             >
               Séances à venir ({upcomingSessions.length})
@@ -482,10 +433,10 @@ const StudentHistoryPage = () => {
             <button
               type="button"
               onClick={() => setSessionListView('past')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 px-1.5 py-1.5 text-sm rounded-full transition-all duration-200 ${
                 sessionListView === 'past'
-                  ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                  : 'bg-white/10 text-white/60 hover:bg-white/15 hover:text-white/75'
+                  ? 'bg-[#e87c3e] text-white shadow-lg font-normal'
+                  : 'text-white/50 hover:text-white font-light'
               }`}
             >
               Séances passées ({completedSessionsThisMonth.length})

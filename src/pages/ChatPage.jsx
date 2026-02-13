@@ -310,38 +310,20 @@ const ChatPage = () => {
 
   return (
     <div className="h-full text-foreground flex flex-col relative">
-      {loading && (
-        <div className="absolute inset-0 flex justify-center items-center z-10">
-          <div 
-            className="rounded-full border-2 border-transparent animate-spin"
-            style={{
-              borderTopColor: '#d4845a',
-              borderRightColor: '#d4845a',
-              width: '40px',
-              height: '40px'
-            }}
-          />
-        </div>
-      )}
-      
+      {/* Inline error banner - does not block layout */}
       {error && !loading && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="text-center">
-            <div className="text-destructive text-lg font-semibold mb-2">Error</div>
-            <div className="text-muted-foreground mb-4">{error}</div>
-            <button 
-              onClick={fetchConversations}
-              className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
-            >
-              Retry
-            </button>
-          </div>
+        <div className="flex-shrink-0 px-4 py-2 flex items-center justify-between gap-2 bg-destructive/10 border-b border-destructive/20">
+          <span className="text-destructive text-sm">{error}</span>
+          <button
+            onClick={fetchConversations}
+            className="text-primary font-medium text-sm hover:underline"
+          >
+            Réessayer
+          </button>
         </div>
       )}
-      
-      {!loading && !error && (
-        <>
-      <div className="flex-1 flex overflow-hidden">
+
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Contact List - Mobile: Hidden when chat is open, Desktop: Always visible */}
         <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 flex-col flex-shrink-0`}>
           <ChatList
@@ -351,6 +333,7 @@ const ChatPage = () => {
             onCreateConversation={createConversation}
             currentUser={user}
             onDeleteConversation={handleDeleteConversation}
+            conversationsLoading={loading}
           />
         </div>
 
@@ -379,8 +362,6 @@ const ChatPage = () => {
           )}
         </div>
       </div>
-      </>
-      )}
     </div>
   );
 };
