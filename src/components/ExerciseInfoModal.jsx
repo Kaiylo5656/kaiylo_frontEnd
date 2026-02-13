@@ -179,8 +179,23 @@ const ExerciseInfoModal = ({
 
         {/* Content */}
         <div className="px-[25px] py-0 space-y-4">
-          {/* Lecteur vidéo */}
+          {/* Démo vidéo ou image */}
           {exerciseDetails?.demoVideoURL ? (
+            (() => {
+              const url = exerciseDetails.demoVideoURL;
+              const isImage = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(url) || (url.includes('/files/') && !url.includes('/videos/'));
+              if (isImage) {
+                return (
+                  <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10">
+                    <img
+                      src={exerciseDetails.demoVideoURL}
+                      alt="Démonstration de l'exercice"
+                      className="w-full h-auto max-h-[200px] object-contain"
+                    />
+                  </div>
+                );
+              }
+              return (
             <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10">
               <video
                 ref={videoRef}
@@ -211,7 +226,6 @@ const ExerciseInfoModal = ({
                         errorMessage = 'Erreur de décodage de la vidéo';
                         break;
                       case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        // Détecter si c'est un format .mov (non supporté par les navigateurs web)
                         const videoUrl = videoElement?.src || '';
                         if (videoUrl.toLowerCase().endsWith('.mov')) {
                           errorMessage = 'Format .mov non supporté par le navigateur. Veuillez utiliser MP4.';
@@ -237,7 +251,6 @@ const ExerciseInfoModal = ({
                 tabIndex={-1}
               />
 
-              {/* Loading Overlay */}
               {isVideoLoading && (
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
                   <div className="text-white text-center">
@@ -247,7 +260,6 @@ const ExerciseInfoModal = ({
                 </div>
               )}
 
-              {/* Error Overlay */}
               {videoError && (
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
                   <div className="text-red-400 text-center px-4">
@@ -281,6 +293,8 @@ const ExerciseInfoModal = ({
                 </div>
               )}
             </div>
+              );
+            })()
           ) : loading ? (
             <div className="bg-[#262626] rounded-lg border border-white/10 h-[125px] flex items-center justify-center text-gray-400 text-xs font-light">
               Chargement vidéo...

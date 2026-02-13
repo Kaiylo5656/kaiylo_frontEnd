@@ -1070,97 +1070,97 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       )}
                     </div>
 
-                    {/* Coach Comment Input - Below video box */}
-                    <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
-                      {isRecordingVoice ? (
-                        <VoiceRecorder
-                          onSend={handleVoiceMessageSend}
-                          onCancel={handleVoiceRecorderCancel}
-                          disabled={savingFeedback}
-                        />
-                      ) : (
-                        <>
-                          <textarea
-                            ref={textareaRef}
-                            value={coachComment}
-                            onChange={(e) => {
-                              setCoachComment(e.target.value);
-                              setFeedback(e.target.value);
-                              // Auto-resize on input
-                              if (textareaRef.current) {
-                                textareaRef.current.style.height = 'auto';
-                                const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
-                                textareaRef.current.style.height = `${newHeight}px`;
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                if ((coachComment.trim() || audioRecording) && currentSetVideo) {
-                                  handleSaveComment(currentSetVideo, audioRecording);
-                                }
-                              }
-                            }}
-                            placeholder="Ajouter un commentaire ..."
-                            rows={1}
-                            className="flex-1 bg-transparent text-[13px] font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
-                            style={{
-                              minHeight: '24px',
-                              maxHeight: '100px',
-                              height: '24px',
-                              lineHeight: '24px',
-                              paddingTop: '0',
-                              paddingBottom: '0'
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setIsRecordingVoice(true)}
-                            disabled={savingFeedback || !currentSetVideo}
-                            className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                            title="Enregistrer un message vocal"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 384 512"
-                              className="h-4 w-4"
-                              style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
-                            >
-                              <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
+                  {/* Coach Comment Input - Below video box */}
+                  <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
+                    {isRecordingVoice ? (
+                      <VoiceRecorder
+                        onSend={handleVoiceMessageSend}
+                        onCancel={handleVoiceRecorderCancel}
+                        disabled={savingFeedback}
+                      />
+                    ) : (
+                      <>
+                        <textarea
+                          ref={textareaRef}
+                          value={coachComment}
+                          onChange={(e) => {
+                            setCoachComment(e.target.value);
+                            setFeedback(e.target.value);
+                            // Auto-resize on input
+                            if (textareaRef.current) {
+                              textareaRef.current.style.height = 'auto';
+                              const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
+                              textareaRef.current.style.height = `${newHeight}px`;
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault();
-                              e.stopPropagation();
                               if ((coachComment.trim() || audioRecording) && currentSetVideo) {
                                 handleSaveComment(currentSetVideo, audioRecording);
                               }
-                            }}
-                            className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                            style={{ opacity: 1 }}
-                            disabled={(!coachComment.trim() && !audioRecording) || savingFeedback || !currentSetVideo}
-                            type="button"
+                            }
+                          }}
+                          placeholder="Ajouter un commentaire ..."
+                          rows={1}
+                          className="flex-1 bg-transparent text-base font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                          style={{ 
+                            minHeight: '24px', 
+                            maxHeight: '100px', 
+                            height: '24px',
+                            lineHeight: '24px',
+                            paddingTop: '0',
+                            paddingBottom: '0'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsRecordingVoice(true)}
+                          disabled={savingFeedback || !currentSetVideo}
+                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                          title="Enregistrer un message vocal"
+                        >
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 384 512" 
+                            className="h-4 w-4" 
+                            style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
-                              <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
+                            <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if ((coachComment.trim() || audioRecording) && currentSetVideo) {
+                              handleSaveComment(currentSetVideo, audioRecording);
+                            }
+                          }}
+                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                          style={{ opacity: 1 }}
+                          disabled={(!coachComment.trim() && !audioRecording) || savingFeedback || !currentSetVideo}
+                          type="button"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
+                            <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <div className="bg-black/50 border-none rounded-[10px] p-[17.5px] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)] h-[171px] flex flex-col">
-                    <div className="bg-black flex-1 rounded-[10px] flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-8 w-8 text-white/25">
-                        <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L447.9 414.2L447.9 192C447.9 156.7 419.2 128 383.9 128L161.8 128L73 39.1zM64 192L64 448C64 483.3 92.7 512 128 512L384 512C391.8 512 399.3 510.6 406.2 508L68 169.8C65.4 176.7 64 184.2 64 192zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" fill="currentColor" />
-                      </svg>
-                    </div>
+                </div>
+              ) : (
+                <div className="bg-black/50 border-none rounded-[10px] p-[17.5px] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)] h-[171px] flex flex-col">
+                  <div className="bg-black flex-1 rounded-[10px] flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-8 w-8 text-white/25">
+                      <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L447.9 414.2L447.9 192C447.9 156.7 419.2 128 383.9 128L161.8 128L73 39.1zM64 192L64 448C64 483.3 92.7 512 128 512L384 512C391.8 512 399.3 510.6 406.2 508L68 169.8C65.4 176.7 64 184.2 64 192zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" fill="currentColor"/>
+                    </svg>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+          </div>
 
             {/* Action Buttons */}
             <div className={`flex gap-3 pt-0 ${isMobile ? 'flex-col-reverse' : 'justify-end'}`}>

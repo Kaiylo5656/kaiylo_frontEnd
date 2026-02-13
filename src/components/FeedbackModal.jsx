@@ -268,7 +268,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                   placeholder="Décrivez en détail le problème ou votre suggestion..."
                   rows={6}
                   disabled={isSubmitting}
-                  className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   required
                 />
               </div>

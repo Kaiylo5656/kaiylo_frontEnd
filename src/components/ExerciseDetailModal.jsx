@@ -251,18 +251,28 @@ const ExerciseDetailModal = ({
                 </div>
               </div>
 
-              {/* Demo Video */}
+              {/* Demo vidéo ou image */}
               {exercise.demoVideoURL && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Play className="h-4 w-4 text-white/60" />
-                    <h3 className="text-lg font-medium text-white">Demo Video</h3>
+                    <h3 className="text-lg font-medium text-white">
+                      {(/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(exercise.demoVideoURL) || (exercise.demoVideoURL.includes('/files/') && !exercise.demoVideoURL.includes('/videos/'))) ? 'Image démo' : 'Vidéo démo'}
+                    </h3>
                   </div>
                   <div className="bg-black/50 rounded-lg overflow-hidden border border-white/10 max-h-[60vh] sm:max-h-[70vh] w-full">
-                    <VideoPlayer
-                      src={exercise.demoVideoURL}
-                      className="w-full h-full object-contain"
-                    />
+                    {(/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(exercise.demoVideoURL) || (exercise.demoVideoURL.includes('/files/') && !exercise.demoVideoURL.includes('/videos/'))) ? (
+                      <img
+                        src={exercise.demoVideoURL}
+                        alt="Démonstration de l'exercice"
+                        className="w-full h-full object-contain max-h-[60vh] sm:max-h-[70vh]"
+                      />
+                    ) : (
+                      <VideoPlayer
+                        src={exercise.demoVideoURL}
+                        className="w-full h-full object-contain"
+                      />
+                    )}
                   </div>
                 </div>
               )}

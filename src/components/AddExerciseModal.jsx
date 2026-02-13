@@ -101,27 +101,29 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     }));
   };
 
+  const isImageType = (type) => type && type.startsWith('image/');
+
   const handleVideoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
-      const allowedTypes = ['video/mp4', 'video/mov', 'video/quicktime'];
+      const allowedVideo = ['video/mp4', 'video/mov', 'video/quicktime'];
+      const allowedImage = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/avif'];
+      const allowedTypes = [...allowedVideo, ...allowedImage];
       if (!allowedTypes.includes(file.type)) {
-        setVideoError('Please select a valid video file (MP4 or MOV)');
+        setVideoError('Sélectionnez une vidéo (MP4, MOV) ou une image (JPG, PNG, WebP, etc.)');
         return;
       }
 
-      // Validate file size (50GB max)
-      const maxSize = 50 * 1024 * 1024 * 1024; // 50GB in bytes
+      const maxVideoSize = 50 * 1024 * 1024 * 1024; // 50GB
+      const maxImageSize = 20 * 1024 * 1024; // 20MB
+      const maxSize = isImageType(file.type) ? maxImageSize : maxVideoSize;
       if (file.size > maxSize) {
-        setVideoError('File size must be less than 50GB');
+        setVideoError(isImageType(file.type) ? 'Image : max 20 Mo' : 'Vidéo : max 50 Go');
         return;
       }
 
       setVideoFile(file);
       setVideoError('');
-      
-      // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setVideoPreview(previewUrl);
     }
@@ -313,7 +315,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.title}
               onChange={handleInputChange}
               required
-              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
               placeholder="ex: Pompes"
             />
             {duplicateNameError && (
@@ -333,7 +335,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               value={formData.instructions}
               onChange={handleInputChange}
               rows={4}
-              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-base placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] resize-none"
               placeholder="Instructions étape par étape pour effectuer l'exercice..."
             />
           </div>
@@ -351,17 +353,16 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             />
           </div>
 
-          {/* Video Upload */}
+          {/* Video or Image Upload */}
           <div className="space-y-2">
             <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
-              Vidéo (optionnelle)
+              Vidéo ou image (optionnelle)
             </label>
-            {console.log('Video preview state:', videoPreview)}
             {!videoPreview || videoPreview === null ? (
               <div className="border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] p-6 text-center hover:border-[rgba(255,255,255,0.1)] transition-colors bg-[rgba(0,0,0,0.5)]">
                 <input
                   type="file"
-                  accept="video/mp4,video/mov,video/quicktime"
+                  accept="video/mp4,video/mov,video/quicktime,image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,image/bmp,image/avif"
                   onChange={handleVideoChange}
                   className="hidden"
                   id="video-upload"
@@ -371,31 +372,26 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
                   className="cursor-pointer flex flex-col items-center space-y-2"
                 >
                   <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                    Sélectionner un fichier vidéo
+                    Sélectionner une vidéo ou une image
                   </span>
                   <span className="text-xs font-extralight text-[rgba(255,255,255,0.5)]">
-                    (formats: mp4, mov - max 50GB)
+                    (vidéo: mp4, mov – max 50 Go · image: jpg, png, webp, gif… – max 20 Mo)
                   </span>
                 </label>
               </div>
             ) : (
               <div className="rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.5)] p-3 max-w-full">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden mb-3">
-                  {/* Video icon */}
                   <Video className="h-4 w-4 shrink-0 text-[#d4845a]" />
-                  
-                  {/* Filename with proper truncation */}
                   <div className="min-w-0 flex-1">
                     <p
                       className="truncate text-sm font-extralight text-white/80"
-                      title={videoFile ? videoFile.name : 'Video Preview'}
+                      title={videoFile ? videoFile.name : 'Preview'}
                       data-testid="video-file-name"
                     >
-                      {videoFile ? videoFile.name : 'Video Preview'}
+                      {videoFile ? videoFile.name : 'Preview'}
                     </p>
                   </div>
-                  
-                  {/* Remove button */}
                   <button
                     type="button"
                     onClick={removeVideo}
@@ -404,14 +400,21 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
                     Supprimer
                   </button>
                 </div>
-                
-                <video
-                  src={videoPreview}
-                  controls
-                  className="w-full max-h-64 rounded-[8px] bg-black"
-                >
-                  Votre navigateur ne supporte pas la balise vidéo.
-                </video>
+                {(videoFile && videoFile.type.startsWith('image/')) || (videoPreview && /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(videoPreview)) ? (
+                  <img
+                    src={videoPreview}
+                    alt="Aperçu"
+                    className="w-full max-h-64 object-contain rounded-[8px] bg-black"
+                  />
+                ) : (
+                  <video
+                    src={videoPreview}
+                    controls
+                    className="w-full max-h-64 rounded-[8px] bg-black"
+                  >
+                    Votre navigateur ne supporte pas la balise vidéo.
+                  </video>
+                )}
               </div>
             )}
             {videoError && (
