@@ -401,11 +401,12 @@ export const AuthProvider = ({ children }) => {
         let sessionError = null;
         
         try {
-          // Utiliser Promise.race avec un timeout de 2 secondes
+          // Utiliser Promise.race avec un timeout de 8 secondes
+          // (after browser close, Supabase needs time to rehydrate)
           const sessionResult = await Promise.race([
             supabase.auth.getSession(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Session check timeout')), 2000) // 2 secondes
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Session check timeout')), 8000) // 8 secondes
             )
           ]);
           
@@ -419,17 +420,43 @@ export const AuthProvider = ({ children }) => {
             console.log('ℹ️ No session found in Supabase');
           }
         } catch (error) {
-          // Timeout - considérer que l'utilisateur n'est pas connecté
-          // Nettoyer le storage pour éviter les futurs timeouts
           if (error.message === 'Session check timeout') {
-            console.log('⏱️ Supabase session check timeout - clearing auth data');
-            safeRemoveItem('authToken');
-            safeRemoveItem('supabaseRefreshToken');
-            safeRemoveItem('sb-auth-token');
-            delete axios.defaults.headers.common['Authorization'];
+            console.log('⏱️ Supabase session check timeout - attempting recovery via refreshSession...');
+            // On timeout, try refreshSession with stored refresh token before wiping
+            const storedRefreshToken = safeGetItem('supabaseRefreshToken');
+            if (storedRefreshToken) {
+              try {
+                const refreshResult = await supabase.auth.refreshSession({ refresh_token: storedRefreshToken });
+                if (refreshResult?.data?.session?.access_token) {
+                  console.log('✅ Recovery via refreshSession succeeded after timeout');
+                  session = refreshResult.data.session;
+                } else {
+                  console.log('⏱️ refreshSession returned no session, clearing auth data');
+                  safeRemoveItem('authToken');
+                  safeRemoveItem('supabaseRefreshToken');
+                  safeRemoveItem('sb-auth-token');
+                  delete axios.defaults.headers.common['Authorization'];
+                  session = null;
+                }
+              } catch (refreshError) {
+                console.log('⏱️ refreshSession failed after timeout, clearing auth data:', refreshError.message);
+                safeRemoveItem('authToken');
+                safeRemoveItem('supabaseRefreshToken');
+                safeRemoveItem('sb-auth-token');
+                delete axios.defaults.headers.common['Authorization'];
+                session = null;
+              }
+            } else {
+              console.log('⏱️ No stored refresh token, clearing auth data');
+              safeRemoveItem('authToken');
+              safeRemoveItem('supabaseRefreshToken');
+              safeRemoveItem('sb-auth-token');
+              delete axios.defaults.headers.common['Authorization'];
+              session = null;
+            }
+          } else {
+            session = null;
           }
-          // Ne pas traiter comme une erreur critique
-          session = null;
           sessionError = null;
         }
         
@@ -531,10 +558,10 @@ export const AuthProvider = ({ children }) => {
     // S'assurer que loading est false après un court délai si checkAuthStatus échoue silencieusement
     const loadingSafetyTimeout = setTimeout(() => {
       if (isMounted) {
-        console.warn('⚠️ Loading still true after 5 seconds, forcing to false');
+        console.warn('⚠️ Loading still true after 15 seconds, forcing to false');
         setLoading(false);
       }
-    }, 5000);
+    }, 15000);
     
     checkAuthStatus().finally(() => {
       if (isMounted) {
@@ -592,7 +619,7 @@ export const AuthProvider = ({ children }) => {
             if (session) {
               // --- WHITELIST CHECK ---
               // TODO: REMOVE THIS WHITELIST CHECK WHEN DEPLOYMENT IS 100% DONE
-              const WHITELISTED_EMAILS = ['charlycoachingsl@gmail.com', 'fairytail491@gmail.com'];
+              const WHITELISTED_EMAILS = ['charlycoachingsl@gmail.com', 'fairytail491@gmail.com', 'kaponeinfernal@gmail.com'];
               const isGoogleLogin = session.user?.app_metadata?.provider === 'google';
               const userEmail = session.user?.email?.toLowerCase();
 
@@ -673,6 +700,26 @@ export const AuthProvider = ({ children }) => {
     }, 15 * 60 * 1000); // toutes les 15 minutes
 
     return () => clearInterval(interval);
+  }, [refreshAuthToken]);
+
+  // Proactively refresh session when user returns to tab after >5 minutes
+  // (browsers suspend setInterval for background tabs, so the 15-min refresh may not run)
+  useEffect(() => {
+    let lastVisibleTime = Date.now();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - lastVisibleTime;
+        if (elapsed > 5 * 60 * 1000) {
+          console.log('🔄 Tab became visible after', Math.round(elapsed / 60000), 'min - refreshing session...');
+          refreshAuthToken().catch(() => {});
+        }
+        lastVisibleTime = Date.now();
+      } else {
+        lastVisibleTime = Date.now();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [refreshAuthToken]);
 
   // Login function (optimized - synchronise avec Supabase)
@@ -1032,7 +1079,7 @@ export const AuthProvider = ({ children }) => {
           redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'select_account',
           },
         }
       });
