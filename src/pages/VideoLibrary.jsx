@@ -1067,15 +1067,12 @@ const VideoLibrary = () => {
                     <div className="flex items-center gap-2 flex-shrink-0 md:hidden">
                       {session.videos.some(v => v.status === 'pending') && (
                         <>
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                            À feedback
-                          </span>
                           <button
                             type="button"
                             onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
                             disabled={markingSessionId === session.sessionId}
                             title="Marquer cette séance en complété"
-                            className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                            className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
                             style={{
                               backgroundColor: 'rgba(255, 255, 255, 0.05)',
                               color: 'rgba(250, 250, 250, 0.5)',
@@ -1096,11 +1093,14 @@ const VideoLibrary = () => {
                             }}
                           >
                             {markingSessionId === session.sessionId ? (
-                              <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                              <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
                             ) : (
-                              <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
+                              <CircleCheckIcon className="w-3.5 h-3.5 flex-shrink-0" />
                             )}
                           </button>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                            À feedback
+                          </span>
                         </>
                       )}
                       {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
@@ -1116,15 +1116,12 @@ const VideoLibrary = () => {
                 <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
                     <>
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                        À feedback
-                      </span>
                       <button
                         type="button"
                         onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
                         disabled={markingSessionId === session.sessionId}
                         title="Marquer cette séance en complété"
-                        className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                        className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           color: 'rgba(250, 250, 250, 0.5)',
@@ -1145,11 +1142,14 @@ const VideoLibrary = () => {
                         }}
                       >
                         {markingSessionId === session.sessionId ? (
-                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                          <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
                         ) : (
-                          <CircleCheckIcon className="w-4 h-4" />
+                          <CircleCheckIcon className="w-3.5 h-3.5" />
                         )}
                       </button>
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                        À feedback
+                      </span>
                     </>
                   )}
                   {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
@@ -1285,15 +1285,12 @@ const VideoLibrary = () => {
                             <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
                               {video.status === 'pending' && (
                                 <>
-                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                    À feedback
-                                  </span>
                                   <button
                                     type="button"
                                     onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
                                     disabled={markingVideoId === video.id}
                                     title="Marquer cet exercice en complété"
-                                    className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                    className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
                                     style={{
                                       backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                       color: 'rgba(250, 250, 250, 0.5)',
@@ -1314,11 +1311,14 @@ const VideoLibrary = () => {
                                     }}
                                   >
                                     {markingVideoId === video.id ? (
-                                      <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                      <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
                                     ) : (
-                                      <CircleCheckIcon className="w-4 h-4" />
+                                      <CircleCheckIcon className="w-3.5 h-3.5" />
                                     )}
                                   </button>
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                    À feedback
+                                  </span>
                                 </>
                               )}
                               {(video.status === 'completed' || video.status === 'reviewed') && (

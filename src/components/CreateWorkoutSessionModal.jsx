@@ -2234,64 +2234,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       }}
                                     >
                                       <Input
-                                        type={exercise.useRir ? "number" : "text"}
-                                        step={exercise.useRir ? "1" : undefined}
-                                        maxLength={exercise.useRir ? undefined : 5}
-                                        value={set.weight}
+                                        type="text"
+                                        maxLength={5}
+                                        value={set.weight ?? ''}
                                         onChange={(e) => {
-                                          let value = e.target.value;
-                                          if (exercise.useRir) {
-                                            // En mode RPE, seulement des nombres entiers (pas de virgule/point)
-                                            // Limité entre 1 et 10
-                                            value = value.replace(/[,.]/g, '');
-                                            if (value === '' || value === '-') {
-                                              handleSetChange(exerciseIndex, setIndex, 'weight', value);
-                                              return;
-                                            }
-                                            const numValue = parseInt(value, 10);
-                                            if (!isNaN(numValue) && numValue >= 1) {
-                                              // Limiter entre 1 et 10
-                                              const limitedValue = Math.min(10, Math.max(1, numValue));
-                                              handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue.toString());
-                                            } else if (numValue === 0 || value === '') {
-                                              // Allow empty but don't allow 0
-                                              if (value === '') {
-                                                handleSetChange(exerciseIndex, setIndex, 'weight', '');
-                                              }
-                                              // If user typed 0, don't update (invalid RPE)
-                                            }
-                                          } else {
-                                            // En mode Charge, permettre texte libre, limité à 5 caractères
-                                            const limitedValue = value.slice(0, 5);
-                                            handleSetChange(exerciseIndex, setIndex, 'weight', limitedValue);
-                                          }
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (exercise.useRir) {
-                                            const input = e.target;
-                                            const currentValue = input.value || '';
-
-                                            // Empêcher la saisie de virgule, point et autres caractères non numériques
-                                            if (e.key === ',' || e.key === '.' || e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
-                                              e.preventDefault();
-                                              return;
-                                            }
-
-                                            // Empêcher la saisie de 0 seul
-                                            if (e.key === '0' && currentValue === '') {
-                                              e.preventDefault();
-                                              return;
-                                            }
-
-                                            // Si l'input a déjà une valeur, empêcher d'ajouter des chiffres qui dépasseraient 10
-                                            if (/^\d$/.test(e.key) && currentValue !== '') {
-                                              const newValue = parseInt(currentValue + e.key, 10);
-                                              if (newValue > 10) {
-                                                e.preventDefault();
-                                                return;
-                                              }
-                                            }
-                                          }
+                                          // Charge et RPE : texte libre, limité à 5 caractères (comme la charge)
+                                          const value = e.target.value.slice(0, 5);
+                                          handleSetChange(exerciseIndex, setIndex, 'weight', value);
                                         }}
                                         placeholder=""
                                         className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${exercise.useRir ? '' : 'pr-6'} transition-colors`}

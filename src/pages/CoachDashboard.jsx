@@ -501,6 +501,9 @@ const CoachDashboard = () => {
           setSelectedStudentInitialTab('overview');
         }}
         initialTab={selectedStudentInitialTab}
+        initialStudentVideoCounts={studentVideoCounts}
+        initialStudentMessageCounts={studentMessageCounts}
+        initialStudentNextSessions={studentNextSessions}
       />
     );
   }
