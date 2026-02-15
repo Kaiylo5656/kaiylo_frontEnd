@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Upload, Video, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -152,7 +153,7 @@ const ExerciseEditor = ({
         throw new Error('Video upload failed');
       }
     } catch (error) {
-      console.error('Error uploading video:', error);
+      logger.error('Error uploading video:', error);
       setVideoError('Failed to upload video. Please try again.');
       return null;
     } finally {
@@ -183,7 +184,7 @@ const ExerciseEditor = ({
       
       await onSave(exercise.id, exerciseData);
     } catch (error) {
-      console.error('Error saving exercise:', error);
+      logger.error('Error saving exercise:', error);
     } finally {
       setLoading(false);
     }

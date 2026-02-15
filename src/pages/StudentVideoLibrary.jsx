@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -105,7 +106,7 @@ const StudentVideoLibrary = () => {
         setVideos(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching student videos:', error);
+      logger.error('Error fetching student videos:', error);
     } finally {
       setLoading(false);
     }
@@ -116,7 +117,7 @@ const StudentVideoLibrary = () => {
     try {
       const token = await getAuthToken();
       
-      console.log('🔍 Fetching coach resources for student...');
+      logger.debug('🔍 Fetching coach resources for student...');
       
       // Fetch both resources and folders
       const [resourcesResponse, foldersResponse] = await Promise.all([
@@ -128,21 +129,21 @@ const StudentVideoLibrary = () => {
         })
       ]);
 
-      console.log('📁 Resources response:', resourcesResponse.data);
-      console.log('📂 Folders response:', foldersResponse.data);
+      logger.debug('📁 Resources response:', resourcesResponse.data);
+      logger.debug('📂 Folders response:', foldersResponse.data);
 
       if (resourcesResponse.data.success) {
         setCoachResources(resourcesResponse.data.data);
-        console.log('✅ Set coach resources:', resourcesResponse.data.data);
+        logger.debug('✅ Set coach resources:', resourcesResponse.data.data);
       }
       
       if (foldersResponse.data.success) {
         setFolders(foldersResponse.data.data);
-        console.log('✅ Set folders:', foldersResponse.data.data);
+        logger.debug('✅ Set folders:', foldersResponse.data.data);
       }
     } catch (error) {
-      console.error('❌ Error fetching coach resources:', error);
-      console.error('❌ Error details:', error.response?.data);
+      logger.error('❌ Error fetching coach resources:', error);
+      logger.error('❌ Error details:', error.response?.data);
     } finally {
       setResourcesLoading(false);
     }

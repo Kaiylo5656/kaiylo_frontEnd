@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useMemo, useEffect } from 'react';
 import { format, addDays, startOfWeek, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -32,7 +33,7 @@ const CoachWeeklySchedule = () => {
         setSessions(data.assignments || []);
       }
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      logger.error('Error fetching sessions:', error);
     }
   };
 
@@ -72,10 +73,10 @@ const CoachWeeklySchedule = () => {
         await fetchSessions();
         setIsCreateModalOpen(false);
       } else {
-        console.error('Failed to create session:', await response.json());
+        logger.error('Failed to create session:', await response.json());
       }
     } catch (error) {
-      console.error('Error creating session:', error);
+      logger.error('Error creating session:', error);
     }
   };
 

@@ -1,3 +1,4 @@
+import logger from './utils/logger';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { StudentPlanningProvider } from './contexts/StudentPlanningContext';
@@ -72,7 +73,7 @@ const ProtectedRoute = ({ children, allowedRoles = [], excludeLayout = false }) 
     );
   } catch (error) {
     // If useAuth fails, it means AuthProvider is not available
-    console.error('AuthProvider not available:', error);
+    logger.error('AuthProvider not available:', error);
     return <LoadingSpinner />;
   }
 };

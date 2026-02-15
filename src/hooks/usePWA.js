@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect, useCallback } from 'react';
 
 const usePWA = () => {
@@ -10,14 +11,14 @@ const usePWA = () => {
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
-      console.log('👍 beforeinstallprompt event fired');
+      logger.debug('👍 beforeinstallprompt event fired');
       setDeferredPrompt(e);
       setShowInstallPrompt(true); // Show your custom install button/modal
     };
 
     // Listen for the appinstalled event
     const handleAppInstalled = () => {
-      console.log('🎉 PWA was successfully installed');
+      logger.debug('🎉 PWA was successfully installed');
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
     };
@@ -31,7 +32,7 @@ const usePWA = () => {
       navigator.serviceWorker.getRegistration().then(registration => {
         if (registration) {
           registration.addEventListener('updatefound', () => {
-            console.log('🆕 New service worker is waiting to activate!');
+            logger.debug('🆕 New service worker is waiting to activate!');
             setNeedsUpdate(true);
             setUpdateWorker(registration);
           });
@@ -49,7 +50,7 @@ const usePWA = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to the install prompt: ${outcome}`);
+      logger.debug(`User response to the install prompt: ${outcome}`);
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
     }

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useRef, useCallback } from 'react';
 import * as tus from 'tus-js-client';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +46,7 @@ export const useVideoUpload = (): UseVideoUploadResult => {
         },
         chunkSize: 6 * 1024 * 1024, // 6MB chunks
         onError: (err) => {
-          console.error('TUS Upload failed:', err);
+          logger.error('TUS Upload failed:', err);
           setError('Upload failed: ' + err.message);
           setStatus('FAILED');
         },
@@ -69,7 +70,7 @@ export const useVideoUpload = (): UseVideoUploadResult => {
             );
             setStatus('READY'); // Or 'PROCESSING' if we want to show that state
           } catch (confirmErr) {
-            console.error('Failed to confirm upload:', confirmErr);
+            logger.error('Failed to confirm upload:', confirmErr);
             setError('Upload completed but confirmation failed.');
             setStatus('FAILED');
           }
@@ -81,7 +82,7 @@ export const useVideoUpload = (): UseVideoUploadResult => {
       setStatus('UPLOADING');
 
     } catch (err) {
-      console.error('Failed to initialize TUS upload:', err);
+      logger.error('Failed to initialize TUS upload:', err);
       setError('Failed to start upload.');
       setStatus('FAILED');
     }
@@ -110,7 +111,7 @@ export const useVideoUpload = (): UseVideoUploadResult => {
       await startTusUpload(file, { videoId, bucket, objectName, uploadUrl });
 
     } catch (err) {
-      console.error('Upload flow failed:', err);
+      logger.error('Upload flow failed:', err);
       setError(err instanceof Error ? err.message : 'Upload initialization failed');
       setStatus('FAILED');
     }

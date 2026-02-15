@@ -1,3 +1,4 @@
+import logger from './logger';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -18,7 +19,7 @@ export const formatRelative = (date) => {
       locale: fr 
     });
   } catch (error) {
-    console.error('Error formatting relative date:', error);
+    logger.error('Error formatting relative date:', error);
     return 'Unknown';
   }
 };
@@ -37,7 +38,7 @@ export const formatAbsolute = (date) => {
     
     return format(dateObj, 'PPP p', { locale: fr });
   } catch (error) {
-    console.error('Error formatting absolute date:', error);
+    logger.error('Error formatting absolute date:', error);
     return 'Unknown';
   }
 };
@@ -86,7 +87,7 @@ export const copyToClipboard = async (text) => {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (error) {
-    console.error('Failed to copy to clipboard:', error);
+    logger.error('Failed to copy to clipboard:', error);
     return false;
   }
 };

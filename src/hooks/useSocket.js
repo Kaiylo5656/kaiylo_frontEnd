@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { getSocketBaseUrl, connectionManager } from '../config/api';
+import logger from '../utils/logger';
 
 const useSocket = () => {
   const { getAuthToken, user } = useAuth();
@@ -15,12 +16,12 @@ const useSocket = () => {
   const initializeSocket = useCallback(async () => {
     // Prevent multiple simultaneous initializations
     if (initializingRef.current) {
-      console.log('🔌 Socket initialization already in progress. Skipping.');
+      logger.debug('🔌 Socket initialization already in progress. Skipping.');
       return;
     }
 
     if (socketRef.current && (socketRef.current.connected || socketRef.current.connecting)) {
-      console.log('🔌 Socket already initialized and active. Skipping re-initialization.');
+      logger.debug('🔌 Socket already initialized and active. Skipping re-initialization.');
       return;
     }
 
@@ -28,7 +29,7 @@ const useSocket = () => {
 
     // Clean up any existing socket
     if (socketRef.current) {
-      console.log('🔌 Cleaning up existing socket connection...');
+      logger.debug('🔌 Cleaning up existing socket connection...');
       socketRef.current.removeAllListeners();
       if (socketRef.current.connected) {
         socketRef.current.disconnect();
@@ -39,12 +40,12 @@ const useSocket = () => {
     try {
       const token = await getAuthToken();
       if (!token) {
-        console.error('No auth token available for WebSocket connection');
+        logger.error('No auth token available for WebSocket connection');
         setConnectionError('No authentication token available');
         return;
       }
 
-      console.log('🔌 Initializing WebSocket connection...');
+      logger.debug('🔌 Initializing WebSocket connection...');
       const socketUrl = connectionManager.getSocketUrl() || getSocketBaseUrl();
       // Check if token looks like a JWT
       const tokenParts = token.split('.');
@@ -54,11 +55,11 @@ const useSocket = () => {
           
           // If token is expired, try to refresh it
           if (payload.exp * 1000 < Date.now()) {
-            console.warn('⚠️ Token is expired, attempting to refresh...');
+            logger.warn('⚠️ Token is expired, attempting to refresh...');
             // The token refresh will be handled by the error handler
           }
         } catch (e) {
-          console.warn('🔌 Could not parse token payload:', e.message);
+          logger.warn('🔌 Could not parse token payload:', e.message);
         }
       }
       
@@ -72,12 +73,12 @@ const useSocket = () => {
         });
         
         if (testResponse.ok) {
-          console.log('✅ Token is valid for API calls');
+          logger.debug('✅ Token is valid for API calls');
         } else {
-          console.warn('⚠️ Token validation failed:', testResponse.status);
+          logger.warn('⚠️ Token validation failed:', testResponse.status);
         }
       } catch (testError) {
-        console.warn('⚠️ Token validation test failed:', testError.message);
+        logger.warn('⚠️ Token validation test failed:', testError.message);
       }
 
       const newSocket = io(socketUrl, {
@@ -111,9 +112,9 @@ const useSocket = () => {
 
       // Set up event listeners before connecting
       newSocket.on('connect', () => {
-        console.log('✅ Socket connected:', newSocket.id);
-        console.log('✅ Transport:', newSocket.io.engine.transport.name);
-        console.log('✅ Connection details:', {
+        logger.debug('✅ Socket connected:', newSocket.id);
+        logger.debug('✅ Transport:', newSocket.io.engine.transport.name);
+        logger.debug('✅ Connection details:', {
           id: newSocket.id,
           connected: newSocket.connected,
           transport: newSocket.io.engine.transport.name,
@@ -124,55 +125,55 @@ const useSocket = () => {
         
         // DEBUG: Log all incoming socket events
         newSocket.onAny((event, ...args) => {
-          console.log('[WS IN]', event, args);
+          logger.debug('[WS IN]', event, args);
         });
         
         // Upgrade event listener (disabled but kept for debugging if re-enabled)
         // newSocket.io.engine.on('upgrade', () => {
-        //   console.log('✅ Transport upgraded to:', newSocket.io.engine.transport.name);
+        //   logger.debug('✅ Transport upgraded to:', newSocket.io.engine.transport.name);
         // });
       });
 
       newSocket.on('disconnect', (reason) => {
-        console.log('❌ WebSocket disconnected:', reason);
+        logger.debug('❌ WebSocket disconnected:', reason);
         setIsConnected(false);
         
         // If it's a client-side disconnect, don't try to reconnect immediately
         if (reason === 'io client disconnect') {
-          console.log('🔌 Client initiated disconnect, not reconnecting');
+          logger.debug('🔌 Client initiated disconnect, not reconnecting');
         }
       });
 
       newSocket.on('connect_error', (error) => {
         // Timeout errors are normal - Socket.IO will automatically retry
         if (error.message === 'timeout') {
-          console.log('⏳ Socket connection timeout (will retry automatically)');
+          logger.debug('⏳ Socket connection timeout (will retry automatically)');
           return;
         }
         
         // HTTP 400 errors during connection are common - Socket.IO will retry
         if (error.type === 'TransportError' || error.message.includes('Bad Request') || error.message.includes('400')) {
-          console.log('⏳ Socket connection attempt failed (will retry automatically)');
+          logger.debug('⏳ Socket connection attempt failed (will retry automatically)');
           return;
         }
         
         // Only handle authentication errors specifically
         if (error.message.includes('Authentication error') || error.message.includes('Invalid token') || error.message.includes('NO_TOKEN') || error.message.includes('INVALID_TOKEN')) {
-          console.error('❌ Authentication failed - token might be invalid or expired');
+          logger.error('❌ Authentication failed - token might be invalid or expired');
           setConnectionError(`Authentication failed: ${error.message}`);
         } else if (error.message.includes('WebSocket is closed before the connection is established')) {
-          console.log('⚠️ WebSocket connection closed early - Socket.IO will fallback to polling');
+          logger.debug('⚠️ WebSocket connection closed early - Socket.IO will fallback to polling');
           // Socket.IO will automatically fallback to polling, don't trigger re-initialization
           // Just log and let the reconnection logic handle it
         } else {
           // For other errors, log as info (not warning/error) since Socket.IO will retry
-          console.log('⏳ Socket connection error (will attempt reconnection):', error.message);
+          logger.debug('⏳ Socket connection error (will attempt reconnection):', error.message);
         }
         // Don't set isConnected to false here - let reconnection handle it
       });
 
       newSocket.on('reconnect', (attemptNumber) => {
-        console.log(`✅ WebSocket reconnected after ${attemptNumber} attempts`);
+        logger.debug(`✅ WebSocket reconnected after ${attemptNumber} attempts`);
         setIsConnected(true);
         setConnectionError(null);
       });
@@ -180,11 +181,11 @@ const useSocket = () => {
       newSocket.on('reconnect_error', (error) => {
         // Timeout errors during reconnection are normal
         if (error.message === 'timeout') {
-          console.log('⏳ Socket reconnection timeout (will retry)');
+          logger.debug('⏳ Socket reconnection timeout (will retry)');
           return;
         }
         // Only log non-timeout reconnection errors
-        console.warn('⚠️ Socket reconnection error:', error.message);
+        logger.warn('⚠️ Socket reconnection error:', error.message);
         // Only set connection error for non-timeout errors
         if (error.message !== 'timeout') {
         setConnectionError(error.message);
@@ -192,13 +193,13 @@ const useSocket = () => {
       });
 
       newSocket.on('reconnect_failed', () => {
-        console.error('❌ WebSocket reconnection failed after all attempts');
-        console.log('🔄 Attempting fallback connection with different transport...');
+        logger.error('❌ WebSocket reconnection failed after all attempts');
+        logger.debug('🔄 Attempting fallback connection with different transport...');
         
         // Try a fallback connection with different settings
         setTimeout(() => {
           if (socketRef.current && !socketRef.current.connected) {
-            console.log('🔄 Creating fallback socket connection...');
+            logger.debug('🔄 Creating fallback socket connection...');
             const fallbackSocket = io(socketUrl, {
               auth: { token },
               transports: ['polling'], // Use polling as fallback (more reliable)
@@ -209,7 +210,7 @@ const useSocket = () => {
             });
             
             fallbackSocket.on('connect', () => {
-              console.log('✅ Fallback connection successful');
+              logger.debug('✅ Fallback connection successful');
               // Replace the current socket with the working one
               if (socketRef.current) {
                 socketRef.current.disconnect();
@@ -220,7 +221,7 @@ const useSocket = () => {
             });
             
             fallbackSocket.on('connect_error', (fallbackError) => {
-              console.error('❌ Fallback connection also failed:', fallbackError.message);
+              logger.error('❌ Fallback connection also failed:', fallbackError.message);
               setConnectionError('Failed to establish any connection to server');
               setIsConnected(false);
             });
@@ -233,7 +234,7 @@ const useSocket = () => {
       // Add connection state monitoring
       const connectionMonitor = setInterval(() => {
         if (newSocket) {
-          console.log('🔌 Connection state:', {
+          logger.debug('🔌 Connection state:', {
             connected: newSocket.connected,
             connecting: newSocket.connecting,
             disconnected: newSocket.disconnected,
@@ -252,7 +253,7 @@ const useSocket = () => {
       initializingRef.current = false;
 
     } catch (error) {
-      console.error('Error initializing WebSocket:', error);
+      logger.error('Error initializing WebSocket:', error);
       setConnectionError(error.message);
       // Reset initialization flag on error
       initializingRef.current = false;
@@ -277,7 +278,7 @@ const useSocket = () => {
       reinitializeTimeoutRef.current = setTimeout(() => {
         // Double-check we're not already initializing or connected
         if (initializingRef.current) {
-          console.log('🔌 Initialization already in progress, skipping...');
+          logger.debug('🔌 Initialization already in progress, skipping...');
           return;
         }
 
@@ -285,10 +286,10 @@ const useSocket = () => {
           // Only re-initialize if socket is truly disconnected (not connecting either)
           const socket = socketRef.current;
           if (!socket || (!socket.connected && !socket.connecting)) {
-            console.log('🔌 Socket not connected, re-initializing...');
+            logger.debug('🔌 Socket not connected, re-initializing...');
             initializeSocket();
           } else {
-            console.log('🔌 Socket is already connected or connecting, skipping re-initialization');
+            logger.debug('🔌 Socket is already connected or connecting, skipping re-initialization');
           }
         }
       }, 500); // Increased delay to prevent loops
@@ -297,7 +298,7 @@ const useSocket = () => {
     if (!user) {
        // User logged out, clean up socket immediately
       if (socketRef.current) {
-        console.log('🔌 User logged out, cleaning up socket...');
+        logger.debug('🔌 User logged out, cleaning up socket...');
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -308,7 +309,7 @@ const useSocket = () => {
       // User is present, initialize socket once (don't call handleConnectionChange immediately)
       // Only initialize if socket doesn't exist or is disconnected
       if (!socketRef.current || (!socketRef.current.connected && !socketRef.current.connecting && !initializingRef.current)) {
-        console.log('🔌 User authenticated, initializing socket...');
+        logger.debug('🔌 User authenticated, initializing socket...');
         initializeSocket();
       }
       
@@ -324,7 +325,7 @@ const useSocket = () => {
         reinitializeTimeoutRef.current = null;
       }
       if (socketRef.current) {
-        console.log('🔌 Disconnecting WebSocket on component unmount...');
+        logger.debug('🔌 Disconnecting WebSocket on component unmount...');
         socketRef.current.removeAllListeners();
         // Check if socket is already disconnected or closed to avoid "WebSocket is closed" errors
         if (socketRef.current.connected) {
@@ -456,7 +457,7 @@ const useSocket = () => {
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
-      console.log('🔌 Manually disconnecting WebSocket...');
+      logger.debug('🔌 Manually disconnecting WebSocket...');
       socketRef.current.removeAllListeners();
       if (socketRef.current.connected) {
         socketRef.current.disconnect();
@@ -479,7 +480,7 @@ const useSocket = () => {
   }, []);
 
   const reconnect = useCallback(() => {
-    console.log('🔄 Manually reconnecting WebSocket...');
+    logger.debug('🔄 Manually reconnecting WebSocket...');
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
       if (socketRef.current.connected) {

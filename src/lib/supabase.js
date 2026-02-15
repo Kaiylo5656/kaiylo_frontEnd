@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client with singleton pattern to avoid multiple instances
@@ -5,10 +6,10 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Supabase environment variables are not defined!');
-  console.error('Please create a .env file in the frontend directory with:');
-  console.error('VITE_SUPABASE_URL=your-supabase-url');
-  console.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
+  logger.error('❌ Supabase environment variables are not defined!');
+  logger.error('Please create a .env file in the frontend directory with:');
+  logger.error('VITE_SUPABASE_URL=your-supabase-url');
+  logger.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
 }
 
 // Singleton pattern: s'assurer qu'il n'y a qu'une seule instance Supabase
@@ -33,7 +34,7 @@ const getSupabaseClient = () => {
   // - localStorage for sessions
   // - sessionStorage for PKCE code verifier
   
-  console.log('✅ Initializing Supabase with default storage (PKCE compatible)');
+  logger.debug('✅ Initializing Supabase with default storage (PKCE compatible)');
   
   supabaseInstance = createClient(
     supabaseUrl || 'https://placeholder.supabase.co',

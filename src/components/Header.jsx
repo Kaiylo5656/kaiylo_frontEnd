@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
@@ -148,7 +149,7 @@ const Header = () => {
           setNotifications(transformedNotifications);
         }
       } catch (error) {
-        console.error('❌ Error loading notifications:', error.message);
+        logger.error('❌ Error loading notifications:', error.message);
       }
     };
 
@@ -287,7 +288,7 @@ const Header = () => {
       } catch (error) {
         // Only log if it's not a 404 (404 means notification doesn't exist in DB, which is OK for WebSocket notifications)
         if (error.response?.status !== 404) {
-          console.error('Error marking notification as read:', error);
+          logger.error('Error marking notification as read:', error);
         }
         // Still update local state to mark as read visually
         setNotifications(prev => 
@@ -318,7 +319,7 @@ const Header = () => {
           setIsVideoModalOpen(true);
         }
       } catch (error) {
-        console.error('Error opening video:', error);
+        logger.error('Error opening video:', error);
         if (error.response?.status === 404) {
           alert('La vidéo associée à cette notification n\'existe plus ou n\'est pas accessible.');
         } else {
@@ -371,7 +372,7 @@ const Header = () => {
         prev.map(n => ({ ...n, read: true }))
       );
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      logger.error('Error marking all notifications as read:', error);
       // Still update local state to mark as read visually
       setNotifications(prev => 
         prev.map(n => ({ ...n, read: true }))
@@ -427,7 +428,7 @@ const Header = () => {
         setNotifications(prev => 
           prev.map(n => n.id === notif.id ? { ...n, read: !newReadState } : n)
         );
-        console.error('Error toggling notification read state:', error);
+        logger.error('Error toggling notification read state:', error);
       }
     }
   };

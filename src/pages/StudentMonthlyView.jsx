@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -175,7 +176,7 @@ const StudentMonthlyView = () => {
       const data = await response.json();
       setAssignments(data.data || []);
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      logger.error('Error fetching assignments:', error);
     } finally {
       setLoading(false);
     }

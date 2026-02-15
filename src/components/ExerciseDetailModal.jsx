@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
@@ -40,32 +41,32 @@ const ExerciseDetailModal = ({
       setError(null);
       setIsDeleted(false);
       
-      console.log('🔍 Fetching exercise details for ID:', exerciseId);
+      logger.debug('🔍 Fetching exercise details for ID:', exerciseId);
       const token = localStorage.getItem('authToken');
-      console.log('🔑 Token exists:', !!token);
+      logger.debug('🔑 Token exists:', !!token);
       
       const url = buildApiUrl(`/exercises/${exerciseId}`);
-      console.log('🌐 API URL:', url);
+      logger.debug('🌐 API URL:', url);
       
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      console.log('📡 Response received:', response.data);
+      logger.debug('📡 Response received:', response.data);
       
       if (response.data.success) {
         setExercise(response.data.exercise);
-        console.log('✅ Exercise loaded successfully:', response.data.exercise);
-        console.log('🔍 Available fields:', Object.keys(response.data.exercise));
-        console.log('🔍 Created at:', response.data.exercise.created_at);
-        console.log('🔍 Updated at:', response.data.exercise.updated_at);
+        logger.debug('✅ Exercise loaded successfully:', response.data.exercise);
+        logger.debug('🔍 Available fields:', Object.keys(response.data.exercise));
+        logger.debug('🔍 Created at:', response.data.exercise.created_at);
+        logger.debug('🔍 Updated at:', response.data.exercise.updated_at);
       } else {
         throw new Error('Failed to fetch exercise details');
       }
     } catch (err) {
-      console.error('❌ Error fetching exercise details:', err);
-      console.error('❌ Error response:', err.response?.data);
-      console.error('❌ Error status:', err.response?.status);
+      logger.error('❌ Error fetching exercise details:', err);
+      logger.error('❌ Error response:', err.response?.data);
+      logger.error('❌ Error status:', err.response?.status);
       if (err.response?.status === 404) {
         setIsDeleted(true);
       } else {

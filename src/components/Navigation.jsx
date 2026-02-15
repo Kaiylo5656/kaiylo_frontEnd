@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -153,7 +154,7 @@ const Navigation = () => {
         setUnreadCount(totalUnread);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      logger.error('Error fetching unread count:', error);
     }
   };
 
@@ -231,7 +232,7 @@ const Navigation = () => {
   };
 
   const handleClientsClick = () => {
-    console.log('🔍 Clients button clicked!');
+    logger.debug('🔍 Clients button clicked!');
     // Navigate to coach dashboard with a reset parameter
     navigate('/coach/dashboard?reset=true');
   };

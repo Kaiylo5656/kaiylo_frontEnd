@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { buildApiUrl } from '../config/api';
@@ -34,7 +35,7 @@ export const StudentPlanningProvider = ({ children }) => {
       setAssignments(data.data || []);
       setLastFetchAt(Date.now());
     } catch (err) {
-      console.error('Error fetching assignments:', err);
+      logger.error('Error fetching assignments:', err);
     } finally {
       setAssignmentsLoading(false);
     }
@@ -53,7 +54,7 @@ export const StudentPlanningProvider = ({ children }) => {
       const data = await response.json();
       setPlanningBlocks(data.success && Array.isArray(data.data) ? data.data : []);
     } catch (err) {
-      console.error('Error fetching planning blocks:', err);
+      logger.error('Error fetching planning blocks:', err);
       setPlanningBlocks([]);
     } finally {
       setPlanningBlocksLoading(false);

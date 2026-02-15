@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,7 +83,7 @@ const BottomNavBar = ({ relative = false }) => {
         setUnreadCount(totalUnread);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      logger.error('Error fetching unread count:', error);
     }
   };
 

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { buildApiUrl } from '../config/api';
@@ -63,7 +64,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
       setShowSuccessModal(true);
 
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      logger.error('Error submitting feedback:', error);
       alert('Erreur lors de l\'envoi du feedback. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);

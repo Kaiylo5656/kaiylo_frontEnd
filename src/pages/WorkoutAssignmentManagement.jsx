@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,7 +35,7 @@ const WorkoutAssignmentManagement = () => {
 
   // Fetch initial data when component mounts
   useEffect(() => {
-    console.log('🔍 WorkoutAssignmentManagement component mounted. Fetching initial data...');
+    logger.debug('🔍 WorkoutAssignmentManagement component mounted. Fetching initial data...');
     fetchStudents();
     fetchWorkoutSessions();
     fetchAssignments();
@@ -43,19 +44,19 @@ const WorkoutAssignmentManagement = () => {
   // Fetch students associated with the coach
   const fetchStudents = async () => {
     try {
-      console.log('📚 Fetching students...');
+      logger.debug('📚 Fetching students...');
       setLoading(true);
       const response = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`, {
         headers: getAuthHeaders()
       });
-      console.log('📚 Students API response:', response.data);
+      logger.debug('📚 Students API response:', response.data);
       if (response.data.success) {
         setStudents(response.data.data);
-        console.log('✅ Fetched students:', response.data.data);
+        logger.debug('✅ Fetched students:', response.data.data);
         // Debug each student's data structure
         response.data.data.forEach((student, index) => {
-          console.log(`Student ${index + 1} full data:`, student);
-          console.log(`Student ${index + 1} fields:`, {
+          logger.debug(`Student ${index + 1} full data:`, student);
+          logger.debug(`Student ${index + 1} fields:`, {
             id: student.id,
             raw_user_meta_data: student.raw_user_meta_data,
             user_metadata: student.user_metadata,
@@ -65,11 +66,11 @@ const WorkoutAssignmentManagement = () => {
           });
         });
       } else {
-        console.warn('⚠️ Students API call was not successful:', response.data.message);
+        logger.warn('⚠️ Students API call was not successful:', response.data.message);
         setError(response.data.message || 'Failed to fetch students');
       }
     } catch (error) {
-      console.error('❌ Error fetching students:', error);
+      logger.error('❌ Error fetching students:', error);
       setError('Failed to fetch students');
     } finally {
       setLoading(false);
@@ -79,12 +80,12 @@ const WorkoutAssignmentManagement = () => {
   // Fetch workout sessions owned by the coach
   const fetchWorkoutSessions = async () => {
     try {
-      console.log('💪 Fetching workout sessions...');
+      logger.debug('💪 Fetching workout sessions...');
       setLoading(true);
               const response = await axios.get(`${getApiBaseUrlWithApi()}/workout-sessions`, {
         headers: getAuthHeaders()
       });
-      console.log('💪 Workout Sessions API response:', response.data);
+      logger.debug('💪 Workout Sessions API response:', response.data);
       // The sessions are directly in response.data.sessions
       if (response.data.sessions) {
         // Filter only published sessions
@@ -92,13 +93,13 @@ const WorkoutAssignmentManagement = () => {
           session => session.status === 'published'
         );
         setWorkoutSessions(publishedSessions);
-        console.log('✅ Fetched published workout sessions:', publishedSessions);
+        logger.debug('✅ Fetched published workout sessions:', publishedSessions);
       } else {
-        console.warn('⚠️ Workout Sessions API call was not successful:', response.data.message);
+        logger.warn('⚠️ Workout Sessions API call was not successful:', response.data.message);
         setError(response.data.message || 'Failed to fetch workout sessions');
       }
     } catch (error) {
-      console.error('❌ Error fetching workout sessions:', error);
+      logger.error('❌ Error fetching workout sessions:', error);
       setError('Failed to fetch workout sessions');
     } finally {
       setLoading(false);
@@ -116,7 +117,7 @@ const WorkoutAssignmentManagement = () => {
         setAssignments(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      logger.error('Error fetching assignments:', error);
       setError('Failed to fetch assignments');
     } finally {
       setLoading(false);
@@ -162,7 +163,7 @@ const WorkoutAssignmentManagement = () => {
         fetchAssignments();
       }
     } catch (error) {
-      console.error('Error creating assignment:', error);
+      logger.error('Error creating assignment:', error);
       setError(error.response?.data?.message || 'Failed to create assignment');
     } finally {
       setLoading(false);
@@ -186,7 +187,7 @@ const WorkoutAssignmentManagement = () => {
         fetchAssignments();
       }
     } catch (error) {
-      console.error('Error deleting assignment:', error);
+      logger.error('Error deleting assignment:', error);
       setError('Failed to delete assignment');
     } finally {
       setLoading(false);

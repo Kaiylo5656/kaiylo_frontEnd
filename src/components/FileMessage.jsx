@@ -1,4 +1,5 @@
 // frontend/src/components/FileMessage.jsx
+import logger from '../utils/logger';
 import React, { useState } from 'react';
 import VoiceMessage from './VoiceMessage';
 
@@ -35,7 +36,7 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
 
   const handleDownload = async () => {
     if (!message.file_url) {
-      console.error('No file URL available');
+      logger.error('No file URL available');
       return;
     }
 
@@ -59,7 +60,7 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      console.error('Download failed:', error);
+      logger.error('Download failed:', error);
       // Fallback: open in new tab
       window.open(message.file_url, '_blank');
     }

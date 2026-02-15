@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,7 +67,7 @@ const CoachDashboard = () => {
       // Set up WebSocket listeners for real-time updates
       if (socket) {
         const handleRealtimeUpdate = (data) => {
-          console.log('WebSocket update received:', data);
+          logger.debug('WebSocket update received:', data);
           fetchDashboardCounts();
         };
         
@@ -74,7 +75,7 @@ const CoachDashboard = () => {
         socket.on('new_message', handleRealtimeUpdate);
         socket.on('video_uploaded', handleRealtimeUpdate);
         socket.on('video_feedback_updated', handleRealtimeUpdate);
-        console.log('WebSocket listeners for dashboard counts attached.');
+        logger.debug('WebSocket listeners for dashboard counts attached.');
       }
 
       // Cleanup function
@@ -85,7 +86,7 @@ const CoachDashboard = () => {
           socket.off('new_message', fetchDashboardCounts);
           socket.off('video_uploaded', fetchDashboardCounts);
           socket.off('video_feedback_updated', fetchDashboardCounts);
-          console.log('WebSocket listeners for dashboard counts removed.');
+          logger.debug('WebSocket listeners for dashboard counts removed.');
         }
       };
     }
@@ -94,9 +95,9 @@ const CoachDashboard = () => {
   // Check for reset parameter and reset state when present
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    console.log('🔍 CoachDashboard URL params:', location.search);
+    logger.debug('🔍 CoachDashboard URL params:', location.search);
     if (urlParams.get('reset') === 'true') {
-      console.log('🔍 Resetting student selection!');
+      logger.debug('🔍 Resetting student selection!');
       setSelectedStudent(null);
       setSelectedStudentInitialTab('overview');
       // Clean up the URL by removing the reset parameter
@@ -194,16 +195,16 @@ const CoachDashboard = () => {
   const fetchCoachData = async () => {
     setLoading(true);
     try {
-      console.log('🔍 Fetching students from:', `${getApiBaseUrlWithApi()}/coach/students`);
+      logger.debug('🔍 Fetching students from:', `${getApiBaseUrlWithApi()}/coach/students`);
       
       // Use the global axios instance which handles headers via AuthContext
       const studentsResponse = await axios.get(`${getApiBaseUrlWithApi()}/coach/students`);
       
-      console.log('🔍 Full API response:', studentsResponse.data);
-      console.log('🔍 Response status:', studentsResponse.status);
-      console.log('🔍 Success field:', studentsResponse.data.success);
-      console.log('🔍 Data field:', studentsResponse.data.data);
-      console.log('🔍 Data length:', studentsResponse.data.data?.length);
+      logger.debug('🔍 Full API response:', studentsResponse.data);
+      logger.debug('🔍 Response status:', studentsResponse.status);
+      logger.debug('🔍 Success field:', studentsResponse.data.success);
+      logger.debug('🔍 Data field:', studentsResponse.data.data);
+      logger.debug('🔍 Data length:', studentsResponse.data.data?.length);
       
       if (studentsResponse.data.success && studentsResponse.data.data) {
         // Transform the real student data to match our UI format
@@ -244,7 +245,7 @@ const CoachDashboard = () => {
         });
         
         setStudents(transformedStudents);
-        console.log('✅ Fetched real students:', transformedStudents);
+        logger.debug('✅ Fetched real students:', transformedStudents);
 
         // Charger les données de tri AVANT d'afficher la liste pour éviter le réordonnancement
         if (transformedStudents.length > 0) {
@@ -254,14 +255,14 @@ const CoachDashboard = () => {
           ]);
         }
       } else {
-        console.log('⚠️ No students found or API returned unexpected format');
-        console.log('🔍 Available fields in response:', Object.keys(studentsResponse.data));
+        logger.debug('⚠️ No students found or API returned unexpected format');
+        logger.debug('🔍 Available fields in response:', Object.keys(studentsResponse.data));
         setStudents([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching coach data:', error);
-      console.error('❌ Error details:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
+      logger.error('❌ Error fetching coach data:', error);
+      logger.error('❌ Error details:', error.response?.data);
+      logger.error('❌ Error status:', error.response?.status);
       // Show empty state instead of mock data
       setStudents([]);
     } finally {
@@ -271,13 +272,13 @@ const CoachDashboard = () => {
   
   const fetchDashboardCounts = async () => {
     try {
-      console.log('Fetching dashboard counts...');
+      logger.debug('Fetching dashboard counts...');
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/coach/dashboard-counts`
       );
 
       if (response.data.success) {
-        console.log('Fetched counts:', response.data.data);
+        logger.debug('Fetched counts:', response.data.data);
         // Normalize counts to ensure they are numbers
         const videoCounts = response.data.data.videoCounts || {};
         const messageCounts = response.data.data.messageCounts || {};
@@ -304,7 +305,7 @@ const CoachDashboard = () => {
         setStudentMessageCounts(normalizedMessageCounts);
       }
     } catch (error) {
-      console.error('Error fetching dashboard counts:', error);
+      logger.error('Error fetching dashboard counts:', error);
     }
   };
 
@@ -349,14 +350,14 @@ const CoachDashboard = () => {
               }
             }
           } catch (error) {
-            console.error(`Error fetching sessions for student ${student.id}:`, error);
+            logger.error(`Error fetching sessions for student ${student.id}:`, error);
           }
         })
       );
 
       setStudentNextSessions(nextSessions);
     } catch (error) {
-      console.error('Error fetching next sessions:', error);
+      logger.error('Error fetching next sessions:', error);
     }
   };
 
@@ -407,7 +408,7 @@ const CoachDashboard = () => {
       // Rafraîchir les données
       fetchCoachData();
     } catch (error) {
-      console.error('Error deleting students:', error);
+      logger.error('Error deleting students:', error);
       setError('Erreur lors de la suppression des étudiants');
     } finally {
       setIsDeletingStudents(false);
@@ -430,7 +431,7 @@ const CoachDashboard = () => {
 
   const handleInviteSent = (invitationData) => {
     // Optionally refresh the students list or show a success message
-    console.log('Invitation sent:', invitationData);
+    logger.debug('Invitation sent:', invitationData);
     // You could add a toast notification here
   };
 

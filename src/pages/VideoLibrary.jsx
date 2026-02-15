@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
@@ -250,8 +251,8 @@ const VideoLibrary = () => {
       status: resource.status // Include status for modal
     };
     
-    console.log('🎬 Coach resource clicked:', resource);
-    console.log('🎬 Mapped resource:', mappedResource);
+    logger.debug('🎬 Coach resource clicked:', resource);
+    logger.debug('🎬 Mapped resource:', mappedResource);
     
     setSelectedCoachResource(mappedResource);
     setIsCoachResourceModalOpen(true);
@@ -566,7 +567,7 @@ const VideoLibrary = () => {
     
     if (processingResourcesCount === 0) return;
 
-    console.log(`🔄 Auto-refreshing coach resources (${processingResourcesCount} in processing)...`);
+    logger.debug(`🔄 Auto-refreshing coach resources (${processingResourcesCount} in processing)...`);
     
     // Refresh every 3 seconds if there are processing videos
     const interval = setInterval(() => {

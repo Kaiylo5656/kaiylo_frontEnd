@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
@@ -94,7 +95,7 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
       }
       onClose();
     } catch (error) {
-      console.error('❌ Error updating profile:', error);
+      logger.error('❌ Error updating profile:', error);
       alert(`Erreur lors de la mise à jour du profil: ${error.message || 'Erreur inconnue'}`);
     } finally {
       setLoading(false);

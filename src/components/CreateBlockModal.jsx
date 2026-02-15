@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -187,11 +188,11 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
         // Check for overlap
         // Overlap exists if (StartA < EndB) and (EndA > StartB)
         if (newBlockStart < blockEnd && newBlockEnd > blockStart) {
-            console.log("Overlap detected with block:", block.name);
+            logger.debug("Overlap detected with block:", block.name);
 
             // Case 1: New block completely covers existing block -> Delete existing
             if (newBlockStart <= blockStart && newBlockEnd >= blockEnd) {
-                console.log("-> Action: DELETE");
+                logger.debug("-> Action: DELETE");
                 overlapActions.push(
                     axios.delete(`${getApiBaseUrlWithApi()}/periodization/blocks/${block.id}`, {
                         headers: { Authorization: `Bearer ${token}` }
@@ -200,7 +201,7 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
             }
             // Case 2: New block is inside existing block -> Split existing into two
             else if (newBlockStart > blockStart && newBlockEnd < blockEnd) {
-                console.log("-> Action: SPLIT");
+                logger.debug("-> Action: SPLIT");
                 // 1. Update existing block (Head) to end before new block
                 const headDuration = Math.round((newBlockStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
                 overlapActions.push(
@@ -227,7 +228,7 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
             }
             // Case 3: Overlap at the end of existing block (New block starts inside existing) -> Trim Tail of existing
             else if (newBlockStart > blockStart && newBlockStart < blockEnd) {
-                console.log("-> Action: TRIM TAIL");
+                logger.debug("-> Action: TRIM TAIL");
                 const newDuration = Math.round((newBlockStart.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
                 if (newDuration > 0) {
                     overlapActions.push(
@@ -246,7 +247,7 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
             }
             // Case 4: Overlap at the start of existing block (New block ends inside existing) -> Trim Head of existing
             else if (newBlockEnd > blockStart && newBlockEnd < blockEnd) {
-                console.log("-> Action: TRIM HEAD");
+                logger.debug("-> Action: TRIM HEAD");
                 const newStart = newBlockEnd;
                 const newDuration = Math.round((blockEnd.getTime() - newBlockEnd.getTime()) / (1000 * 60 * 60 * 24 * 7));
                 
@@ -303,7 +304,7 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
         onClose();
       }
     } catch (err) {
-      console.error('Error creating block:', err);
+      logger.error('Error creating block:', err);
       setError(err.response?.data?.message || 'Erreur lors de la création du bloc.');
     } finally {
       setLoading(false);

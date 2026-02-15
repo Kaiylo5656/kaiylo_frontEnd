@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { X, Video, Trash2 } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
@@ -35,14 +36,14 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         });
         setDuplicateNameError(false); // Reset duplicate error when editing
         // Set video preview if editing exercise has a demo video
-        console.log('Editing exercise:', editingExercise);
-        console.log('Demo video URL:', editingExercise.demoVideoURL);
+        logger.debug('Editing exercise:', editingExercise);
+        logger.debug('Demo video URL:', editingExercise.demoVideoURL);
         if (editingExercise.demoVideoURL) {
           setVideoPreview(editingExercise.demoVideoURL);
-          console.log('Video preview set to:', editingExercise.demoVideoURL);
+          logger.debug('Video preview set to:', editingExercise.demoVideoURL);
         } else {
           setVideoPreview(null);
-          console.log('No demo video URL found');
+          logger.debug('No demo video URL found');
         }
       } else {
         // Creating a new exercise - always reset to empty values
@@ -142,7 +143,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     if (!videoFile) return null;
 
     try {
-      console.log('🎥 Starting video upload process...', {
+      logger.debug('🎥 Starting video upload process...', {
         videoFile: videoFile.name,
         videoFileSize: videoFile.size,
         videoFileType: videoFile.type
@@ -152,27 +153,27 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       const token = localStorage.getItem('authToken');
       
       // First, get or create the "exercise" folder
-      console.log('📁 Fetching folders...');
+      logger.debug('📁 Fetching folders...');
       const folderResponse = await axios.get(buildApiUrl('/resources/folders'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log('📁 Folders response:', folderResponse.data);
+      logger.debug('📁 Folders response:', folderResponse.data);
       let exerciseFolder = folderResponse.data.data.find(folder => folder.name === 'exercise');
       
       if (!exerciseFolder) {
         // Create the exercise folder
-        console.log('📁 Creating exercise folder...');
+        logger.debug('📁 Creating exercise folder...');
         const createFolderResponse = await axios.post(buildApiUrl('/resources/folders'), {
           name: 'exercise',
           description: 'Exercise demonstration videos'
         }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        console.log('📁 Folder creation response:', createFolderResponse.data);
+        logger.debug('📁 Folder creation response:', createFolderResponse.data);
         exerciseFolder = createFolderResponse.data.data;
       } else {
-        console.log('📁 Using existing exercise folder:', exerciseFolder);
+        logger.debug('📁 Using existing exercise folder:', exerciseFolder);
       }
 
       // Upload the video to the exercise folder
@@ -182,7 +183,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       uploadFormData.append('description', `Demonstration video for ${formData.title} exercise`);
       uploadFormData.append('folderId', exerciseFolder.id);
 
-      console.log('Uploading video to resources...', {
+      logger.debug('Uploading video to resources...', {
         title: `${formData.title} - Demo Video`,
         description: `Demonstration video for ${formData.title} exercise`,
         folderId: exerciseFolder.id
@@ -195,18 +196,18 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         }
       });
 
-      console.log('Video upload response:', uploadResponse.data);
+      logger.debug('Video upload response:', uploadResponse.data);
       
       if (uploadResponse.data.success && uploadResponse.data.data) {
         const videoUrl = uploadResponse.data.data.fileUrl;
-        console.log('✅ Video upload successful! URL:', videoUrl);
+        logger.debug('✅ Video upload successful! URL:', videoUrl);
         return videoUrl;
       } else {
-        console.log('❌ Video upload failed:', uploadResponse.data);
+        logger.debug('❌ Video upload failed:', uploadResponse.data);
         throw new Error('Video upload failed');
       }
     } catch (error) {
-      console.error('Error uploading video:', error);
+      logger.error('Error uploading video:', error);
       setVideoError('Failed to upload video. Please try again.');
       return null;
     } finally {
@@ -233,13 +234,13 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         }
       } else if (editingExercise && editingExercise.demoVideoURL) {
         // Preserve existing video URL when editing
-        console.log('Preserving existing video URL:', editingExercise.demoVideoURL);
+        logger.debug('Preserving existing video URL:', editingExercise.demoVideoURL);
         exerciseData.demoVideoURL = editingExercise.demoVideoURL;
       }
       
-      console.log('Final exercise data being sent:', exerciseData);
-      console.log('Video file:', videoFile);
-      console.log('Video preview:', videoPreview);
+      logger.debug('Final exercise data being sent:', exerciseData);
+      logger.debug('Video file:', videoFile);
+      logger.debug('Video preview:', videoPreview);
 
       if (editingExercise && editingExercise.id) {
         await onExerciseUpdated(editingExercise.id, exerciseData);
@@ -259,7 +260,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       
       onClose();
     } catch (error) {
-      console.error('Error saving exercise:', error);
+      logger.error('Error saving exercise:', error);
     } finally {
       setLoading(false);
     }

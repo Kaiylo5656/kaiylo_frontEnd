@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -143,7 +144,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
-        console.warn('No auth token available for coach videos fetch. Skipping.');
+        logger.warn('No auth token available for coach videos fetch. Skipping.');
         setSessionVideos([]);
         return;
       }
@@ -160,7 +161,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
       if (response.data.success) {
         const videos = response.data.data || [];
-        console.log('📹 Fetched session videos:', videos.length, videos);
+        logger.debug('📹 Fetched session videos:', videos.length, videos);
         setSessionVideos(videos);
         // Auto-select first exercise and first set
         if (session.exercises && session.exercises.length > 0) {
@@ -191,7 +192,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         }
       }
     } catch (error) {
-      console.error('Error fetching session videos:', error);
+      logger.error('Error fetching session videos:', error);
     } finally {
       setLoading(false);
     }
@@ -307,13 +308,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     const video = videoToSave || selectedVideo;
 
     if (!video || !video.id) {
-      console.warn('No video selected for saving feedback');
+      logger.warn('No video selected for saving feedback');
       return;
     }
 
     // At least one of text or audio feedback must be provided
     if (!coachComment.trim() && !audioFile && !audioRecording) {
-      console.warn('No feedback to save (neither text nor audio)');
+      logger.warn('No feedback to save (neither text nor audio)');
       return;
     }
 
@@ -416,8 +417,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
       setAudioRecording(null);
       setIsRecordingVoice(false);
     } catch (error) {
-      console.error('Error saving feedback:', error);
-      console.error('Error details:', {
+      logger.error('Error saving feedback:', error);
+      logger.error('Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -828,7 +829,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                     // Debug RPE and weight for this set - show full set object
                     if (setIndex === 0 && (selectedExercise.useRir || selectedExercise.use_rir)) {
-                      console.log('🔍 Charge/RPE Debug for first set (useRir=true):', {
+                      logger.debug('🔍 Charge/RPE Debug for first set (useRir=true):', {
                         setIndex,
                         set: JSON.parse(JSON.stringify(set)), // Deep clone to see all properties
                         setKeys: Object.keys(set), // Show all keys in the set object

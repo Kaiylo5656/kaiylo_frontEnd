@@ -9,6 +9,7 @@ import ReactPlayer from 'react-player';
 import VideoPlayer from './VideoPlayer';
 import VoiceRecorder from './VoiceRecorder';
 import VoiceMessage from './VoiceMessage';
+import logger from '../utils/logger';
 
 const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,23 +46,14 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       setRating(video.coach_rating || 0);
       setVideoError(null);
       setIsVideoLoading(true);
-      console.log('Video object loaded:', video);
-      console.log('Video URL:', video.video_url);
-      console.log('Coach feedback:', video.coach_feedback);
-      console.log('Coach feedback audio URL:', video.coach_feedback_audio_url);
-      console.log('Video status:', video.status);
-      console.log('Video student object:', video.student);
-      console.log('Video student weight:', video.student?.weight);
-      console.log('Video type:', videoType);
-      console.log('Is coach view:', isCoachView);
-      
+
       // Determine video status based on coach feedback presence (text or audio)
       if ((video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url) {
         setVideoStatus('completed');
-        console.log('Setting status to completed - coach feedback exists (text or audio)');
+        logger.debug('Setting status to completed - coach feedback exists (text or audio)');
       } else {
         setVideoStatus('pending');
-        console.log('Setting status to pending - no coach feedback');
+        logger.debug('Setting status to pending - no coach feedback');
       }
       
       // Initialize feedback based on video type
@@ -74,7 +66,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       // Auto-hide loading after 3 seconds as fallback
       const loadingTimeout = setTimeout(() => {
         setIsVideoLoading(false);
-        console.log('Loading overlay auto-hidden after 3 seconds');
+        logger.debug('Loading overlay auto-hidden after 3 seconds');
       }, 3000);
       
       return () => clearTimeout(loadingTimeout);
@@ -102,7 +94,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           setStudentWeight(response.data.data.weight);
         }
       } catch (error) {
-        console.error('Error fetching student weight:', error);
+        logger.error('Error fetching student weight:', error);
         setStudentWeight(null);
       }
     };
@@ -140,7 +132,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       if (e.key === 'Escape' && isOpen) {
         e.preventDefault();
         e.stopPropagation();
-        console.log('ESC pressed: Closing modal');
+        logger.debug('ESC pressed: Closing modal');
         onClose();
         return;
       }
@@ -157,21 +149,21 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         e.stopPropagation();
         
         const now = Date.now();
-        
+
         // Debounce rapid calls (prevent calls within 100ms)
         if (now - lastToggleTimeRef.current < 100) {
-          console.log('Space bar debounced');
+          logger.debug('Space bar debounced');
           return;
         }
-        
+
         lastToggleTimeRef.current = now;
-        
+
         // Direct control based on current video state
         if (videoRef.current.paused) {
-          console.log('Space bar: Playing video');
+          logger.debug('Space bar: Playing video');
           videoRef.current.play();
         } else {
-          console.log('Space bar: Pausing video');
+          logger.debug('Space bar: Pausing video');
           videoRef.current.pause();
         }
       }
@@ -196,20 +188,20 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
     // Debounce rapid calls (prevent calls within 100ms)
     if (now - lastToggleTimeRef.current < 100) {
-      console.log('Toggle debounced');
+      logger.debug('Toggle debounced');
       return;
     }
 
     lastToggleTimeRef.current = now;
-    console.log('togglePlay called, isPlaying:', isPlaying, 'videoRef.current:', videoRef.current);
+    logger.debug('togglePlay called, isPlaying:', isPlaying, 'videoRef.current:', videoRef.current);
 
     // Native HTML5 video element
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        console.log('Playing video');
+        logger.debug('Playing video');
         videoRef.current.play();
       } else {
-        console.log('Pausing video');
+        logger.debug('Pausing video');
         videoRef.current.pause();
       }
     }
@@ -330,7 +322,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       setIsRecordingVoice(false);
       
     } catch (error) {
-      console.error('Error submitting:', error);
+      logger.error('Error submitting:', error);
       alert(videoType === 'coach' ? 'Erreur lors de l\'enregistrement de la description' : 'Erreur lors de l\'envoi du feedback');
     } finally {
       setIsSubmitting(false);
@@ -383,7 +375,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       // Close modal after parent state is updated
       onClose();
     } catch (error) {
-      console.error('Error deleting video:', error);
+      logger.error('Error deleting video:', error);
       alert('❌ Erreur lors de la suppression de la vidéo');
     }
   };
@@ -406,7 +398,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       }
       onClose();
     } catch (error) {
-      console.error('Error marking video as completed:', error);
+      logger.error('Error marking video as completed:', error);
       alert('Erreur lors du passage en complété.');
     } finally {
       setIsMarkingCompletedNoFeedback(false);
@@ -640,7 +632,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   
                   // Only log error details in development or for debugging
                   if (process.env.NODE_ENV === 'development') {
-                    console.error('Video error:', {
+                    logger.error('Video error:', {
                       error,
                       mediaError,
                       code: mediaError?.code,

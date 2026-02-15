@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,32 +105,32 @@ const LoginPage = () => {
   }, []);
 
   const onSubmit = async (data) => {
-    console.log('🔐 Form submitted with data:', { email: data.email, hasPassword: !!data.password });
+    logger.debug('🔐 Form submitted with data:', { email: data.email, hasPassword: !!data.password });
     try {
       const result = await login(data.email, data.password, navigate);
-      console.log('🔐 Login result:', result);
+      logger.debug('🔐 Login result:', result);
       if (!result.success) {
-        console.error('Login failed:', result.error);
+        logger.error('Login failed:', result.error);
       }
     } catch (error) {
-      console.error('Login exception:', error);
+      logger.error('Login exception:', error);
       // S'assurer que loading est remis à false même en cas d'exception
       if (loading) {
         // Le loading devrait être géré par le contexte, mais on peut forcer ici si nécessaire
-        console.warn('Forcing loading to false due to exception');
+        logger.warn('Forcing loading to false due to exception');
       }
     }
   };
 
   const onFormSubmit = (e) => {
-    console.log('🔐 Form submit event');
+    logger.debug('🔐 Form submit event');
     e.preventDefault();
     handleSubmit(onSubmit)(e);
   };
 
   const onButtonClick = (e) => {
-    console.log('🔐 Button clicked, loading:', loading);
-    console.log('🔐 Form errors:', errors);
+    logger.debug('🔐 Button clicked, loading:', loading);
+    logger.debug('🔐 Form errors:', errors);
     
     if (loading) {
       e.preventDefault();
@@ -147,16 +148,16 @@ const LoginPage = () => {
         const email = emailInput.value.trim();
         const password = passwordInput.value;
         
-        console.log('🔐 Values from inputs:', { email, hasPassword: !!password });
+        logger.debug('🔐 Values from inputs:', { email, hasPassword: !!password });
         
         if (email && password) {
           // Si les valeurs sont présentes, soumettre directement
-          console.log('🔐 Submitting directly');
+          logger.debug('🔐 Submitting directly');
           e.preventDefault();
           onSubmit({ email, password });
         } else {
           // Sinon, déclencher la validation normale
-          console.log('🔐 Triggering form submit for validation');
+          logger.debug('🔐 Triggering form submit for validation');
         }
       }
     }
@@ -378,11 +379,11 @@ const LoginPage = () => {
                 disabled={loading}
                 onClick={onButtonClick}
                 onMouseDown={(e) => {
-                  console.log('🔐 Button mousedown');
+                  logger.debug('🔐 Button mousedown');
                   e.stopPropagation();
                 }}
                 onTouchStart={(e) => {
-                  console.log('🔐 Button touchstart');
+                  logger.debug('🔐 Button touchstart');
                   e.stopPropagation();
                 }}
               >
@@ -404,7 +405,7 @@ const LoginPage = () => {
             <button
               type="button"
               onClick={async () => {
-                console.log('🔐 Google sign-in button clicked');
+                logger.debug('🔐 Google sign-in button clicked');
                 await signInWithGoogle(navigate);
               }}
               disabled={loading}

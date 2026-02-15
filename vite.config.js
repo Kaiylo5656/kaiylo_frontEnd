@@ -98,7 +98,14 @@ export default defineConfig(({ mode }) => {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 // 1 day
               },
-              networkTimeoutSeconds: 10
+              networkTimeoutSeconds: 10,
+              plugins: [{
+                cacheWillUpdate: async ({ response, request }) => {
+                  // Never cache auth endpoints — stale auth responses cause session issues
+                  if (request.url.includes('/api/auth/')) return null;
+                  return response;
+                }
+              }]
             }
           }
         ]

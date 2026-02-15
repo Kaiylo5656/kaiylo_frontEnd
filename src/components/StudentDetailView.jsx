@@ -20,6 +20,7 @@ import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth,
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
 import useSortParams from '../hooks/useSortParams';
+import logger from '../utils/logger';
 import PeriodizationTab from './PeriodizationTab';
 import StudentSidebar from './StudentSidebar';
 import {
@@ -166,7 +167,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   useEffect(() => {
     if (socket) {
       const handleSessionUpdate = (data) => {
-        console.log('SOCKET EVENT: session_updated received', data);
+        logger.debug('SOCKET EVENT: session_updated received', data);
         const { assignmentId, updatedSession } = data;
 
         setWorkoutSessions(prevSessions => {
@@ -179,7 +180,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             const sessionIndex = sessionsOnDay.findIndex(s => s.assignmentId === assignmentId);
 
             if (sessionIndex !== -1) {
-              console.log(`Found session to update on ${dateKey}`);
+              logger.debug(`Found session to update on ${dateKey}`);
               // Create a new array for the day
               newSessions[dateKey] = [...sessionsOnDay];
               // Create a new session object to update
@@ -197,11 +198,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           }
 
           if (sessionFound) {
-            console.log('Session state updated via WebSocket.');
+            logger.debug('Session state updated via WebSocket.');
             // Also update the selectedSession if it's the one that was changed
             setSelectedSession(prevSelected => {
               if (prevSelected && prevSelected.assignmentId === assignmentId) {
-                console.log('Updating selectedSession as well.');
+                logger.debug('Updating selectedSession as well.');
                 return {
                   ...prevSelected,
                   workout_sessions: {
@@ -213,7 +214,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               return prevSelected;
             });
           } else {
-            console.log('Session to update not found in current state.');
+            logger.debug('Session to update not found in current state.');
           }
 
           return newSessions;
@@ -230,7 +231,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Debug copiedWeek state changes
   useEffect(() => {
-    console.log('🔄 copiedWeek state changed:', copiedWeek);
+    logger.debug('🔄 copiedWeek state changed:', copiedWeek);
   }, [copiedWeek]);
 
 
@@ -390,7 +391,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handleSessionClick = (session, day) => {
-    console.log('🔍 Session clicked:', {
+    logger.debug('🔍 Session clicked:', {
       id: session.id,
       status: session.status,
       difficulty: session.difficulty,
@@ -405,7 +406,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setIsCreateModalOpen(true);
     } else if (session.status === 'completed') {
       // Pour les séances terminées, ouvrir la modale de révision avec vidéos
-      console.log('📝 Opening review modal with session:', session);
+      logger.debug('📝 Opening review modal with session:', session);
       setIsReviewModalOpen(true);
     } else {
       // Pour les séances en cours, ouvrir la modale de détails en lecture seule
@@ -534,13 +535,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           { headers }
         );
       } else {
-        console.warn('Unable to reschedule session – missing identifiers:', session);
+        logger.warn('Unable to reschedule session – missing identifiers:', session);
         return;
       }
 
       await fetchWorkoutSessions();
     } catch (error) {
-      console.error('Error moving session:', error);
+      logger.error('Error moving session:', error);
       alert('Impossible de déplacer la séance. Vérifie ta connexion et réessaie.');
     } finally {
       setIsRescheduling(false);
@@ -548,7 +549,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handlePublishDraftSession = (session, day) => {
-    console.log('🔍 handlePublishDraftSession called with session:', session);
+    logger.debug('🔍 handlePublishDraftSession called with session:', session);
 
     // Store session info and open modal
     setSessionToPublish({ session, day });
@@ -563,14 +564,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const { session, day } = sessionToPublish;
       const token = localStorage.getItem('authToken');
 
-      console.log('📤 Publishing draft session:', {
+      logger.debug('📤 Publishing draft session:', {
         sessionId: session.id,
         title: session.title,
         hasExercises: !!session.exercises
       });
 
       // First, check if the session exists in the database
-      console.log('🔍 Checking if session exists in database...');
+      logger.debug('🔍 Checking if session exists in database...');
       const checkResponse = await axios.get(
         `${getApiBaseUrlWithApi()}/workout-sessions/${session.id}`,
         {
@@ -582,7 +583,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         throw new Error('Session not found in database. It may have been deleted.');
       }
 
-      console.log('✅ Session exists in database, proceeding with update...');
+      logger.debug('✅ Session exists in database, proceeding with update...');
 
       // Then update the session status to 'published' in the database
       const updateResponse = await axios.patch(
@@ -597,7 +598,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         throw new Error('Failed to update session status');
       }
 
-      console.log('✅ Session status updated to published');
+      logger.debug('✅ Session status updated to published');
 
       // Then create the assignment
       const assignmentData = {
@@ -620,7 +621,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
 
       if (response.data.success) {
-        console.log('✅ Assignment created successfully');
+        logger.debug('✅ Assignment created successfully');
         // Rafraîchir les séances pour voir les changements
         await fetchWorkoutSessions();
 
@@ -631,8 +632,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         throw new Error('Failed to create assignment');
       }
     } catch (error) {
-      console.error('❌ Error publishing session:', error);
-      console.error('Error details:', {
+      logger.error('❌ Error publishing session:', error);
+      logger.error('Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -733,7 +734,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setIsDeleteSessionModalOpen(false);
       setSessionToDelete(null);
     } catch (error) {
-      console.error('Error deleting session:', error);
+      logger.error('Error deleting session:', error);
       alert('Erreur lors de la suppression de la séance. Veuillez réessayer.');
     } finally {
       setIsDeletingSession(false);
@@ -744,7 +745,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     try {
       const token = localStorage.getItem('authToken');
 
-      console.log('🔍 handleSessionCreated called with:', {
+      logger.debug('🔍 handleSessionCreated called with:', {
         isEdit: sessionData.isEdit,
         existingSessionId: sessionData.existingSessionId,
         status: sessionData.status,
@@ -755,11 +756,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         // Editing existing session
         if (sessionData.status === 'draft' && !sessionData.assignmentId) {
           // Just update an existing draft session content (no assignmentId means it's already a draft)
-          console.log('📝 Updating existing draft session:', sessionData.existingSessionId);
+          logger.debug('📝 Updating existing draft session:', sessionData.existingSessionId);
 
           try {
             // First, check if the session exists in the database
-            console.log('🔍 Checking if draft session exists before updating...');
+            logger.debug('🔍 Checking if draft session exists before updating...');
             const checkResponse = await axios.get(
               `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
               {
@@ -771,7 +772,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               throw new Error('Session not found in database. It may have been deleted.');
             }
 
-            console.log('✅ Draft session exists in database, proceeding with update...');
+            logger.debug('✅ Draft session exists in database, proceeding with update...');
 
             const updateResponse = await axios.patch(
               `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
@@ -790,10 +791,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               throw new Error('Failed to update draft session');
             }
 
-            console.log('✅ Draft session updated successfully');
+            logger.debug('✅ Draft session updated successfully');
           } catch (updateError) {
-            console.error('❌ Error updating draft session:', updateError);
-            console.error('Error details:', {
+            logger.error('❌ Error updating draft session:', updateError);
+            logger.error('Error details:', {
               message: updateError.message,
               response: updateError.response?.data,
               status: updateError.response?.status,
@@ -802,7 +803,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
             // If the session doesn't exist (404), create a new draft session instead
             if (updateError.response?.status === 404 || updateError.message.includes('Session not found in database')) {
-              console.log('⚠️ Draft session not found, creating new draft session instead');
+              logger.debug('⚠️ Draft session not found, creating new draft session instead');
 
               // Remove existingSessionId to create a new session
               const newSessionData = { ...sessionData };
@@ -821,18 +822,18 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 throw new Error('Failed to create new draft session');
               }
 
-              console.log('✅ New draft session created successfully');
+              logger.debug('✅ New draft session created successfully');
             } else {
               throw updateError;
             }
           }
         } else {
           // Publishing a session - check if we're switching from assigned to draft
-          console.log('📤 Publishing session:', sessionData.existingSessionId, 'Status:', sessionData.status);
+          logger.debug('📤 Publishing session:', sessionData.existingSessionId, 'Status:', sessionData.status);
 
           if (sessionData.status === 'draft') {
             // Switching from assigned to draft - delete assignment and create new draft session
-            console.log('📝 Switching assigned session to draft mode');
+            logger.debug('📝 Switching assigned session to draft mode');
 
             try {
               // First, delete the assignment to make it invisible to student
@@ -843,7 +844,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     headers: { Authorization: `Bearer ${token}` }
                   }
                 );
-                console.log('✅ Assignment deleted successfully');
+                logger.debug('✅ Assignment deleted successfully');
               }
 
               // Create a new draft session with the updated content
@@ -864,19 +865,19 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 throw new Error('Failed to create new draft session');
               }
 
-              console.log('✅ Session switched to draft mode successfully');
+              logger.debug('✅ Session switched to draft mode successfully');
             } catch (error) {
-              console.error('Error switching to draft:', error);
+              logger.error('Error switching to draft:', error);
               throw error;
             }
           } else {
             // Editing an existing assigned session or publishing a draft
-            console.log('📤 Updating session:', sessionData.existingSessionId, 'Status:', sessionData.status);
+            logger.debug('📤 Updating session:', sessionData.existingSessionId, 'Status:', sessionData.status);
 
             try {
               // First, check if the session exists in the database
-              console.log('🔍 Checking if session exists before updating...');
-              console.log('🔍 Using token:', token ? `${token.substring(0, 20)}...` : 'No token');
+              logger.debug('🔍 Checking if session exists before updating...');
+              logger.debug('🔍 Using token:', token ? `${token.substring(0, 20)}...` : 'No token');
 
               const checkResponse = await axios.get(
                 `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
@@ -889,8 +890,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 throw new Error('Session not found in database. It may have been deleted.');
               }
 
-              console.log('✅ Session exists in database, proceeding with update...');
-              console.log('🔍 Session details:', {
+              logger.debug('✅ Session exists in database, proceeding with update...');
+              logger.debug('🔍 Session details:', {
                 id: checkResponse.data.session.id,
                 title: checkResponse.data.session.title,
                 status: checkResponse.data.session.status,
@@ -903,7 +904,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
               let updateResponse;
               try {
-                console.log('🔍 Attempting PATCH request with data:', {
+                logger.debug('🔍 Attempting PATCH request with data:', {
                   sessionId: sessionData.existingSessionId,
                   title: sessionData.title,
                   status: sessionData.status || 'published',
@@ -924,9 +925,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   }
                 );
 
-                console.log('✅ PATCH request successful:', updateResponse.data);
+                logger.debug('✅ PATCH request successful:', updateResponse.data);
               } catch (updateError) {
-                console.log('❌ PATCH request failed:', {
+                logger.debug('❌ PATCH request failed:', {
                   status: updateError.response?.status,
                   statusText: updateError.response?.statusText,
                   data: updateError.response?.data,
@@ -935,7 +936,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                 // If the update fails with 404, check if session still exists and retry once
                 if (updateError.response?.status === 404) {
-                  console.log('⚠️ Update failed with 404, checking session again...');
+                  logger.debug('⚠️ Update failed with 404, checking session again...');
 
                   try {
                     const recheckResponse = await axios.get(
@@ -949,7 +950,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       throw new Error('Session not found in database during retry. It may have been deleted.');
                     }
 
-                    console.log('✅ Session still exists, retrying update...');
+                    logger.debug('✅ Session still exists, retrying update...');
 
                     updateResponse = await axios.patch(
                       `${getApiBaseUrlWithApi()}/workout-sessions/${sessionData.existingSessionId}`,
@@ -965,9 +966,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       }
                     );
 
-                    console.log('✅ Retry successful:', updateResponse.data);
+                    logger.debug('✅ Retry successful:', updateResponse.data);
                   } catch (retryError) {
-                    console.log('❌ Retry failed:', {
+                    logger.debug('❌ Retry failed:', {
                       status: retryError.response?.status,
                       statusText: retryError.response?.statusText,
                       data: retryError.response?.data,
@@ -984,13 +985,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 throw new Error('Failed to update session');
               }
 
-              console.log('✅ Session updated successfully');
+              logger.debug('✅ Session updated successfully');
 
               // Only create a new assignment if:
               // 1. There's NO existing assignment (it was a draft)
               // 2. AND we're publishing it now
               if (!sessionData.assignmentId && sessionData.status === 'published') {
-                console.log('📤 Creating assignment for newly published draft');
+                logger.debug('📤 Creating assignment for newly published draft');
 
                 const response = await axios.post(
                   `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
@@ -1004,13 +1005,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   throw new Error('Failed to create assignment');
                 }
 
-                console.log('✅ Assignment created successfully');
+                logger.debug('✅ Assignment created successfully');
               } else if (sessionData.assignmentId) {
                 const previousDate = sessionData.originalScheduledDate;
                 const nextDate = sessionData.scheduled_date;
 
                 if (nextDate && previousDate && nextDate !== previousDate) {
-                  console.log('🗓️ Updating assignment due date:', {
+                  logger.debug('🗓️ Updating assignment due date:', {
                     assignmentId: sessionData.assignmentId,
                     previousDate,
                     nextDate
@@ -1027,8 +1028,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               // The existing assignment is already linked to the updated session
 
             } catch (updateError) {
-              console.error('❌ Error updating session:', updateError);
-              console.error('Error details:', {
+              logger.error('❌ Error updating session:', updateError);
+              logger.error('Error details:', {
                 message: updateError.message,
                 response: updateError.response?.data,
                 status: updateError.response?.status,
@@ -1037,7 +1038,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
               // If the session doesn't exist (404), create a new one instead
               if (updateError.response?.status === 404 || updateError.message.includes('Session not found in database')) {
-                console.log('⚠️ Session not found, creating new one instead');
+                logger.debug('⚠️ Session not found, creating new one instead');
 
                 try {
                   const response = await axios.post(
@@ -1052,9 +1053,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     throw new Error('Failed to create and assign workout session');
                   }
 
-                  console.log('✅ New session created successfully');
+                  logger.debug('✅ New session created successfully');
                 } catch (createError) {
-                  console.error('❌ Failed to create new session:', createError);
+                  logger.error('❌ Failed to create new session:', createError);
                   await handleSessionNotFound(sessionData.existingSessionId, 'update');
                   throw createError;
                 }
@@ -1066,7 +1067,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       } else {
         // Creating new session
-        console.log('➕ Creating new session');
+        logger.debug('➕ Creating new session');
 
         const response = await axios.post(
           `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
@@ -1080,15 +1081,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           throw new Error('Failed to create and assign workout session');
         }
 
-        console.log('✅ New session created successfully');
+        logger.debug('✅ New session created successfully');
       }
 
       setIsCreateModalOpen(false);
       // Refresh workout sessions
       await fetchWorkoutSessions();
     } catch (error) {
-      console.error('❌ Error creating/updating workout session and assignment:', error);
-      console.error('Error details:', {
+      logger.error('❌ Error creating/updating workout session and assignment:', error);
+      logger.error('Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -1099,8 +1100,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handleCopyWeek = (weekStart) => {
-    console.log('🔄 handleCopyWeek called with weekStart:', weekStart);
-    console.log('🔄 Current workoutSessions:', workoutSessions);
+    logger.debug('🔄 handleCopyWeek called with weekStart:', weekStart);
+    logger.debug('🔄 Current workoutSessions:', workoutSessions);
 
     // Get all sessions in this week
     const weekSessions = [];
@@ -1108,7 +1109,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const day = addDays(weekStart, i);
       const dateKey = format(day, 'yyyy-MM-dd');
       const sessions = workoutSessions[dateKey] || [];
-      console.log(`🔄 Day ${i}: ${dateKey}`, { sessions, sessionCount: sessions.length });
+      logger.debug(`🔄 Day ${i}: ${dateKey}`, { sessions, sessionCount: sessions.length });
 
       sessions.forEach(session => {
         // Only copy sessions that match the current filter
@@ -1120,17 +1121,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       });
     }
 
-    console.log('🔄 Found weekSessions:', weekSessions);
+    logger.debug('🔄 Found weekSessions:', weekSessions);
 
     if (weekSessions.length === 0) {
-      console.log('🔄 No sessions to copy');
+      logger.debug('🔄 No sessions to copy');
       alert('Aucune séance à copier dans cette semaine');
       return;
     }
 
     // Check if we're copying the same week again
     if (copiedWeek && format(copiedWeek.weekStart, 'yyyy-MM-dd') === format(weekStart, 'yyyy-MM-dd')) {
-      console.log('🔄 Copying same week again - overwriting previous copy');
+      logger.debug('🔄 Copying same week again - overwriting previous copy');
       alert('Cette semaine a déjà été copiée. La copie précédente sera remplacée.');
     }
 
@@ -1141,7 +1142,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       copiedAt: new Date()
     };
 
-    console.log('🔄 Setting copiedWeek:', copiedData);
+    logger.debug('🔄 Setting copiedWeek:', copiedData);
     setCopiedWeek(copiedData);
   };
 
@@ -1220,7 +1221,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Clear copied week after successful paste
       setCopiedWeek(null);
     } catch (error) {
-      console.error('Error pasting week:', error);
+      logger.error('Error pasting week:', error);
       alert('Erreur lors du collage de la semaine');
     } finally {
       setIsPastingWeek(false);
@@ -1274,7 +1275,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         try {
           // Ne pas supprimer les séances terminées
           if (session.status === 'completed') {
-            console.log(`Skipping completed session ${session.assignmentId || session.id}`);
+            logger.debug(`Skipping completed session ${session.assignmentId || session.id}`);
             continue;
           }
 
@@ -1305,7 +1306,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
           deletedCount++;
         } catch (error) {
-          console.error(`Error deleting session ${session.assignmentId || session.id}:`, error);
+          logger.error(`Error deleting session ${session.assignmentId || session.id}:`, error);
           errorCount++;
         }
       }
@@ -1317,7 +1318,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setIsDeleteWeekModalOpen(false);
       setWeekToDelete(null);
     } catch (error) {
-      console.error('Error deleting week:', error);
+      logger.error('Error deleting week:', error);
       alert('Erreur lors de la suppression de la semaine');
     } finally {
       setIsDeletingWeek(false);
@@ -1340,7 +1341,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const token = localStorage.getItem('authToken');
 
       // First, check if the session exists in the database
-      console.log('🔍 Checking if session exists before switching to draft...');
+      logger.debug('🔍 Checking if session exists before switching to draft...');
       const checkResponse = await axios.get(
         `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
         {
@@ -1352,7 +1353,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         throw new Error('Session not found in database. It may have been deleted.');
       }
 
-      console.log('✅ Session exists in database, proceeding with draft switch...');
+      logger.debug('✅ Session exists in database, proceeding with draft switch...');
 
       const scheduledDateValue = session.scheduled_date || (day ? format(day, 'yyyy-MM-dd') : null);
 
@@ -1389,8 +1390,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setIsSwitchToDraftModalOpen(false);
       setSessionToSwitchToDraft(null);
     } catch (error) {
-      console.error('Error switching to draft:', error);
-      console.error('Error details:', {
+      logger.error('Error switching to draft:', error);
+      logger.error('Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -1414,7 +1415,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const sessionClone = JSON.parse(JSON.stringify(session));
       setCopiedSession({ session: sessionClone, fromDate: format(day, 'yyyy-MM-dd') });
     } catch (error) {
-      console.error('Error copying session:', error);
+      logger.error('Error copying session:', error);
       alert('Erreur lors de la copie de la séance');
     }
   };
@@ -1486,7 +1487,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setCopiedSession(null);
       setHoveredPasteDate(null);
     } catch (error) {
-      console.error('Error pasting copied session:', error);
+      logger.error('Error pasting copied session:', error);
       alert('Erreur lors du collage de la séance');
     } finally {
       setIsPastingSession(false);
@@ -1543,8 +1544,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
 
       if (response.data.success) {
-        console.log(`📹 Fetched ${response.data.data.length} videos for student ${student.id}`);
-        console.log(`📹 Video status breakdown:`, {
+        logger.debug(`📹 Fetched ${response.data.data.length} videos for student ${student.id}`);
+        logger.debug(`📹 Video status breakdown:`, {
           pending: response.data.data.filter(v => v.status === 'pending').length,
           completed: response.data.data.filter(v => v.status === 'completed' || v.status === 'reviewed').length,
           total: response.data.data.length
@@ -1552,7 +1553,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         setStudentVideos(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching student videos:', error);
+      logger.error('Error fetching student videos:', error);
     } finally {
       setVideosLoading(false);
     }
@@ -1583,7 +1584,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
       await fetchStudentVideos();
     } catch (err) {
-      console.error('Error marking all as completed:', err);
+      logger.error('Error marking all as completed:', err);
     } finally {
       setIsMarkingAllCompleted(false);
     }
@@ -1611,7 +1612,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
       await fetchStudentVideos();
     } catch (err) {
-      console.error('Error marking session as completed:', err);
+      logger.error('Error marking session as completed:', err);
     } finally {
       setMarkingSessionId(null);
     }
@@ -1633,7 +1634,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
       await fetchStudentVideos();
     } catch (err) {
-      console.error('Error marking video as completed:', err);
+      logger.error('Error marking video as completed:', err);
     } finally {
       setMarkingVideoId(null);
     }
@@ -1641,26 +1642,26 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Handle feedback update
   const handleFeedbackUpdate = async (videoId, feedback, rating, deleted = false, status = 'completed') => {
-    console.log('🔄 handleFeedbackUpdate called:', { videoId, deleted, status });
+    logger.debug('🔄 handleFeedbackUpdate called:', { videoId, deleted, status });
 
     if (deleted) {
       // Remove video from list if deleted
-      console.log('🗑️ Removing video from list:', videoId);
+      logger.debug('🗑️ Removing video from list:', videoId);
       setStudentVideos(prev => {
         const filtered = prev.filter(v => v.id !== videoId);
-        console.log(`📊 Video count after deletion: ${filtered.length} (was ${prev.length})`);
+        logger.debug(`📊 Video count after deletion: ${filtered.length} (was ${prev.length})`);
         return filtered;
       });
       setIsVideoDetailModalOpen(false);
       setSelectedVideo(null);
       // Refresh from server to ensure consistency
       setTimeout(() => {
-        console.log('🔄 Refreshing videos list after deletion');
+        logger.debug('🔄 Refreshing videos list after deletion');
         fetchStudentVideos();
       }, 300);
     } else {
       // Update video feedback in the list locally for immediate UI update
-      console.log('✏️ Updating video feedback locally:', videoId);
+      logger.debug('✏️ Updating video feedback locally:', videoId);
       setStudentVideos(prev => {
         const updated = prev.map(v => {
           if (v.id === videoId) {
@@ -1683,13 +1684,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           }
           return v;
         });
-        console.log(`📊 Video count after local update: ${updated.length}`);
+        logger.debug(`📊 Video count after local update: ${updated.length}`);
         return updated;
       });
       // Refresh the full list from server to ensure consistency
       // This ensures the count is accurate and includes any other changes
       setTimeout(() => {
-        console.log('🔄 Refreshing videos list from server after feedback update');
+        logger.debug('🔄 Refreshing videos list from server after feedback update');
         fetchStudentVideos();
       }, 500); // Small delay to allow backend to process the update
     }
@@ -1726,8 +1727,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       );
 
-      console.log('Fetched assignments:', response.data);
-      console.log('Date range:', { rangeStart, rangeEnd });
+      logger.debug('Fetched assignments:', response.data);
+      logger.debug('Date range:', { rangeStart, rangeEnd });
 
       // Convert array to object with date as key, storing arrays of sessions
       const sessionsMap = {};
@@ -1736,12 +1737,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           // Use scheduled_date if available, otherwise use due_date
           const assignmentDate = assignment.scheduled_date || assignment.due_date;
           if (!assignmentDate) {
-            console.warn('Assignment has no date:', assignment);
+            logger.warn('Assignment has no date:', assignment);
             return;
           }
 
           const dateKey = format(parseISO(assignmentDate), 'yyyy-MM-dd');
-          console.log('Processing assignment:', { dateKey, assignment });
+          logger.debug('Processing assignment:', { dateKey, assignment });
 
           const sessionData = {
             id: assignment.id,
@@ -1811,17 +1812,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               }
             }
           });
-          console.log('✅ Draft sessions fetched and added to map');
+          logger.debug('✅ Draft sessions fetched and added to map');
         }
       } catch (draftError) {
-        console.warn('⚠️ Could not fetch draft sessions (this is OK if none exist):', draftError.message);
+        logger.warn('⚠️ Could not fetch draft sessions (this is OK if none exist):', draftError.message);
         // Don't fail the whole function if draft fetch fails
       }
 
-      console.log('Processed sessions map:', sessionsMap);
+      logger.debug('Processed sessions map:', sessionsMap);
       setWorkoutSessions(sessionsMap);
     } catch (error) {
-      console.error('Error fetching workout sessions:', error);
+      logger.error('Error fetching workout sessions:', error);
     } finally {
       setLoadingSessions(false);
     }
@@ -1857,7 +1858,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           data.oneRepMaxes = [];
         }
       } catch (oneRmError) {
-        console.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmError);
+        logger.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmError);
         // Fallback to localStorage if backend fails
         const storageKey = `oneRm_${student.id}`;
         const savedOneRm = localStorage.getItem(storageKey);
@@ -1866,7 +1867,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             const parsedOneRm = JSON.parse(savedOneRm);
             data.oneRepMaxes = parsedOneRm;
           } catch (e) {
-            console.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
+            logger.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
             // Initialize empty array if localStorage parsing fails
             data.oneRepMaxes = [];
           }
@@ -1886,7 +1887,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           setLimitations(profileRes.data.data.limitations || []);
         }
       } catch (err) {
-        console.warn('Error fetching limitations:', err);
+        logger.warn('Error fetching limitations:', err);
       }
 
       setStudentData(data);
@@ -1899,7 +1900,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setTotalBlocks(data.total_blocks !== undefined && data.total_blocks !== null ? data.total_blocks : 3);
       setBlockName(data.block_name || 'Prépa Force');
     } catch (error) {
-      console.error('Error fetching student details:', error);
+      logger.error('Error fetching student details:', error);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -1907,10 +1908,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
 
   const handleSessionNotFound = async (sessionId, operation = 'update') => {
-    console.log(`🧹 Cleaning up stale session reference: ${sessionId} (${operation})`);
+    logger.debug(`🧹 Cleaning up stale session reference: ${sessionId} (${operation})`);
 
     // Log additional debugging information
-    console.log('🔍 Debugging session not found:', {
+    logger.debug('🔍 Debugging session not found:', {
       sessionId,
       operation,
       currentWorkoutSessions: workoutSessions?.length || 0,
@@ -1956,7 +1957,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         setStudentMessageCounts(normalizedMessageCounts);
       }
     } catch (error) {
-      console.error('Error fetching dashboard counts:', error);
+      logger.error('Error fetching dashboard counts:', error);
     }
   };
 
@@ -1996,7 +1997,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         throw new Error('Le numéro de bloc ne peut pas être supérieur au nombre total de blocs');
       }
 
-      console.log('💾 Saving block information:', {
+      logger.debug('💾 Saving block information:', {
         studentId: student.id,
         block_number: blockNum,
         total_blocks: totalBlks,
@@ -2028,7 +2029,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       const result = await response.json();
 
-      console.log('📥 API Response:', result);
+      logger.debug('📥 API Response:', result);
 
       // Update studentData to reflect the saved changes
       // Use result.data if available, otherwise use the values we sent
@@ -2045,7 +2046,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           total_blocks: updatedData.total_blocks ?? totalBlks,
           block_name: updatedData.block_name ?? blockNm
         };
-        console.log('✅ Updated studentData:', updated);
+        logger.debug('✅ Updated studentData:', updated);
         return updated;
       });
 
@@ -2055,10 +2056,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setBlockName(blockNm);
 
       setIsBlockEditModalOpen(false);
-      console.log('✅ Block information saved successfully');
+      logger.debug('✅ Block information saved successfully');
     } catch (error) {
-      console.error('❌ Error saving block information:', error);
-      console.error('Error details:', {
+      logger.error('❌ Error saving block information:', error);
+      logger.error('Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
@@ -2093,7 +2094,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const token = localStorage.getItem('authToken');
       const weekKey = format(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
-      console.log('📅 Fetching notes for week:', weekKey);
+      logger.debug('📅 Fetching notes for week:', weekKey);
 
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/periodization/week-notes/${student.id}/${weekKey}`,
@@ -2108,7 +2109,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         setNotes([]);
       }
     } catch (err) {
-      console.error('Error loading week notes:', err);
+      logger.error('Error loading week notes:', err);
       setNotes([]);
     }
   };
@@ -2130,7 +2131,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       setNotes(updatedNotes);
     } catch (err) {
-      console.error('Error saving week notes:', err);
+      logger.error('Error saving week notes:', err);
       alert('Erreur lors de la sauvegarde des notes');
     }
   };
@@ -2223,7 +2224,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
       setLimitations(updatedLimitations);
     } catch (err) {
-      console.error('Error saving limitations:', err);
+      logger.error('Error saving limitations:', err);
       alert('Erreur lors de la sauvegarde des limitations');
     }
   };
@@ -2326,14 +2327,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               }
             }
           } catch (error) {
-            console.error(`Error fetching sessions for student ${student.id}:`, error);
+            logger.error(`Error fetching sessions for student ${student.id}:`, error);
           }
         })
       );
 
       setStudentNextSessions(nextSessions);
     } catch (error) {
-      console.error('Error fetching next sessions:', error);
+      logger.error('Error fetching next sessions:', error);
     }
   };
 
@@ -2362,7 +2363,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   // Fetch videos when analyse tab is active
   useEffect(() => {
     if (activeTab === 'analyse') {
-      console.log(`📹 Fetching videos for student ${student.id} (analyse tab active)`);
+      logger.debug(`📹 Fetching videos for student ${student.id} (analyse tab active)`);
       fetchStudentVideos();
       // Set default status filter to "A feedback" when opening analyse tab
       if (statusFilter === '') {
@@ -2375,7 +2376,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   // Listen for WebSocket events to refresh videos
   useEffect(() => {
     // Always log the current state for debugging
-    console.log('🔌 WebSocket listener effect triggered:', {
+    logger.debug('🔌 WebSocket listener effect triggered:', {
       hasSocket: !!socket,
       isConnected,
       socketConnected: socket?.connected,
@@ -2385,53 +2386,53 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
     // Only proceed if we're on the analyse tab
     if (activeTab !== 'analyse') {
-      console.log('⏭️ Skipping WebSocket setup - not on analyse tab');
+      logger.debug('⏭️ Skipping WebSocket setup - not on analyse tab');
       return;
     }
 
     // Wait for socket to be connected
     if (!socket) {
-      console.log('⏭️ Skipping WebSocket setup - no socket');
+      logger.debug('⏭️ Skipping WebSocket setup - no socket');
       return;
     }
 
     if (!isConnected && !socket.connected) {
-      console.log('⏭️ Skipping WebSocket setup - socket not connected');
+      logger.debug('⏭️ Skipping WebSocket setup - socket not connected');
       return;
     }
 
-    console.log(`🔌 Setting up WebSocket listeners for student ${student.id} in analyse tab`);
+    logger.debug(`🔌 Setting up WebSocket listeners for student ${student.id} in analyse tab`);
 
     const handleVideoUploaded = (data) => {
-      console.log('📡 WebSocket: video_uploaded received', data);
-      console.log(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
+      logger.debug('📡 WebSocket: video_uploaded received', data);
+      logger.debug(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
       // Refresh videos list if it's for this student
       if (data.studentId === student.id) {
-        console.log('✅ Refreshing videos list after video upload');
+        logger.debug('✅ Refreshing videos list after video upload');
         fetchStudentVideos();
       } else {
-        console.log('⏭️ Skipping refresh - different student');
+        logger.debug('⏭️ Skipping refresh - different student');
       }
     };
 
     const handleVideoFeedbackUpdated = (data) => {
-      console.log('📡 WebSocket: video_feedback_updated received', data);
-      console.log(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
+      logger.debug('📡 WebSocket: video_feedback_updated received', data);
+      logger.debug(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
       // Refresh videos list if it's for this student
       if (data.studentId === student.id) {
-        console.log('✅ Refreshing videos list after feedback update');
+        logger.debug('✅ Refreshing videos list after feedback update');
         fetchStudentVideos();
       } else {
-        console.log('⏭️ Skipping refresh - different student');
+        logger.debug('⏭️ Skipping refresh - different student');
       }
     };
 
     socket.on('video_uploaded', handleVideoUploaded);
     socket.on('video_feedback_updated', handleVideoFeedbackUpdated);
-    console.log('✅ WebSocket listeners registered for video_uploaded and video_feedback_updated');
+    logger.debug('✅ WebSocket listeners registered for video_uploaded and video_feedback_updated');
 
     return () => {
-      console.log('🔌 Cleaning up WebSocket listeners for videos');
+      logger.debug('🔌 Cleaning up WebSocket listeners for videos');
       if (socket) {
         socket.off('video_uploaded', handleVideoUploaded);
         socket.off('video_feedback_updated', handleVideoFeedbackUpdated);
@@ -2466,7 +2467,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       monthDateKeys.push(format(date, 'yyyy-MM-dd'));
     });
 
-    console.log('Month date range:', {
+    logger.debug('Month date range:', {
       monthStart: format(monthStart, 'yyyy-MM-dd'),
       monthEnd: format(monthEnd, 'yyyy-MM-dd'),
       totalDays: monthDateKeys.length,
@@ -2492,7 +2493,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const monthCompleted = monthSessions.filter(session => session.status === 'completed').length;
 
     // Debug logging
-    console.log('Progress calculation debug:', {
+    logger.debug('Progress calculation debug:', {
       weekDateKeys: weekDateKeys,
       monthDateKeys: monthDateKeys.slice(0, 10) + '...',
       weekSessions: weekSessions.length,
@@ -2573,7 +2574,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       return true;
     });
 
-    console.log(`📊 Filtered videos count: ${filtered.length} (from ${studentVideos.length} total videos)`);
+    logger.debug(`📊 Filtered videos count: ${filtered.length} (from ${studentVideos.length} total videos)`);
     return filtered;
   }, [studentVideos, statusFilter, exerciseFilter, dateFilter]);
 
@@ -6678,20 +6679,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   // Sauvegarder aussi dans localStorage comme cache
                   const storageKey = `oneRm_${student.id}`;
                   localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
-                  console.log('✅ 1RM sauvegardées dans le backend:', oneRepMaxes);
+                  logger.debug('✅ 1RM sauvegardées dans le backend:', oneRepMaxes);
                 } else {
                   throw new Error(response.data.message || 'Erreur lors de la sauvegarde');
                 }
               } catch (apiError) {
-                console.error('Erreur lors de la sauvegarde dans le backend:', apiError);
+                logger.error('Erreur lors de la sauvegarde dans le backend:', apiError);
                 // Fallback: sauvegarder dans localStorage
                 const storageKey = `oneRm_${student.id}`;
                 localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
-                console.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
+                logger.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
                 alert('Les modifications ont été sauvegardées localement. Veuillez réessayer plus tard pour synchroniser avec le serveur.');
               }
             } catch (error) {
-              console.error('Erreur lors de la sauvegarde des 1RM:', error);
+              logger.error('Erreur lors de la sauvegarde des 1RM:', error);
               alert('Erreur lors de la sauvegarde des modifications');
             }
           }}
@@ -6757,13 +6758,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   const storageKey = `oneRm_${student.id}`;
                   localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
 
-                  console.log('✅ 1RM sauvegardées dans le backend et modale fermée:', oneRepMaxes);
+                  logger.debug('✅ 1RM sauvegardées dans le backend et modale fermée:', oneRepMaxes);
                   setIsOneRmModalOpen(false);
                 } else {
                   throw new Error(response.data.message || 'Erreur lors de la sauvegarde');
                 }
               } catch (apiError) {
-                console.error('Erreur lors de la sauvegarde dans le backend:', apiError);
+                logger.error('Erreur lors de la sauvegarde dans le backend:', apiError);
                 // Fallback: sauvegarder dans localStorage et mettre à jour l'état local
                 const storageKey = `oneRm_${student.id}`;
                 localStorage.setItem(storageKey, JSON.stringify(oneRepMaxes));
@@ -6773,12 +6774,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   oneRepMaxes: oneRepMaxes
                 }));
 
-                console.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
+                logger.warn('⚠️ Sauvegarde dans localStorage uniquement (backend indisponible)');
                 alert('Les modifications ont été sauvegardées localement. Veuillez réessayer plus tard pour synchroniser avec le serveur.');
                 setIsOneRmModalOpen(false);
               }
             } catch (error) {
-              console.error('Erreur lors de la sauvegarde des 1RM:', error);
+              logger.error('Erreur lors de la sauvegarde des 1RM:', error);
               alert('Erreur lors de la sauvegarde des modifications');
             }
           }}

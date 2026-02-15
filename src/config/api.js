@@ -1,10 +1,12 @@
+import logger from '../utils/logger';
+
 // API Configuration with automatic IP detection
 const getApiBaseUrl = () => {
   // Check if we're in development mode
   if (import.meta.env.DEV) {
     // If we have a custom API URL set, use it
     if (import.meta.env.VITE_API_URL) {
-      console.log('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
+      logger.debug('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
       return import.meta.env.VITE_API_URL;
     }
     
@@ -14,7 +16,7 @@ const getApiBaseUrl = () => {
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
       // We're on a network device, use the network IP
       const networkUrl = `http://${hostname}:3001`;
-      console.log('🔧 Using network API URL:', networkUrl);
+      logger.debug('🔧 Using network API URL:', networkUrl);
       return networkUrl;
     }
     
@@ -48,7 +50,7 @@ const testApiConnectivity = async (url) => {
     });
     return response.ok;
   } catch (error) {
-    console.log(`❌ API test failed for ${url}:`, error.message);
+    logger.debug(`❌ API test failed for ${url}:`, error.message);
     return false;
   }
 };
@@ -57,7 +59,7 @@ const testApiConnectivity = async (url) => {
 export const getWorkingApiUrl = async () => {
   // In production, prioritize VITE_API_URL if set
   if (!import.meta.env.DEV && import.meta.env.VITE_API_URL) {
-    console.log('🔧 Using VITE_API_URL in production:', import.meta.env.VITE_API_URL);
+    logger.debug('🔧 Using VITE_API_URL in production:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
 
@@ -83,12 +85,12 @@ export const getWorkingApiUrl = async () => {
   for (const url of uniqueUrls) {
     const isWorking = await testApiConnectivity(url);
     if (isWorking) {
-      console.log(`✅ Working API URL found: ${url}`);
+      logger.debug(`✅ Working API URL found: ${url}`);
       return url;
     }
   }
   
-  console.log('❌ No working API URL found, using fallback');
+  logger.debug('❌ No working API URL found, using fallback');
   // In production, return VITE_API_URL if set, otherwise return empty string
   if (!import.meta.env.DEV && import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
@@ -170,7 +172,7 @@ class ConnectionManager {
         if (envApiUrl !== this.currentApiUrl) {
           this.currentApiUrl = envApiUrl;
           this.currentSocketUrl = import.meta.env.VITE_SOCKET_URL || envApiUrl;
-          console.log('✅ Using production API URL from environment:', this.currentApiUrl);
+          logger.debug('✅ Using production API URL from environment:', this.currentApiUrl);
           this.notifyListeners();
         }
         return;
@@ -182,11 +184,11 @@ class ConnectionManager {
       if (newApiUrl !== this.currentApiUrl) {
         this.currentApiUrl = newApiUrl;
         this.currentSocketUrl = this.currentApiUrl; // Socket uses same URL as API
-        console.log('✅ New working API URL detected:', this.currentApiUrl);
+        logger.debug('✅ New working API URL detected:', this.currentApiUrl);
         this.notifyListeners();
       }
     } catch (error) {
-      console.error('❌ Failed to detect working API URL:', error);
+      logger.error('❌ Failed to detect working API URL:', error);
     }
   }
 
@@ -204,7 +206,7 @@ class ConnectionManager {
 
     const isWorking = await testApiConnectivity(this.currentApiUrl);
     if (!isWorking) {
-      console.log('🔄 Connection lost, attempting to reconnect...');
+      logger.debug('🔄 Connection lost, attempting to reconnect...');
       await this.detectAndSetUrls();
     }
   }
@@ -238,14 +240,14 @@ class ConnectionManager {
           socketUrl: this.currentSocketUrl
         });
       } catch (error) {
-        console.error('❌ Error in connection listener:', error);
+        logger.error('❌ Error in connection listener:', error);
       }
     });
   }
 
   // Force reconnection
   async reconnect() {
-    console.log('🔄 Forcing reconnection...');
+    logger.debug('🔄 Forcing reconnection...');
     await this.detectAndSetUrls();
   }
 

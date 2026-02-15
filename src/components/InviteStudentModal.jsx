@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
@@ -42,7 +43,7 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
         setError(response.data.message || 'Erreur lors de l\'envoi de l\'invitation');
       }
     } catch (err) {
-      console.error('Error sending invitation:', err);
+      logger.error('Error sending invitation:', err);
       setError(
         err.response?.data?.message || 
         'Erreur lors de l\'envoi de l\'invitation. Veuillez réessayer.'

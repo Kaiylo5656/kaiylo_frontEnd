@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React from 'react';
 import VoiceMessage from './VoiceMessage';
 import { PlayCircle, FileVideo } from 'lucide-react';
@@ -37,7 +38,7 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
     try {
       formattedDate = format(new Date(videoDate), 'd MMM yyyy', { locale: fr });
     } catch (e) {
-      console.error('Error formatting date:', e);
+      logger.error('Error formatting date:', e);
     }
   }
 
