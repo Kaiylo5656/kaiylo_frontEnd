@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState } from 'react';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { Input } from '../ui/input';
@@ -55,7 +56,7 @@ const ExerciseCreateForm = ({
 
       await onCreate(exerciseData);
     } catch (error) {
-      console.error('Error creating exercise:', error);
+      logger.error('Error creating exercise:', error);
     }
   };
 

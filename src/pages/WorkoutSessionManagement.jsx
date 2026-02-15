@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -61,7 +62,7 @@ const WorkoutSessionManagement = () => {
         setExercises([]); // Set empty array on error
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      logger.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -123,9 +124,9 @@ const WorkoutSessionManagement = () => {
       const method = editingSession ? 'PATCH' : 'POST';
       
       const token = getAuthToken();
-      console.log('🔍 Debug - Token being sent:', token);
-      console.log('🔍 Debug - Token type:', typeof token);
-      console.log('🔍 Debug - Token length:', token ? token.length : 0);
+      logger.debug('🔍 Debug - Token being sent:', token);
+      logger.debug('🔍 Debug - Token type:', typeof token);
+      logger.debug('🔍 Debug - Token length:', token ? token.length : 0);
       
       const response = await fetch(url, {
         method,
@@ -136,8 +137,8 @@ const WorkoutSessionManagement = () => {
         body: JSON.stringify(formData)
       });
 
-      console.log('🔍 Debug - Response status:', response.status);
-      console.log('🔍 Debug - Response ok:', response.ok);
+      logger.debug('🔍 Debug - Response status:', response.status);
+      logger.debug('🔍 Debug - Response ok:', response.ok);
 
       if (response.ok) {
         setShowForm(false);
@@ -145,12 +146,12 @@ const WorkoutSessionManagement = () => {
         resetForm();
         fetchData();
       } else {
-        console.error('Failed to save session');
+        logger.error('Failed to save session');
         const errorText = await response.text();
-        console.error('🔍 Debug - Error response:', errorText);
+        logger.error('🔍 Debug - Error response:', errorText);
       }
     } catch (error) {
-      console.error('Error saving session:', error);
+      logger.error('Error saving session:', error);
     }
   };
 
@@ -185,10 +186,10 @@ const WorkoutSessionManagement = () => {
       if (response.ok) {
         fetchData();
       } else {
-        console.error('Failed to delete session');
+        logger.error('Failed to delete session');
       }
     } catch (error) {
-      console.error('Error deleting session:', error);
+      logger.error('Error deleting session:', error);
     }
   };
 
@@ -207,10 +208,10 @@ const WorkoutSessionManagement = () => {
       if (response.ok) {
         fetchData();
       } else {
-        console.error('Failed to publish session');
+        logger.error('Failed to publish session');
       }
     } catch (error) {
-      console.error('Error publishing session:', error);
+      logger.error('Error publishing session:', error);
     }
   };
 

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   History, 
@@ -25,7 +26,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
   const getAthleteName = (item) => {
     // Debug: log the item structure to understand the data format
     if (process.env.NODE_ENV === 'development' && !item?.athlete?.name && !item?.athleteName && !item?.user?.name && !item?.student?.name) {
-      console.log('ExerciseHistory - Item structure:', item);
+      logger.debug('ExerciseHistory - Item structure:', item);
     }
     
     // Try multiple possible paths for athlete name
@@ -456,7 +457,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                       // Prevent closing dropdown when clicking on history row
                       e.stopPropagation();
                       // Optional: Open session details in new tab
-                      console.log('Open session:', item.sessionId);
+                      logger.debug('Open session:', item.sessionId);
                     }}
                   >
                     <div className="min-w-0">
@@ -499,7 +500,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                   // Prevent closing dropdown when clicking on history row
                   e.stopPropagation();
                   // Optional: Open session details
-                  console.log('Open session:', item.sessionId);
+                  logger.debug('Open session:', item.sessionId);
                 }}
               >
                 <div className="flex items-center justify-between mb-2">

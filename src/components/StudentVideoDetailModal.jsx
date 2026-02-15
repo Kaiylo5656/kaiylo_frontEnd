@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import VoiceMessage from './VoiceMessage';
@@ -156,7 +157,7 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
                 }}
                 onCanPlay={() => setIsVideoLoading(false)}
                 onError={(error) => {
-                  console.error('Video error:', error);
+                  logger.error('Video error:', error);
                   setVideoError('Erreur lors du chargement de la vidéo');
                   setIsVideoLoading(false);
                 }}

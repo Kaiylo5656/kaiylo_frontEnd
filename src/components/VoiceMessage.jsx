@@ -1,4 +1,5 @@
 // frontend/src/components/VoiceMessage.jsx
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause } from 'lucide-react';
 
@@ -98,7 +99,7 @@ const VoiceMessage = ({ message, isOwnMessage = false }) => {
     };
 
     const handleError = (e) => {
-      console.error('Error loading audio:', message.file_url, e);
+      logger.error('Error loading audio:', message.file_url, e);
       setIsPlaying(false);
       setDuration(0);
       setCurrentTime(0);
@@ -148,7 +149,7 @@ const VoiceMessage = ({ message, isOwnMessage = false }) => {
         setIsPlaying(true);
       }
     } catch (error) {
-      console.error('Error playing audio:', error);
+      logger.error('Error playing audio:', error);
       setIsPlaying(false);
     }
   };

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -101,8 +102,8 @@ const StudentRegistrationModal = ({ isOpen, onClose }) => {
         name: fullName,
         password: data.password
       }).catch(error => {
-        console.error('Student registration error:', error);
-        console.error('Error response:', error.response?.data);
+        logger.error('Student registration error:', error);
+        logger.error('Error response:', error.response?.data);
         const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
         throw new Error(errorMessage);
       });

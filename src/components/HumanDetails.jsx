@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { 
   Hash, 
@@ -49,7 +50,7 @@ const HumanDetails = ({ exercise }) => {
         }
         
       } catch (err) {
-        console.error('Error fetching exercise details:', err);
+        logger.error('Error fetching exercise details:', err);
         setError('Failed to load some details');
       } finally {
         setLoading(false);

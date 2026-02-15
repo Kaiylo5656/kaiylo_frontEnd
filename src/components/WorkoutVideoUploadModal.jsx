@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
@@ -38,17 +39,17 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       const shouldSkip = videoUrl && lastVideoUrlRef.current === videoUrl && !wasNoUrl;
       
       if (shouldSkip) {
-        console.log('⏭️ Already initialized with this video URL, skipping');
+        logger.debug('⏭️ Already initialized with this video URL, skipping');
         return;
       }
       
       // If URL changed from no-URL to URL, reset initialization flag
       if (urlChanged && wasNoUrl) {
-        console.log('🔄 Video URL became available, re-initializing');
+        logger.debug('🔄 Video URL became available, re-initializing');
         initializedRef.current = false;
       }
       
-      console.log('🔍 WorkoutVideoUploadModal - existingVideo:', {
+      logger.debug('🔍 WorkoutVideoUploadModal - existingVideo:', {
         file: existingVideo.file,
         fileType: typeof existingVideo.file,
         isFromAPI: existingVideo.isFromAPI,
@@ -65,9 +66,9 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
         // Video has a URL (from any source, even if file === 'uploaded')
         setVideoFile(existingVideo.videoUrl);
         setVideoPreviewUrl(existingVideo.videoUrl);
-        console.log('📹 Restoring uploaded video from URL:', existingVideo.videoUrl);
-        console.log('✅ Set videoFile to URL string:', existingVideo.videoUrl);
-        console.log('✅ Set videoPreviewUrl to URL string:', existingVideo.videoUrl);
+        logger.debug('📹 Restoring uploaded video from URL:', existingVideo.videoUrl);
+        logger.debug('✅ Set videoFile to URL string:', existingVideo.videoUrl);
+        logger.debug('✅ Set videoPreviewUrl to URL string:', existingVideo.videoUrl);
         initializedRef.current = true;
         lastVideoUrlRef.current = existingVideo.videoUrl;
       } else if (existingVideo.file === 'no-video') {
@@ -83,7 +84,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
         lastVideoUrlRef.current = url;
       } else if (existingVideo.isFromAPI && !existingVideo.videoUrl) {
         // Video was fetched from API but has no URL (still processing or failed)
-        console.log('📹 Video from API but no URL yet, status:', existingVideo.status);
+        logger.debug('📹 Video from API but no URL yet, status:', existingVideo.status);
         if (existingVideo.status === 'PROCESSING' || existingVideo.status === 'UPLOADING' || existingVideo.status === 'UPLOADED_RAW') {
           // Video is still processing
           setVideoFile('processing');
@@ -100,7 +101,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       } else if (existingVideo.file === 'uploaded' && existingVideo.videoId && !existingVideo.videoUrl) {
         // Video was just uploaded via TUS (has videoId but no videoUrl yet)
         // We need to fetch the signed URL from the API
-        console.log('📹 Video uploaded but no URL yet, fetching from API...', existingVideo.videoId);
+        logger.debug('📹 Video uploaded but no URL yet, fetching from API...', existingVideo.videoId);
         // For now, mark as uploaded - the video will be fetched from API on next session load
         // Or we could trigger a fetch here, but that's more complex
         setVideoFile('uploaded');
@@ -110,12 +111,12 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       } else if (existingVideo.status) {
          // Maybe it's a video already uploaded?
          // For now, assume we are handling file objects or fresh uploads.
-         console.log('⚠️ Video has status but no URL or file:', existingVideo.status);
+         logger.debug('⚠️ Video has status but no URL or file:', existingVideo.status);
          initializedRef.current = true;
          lastVideoUrlRef.current = `status-${existingVideo.status}`;
       }
     } else if (isOpen && !existingVideo) {
-      console.log('🔍 WorkoutVideoUploadModal - No existingVideo, resetting');
+      logger.debug('🔍 WorkoutVideoUploadModal - No existingVideo, resetting');
       setVideoFile(null);
       setVideoPreviewUrl(null);
       reset(); // Reset upload hook state
@@ -126,7 +127,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
   
   // Debug: Log videoFile and videoPreviewUrl changes
   useEffect(() => {
-    console.log('🔍 WorkoutVideoUploadModal - State update:', {
+    logger.debug('🔍 WorkoutVideoUploadModal - State update:', {
       videoFile: videoFile ? (typeof videoFile === 'string' ? `URL (${videoFile.substring(0, 50)}...)` : typeof videoFile === 'object' ? `File (${videoFile.name})` : videoFile) : 'null',
       videoPreviewUrl: videoPreviewUrl ? `URL (${videoPreviewUrl.substring(0, 50)}...)` : 'null',
       isOpen,
@@ -204,7 +205,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
 
     // If video is already uploaded (from API), update state but don't close automatically
     if (videoFile === 'uploaded' && existingVideo?.isFromAPI) {
-        console.log('✅ Video already uploaded, skipping re-upload');
+        logger.debug('✅ Video already uploaded, skipping re-upload');
         if (onUploadSuccess) {
           onUploadSuccess({ 
             file: 'uploaded', 
@@ -322,7 +323,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
             const shouldShowVideo = videoFile && videoFile !== 'no-video' && (typeof videoFile === 'object' || typeof videoFile === 'string');
             const hasPreviewUrl = !!videoPreviewUrl;
             
-            console.log('🔍 Render check:', {
+            logger.debug('🔍 Render check:', {
               videoFile: videoFile ? (typeof videoFile === 'string' ? 'URL string' : typeof videoFile === 'object' ? 'File object' : videoFile) : 'null',
               videoPreviewUrl: hasPreviewUrl ? 'Yes' : 'No',
               shouldShowVideo,
@@ -356,9 +357,9 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                               className="w-full max-h-[200px] bg-black" 
                               style={{ aspectRatio: '16/9' }}
                               onError={(e) => {
-                                console.error('❌ Video load error:', e);
-                                console.error('❌ Video URL:', videoPreviewUrl);
-                                console.error('❌ Video element error details:', {
+                                logger.error('❌ Video load error:', e);
+                                logger.error('❌ Video URL:', videoPreviewUrl);
+                                logger.error('❌ Video element error details:', {
                                   error: e.target?.error,
                                   networkState: e.target?.networkState,
                                   readyState: e.target?.readyState,
@@ -368,14 +369,14 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                                 // If video fails to load, show a message
                                 if (e.target?.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || 
                                     e.target?.error?.code === MediaError.MEDIA_ERR_NETWORK) {
-                                  console.warn('⚠️ Video may not be ready yet or URL expired. Status:', existingVideo?.status);
+                                  logger.warn('⚠️ Video may not be ready yet or URL expired. Status:', existingVideo?.status);
                                 }
                               }}
                               onLoadedData={() => {
-                                console.log('✅ Video loaded successfully:', videoPreviewUrl);
+                                logger.debug('✅ Video loaded successfully:', videoPreviewUrl);
                               }}
                               onLoadStart={() => {
-                                console.log('🔄 Video loading started:', videoPreviewUrl);
+                                logger.debug('🔄 Video loading started:', videoPreviewUrl);
                               }}
                             />
                           );

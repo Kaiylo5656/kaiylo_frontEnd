@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, Play, Pause } from 'lucide-react';
 
@@ -34,7 +35,7 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
       setHasPermission(true);
       return true;
     } catch (error) {
-      console.error('Microphone permission denied:', error);
+      logger.error('Microphone permission denied:', error);
       setHasPermission(false);
       return false;
     }
@@ -101,7 +102,7 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
       };
 
       mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event.error);
+        logger.error('MediaRecorder error:', event.error);
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -117,7 +118,7 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
       }, 1000);
 
     } catch (error) {
-      console.error('Error starting recording:', error);
+      logger.error('Error starting recording:', error);
       alert('Erreur lors du démarrage de l\'enregistrement. Veuillez vérifier les permissions du microphone.');
       setHasPermission(false);
     }
@@ -162,7 +163,7 @@ const VoiceRecorder = ({ onSend, onCancel, conversationId }) => {
     if (audioBlob && onSend) {
       // Get the MIME type from the blob (preserves the original type from MediaRecorder)
       const mimeType = audioBlob.type || 'audio/webm';
-      console.log('🎤 Sending voice message:', { 
+      logger.debug('🎤 Sending voice message:', { 
         size: audioBlob.size, 
         type: mimeType,
         duration: recordingTime 

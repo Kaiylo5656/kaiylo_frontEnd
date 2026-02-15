@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { buildApiUrl } from '../config/api';
@@ -46,7 +47,7 @@ const ExerciseInfoModal = ({
             try {
               token = await refreshAuthToken();
             } catch (refreshError) {
-              console.warn('No auth token available for fetching exercise details');
+              logger.warn('No auth token available for fetching exercise details');
               setExerciseDetails(exercise);
               return;
             }
@@ -76,12 +77,12 @@ const ExerciseInfoModal = ({
               setExerciseDetails(exercise);
             }
           } else {
-            console.warn('Failed to fetch exercise public details:', response.status);
+            logger.warn('Failed to fetch exercise public details:', response.status);
             // En cas d'erreur, utiliser l'exercice tel quel
             setExerciseDetails(exercise);
           }
         } catch (error) {
-          console.error('Error fetching exercise public details:', error);
+          logger.error('Error fetching exercise public details:', error);
           // En cas d'erreur, utiliser l'exercice tel quel
           setExerciseDetails(exercise);
         } finally {
@@ -236,14 +237,14 @@ const ExerciseInfoModal = ({
                       default:
                         errorMessage = `Erreur vidéo: ${error.message || 'Erreur inconnue'}`;
                     }
-                    console.error('Video error:', {
+                    logger.error('Video error:', {
                       code: error.code,
                       message: error.message,
                       src: videoElement?.src
                     });
                     setVideoError(errorMessage);
                   } else {
-                    console.error('Video error: Unable to load video');
+                    logger.error('Video error: Unable to load video');
                     setVideoError('Erreur lors du chargement de la vidéo');
                   }
                   setIsVideoLoading(false);

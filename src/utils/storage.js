@@ -1,3 +1,5 @@
+import logger from './logger';
+
 /**
  * Safe localStorage utility functions
  * Handles cases where localStorage is not available (service workers, iframes, etc.)
@@ -28,12 +30,12 @@ export const isStorageAvailable = () => {
 export const safeGetItem = (key) => {
   try {
     if (!isStorageAvailable()) {
-      console.warn(`localStorage not available, cannot get key: ${key}`);
+      logger.warn(`localStorage not available, cannot get key: ${key}`);
       return null;
     }
     return window.localStorage.getItem(key);
   } catch (error) {
-    console.warn(`Error getting localStorage key ${key}:`, error);
+    logger.warn(`Error getting localStorage key ${key}:`, error);
     return null;
   }
 };
@@ -44,13 +46,13 @@ export const safeGetItem = (key) => {
 export const safeSetItem = (key, value) => {
   try {
     if (!isStorageAvailable()) {
-      console.warn(`localStorage not available, cannot set key: ${key}`);
+      logger.warn(`localStorage not available, cannot set key: ${key}`);
       return false;
     }
     window.localStorage.setItem(key, value);
     return true;
   } catch (error) {
-    console.warn(`Error setting localStorage key ${key}:`, error);
+    logger.warn(`Error setting localStorage key ${key}:`, error);
     return false;
   }
 };
@@ -61,13 +63,13 @@ export const safeSetItem = (key, value) => {
 export const safeRemoveItem = (key) => {
   try {
     if (!isStorageAvailable()) {
-      console.warn(`localStorage not available, cannot remove key: ${key}`);
+      logger.warn(`localStorage not available, cannot remove key: ${key}`);
       return false;
     }
     window.localStorage.removeItem(key);
     return true;
   } catch (error) {
-    console.warn(`Error removing localStorage key ${key}:`, error);
+    logger.warn(`Error removing localStorage key ${key}:`, error);
     return false;
   }
 };
@@ -82,7 +84,7 @@ export const safeGetSessionItem = (key) => {
     }
     return window.sessionStorage.getItem(key);
   } catch (error) {
-    console.warn(`Error getting sessionStorage key ${key}:`, error);
+    logger.warn(`Error getting sessionStorage key ${key}:`, error);
     return null;
   }
 };
@@ -98,7 +100,7 @@ export const safeSetSessionItem = (key, value) => {
     window.sessionStorage.setItem(key, value);
     return true;
   } catch (error) {
-    console.warn(`Error setting sessionStorage key ${key}:`, error);
+    logger.warn(`Error setting sessionStorage key ${key}:`, error);
     return false;
   }
 };
@@ -114,7 +116,7 @@ export const safeRemoveSessionItem = (key) => {
     window.sessionStorage.removeItem(key);
     return true;
   } catch (error) {
-    console.warn(`Error removing sessionStorage key ${key}:`, error);
+    logger.warn(`Error removing sessionStorage key ${key}:`, error);
     return false;
   }
 };
@@ -179,7 +181,7 @@ export const getSafeStorage = () => {
           window.localStorage.setItem(key, value);
         }
       } catch (e) {
-        console.warn(`Error setting storage key ${key} (isPKCE: ${isPKCECodeVerifier}):`, e);
+        logger.warn(`Error setting storage key ${key} (isPKCE: ${isPKCECodeVerifier}):`, e);
       }
     },
     removeItem: (key) => {
@@ -194,7 +196,7 @@ export const getSafeStorage = () => {
           window.localStorage.removeItem(key);
         }
       } catch (e) {
-        console.warn(`Error removing storage key ${key}:`, e);
+        logger.warn(`Error removing storage key ${key}:`, e);
       }
     },
   };

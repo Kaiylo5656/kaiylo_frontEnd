@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useWorkoutSession } from './MainLayout';
 import { safeGetItem, safeSetItem, safeRemoveItem, isStorageAvailable } from '../utils/storage';
 import axios from 'axios';
+import logger from '../utils/logger';
 
 const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
@@ -107,10 +108,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         savedAt: new Date().toISOString()
       }));
       if (!success) {
-        console.warn('⚠️ Could not save progress to localStorage (storage not available)');
+        logger.warn('⚠️ Could not save progress to localStorage (storage not available)');
       }
     } catch (error) {
-      console.error('Error saving progress to localStorage:', error);
+      logger.error('Error saving progress to localStorage:', error);
     }
   }, [storageKey]);
   
@@ -124,7 +125,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         return JSON.parse(saved);
       }
     } catch (error) {
-      console.error('Error loading progress from localStorage:', error);
+      logger.error('Error loading progress from localStorage:', error);
     }
     return null;
   }, [storageKey]);
@@ -136,7 +137,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       // Use safe storage function to handle contexts where localStorage is not available
       safeRemoveItem(storageKey);
     } catch (error) {
-      console.error('Error clearing progress from localStorage:', error);
+      logger.error('Error clearing progress from localStorage:', error);
     }
   }, [storageKey]);
   
@@ -181,14 +182,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       // Already restored for this session, but check if flag is stuck
       if (isRestoringProgress.current && restoreTimeoutRef.current === null) {
         // Flag is stuck, reset it
-        console.warn('⚠️ isRestoringProgress flag stuck after restoration, resetting...');
+        logger.warn('⚠️ isRestoringProgress flag stuck after restoration, resetting...');
         isRestoringProgress.current = false;
       }
-      console.log('⏭️ Skipping restoration - already restored for session:', sessionId);
+      logger.debug('⏭️ Skipping restoration - already restored for session:', sessionId);
       return;
     }
     
-    console.log('🔄 Starting restoration check for session:', sessionId, {
+    logger.debug('🔄 Starting restoration check for session:', sessionId, {
       lastRestoredSessionId: lastRestoredSessionId.current,
       hasRestoredProgress: hasRestoredProgress.current
     });
@@ -211,8 +212,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       const saved = safeGetItem(storageKey);
       if (saved) {
         const savedProgress = JSON.parse(saved);
-        console.log('📦 Restoring saved progress for session:', sessionId);
-        console.log('📦 Progress details:', {
+        logger.debug('📦 Restoring saved progress for session:', sessionId);
+        logger.debug('📦 Progress details:', {
           currentExerciseIndex: savedProgress.currentExerciseIndex,
           completedSetsKeys: Object.keys(savedProgress.completedSets || {}),
           currentSetIndex: savedProgress.currentSetIndex,
@@ -222,29 +223,29 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         
         // Restore all states directly (we control restoration with hasRestoredProgress flag)
         if (savedProgress.completedSets) {
-          console.log('✅ Restoring completedSets:', savedProgress.completedSets);
+          logger.debug('✅ Restoring completedSets:', savedProgress.completedSets);
           setCompletedSets(savedProgress.completedSets);
         }
         if (savedProgress.currentExerciseIndex !== undefined) {
-          console.log('✅ Restoring currentExerciseIndex:', savedProgress.currentExerciseIndex);
+          logger.debug('✅ Restoring currentExerciseIndex:', savedProgress.currentExerciseIndex);
           setCurrentExerciseIndex(savedProgress.currentExerciseIndex);
         }
         if (savedProgress.currentSetIndex) {
-          console.log('✅ Restoring currentSetIndex:', savedProgress.currentSetIndex);
+          logger.debug('✅ Restoring currentSetIndex:', savedProgress.currentSetIndex);
           setCurrentSetIndex(savedProgress.currentSetIndex);
         }
         if (savedProgress.selectedSetIndex) {
-          console.log('✅ Restoring selectedSetIndex:', savedProgress.selectedSetIndex);
+          logger.debug('✅ Restoring selectedSetIndex:', savedProgress.selectedSetIndex);
           setSelectedSetIndex(savedProgress.selectedSetIndex);
         }
         if (savedProgress.exerciseComments) {
-          console.log('✅ Restoring exerciseComments:', savedProgress.exerciseComments);
+          logger.debug('✅ Restoring exerciseComments:', savedProgress.exerciseComments);
           setExerciseComments(savedProgress.exerciseComments);
         }
         // Restaurer les métadonnées des vidéos (sans les fichiers)
         // Cela permet à WorkoutVideoUploadModal de savoir qu'une vidéo a été enregistrée
         if (savedProgress.videoMetadata && savedProgress.videoMetadata.length > 0) {
-          console.log('📹 Restoring video metadata:', savedProgress.videoMetadata.length, 'videos');
+          logger.debug('📹 Restoring video metadata:', savedProgress.videoMetadata.length, 'videos');
           const restoredVideos = savedProgress.videoMetadata.map(metadata => ({
             exerciseIndex: metadata.exerciseIndex,
             setIndex: metadata.setIndex,
@@ -299,23 +300,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                     videoStatus: undefined
                   };
                   hasResetVideos = true;
-                  console.log(`🔄 Réinitialisation de l'état vidéo pour l'exercice ${video.exerciseIndex}, série ${video.setIndex}`);
+                  logger.debug(`🔄 Réinitialisation de l'état vidéo pour l'exercice ${video.exerciseIndex}, série ${video.setIndex}`);
                 }
               }
             });
             
             if (hasResetVideos) {
-              console.log('⚠️ Des vidéos étaient enregistrées mais les fichiers ne peuvent pas être restaurés. L\'état a été réinitialisé pour permettre un nouvel upload.');
+              logger.debug('⚠️ Des vidéos étaient enregistrées mais les fichiers ne peuvent pas être restaurés. L\'état a été réinitialisé pour permettre un nouvel upload.');
             }
             
             return updated;
           });
         }
       } else {
-        console.log('📭 No saved progress found for session:', sessionId);
+        logger.debug('📭 No saved progress found for session:', sessionId);
       }
     } catch (error) {
-      console.error('Error loading progress from localStorage:', error);
+      logger.error('Error loading progress from localStorage:', error);
     }
     
     // Mark as restored immediately
@@ -333,13 +334,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     restoreTimeoutRef.current = setTimeout(() => {
       isRestoringProgress.current = false;
       restoreTimeoutRef.current = null;
-      console.log('✅ Progress restoration complete, saving enabled');
+      logger.debug('✅ Progress restoration complete, saving enabled');
     }, 150);
     
     // Safety mechanism: also reset the flag after a longer delay to ensure it's never stuck
     setTimeout(() => {
       if (isRestoringProgress.current) {
-        console.warn('⚠️ Safety: Forcing isRestoringProgress to false after 1 second');
+        logger.warn('⚠️ Safety: Forcing isRestoringProgress to false after 1 second');
         isRestoringProgress.current = false;
         if (restoreTimeoutRef.current) {
           clearTimeout(restoreTimeoutRef.current);
@@ -368,7 +369,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     
     // Wait for exercises to be available
     if (!exercises || exercises.length === 0) {
-      console.log('⏳ Waiting for exercises to load before fetching videos...');
+      logger.debug('⏳ Waiting for exercises to load before fetching videos...');
       return;
     }
     
@@ -383,8 +384,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       );
       
       if (response.data.success && response.data.data && response.data.data.length > 0) {
-        console.log('📹 Fetched videos from API for session:', assignmentId, response.data.data.length, 'videos');
-        console.log('📊 Available exercises:', exercises.map((ex, idx) => ({ index: idx, name: ex.name, id: ex.exerciseId })));
+        logger.debug('📹 Fetched videos from API for session:', assignmentId, response.data.data.length, 'videos');
+        logger.debug('📊 Available exercises:', exercises.map((ex, idx) => ({ index: idx, name: ex.name, id: ex.exerciseId })));
         
             // Map API videos to local video format
             const apiVideos = response.data.data
@@ -395,12 +396,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 const isNotProcessing = !['PROCESSING', 'UPLOADING', 'PENDING'].includes(video.status);
                 
                 if (!hasValidUrl) {
-                  console.log(`⏭️ Skipping video ${video.id}: No valid URL`);
+                  logger.debug(`⏭️ Skipping video ${video.id}: No valid URL`);
                   return false;
                 }
                 
                 if (!isReady && !isNotProcessing) {
-                  console.log(`⏭️ Skipping video ${video.id}: Still processing (status: ${video.status})`);
+                  logger.debug(`⏭️ Skipping video ${video.id}: Still processing (status: ${video.status})`);
                   return false;
                 }
                 
@@ -418,9 +419,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             if (metadata.exercise_index !== undefined && metadata.exercise_index !== null) {
               exerciseIndex = parseInt(metadata.exercise_index, 10);
               if (exerciseIndex >= 0 && exerciseIndex < exercises.length) {
-                console.log(`✅ Using exercise_index from metadata: ${exerciseIndex} for video: ${exerciseName}`);
+                logger.debug(`✅ Using exercise_index from metadata: ${exerciseIndex} for video: ${exerciseName}`);
               } else {
-                console.warn(`⚠️ exercise_index from metadata (${exerciseIndex}) is out of range. Exercises count: ${exercises.length}`);
+                logger.warn(`⚠️ exercise_index from metadata (${exerciseIndex}) is out of range. Exercises count: ${exercises.length}`);
                 exerciseIndex = -1;
               }
             }
@@ -429,7 +430,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             if (exerciseIndex === -1 && video.exercise_id) {
               exerciseIndex = exercises.findIndex(ex => ex.exerciseId === video.exercise_id);
               if (exerciseIndex !== -1) {
-                console.log(`✅ Found exercise by exercise_id: ${video.exercise_id} at index ${exerciseIndex}`);
+                logger.debug(`✅ Found exercise by exercise_id: ${video.exercise_id} at index ${exerciseIndex}`);
               }
             }
             
@@ -458,12 +459,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               }
               
               if (exerciseIndex !== -1) {
-                console.log(`✅ Found exercise by name matching: "${exerciseName}" -> "${exercises[exerciseIndex]?.name}" at index ${exerciseIndex}`);
+                logger.debug(`✅ Found exercise by name matching: "${exerciseName}" -> "${exercises[exerciseIndex]?.name}" at index ${exerciseIndex}`);
               }
             }
             
             if (exerciseIndex === -1) {
-              console.warn('⚠️ Could not find exercise for video:', {
+              logger.warn('⚠️ Could not find exercise for video:', {
                 exerciseName,
                 exercise_index: metadata.exercise_index,
                 exercise_id: video.exercise_id,
@@ -502,7 +503,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           .filter(video => video !== null); // Remove null entries
         
         if (apiVideos.length > 0) {
-          console.log('✅ Mapped', apiVideos.length, 'videos from API');
+          logger.debug('✅ Mapped', apiVideos.length, 'videos from API');
           
           // Merge with local videos, prioritizing API videos (they're already uploaded)
           setLocalVideos(prev => {
@@ -516,7 +517,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               
               if (existingIndex !== -1) {
                 // Replace local video with API video (API video is the source of truth)
-                console.log(`🔄 Replacing local video with API video for exercise ${apiVideo.exerciseIndex}, set ${apiVideo.setIndex}`);
+                logger.debug(`🔄 Replacing local video with API video for exercise ${apiVideo.exerciseIndex}, set ${apiVideo.setIndex}`);
                 merged[existingIndex] = apiVideo;
               } else {
                 // Add new API video
@@ -543,10 +544,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           });
         }
       } else {
-        console.log('📭 No videos found in API for session:', assignmentId);
+        logger.debug('📭 No videos found in API for session:', assignmentId);
       }
     } catch (error) {
-      console.error('❌ Error fetching videos from API:', error);
+      logger.error('❌ Error fetching videos from API:', error);
       // Don't throw - this is not critical, just a nice-to-have feature
     }
   }, [exercises, session, getAuthToken]);
@@ -562,20 +563,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       // But check if the timeout has expired (safety check)
       if (restoreTimeoutRef.current === null) {
         // Timeout has completed, but flag wasn't reset - reset it now
-        console.warn('⚠️ isRestoringProgress flag stuck (timeout null), resetting...');
+        logger.warn('⚠️ isRestoringProgress flag stuck (timeout null), resetting...');
         isRestoringProgress.current = false;
         // Continue to save below
       } else {
         // If we're here and the flag is true, we're still in the restoration window
         // Allow a small grace period, but if it's been too long, force reset
-        console.log('⏸️ Skipping save - restoration in progress');
+        logger.debug('⏸️ Skipping save - restoration in progress');
         return;
       }
     }
     
     if (!hasRestoredProgress.current) {
       // Don't save if we haven't restored yet (initial mount)
-      console.log('⏸️ Skipping save - restoration not complete yet');
+      logger.debug('⏸️ Skipping save - restoration not complete yet');
       return;
     }
     
@@ -595,7 +596,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           // Exclure les vidéos déjà uploadées sur Supabase
           const isFromSupabase = v.file === 'uploaded' || v.isFromAPI === true;
           if (isFromSupabase) {
-            console.log(`📦 Skipping cache for uploaded video: exercise ${v.exerciseIndex}, set ${v.setIndex} (will be fetched from Supabase)`);
+            logger.debug(`📦 Skipping cache for uploaded video: exercise ${v.exerciseIndex}, set ${v.setIndex} (will be fetched from Supabase)`);
           }
           return !isFromSupabase;
         })
@@ -626,11 +627,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                         localVideos.length > 0;
     
     if (!hasProgress) {
-      console.log('⏸️ Skipping save - no progress to save yet');
+      logger.debug('⏸️ Skipping save - no progress to save yet');
       return;
     }
     
-    console.log('💾 Saving progress to localStorage:', { 
+    logger.debug('💾 Saving progress to localStorage:', { 
       sessionId, 
       currentExerciseIndex,
       completedSetsCount: Object.keys(completedSets).length,
@@ -1313,7 +1314,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       const shouldSkip = isAlreadyUploadedViaTUS || isFromSupabase || isNoVideo || hasVideoId;
       
       if (shouldSkip) {
-        console.log(`⏭️ Skipping video upload for exercise ${video.exerciseIndex}, set ${video.setIndex}:`, {
+        logger.debug(`⏭️ Skipping video upload for exercise ${video.exerciseIndex}, set ${video.setIndex}:`, {
           isAlreadyUploadedViaTUS,
           isFromSupabase,
           isNoVideo,
@@ -1327,7 +1328,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       return !shouldSkip;
     });
     
-    console.log(`📊 Video upload check: ${localVideos.length} total videos, ${videosToUpload.length} to upload, ${localVideos.length - videosToUpload.length} already uploaded`);
+    logger.debug(`📊 Video upload check: ${localVideos.length} total videos, ${videosToUpload.length} to upload, ${localVideos.length - videosToUpload.length} already uploaded`);
 
     // If there are videos that need to be uploaded (old flow for compatibility)
     if (videosToUpload.length > 0) {
@@ -1413,7 +1414,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 }
               }
             } catch (e) {
-              console.error('Error parsing error response:', e);
+              logger.error('Error parsing error response:', e);
             }
             throw new Error(errorMessage);
           }
@@ -1495,13 +1496,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 }
                 
                 if (!response.ok) {
-                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                  logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                   // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
                 } else {
-                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                  logger.debug(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
                 }
               } catch (error) {
-                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+                logger.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
                 // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
               }
             }
@@ -1522,7 +1523,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
         if (!finalizeResponse.ok) {
           // Even if finalization fails, the session is complete from user's perspective
-          console.error('Failed to trigger video finalization, but session is marked complete.');
+          logger.error('Failed to trigger video finalization, but session is marked complete.');
         }
 
         setIsUploadComplete(true);
@@ -1533,11 +1534,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           // Clear local videos after successful upload and processing
           // They're now safely stored in Supabase Storage and database
           setLocalVideos([]);
-          console.log('🧹 Cleaned localVideos after successful video processing');
+          logger.debug('🧹 Cleaned localVideos after successful video processing');
         }, 2000);
 
       } catch (error) {
-        console.error('Error during video upload (old flow):', error);
+        logger.error('Error during video upload (old flow):', error);
         const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
         
         if (errorMessage.toLowerCase().includes('too large') || errorMessage.toLowerCase().includes('trop volumineux')) {
@@ -1560,7 +1561,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       }
     } else if (localVideos.length > 0) {
       // All videos were already uploaded via TUS, just confirm session completion
-      console.log('✅ All videos already uploaded via TUS, proceeding to session confirmation');
+      logger.debug('✅ All videos already uploaded via TUS, proceeding to session confirmation');
       
       try {
         let authToken = await getAuthToken();
@@ -1638,12 +1639,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 }
                 
                 if (!response.ok) {
-                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                  logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                 } else {
-                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                  logger.debug(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
                 }
               } catch (error) {
-                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+                logger.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
               }
             }
           }
@@ -1660,20 +1661,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           });
   
           if (!finalizeResponse.ok) {
-            console.error('Failed to trigger video finalization for TUS uploads.');
+            logger.error('Failed to trigger video finalization for TUS uploads.');
           } else {
-            console.log('✅ Finalization triggered for TUS uploads.');
+            logger.debug('✅ Finalization triggered for TUS uploads.');
           }
         } catch (error) {
-          console.error('Error triggering finalization for TUS uploads:', error);
+          logger.error('Error triggering finalization for TUS uploads:', error);
         }
         
         // Clear local videos since they're already uploaded
         setLocalVideos([]);
-        console.log('🧹 Cleaned localVideos - all videos already uploaded via TUS');
+        logger.debug('🧹 Cleaned localVideos - all videos already uploaded via TUS');
 
       } catch (error) {
-        console.error('Error during video processing:', error);
+        logger.error('Error during video processing:', error);
         // Extract and display specific error message
         const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
         
@@ -1763,20 +1764,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 }
                 
                 if (!response.ok) {
-                  console.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
+                  logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                   // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
                 } else {
-                  console.log(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
+                  logger.debug(`✅ RPE saved for exercise ${exerciseIndex}, set ${setIndex}: ${rpeRating}`);
                 }
               } catch (error) {
-                console.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
+                logger.error(`Error saving RPE for exercise ${exerciseIndex}, set ${setIndex}:`, error);
                 // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
               }
             }
           }
         }
       } catch (error) {
-        console.error('Error saving RPEs for sets without video:', error);
+        logger.error('Error saving RPEs for sets without video:', error);
         // Ne pas bloquer la complétion de la séance si l'enregistrement des RPE échoue
       }
     }
@@ -1792,7 +1793,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     // No need to keep them in memory after session completion
     setLocalVideos([]);
     
-    console.log('🧹 Cleaned localStorage and localVideos after session completion');
+    logger.debug('🧹 Cleaned localStorage and localVideos after session completion');
     
     // Keep modal open - don't close it here
     // The parent component (StudentDashboard) will handle closing this modal
@@ -1809,12 +1810,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleVideoUpload = (exerciseIndex) => {
-    console.log('🎬 handleVideoUpload called:', { exerciseIndex, exercisesLength: exercises?.length });
+    logger.debug('🎬 handleVideoUpload called:', { exerciseIndex, exercisesLength: exercises?.length });
     const selectedSet = getSelectedSetIndex(exerciseIndex);
-    console.log('🎬 Selected set:', { selectedSet, exerciseIndex });
+    logger.debug('🎬 Selected set:', { selectedSet, exerciseIndex });
     // Check if the selected set has video enabled
     const exercise = exercises[exerciseIndex];
-    console.log('🎬 Exercise:', { exercise: exercise?.name, sets: exercise?.sets, selectedSet });
+    logger.debug('🎬 Exercise:', { exercise: exercise?.name, sets: exercise?.sets, selectedSet });
     if (exercise && exercise.sets && exercise.sets[selectedSet] && exercise.sets[selectedSet].video === true) {
       // Update the video selection to match the current selection
       setSelectedSetForVideo(prev => {
@@ -1822,13 +1823,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           ...prev,
           [exerciseIndex]: selectedSet
         };
-        console.log('🎬 Setting selectedSetForVideo:', updated);
+        logger.debug('🎬 Setting selectedSetForVideo:', updated);
         return updated;
       });
-      console.log('🎬 Opening video modal for exercise', exerciseIndex, 'set', selectedSet);
+      logger.debug('🎬 Opening video modal for exercise', exerciseIndex, 'set', selectedSet);
       setIsVideoModalOpen(true);
     } else {
-      console.warn('⚠️ Cannot open video modal:', {
+      logger.warn('⚠️ Cannot open video modal:', {
         hasExercise: !!exercise,
         hasSets: !!(exercise?.sets),
         hasSelectedSet: !!(exercise?.sets?.[selectedSet]),
@@ -1838,7 +1839,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleVideoUploadSuccess = useCallback((videoData) => {
-    console.log('✅ Video upload success received:', {
+    logger.debug('✅ Video upload success received:', {
       exerciseIndex: videoData.exerciseInfo?.exerciseIndex,
       setIndex: videoData.setInfo?.setIndex,
       status: videoData.status,
@@ -1855,7 +1856,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       ? videoData.setInfo.setIndex
       : (videoData.setInfo?.setNumber ? videoData.setInfo.setNumber - 1 : (selectedSetForVideo[exerciseIndex] ?? 0));
 
-    console.log('🔄 Processing upload for target:', { exerciseIndex, setIndex });
+    logger.debug('🔄 Processing upload for target:', { exerciseIndex, setIndex });
     
     // Use flushSync to force immediate state updates for "no-video" choice
     // This ensures the UI updates immediately when user clicks "Pas de vidéo"
@@ -1955,7 +1956,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       ? setInfo.setIndex
       : (setInfo?.setNumber ? setInfo.setNumber - 1 : (selectedSetForVideo[exerciseIndex] ?? 0));
 
-    console.log('🗑️ Deleting video for:', { exerciseIndex, setIndex });
+    logger.debug('🗑️ Deleting video for:', { exerciseIndex, setIndex });
 
     // Remove video from localVideos completely (not just mark as 'no-video')
     setLocalVideos(prev => {
@@ -2494,7 +2495,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           v => v.exerciseIndex === activeExerciseIndex && v.setIndex === activeSetIndex
         );
         
-        console.log('🔍 existingVideoForSet lookup:', {
+        logger.debug('🔍 existingVideoForSet lookup:', {
           activeExerciseIndex,
           activeSetIndex,
           localVideosCount: localVideos.length,
@@ -2509,14 +2510,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         if (isVideoModalOpen && existingVideoForSet && existingVideoForSet.videoId && !existingVideoForSet.videoUrl) {
           const assignmentId = session?.assignment_id || session?.id;
           if (assignmentId) {
-            console.log('🔄 Video has no URL yet, fetching from API...', existingVideoForSet.videoId);
+            logger.debug('🔄 Video has no URL yet, fetching from API...', existingVideoForSet.videoId);
             fetchSessionVideosFromAPI(assignmentId);
           }
         }
 
         // Log pour déboguer l'ouverture du modal
         if (isVideoModalOpen) {
-          console.log('🎥 Opening Video Modal for:', { 
+          logger.debug('🎥 Opening Video Modal for:', { 
             exercise: activeExercise?.name,
             exerciseIndex: activeExerciseIndex, 
             setIndex: activeSetIndex,
@@ -2528,7 +2529,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
         // Log what we're passing to the modal
         if (isVideoModalOpen && existingVideoForSet) {
-          console.log('📤 Passing existingVideo to modal:', {
+          logger.debug('📤 Passing existingVideo to modal:', {
             videoId: existingVideoForSet.videoId,
             videoUrl: existingVideoForSet.videoUrl,
             file: existingVideoForSet.file,

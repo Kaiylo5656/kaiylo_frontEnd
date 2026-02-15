@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ProgressChart from './ProgressChart';
@@ -39,7 +40,7 @@ const ProgressAnalytics = ({ userRole = 'student' }) => {
         throw new Error(result.message || 'Failed to fetch analytics');
       }
     } catch (err) {
-      console.error('Error fetching analytics:', err);
+      logger.error('Error fetching analytics:', err);
       setError(err.message);
     } finally {
       setLoading(false);

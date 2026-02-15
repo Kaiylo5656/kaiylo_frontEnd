@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Tag, Plus } from 'lucide-react';
 import { 
@@ -119,7 +120,7 @@ const TagTypeahead = ({
     // Validate the tag name
     const validation = validateTagName(normalizedTag);
     if (!validation.isValid) {
-      console.warn('Invalid tag name:', validation.error);
+      logger.warn('Invalid tag name:', validation.error);
       return;
     }
     

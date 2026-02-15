@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Plus, Tag, Edit3 } from 'lucide-react';
 import { Input } from '../ui/input';
@@ -162,7 +163,7 @@ const ExerciseLibraryPanel = ({
         listHeadingRef.current.focus();
       }
     } catch (error) {
-      console.error('Error updating exercise:', error);
+      logger.error('Error updating exercise:', error);
     }
   };
 

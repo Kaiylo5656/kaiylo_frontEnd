@@ -4,11 +4,12 @@ import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import { supabase } from '../lib/supabase';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '../utils/storage';
+import logger from '../utils/logger';
 
 // Expose axios globally for testing purposes (development only)
 if (import.meta.env.DEV) {
   window.axios = axios;
-  console.log('🔧 Axios exposed to window for testing');
+  logger.debug('🔧 Axios exposed to window for testing');
 }
 
 // Helper to read persisted Supabase session
@@ -18,7 +19,7 @@ const getStoredSupabaseSession = () => {
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (error) {
-    console.error('❌ Unable to parse stored Supabase session', error);
+    logger.error('❌ Unable to parse stored Supabase session', error);
     return null;
   }
 };
@@ -56,7 +57,7 @@ const persistSessionTokens = (session) => {
       };
       safeSetItem('sb-auth-token', JSON.stringify(sessionWrapper));
     } catch (error) {
-      console.warn('Failed to persist Supabase session:', error);
+      logger.warn('Failed to persist Supabase session:', error);
     }
   }
 };
@@ -137,7 +138,7 @@ export const AuthProvider = ({ children }) => {
     if (!skipSignOut) {
       // Use await if possible, but since logout is not async in signature (to be safe with UI),
       // we just fire and forget, but we CLEARED local tokens first so UI is safe.
-      supabase.auth.signOut().catch(err => console.error('SignOut error:', err)).finally(() => {
+      supabase.auth.signOut().catch(err => logger.error('SignOut error:', err)).finally(() => {
         isLoggingOutRef.current = false;
       });
     } else {
@@ -162,7 +163,7 @@ export const AuthProvider = ({ children }) => {
     isRefreshingRef.current = true;
 
     try {
-      console.log('🔄 Attempting to refresh auth token...');
+      logger.debug('🔄 Attempting to refresh auth token...');
 
       // 1) Tenter de récupérer la session active via Supabase
       let {
@@ -171,7 +172,7 @@ export const AuthProvider = ({ children }) => {
       } = await supabase.auth.getSession();
 
       if (getSessionError) {
-        console.warn('⚠️ getSession error:', getSessionError.message);
+        logger.warn('⚠️ getSession error:', getSessionError.message);
       }
 
       // 2) Fallback : réhydrater depuis la session persistée (sb-auth-token)
@@ -184,14 +185,14 @@ export const AuthProvider = ({ children }) => {
         // Only try setSession if we have BOTH access_token AND refresh_token
         // If we only have refresh_token, skip to refreshSession (step 3)
         if (storedSession?.access_token && storedRefreshToken) {
-          console.log('🔄 Rehydrating Supabase session from stored tokens');
+          logger.debug('🔄 Rehydrating Supabase session from stored tokens');
           const { data, error } = await supabase.auth.setSession({
             access_token: storedSession.access_token,
             refresh_token: storedRefreshToken
           });
 
           if (error) {
-            console.error('❌ setSession failed:', error.message);
+            logger.error('❌ setSession failed:', error.message);
             // If setSession fails, clear activeSession to force refreshSession
             activeSession = null;
           } else {
@@ -199,7 +200,7 @@ export const AuthProvider = ({ children }) => {
           }
         } else if (storedRefreshToken) {
           // We have refresh token but no access token - skip to refreshSession
-          console.log('🔄 No access token found, will use refreshSession');
+          logger.debug('🔄 No access token found, will use refreshSession');
           activeSession = null; // Force to try refreshSession in step 3
         }
       }
@@ -214,21 +215,21 @@ export const AuthProvider = ({ children }) => {
             });
             if (error) {
               // Si le refresh token est invalide, nettoyer et arrêter
-              if (error.message?.includes('Invalid Refresh Token') || 
+              if (error.message?.includes('Invalid Refresh Token') ||
                   error.message?.includes('Refresh Token Not Found') ||
                   error.message?.includes('Already Used')) {
-                console.log('ℹ️ Refresh token invalid or already used, cleaning up...');
-                console.log('🔄 Error details:', error.message);
-                
+                logger.debug('ℹ️ Refresh token invalid or already used, cleaning up...');
+                logger.debug('🔄 Error details:', error.message);
+
                 // Nettoyer tous les tokens
                 safeRemoveItem('supabaseRefreshToken');
                 safeRemoveItem('authToken');
                 safeRemoveItem('sb-auth-token');
                 localStorage.removeItem('sb-auth-token'); // Double cleanup
-                
+
                 throw new Error('Refresh token invalid or already used');
               }
-              console.error('❌ refreshSession failed:', error.message);
+              logger.error('❌ refreshSession failed:', error.message);
               throw error;
             }
             activeSession = data?.session;
@@ -238,7 +239,7 @@ export const AuthProvider = ({ children }) => {
                 refreshError.message?.includes('Invalid Refresh Token') ||
                 refreshError.message?.includes('Refresh Token Not Found') ||
                 refreshError.message?.includes('Already Used')) {
-              console.log('🚨 Refresh token is invalid or already used');
+              logger.debug('🚨 Refresh token is invalid or already used');
               safeRemoveItem('supabaseRefreshToken');
               safeRemoveItem('authToken');
               safeRemoveItem('sb-auth-token');
@@ -259,33 +260,33 @@ export const AuthProvider = ({ children }) => {
       // Update axios default headers with new token
       axios.defaults.headers.common['Authorization'] = `Bearer ${activeSession.access_token}`;
 
-      console.log('✅ Token refreshed successfully');
+      logger.debug('✅ Token refreshed successfully');
       refreshFailureCountRef.current = 0; // Réinitialiser le compteur en cas de succès
       resolveRefreshQueue(null, activeSession.access_token);
       return activeSession.access_token;
     } catch (error) {
-      console.error('❌ Failed to refresh token:', error);
+      logger.error('❌ Failed to refresh token:', error);
       refreshFailureCountRef.current += 1; // Incrémenter le compteur d'échecs
       resolveRefreshQueue(error, null);
-      
+
       // If refresh token is invalid, we MUST log out the user locally
       // otherwise they are stuck in a loop of failed refreshes
       if (error.message && (
-          error.message.includes('Refresh token invalid') || 
+          error.message.includes('Refresh token invalid') ||
           error.message.includes('Invalid Refresh Token') ||
           error.message.includes('Refresh Token Not Found') ||
           error.message.includes('Already Used'))) {
-          console.log('🔒 Refresh token invalid or already used, forcing logout...');
+          logger.debug('🔒 Refresh token invalid or already used, forcing logout...');
           refreshFailureCountRef.current = 0; // Reset counter before logout
           logout(true); // skipSignOut=true because session is likely gone
       } else if (refreshFailureCountRef.current >= MAX_REFRESH_FAILURES) {
           // Trop d'échecs consécutifs : forcer la déconnexion pour éviter les boucles infinies
-          console.error(`🔒 Too many refresh failures (${refreshFailureCountRef.current}), forcing logout to prevent infinite loop...`);
+          logger.error(`🔒 Too many refresh failures (${refreshFailureCountRef.current}), forcing logout to prevent infinite loop...`);
           refreshFailureCountRef.current = 0; // Reset counter before logout
           logout(true); // skipSignOut=true to avoid recursive calls
       } else {
           // Just clean up tokens for other errors
-          console.warn(`⚠️ Refresh failed (${refreshFailureCountRef.current}/${MAX_REFRESH_FAILURES}). Will retry on next attempt.`);
+          logger.warn(`⚠️ Refresh failed (${refreshFailureCountRef.current}/${MAX_REFRESH_FAILURES}). Will retry on next attempt.`);
           safeRemoveItem('authToken');
           safeRemoveItem('supabaseRefreshToken');
           delete axios.defaults.headers.common['Authorization'];
@@ -310,15 +311,15 @@ export const AuthProvider = ({ children }) => {
         if (error.response && error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           // Vérifier si on a déjà atteint le maximum d'échecs
           if (refreshFailureCountRef.current >= MAX_REFRESH_FAILURES) {
-            console.error('🚨 Too many authentication failures. Request rejected to prevent infinite loop.');
+            logger.error('🚨 Too many authentication failures. Request rejected to prevent infinite loop.');
             return Promise.reject(error);
           }
 
-          console.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
+          logger.warn('🚨 Interceptor: Caught 401 Unauthorized. Attempting token refresh...');
           originalRequest._retry = true;
           const newToken = await refreshAuthToken();
           if (newToken) {
-            console.log('✅ Token refreshed, retrying original request...');
+            logger.debug('✅ Token refreshed, retrying original request...');
             originalRequest.headers = {
               ...(originalRequest.headers || {}),
               Authorization: `Bearer ${newToken}`
@@ -336,7 +337,7 @@ export const AuthProvider = ({ children }) => {
               throw retryError;
             }
           }
-          console.warn('❌ Refresh failed or no session. Not retrying.');
+          logger.warn('❌ Refresh failed or no session. Not retrying.');
           // Ne pas appeler logout() ici, refreshAuthToken gère déjà la déconnexion après plusieurs échecs
           return Promise.reject(error);
         }
@@ -366,10 +367,10 @@ export const AuthProvider = ({ children }) => {
             timeout: 3000 // Timeout de 3 secondes
           });
           setUser(response.data.user);
-          console.log('✅ Auth check successful via localStorage token');
+          logger.debug('✅ Auth check successful via localStorage token');
           return; // Succès, on sort
         } catch (error) {
-          console.warn('⚠️ Token in localStorage invalid, checking Supabase session...');
+          logger.warn('⚠️ Token in localStorage invalid, checking Supabase session...');
           // Token invalide, nettoyer et vérifier Supabase
           safeRemoveItem('authToken');
           delete axios.defaults.headers.common['Authorization'];
@@ -385,7 +386,7 @@ export const AuthProvider = ({ children }) => {
       if (!hasAuthData) {
         // No auth data in storage, user is likely not logged in
         // Skip Supabase check to avoid timeout
-        console.log('ℹ️ No auth data in storage, skipping Supabase check');
+        logger.debug('ℹ️ No auth data in storage, skipping Supabase check');
         setUser(null);
         return;
       }
@@ -393,7 +394,7 @@ export const AuthProvider = ({ children }) => {
       // Essayer Supabase uniquement si on a des données d'auth en storage
       // Cela évite le timeout quand l'utilisateur n'est pas connecté
       try {
-        console.log('🔄 Auth data found in storage, checking Supabase session...');
+        logger.debug('🔄 Auth data found in storage, checking Supabase session...');
         
         // Essayer Supabase avec un timeout très court
         // Si ça timeout, on considère que l'utilisateur n'est pas connecté
@@ -417,21 +418,21 @@ export const AuthProvider = ({ children }) => {
             // Session valide trouvée
           } else if (!session && !sessionError) {
             // Pas de session mais pas d'erreur non plus
-            console.log('ℹ️ No session found in Supabase');
+            logger.debug('ℹ️ No session found in Supabase');
           }
         } catch (error) {
           if (error.message === 'Session check timeout') {
-            console.log('⏱️ Supabase session check timeout - attempting recovery via refreshSession...');
+            logger.debug('⏱️ Supabase session check timeout - attempting recovery via refreshSession...');
             // On timeout, try refreshSession with stored refresh token before wiping
             const storedRefreshToken = safeGetItem('supabaseRefreshToken');
             if (storedRefreshToken) {
               try {
                 const refreshResult = await supabase.auth.refreshSession({ refresh_token: storedRefreshToken });
                 if (refreshResult?.data?.session?.access_token) {
-                  console.log('✅ Recovery via refreshSession succeeded after timeout');
+                  logger.debug('✅ Recovery via refreshSession succeeded after timeout');
                   session = refreshResult.data.session;
                 } else {
-                  console.log('⏱️ refreshSession returned no session, clearing auth data');
+                  logger.debug('⏱️ refreshSession returned no session, clearing auth data');
                   safeRemoveItem('authToken');
                   safeRemoveItem('supabaseRefreshToken');
                   safeRemoveItem('sb-auth-token');
@@ -439,7 +440,7 @@ export const AuthProvider = ({ children }) => {
                   session = null;
                 }
               } catch (refreshError) {
-                console.log('⏱️ refreshSession failed after timeout, clearing auth data:', refreshError.message);
+                logger.debug('⏱️ refreshSession failed after timeout, clearing auth data:', refreshError.message);
                 safeRemoveItem('authToken');
                 safeRemoveItem('supabaseRefreshToken');
                 safeRemoveItem('sb-auth-token');
@@ -447,7 +448,7 @@ export const AuthProvider = ({ children }) => {
                 session = null;
               }
             } else {
-              console.log('⏱️ No stored refresh token, clearing auth data');
+              logger.debug('⏱️ No stored refresh token, clearing auth data');
               safeRemoveItem('authToken');
               safeRemoveItem('supabaseRefreshToken');
               safeRemoveItem('sb-auth-token');
@@ -478,10 +479,10 @@ export const AuthProvider = ({ children }) => {
               }
             });
             setUser(response.data.user);
-            console.log('✅ Auth check successful via Supabase session');
+            logger.debug('✅ Auth check successful via Supabase session');
             return; // Succès, on sort
           } catch (error) {
-            console.error('❌ Error fetching user from backend:', {
+            logger.error('❌ Error fetching user from backend:', {
               status: error.response?.status,
               message: error.response?.data?.error || error.message,
               tokenLength: session.access_token?.length
@@ -489,7 +490,7 @@ export const AuthProvider = ({ children }) => {
             
             // Si le backend retourne 401, le token Supabase est invalide
             if (error.response?.status === 401) {
-              console.error('❌ Backend rejected token (401). Clearing session to prevent loop.');
+              logger.error('❌ Backend rejected token (401). Clearing session to prevent loop.');
               
               // Token invalide, on doit déconnecter l'utilisateur
               safeRemoveItem('authToken');
@@ -505,7 +506,7 @@ export const AuthProvider = ({ children }) => {
               return; 
             } else {
               // Si le backend échoue pour une autre raison (timeout, réseau, etc.)
-              console.error('Backend request failed (non-401):', error.message);
+              logger.error('Backend request failed (non-401):', error.message);
               // Utiliser les infos de la session Supabase comme fallback
               setUser({
                 id: session.user.id,
@@ -513,14 +514,14 @@ export const AuthProvider = ({ children }) => {
                 name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || 'User',
                 role: session.user.user_metadata?.role || 'student'
               });
-              console.log('✅ Using Supabase user metadata as fallback due to backend error');
+              logger.debug('✅ Using Supabase user metadata as fallback due to backend error');
               return; // Succès avec infos Supabase
             }
           }
         }
         
         // Pas de session valide, on est déconnecté
-        console.log('ℹ️ No valid session found');
+        logger.debug('ℹ️ No valid session found');
         // Nettoyer les tokens invalides
         safeRemoveItem('authToken');
         safeRemoveItem('supabaseRefreshToken');
@@ -529,9 +530,9 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         // Ignorer les erreurs de refresh token invalide (c'est normal si l'utilisateur est déconnecté)
         if (error.message?.includes('Invalid Refresh Token') || error.message?.includes('Refresh Token Not Found')) {
-          console.log('ℹ️ Refresh token invalid (user logged out), cleaning up...');
+          logger.debug('ℹ️ Refresh token invalid (user logged out), cleaning up...');
         } else {
-          console.warn('⚠️ Supabase check failed:', error.message);
+          logger.warn('⚠️ Supabase check failed:', error.message);
         }
         // Nettoyer les tokens invalides
         safeRemoveItem('authToken');
@@ -540,14 +541,14 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      logger.error('Auth check failed:', error);
       safeRemoveItem('authToken');
       safeRemoveItem('supabaseRefreshToken');
       delete axios.defaults.headers.common['Authorization'];
       setUser(null);
     } finally {
       setLoading(false);
-      console.log('✅ Auth check completed');
+      logger.debug('✅ Auth check completed');
     }
   };
 
@@ -558,7 +559,7 @@ export const AuthProvider = ({ children }) => {
     // S'assurer que loading est false après un court délai si checkAuthStatus échoue silencieusement
     const loadingSafetyTimeout = setTimeout(() => {
       if (isMounted) {
-        console.warn('⚠️ Loading still true after 15 seconds, forcing to false');
+        logger.warn('⚠️ Loading still true after 15 seconds, forcing to false');
         setLoading(false);
       }
     }, 15000);
@@ -589,11 +590,11 @@ export const AuthProvider = ({ children }) => {
 
         // Handle SIGNED_OUT for multi-tab synchronization
         if (event === 'SIGNED_OUT') {
-           console.log('🔄 Auth state changed: SIGNED_OUT');
+           logger.debug('🔄 Auth state changed: SIGNED_OUT');
            // Si ce n'est pas nous qui avons initié la déconnexion (isLoggingOutRef est false),
            // alors ça vient d'un autre onglet -> on doit se déconnecter localement
            if (!isLoggingOutRef.current) {
-             console.log('🔄 Detected logout from another source, syncing local state...');
+             logger.debug('🔄 Detected logout from another source, syncing local state...');
              logout(true); // skipSignOut=true car déjà déconnecté côté Supabase
            }
            return;
@@ -601,7 +602,7 @@ export const AuthProvider = ({ children }) => {
 
         // Handle PASSWORD_RECOVERY event specifically
         if (event === 'PASSWORD_RECOVERY') {
-          console.log('🔄 Auth state changed: PASSWORD_RECOVERY');
+          logger.debug('🔄 Auth state changed: PASSWORD_RECOVERY');
           // Treat PASSWORD_RECOVERY exactly like SIGNED_IN to ensure user state is updated
           // This is crucial for the ResetPasswordPage to detect the authenticated session
         }
@@ -612,7 +613,7 @@ export const AuthProvider = ({ children }) => {
         }
         
         isProcessing = true;
-        console.log('🔄 Auth state changed:', event, session?.user?.email);
+        logger.debug('🔄 Auth state changed:', event, session?.user?.email);
         
         try {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
@@ -624,7 +625,7 @@ export const AuthProvider = ({ children }) => {
               const userEmail = session.user?.email?.toLowerCase();
 
               if (isGoogleLogin && userEmail && !WHITELISTED_EMAILS.includes(userEmail)) {
-                console.warn(`🚫 Unauthorized Google access attempt: ${userEmail}. Logging out.`);
+                logger.warn(`🚫 Unauthorized Google access attempt: ${userEmail}. Logging out.`);
                 
                 // Prevent infinite loop by marking as logging out
                 isLoggingOutRef.current = true;
@@ -653,13 +654,13 @@ export const AuthProvider = ({ children }) => {
               // TODO: END OF WHITELIST CHECK
               // -----------------------
 
-              console.log('✅ Supabase auto-refresh completed, persisting new tokens...');
+              logger.debug('✅ Supabase auto-refresh completed, persisting new tokens...');
               // Synchroniser le token avec localStorage et axios
               persistSessionTokens(session);
               
               // Si un refresh manuel est en cours, le résoudre avec le nouveau token
               if (isRefreshingRef.current) {
-                console.log('🔄 Manual refresh in progress, resolving with Supabase token');
+                logger.debug('🔄 Manual refresh in progress, resolving with Supabase token');
                 resolveRefreshQueue(null, session.access_token);
                 isRefreshingRef.current = false;
               }
@@ -710,7 +711,7 @@ export const AuthProvider = ({ children }) => {
       if (document.visibilityState === 'visible') {
         const elapsed = Date.now() - lastVisibleTime;
         if (elapsed > 5 * 60 * 1000) {
-          console.log('🔄 Tab became visible after', Math.round(elapsed / 60000), 'min - refreshing session...');
+          logger.debug('🔄 Tab became visible after', Math.round(elapsed / 60000), 'min - refreshing session...');
           refreshAuthToken().catch(() => {});
         }
         lastVisibleTime = Date.now();
@@ -726,7 +727,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password, navigate, redirectPath = null) => {
     // Timeout de sécurité pour forcer le loading à false après 30 secondes
     const loadingTimeout = setTimeout(() => {
-      console.warn('⚠️ Login timeout - forcing loading to false');
+      logger.warn('⚠️ Login timeout - forcing loading to false');
       setLoading(false);
     }, 30000);
     
@@ -735,14 +736,14 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       
       const loginUrl = `${getApiBaseUrlWithApi()}/auth/login`;
-      console.log('🔐 Login attempt to URL:', loginUrl);
+      logger.debug('🔐 Login attempt to URL:', loginUrl);
       
       const response = await axios.post(loginUrl, {
         email,
         password
       });
 
-      console.log('🔐 Login response received:', response.status);
+      logger.debug('🔐 Login response received:', response.status);
       const { token, refreshToken, user } = response.data;
       
       // Synchroniser avec Supabase pour bénéficier de la gestion automatique
@@ -751,18 +752,18 @@ export const AuthProvider = ({ children }) => {
       
       if (existingSession && !sessionError) {
         session = existingSession;
-        console.log('🔐 Existing Supabase session detected');
+        logger.debug('🔐 Existing Supabase session detected');
       }
 
       if (!session && token && refreshToken) {
-        console.log('🔐 No Supabase session found, setting session manually');
+        logger.debug('🔐 No Supabase session found, setting session manually');
         const { data: setSessionData, error: setSessionError } = await supabase.auth.setSession({
           access_token: token,
           refresh_token: refreshToken
         });
 
         if (setSessionError) {
-          console.error('❌ supabase.auth.setSession failed:', setSessionError.message);
+          logger.error('❌ supabase.auth.setSession failed:', setSessionError.message);
         } else {
           session = setSessionData?.session || null;
         }
@@ -771,19 +772,19 @@ export const AuthProvider = ({ children }) => {
       if (session) {
         // Utiliser la session Supabase (plus fiable, inclut refresh token)
         persistSessionTokens(session);
-        console.log('🔐 Supabase session established');
+        logger.debug('🔐 Supabase session established');
       } else if (token) {
         // Dernier recours: utiliser uniquement le token du backend pour ne pas bloquer l'utilisateur
         safeSetItem('authToken', token);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        console.warn('⚠️ Supabase session not available, falling back to access token only');
+        logger.warn('⚠️ Supabase session not available, falling back to access token only');
       } else {
         throw new Error('No access token returned from login response');
       }
       
       // Update user state
       setUser(user);
-      console.log('🔐 User state updated:', user?.email);
+      logger.debug('🔐 User state updated:', user?.email);
       
       // Navigate based on user role and onboarding completion
       let targetPath;
@@ -802,20 +803,20 @@ export const AuthProvider = ({ children }) => {
         }
       }
       
-      console.log('🔐 Navigating to:', targetPath);
+      logger.debug('🔐 Navigating to:', targetPath);
       navigate(targetPath);
 
       clearTimeout(loadingTimeout);
       return { success: true };
     } catch (error) {
-      console.error('🔐 Login error:', error);
+      logger.error('🔐 Login error:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Login failed';
       setError(errorMessage);
       clearTimeout(loadingTimeout);
       return { success: false, error: errorMessage };
     } finally {
       clearTimeout(loadingTimeout);
-      console.log('🔐 Login finally - setting loading to false');
+      logger.debug('🔐 Login finally - setting loading to false');
       setLoading(false);
     }
   };
@@ -876,7 +877,7 @@ export const AuthProvider = ({ children }) => {
           });
 
           if (setSessionError) {
-            console.error('❌ supabase.auth.setSession failed during register:', setSessionError.message);
+            logger.error('❌ supabase.auth.setSession failed during register:', setSessionError.message);
           } else {
             session = setSessionData?.session || null;
           }
@@ -911,7 +912,7 @@ export const AuthProvider = ({ children }) => {
         return { success: true };
       } else {
         // Handle unexpected response structure
-        console.error('Unexpected response structure:', response.data);
+        logger.error('Unexpected response structure:', response.data);
         throw new Error('Invalid response from server');
       }
     } catch (error) {
@@ -984,7 +985,7 @@ export const AuthProvider = ({ children }) => {
         // First, try to get session directly from Supabase
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (session && session.access_token && !sessionError) {
-          console.log('✅ Found Supabase session, using its token');
+          logger.debug('✅ Found Supabase session, using its token');
           persistSessionTokens(session);
           token = session.access_token;
         } else {
@@ -992,7 +993,7 @@ export const AuthProvider = ({ children }) => {
           token = await refreshAuthToken();
         }
       } catch (error) {
-        console.error('❌ Could not get or refresh token:', error);
+        logger.error('❌ Could not get or refresh token:', error);
         return null;
       }
     } else {
@@ -1004,11 +1005,11 @@ export const AuthProvider = ({ children }) => {
         
         // Only refresh if token is actually expired or about to expire
         if (expiration && now > expiration - 30000) {
-          console.log('🔄 Token expired or about to expire, refreshing...');
+          logger.debug('🔄 Token expired or about to expire, refreshing...');
           try {
             token = await refreshAuthToken();
           } catch (error) {
-            console.warn('⚠️ Failed to refresh expired token, but token might still be valid:', error.message);
+            logger.warn('⚠️ Failed to refresh expired token, but token might still be valid:', error.message);
             // Don't return null immediately - the token might still work for a few seconds
             // Return the existing token and let the API call fail if it's really expired
           }
@@ -1016,11 +1017,11 @@ export const AuthProvider = ({ children }) => {
       } catch (e) {
         // Token format invalid - might be a Supabase token with different format
         // Try to verify by checking if we have a Supabase session
-        console.warn('⚠️ Could not parse token format, checking Supabase session...');
+        logger.warn('⚠️ Could not parse token format, checking Supabase session...');
         try {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           if (session && session.access_token && !sessionError) {
-            console.log('✅ Found valid Supabase session, updating token');
+            logger.debug('✅ Found valid Supabase session, updating token');
             persistSessionTokens(session);
             token = session.access_token;
           } else {
@@ -1028,7 +1029,7 @@ export const AuthProvider = ({ children }) => {
             token = await refreshAuthToken();
           }
         } catch (error) {
-          console.error('❌ Could not verify token with Supabase:', error);
+          logger.error('❌ Could not verify token with Supabase:', error);
           // Return the existing token anyway - it might still work
         }
       }
@@ -1043,17 +1044,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      console.log('🔐 Starting Google sign-in...');
+      logger.debug('🔐 Starting Google sign-in...');
       
       // Get the current origin for redirect URL
       const redirectUrl = `${window.location.origin}/auth/callback`;
       
       // Debug: Check storage before OAuth
-      console.log('🔍 Storage check before OAuth:');
+      logger.debug('🔍 Storage check before OAuth:');
       try {
         if (typeof window !== 'undefined') {
-          console.log('  - sessionStorage available:', !!window.sessionStorage);
-          console.log('  - localStorage available:', !!window.localStorage);
+          logger.debug('  - sessionStorage available:', !!window.sessionStorage);
+          logger.debug('  - localStorage available:', !!window.localStorage);
           
           // Log all sessionStorage keys (for debugging PKCE)
           if (window.sessionStorage) {
@@ -1064,11 +1065,11 @@ export const AuthProvider = ({ children }) => {
                 sessionKeys.push(key);
               }
             }
-            console.log('  - Relevant sessionStorage keys:', sessionKeys);
+            logger.debug('  - Relevant sessionStorage keys:', sessionKeys);
           }
         }
       } catch (e) {
-        console.warn('  - Error checking storage:', e);
+        logger.warn('  - Error checking storage:', e);
       }
       
       // Initiate Google OAuth flow through Supabase
@@ -1085,14 +1086,14 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) {
-        console.error('❌ Google sign-in error:', error);
+        logger.error('❌ Google sign-in error:', error);
         setError(error.message || 'Erreur lors de la connexion Google');
         setLoading(false);
         return { success: false, error: error.message };
       }
 
       // Debug: Check if code verifier was stored after OAuth initiation
-      console.log('🔍 Storage check after OAuth initiation:');
+      logger.debug('🔍 Storage check after OAuth initiation:');
       try {
         if (typeof window !== 'undefined' && window.sessionStorage) {
           const sessionKeys = [];
@@ -1102,25 +1103,25 @@ export const AuthProvider = ({ children }) => {
               sessionKeys.push(key);
             }
           }
-          console.log('  - Relevant sessionStorage keys after OAuth:', sessionKeys);
+          logger.debug('  - Relevant sessionStorage keys after OAuth:', sessionKeys);
           if (sessionKeys.length === 0) {
-            console.warn('  ⚠️ WARNING: No PKCE-related keys found in sessionStorage!');
-            console.warn('  ⚠️ This may cause "code verifier not found" error in callback');
+            logger.warn('  ⚠️ WARNING: No PKCE-related keys found in sessionStorage!');
+            logger.warn('  ⚠️ This may cause "code verifier not found" error in callback');
           }
         }
       } catch (e) {
-        console.warn('  - Error checking storage after OAuth:', e);
+        logger.warn('  - Error checking storage after OAuth:', e);
       }
 
       // Note: The actual redirect will happen, so we don't need to handle navigation here
       // The callback URL will handle the rest
-      console.log('✅ Google sign-in initiated, redirecting to:', redirectUrl);
-      console.log('📝 OAuth URL:', data?.url || 'No URL returned');
+      logger.debug('✅ Google sign-in initiated, redirecting to:', redirectUrl);
+      logger.debug('📝 OAuth URL:', data?.url || 'No URL returned');
       
       // Don't set loading to false here because we're redirecting
       return { success: true };
     } catch (error) {
-      console.error('❌ Google sign-in exception:', error);
+      logger.error('❌ Google sign-in exception:', error);
       const errorMessage = error.message || 'Erreur lors de la connexion Google';
       setError(errorMessage);
       setLoading(false);
@@ -1139,7 +1140,7 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       return { success: true, data };
     } catch (error) {
-      console.error('Reset password error:', error);
+      logger.error('Reset password error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -1157,7 +1158,7 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
       return { success: true, data };
     } catch (error) {
-      console.error('Update password error:', error);
+      logger.error('Update password error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);

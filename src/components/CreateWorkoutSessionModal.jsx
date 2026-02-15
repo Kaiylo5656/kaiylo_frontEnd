@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -300,7 +301,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       });
       setPlanningSessions(sessionsMap);
     } catch (err) {
-      console.error('Error fetching planning sessions:', err);
+      logger.error('Error fetching planning sessions:', err);
       setPlanningSessions({});
     } finally {
       setPlanningLoading(false);
@@ -323,7 +324,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         setPlanningBlocks([]);
       }
     } catch (err) {
-      console.error('Error fetching planning blocks:', err);
+      logger.error('Error fetching planning blocks:', err);
       setPlanningBlocks([]);
     }
   }, [studentId]);
@@ -433,7 +434,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         resizeObserver.observe(modalRef.current);
       }
     } catch (error) {
-      console.error('Error observing modal:', error);
+      logger.error('Error observing modal:', error);
     }
 
     const handleResize = () => {
@@ -493,7 +494,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         setAvailableExercises(data.exercises || []);
       }
     } catch (error) {
-      console.error('Error fetching exercises:', error);
+      logger.error('Error fetching exercises:', error);
     }
   };
 
@@ -794,8 +795,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         : format(selectedDate || sessionDate, 'yyyy-MM-dd')
     };
 
-    console.log('Sending session data:', sessionData);
-    console.log('Existing session details:', {
+    logger.debug('Sending session data:', sessionData);
+    logger.debug('Existing session details:', {
       id: existingSession?.id,
       assignmentId: existingSession?.assignmentId,
       workoutSessionId: existingSession?.workoutSessionId,
@@ -806,7 +807,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       onSessionCreated(sessionData);
       handleClose(true); // Force close after successful save
     } catch (error) {
-      console.error('Error creating/updating workout session:', error);
+      logger.error('Error creating/updating workout session:', error);
     }
   };
 
@@ -1092,7 +1093,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       handleAddExerciseToSession(result.exercise);
 
     } catch (error) {
-      console.error('Error creating exercise:', error);
+      logger.error('Error creating exercise:', error);
       alert('Failed to create exercise. Please try again.');
     } finally {
       setLibraryLoading(false);
@@ -1131,7 +1132,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       setEditingExercise(null);
 
     } catch (error) {
-      console.error('Error updating exercise:', error);
+      logger.error('Error updating exercise:', error);
       alert('Failed to update exercise. Please try again.');
     } finally {
       setLibraryLoading(false);

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { X, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -53,7 +54,7 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
         setError(response.data.message || 'Erreur lors du chargement des invitations');
       }
     } catch (err) {
-      console.error('Error fetching invitations:', err);
+      logger.error('Error fetching invitations:', err);
       setError('Erreur lors du chargement des invitations. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
         setError(response.data.message || 'Erreur lors du renvoi de l\'invitation');
       }
     } catch (err) {
-      console.error('Error resending invitation:', err);
+      logger.error('Error resending invitation:', err);
       const errorMessage = err.response?.data?.message || 'Erreur lors du renvoi de l\'invitation';
       setError(errorMessage);
     } finally {
@@ -110,11 +111,11 @@ const PendingInvitationsModal = ({ isOpen, onClose }) => {
         // Refresh the list
         await fetchInvitations();
       } else {
-        console.error('Failed to cancel invitation:', response.data.message);
+        logger.error('Failed to cancel invitation:', response.data.message);
         setError(response.data.message || 'Erreur lors de la suppression de l\'invitation');
       }
     } catch (err) {
-      console.error('Error canceling invitation:', err);
+      logger.error('Error canceling invitation:', err);
       setError('Erreur lors de la suppression de l\'invitation');
     }
   };

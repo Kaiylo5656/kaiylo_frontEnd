@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, startOfWeek, addWeeks, getWeek, setWeek, getYear, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -118,7 +119,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
         setBlocks(response.data.data);
       }
     } catch (err) {
-      console.error('Error fetching blocks:', err);
+      logger.error('Error fetching blocks:', err);
       if (!silent) setError('Impossible de charger la périodisation.');
     } finally {
       if (!silent) setLoading(false);
@@ -136,7 +137,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
         setAllTags(response.data.data);
       }
     } catch (err) {
-      console.error('Error fetching tags:', err);
+      logger.error('Error fetching tags:', err);
       // Silent fail - continue without tags
     }
   };
@@ -178,7 +179,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
       });
 
     } catch (err) {
-      console.error('Error fetching week notes:', err);
+      logger.error('Error fetching week notes:', err);
     }
   };
 
@@ -307,7 +308,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
       setIsDeleteModalOpen(false);
       setBlockToDelete(null);
     } catch (err) {
-      console.error('Error deleting block:', err);
+      logger.error('Error deleting block:', err);
       alert('Erreur lors de la suppression.');
     } finally {
       setIsDeleting(false);
@@ -571,7 +572,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
           if (onUpdate) onUpdate();
           
         } catch (err) {
-          console.error('Error moving block:', err);
+          logger.error('Error moving block:', err);
           await fetchBlocks(true); // Revert to server state
           alert('Erreur lors du déplacement du bloc.');
         }
@@ -671,7 +672,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
           await fetchBlocks(true); 
           if (onUpdate) onUpdate(); 
         } catch (err) {
-          console.error('Error resizing block:', err);
+          logger.error('Error resizing block:', err);
           await fetchBlocks(true);
           alert('Erreur lors du redimensionnement du bloc.');
         }

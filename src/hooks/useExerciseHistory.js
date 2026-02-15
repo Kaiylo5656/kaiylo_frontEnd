@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
@@ -69,7 +70,7 @@ export const useExerciseHistory = (exerciseId, options = {}) => {
         throw new Error(response.data.message || 'Failed to fetch exercise history');
       }
     } catch (err) {
-      console.error('Error fetching exercise history:', err);
+      logger.error('Error fetching exercise history:', err);
       setError(err.response?.data?.message || err.message || 'Failed to fetch exercise history');
     } finally {
       setLoading(false);

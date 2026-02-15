@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -44,7 +45,7 @@ const WeekNotesModal = ({ isOpen, onClose, weekStartDate, studentId, onSave }) =
         setNotes(loadedNotes.sort((a, b) => a.order - b.order));
       }
     } catch (err) {
-      console.error('Error loading week notes:', err);
+      logger.error('Error loading week notes:', err);
       setNotes([]);
     } finally {
       setLoading(false);
@@ -126,7 +127,7 @@ const WeekNotesModal = ({ isOpen, onClose, weekStartDate, studentId, onSave }) =
         onClose();
       }
     } catch (err) {
-      console.error('Error saving week notes:', err);
+      logger.error('Error saving week notes:', err);
       alert('Erreur lors de la sauvegarde des notes');
     } finally {
       setSaving(false);

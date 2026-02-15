@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
@@ -29,10 +30,10 @@ const ResetPasswordPage = () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (session && !error) {
-        console.log('✅ Session verified directly via Supabase');
+        logger.debug('✅ Session verified directly via Supabase');
         setSessionVerified(true);
       } else {
-        console.log('⚠️ No active session found for password reset');
+        logger.debug('⚠️ No active session found for password reset');
         // Check if we have error params in URL
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const errorDescription = hashParams.get('error_description');

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
@@ -142,7 +143,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       // Clear old message refs when fetching new messages
       messageRefs.current = {};
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      logger.error('Error fetching messages:', error);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -178,7 +179,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setUploadingFile(true);
 
     try {
-      console.log('📤 Uploading file:', { 
+      logger.debug('📤 Uploading file:', { 
         name: file.name, 
         type: file.type, 
         size: file.size,
@@ -200,12 +201,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       if (!response.ok) {
         // Try to get error message from response
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Upload error response:', errorData);
+        logger.error('❌ Upload error response:', errorData);
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       
       const responseData = await response.json();
-      console.log('✅ File uploaded successfully:', responseData);
+      logger.debug('✅ File uploaded successfully:', responseData);
       
       // Add the file message to the messages list if returned
       // Check for duplicates before adding (message might also arrive via WebSocket)
@@ -214,14 +215,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           // Check if message already exists (might have arrived via WebSocket first)
           const existingIndex = prev.findIndex(msg => msg.id === responseData.data.id);
           if (existingIndex !== -1) {
-            console.log('⚠️ Message already exists in list, skipping duplicate:', responseData.data.id);
+            logger.debug('⚠️ Message already exists in list, skipping duplicate:', responseData.data.id);
             return prev; // Return unchanged array to prevent duplicate
           }
           return [...prev, responseData.data];
         });
       }
     } catch (error) {
-      console.error('❌ File upload failed:', error);
+      logger.error('❌ File upload failed:', error);
       alert(error.message || 'Échec de l\'envoi du fichier. Veuillez réessayer.');
     } finally {
       setUploadingFile(false);
@@ -339,9 +340,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setShowDeleteModal(false);
       setMessageToDelete(null);
       
-      console.log('✅ Message deleted successfully');
+      logger.debug('✅ Message deleted successfully');
     } catch (error) {
-      console.error('❌ Error deleting message:', error);
+      logger.error('❌ Error deleting message:', error);
       alert('Erreur lors de la suppression du message. Veuillez réessayer.');
     } finally {
       setDeleting(false);
@@ -353,11 +354,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     if (!newMessage.trim() || sending) return;
 
     // Debug logging (reduced)
-    console.log('🔍 sendMessage called for conversation:', conversation?.id);
+    logger.debug('🔍 sendMessage called for conversation:', conversation?.id);
 
     // Check if conversation has valid ID
     if (!conversation || !conversation.id) {
-      console.error('❌ No valid conversation or conversation ID found:', conversation);
+      logger.error('❌ No valid conversation or conversation ID found:', conversation);
       alert('No conversation selected. Please select a conversation first.');
       return;
     }
@@ -374,7 +375,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setIsTyping(false);
 
       if (isConnected && socket) {
-        console.log('📡 Using WebSocket to send message');
+        logger.debug('📡 Using WebSocket to send message');
         sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
         
         const optimisticMessage = {
@@ -398,7 +399,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         }
       } else {
         // Fallback to HTTP
-        console.log('🌐 Using HTTP fallback to send message');
+        logger.debug('🌐 Using HTTP fallback to send message');
         const token = await getAuthToken();
         
         const requestBody = {
@@ -407,7 +408,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           replyToMessageId: replyToMessageId
         };
         
-        console.log('📤 Sending HTTP request with body:', requestBody);
+        logger.debug('📤 Sending HTTP request with body:', requestBody);
         
         const response = await fetch(buildApiUrl('/api/chat/messages'), {
           method: 'POST',
@@ -420,7 +421,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('❌ HTTP response error:', {
+          logger.error('❌ HTTP response error:', {
             status: response.status,
             statusText: response.statusText,
             body: errorText
@@ -429,14 +430,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         }
         
         const responseData = await response.json();
-        console.log('✅ HTTP message sent successfully:', responseData);
+        logger.debug('✅ HTTP message sent successfully:', responseData);
         
         if (onMessageSent) {
           onMessageSent(conversation.id, responseData.data);
         }
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+      logger.error('❌ Error sending message:', error);
       alert(`Failed to send message: ${error.message}. Please try again.`);
       setNewMessage(messageContent);
     } finally {
@@ -469,13 +470,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       markMessagesAsRead(conversation.id);
       joinConversation(conversation.id);
       
-      console.log('✅ Joined conversation room:', conversation.id);
+      logger.debug('✅ Joined conversation room:', conversation.id);
     }
 
     return () => {
       if (conversation?.id && socket && isConnected) {
         leaveConversation(conversation.id);
-        console.log('✅ Left conversation room:', conversation.id);
+        logger.debug('✅ Left conversation room:', conversation.id);
       }
     }; // Only re-run this effect if the conversation, socket, or connection status changes
   }, [conversation?.id, socket, isConnected]);
@@ -526,7 +527,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           }
         }
       } catch (error) {
-        console.error('Error fetching participant info:', error);
+        logger.error('Error fetching participant info:', error);
         // Fallback to conversation data
         setParticipantInfo({
           name: conversation.other_participant_name || 'Unknown User',
@@ -542,8 +543,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     if (socket) {
       const handleNewMessage = (messageData) => {
         const receiveTime = Date.now();
-        console.log('🔌 [WS IN] new_message received:', messageData);
-        console.log('🔌 Message details:', {
+        logger.debug('🔌 [WS IN] new_message received:', messageData);
+        logger.debug('🔌 Message details:', {
           id: messageData.id,
           content: messageData.content,
           conversationId: messageData.conversationId || messageData.conversation_id,
@@ -555,7 +556,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         // This ensures real-time messages only appear in the correct chat window
         const receivedConversationId = messageData.conversationId || messageData.conversation_id;
         if (!conversation?.id || receivedConversationId !== conversation.id) {
-          console.log('🔌 Ignoring message - not for current conversation:', {
+          logger.debug('🔌 Ignoring message - not for current conversation:', {
             receivedConversationId,
             currentConversationId: conversation?.id,
             messageId: messageData.id
@@ -566,7 +567,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         // CRITICAL FIX: Prevent race conditions from multiple WebSocket events
         // Use ref to persist across renders
         if (processedMessageIdsRef.current.has(messageData.id)) {
-          console.log('🔌 Message already being processed, skipping duplicate event:', messageData.id);
+          logger.debug('🔌 Message already being processed, skipping duplicate event:', messageData.id);
           return;
         }
         processedMessageIdsRef.current.add(messageData.id);
@@ -576,7 +577,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           processedMessageIdsRef.current.delete(messageData.id);
         }, 5000);
         
-        console.log('✅ Message is for current conversation, processing...');
+        logger.debug('✅ Message is for current conversation, processing...');
         
         // CRITICAL: Use functional update to get the latest state
         // This ensures we always work with the most recent messages array
@@ -584,13 +585,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           // Create a new array reference to ensure React detects the change
           const currentMessages = [...prev];
           const prevLength = currentMessages.length;
-          console.log('🔌 Current messages array length:', prevLength);
-          console.log('🔌 Checking for existing message with ID:', messageData.id);
+          logger.debug('🔌 Current messages array length:', prevLength);
+          logger.debug('🔌 Checking for existing message with ID:', messageData.id);
           
           // Check for exact ID match first
           const exactMatch = currentMessages.findIndex(msg => msg.id === messageData.id);
           if (exactMatch !== -1) {
-            console.log('🔌 Message with exact ID already exists at index:', exactMatch, 'skipping duplicate');
+            logger.debug('🔌 Message with exact ID already exists at index:', exactMatch, 'skipping duplicate');
             // Remove from processed set since we didn't actually process it
             processedMessageIdsRef.current.delete(messageData.id);
             // Return the same array reference for duplicates to prevent unnecessary re-renders
@@ -607,7 +608,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           );
           
           if (tempMessageIndex !== -1) {
-            console.log('🔌 Found temp message to replace at index:', tempMessageIndex);
+            logger.debug('🔌 Found temp message to replace at index:', tempMessageIndex);
             
             // Create a new array with the replacement
             const newMessages = [...currentMessages];
@@ -616,13 +617,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               conversationId: messageData.conversationId || messageData.conversation_id || conversation.id
             };
             
-            console.log('✅ Message replaced successfully, new message ID:', messageData.id);
+            logger.debug('✅ Message replaced successfully, new message ID:', messageData.id);
             
             return newMessages;
           }
           
           // Add new message to the END of the array (so it appears at bottom)
-          console.log('🔌 No temp message found, adding new message to end of array');
+          logger.debug('🔌 No temp message found, adding new message to end of array');
           
           // Create a properly structured message object
           const newMessageObj = {
@@ -637,7 +638,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           };
           
           const newMessages = [...currentMessages, newMessageObj];
-          console.log('✅ New message added, total messages:', newMessages.length);
+          logger.debug('✅ New message added, total messages:', newMessages.length);
           
           return newMessages;
         });
@@ -650,13 +651,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             const messageElement = messageRefs.current[messageData.id];
             if (messageElement) {
               messageElement.scrollIntoView({ behavior: 'auto', block: 'end' });
-              console.log('✅ Scrolled to message element using scrollIntoView');
+              logger.debug('✅ Scrolled to message element using scrollIntoView');
             } else {
               // Fallback: scroll container to bottom (scrollTop = max shows newest messages)
               const container = messagesContainerRef.current;
               if (container) {
                 container.scrollTop = container.scrollHeight;
-                console.log('✅ Scrolled container to bottom (scrollTop=max)');
+                logger.debug('✅ Scrolled container to bottom (scrollTop=max)');
               }
             }
           });
@@ -672,7 +673,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         
         // Log processing time
         const processingTime = Date.now() - receiveTime;
-        console.log(`⚡ Message processed in ${processingTime}ms`);
+        logger.debug(`⚡ Message processed in ${processingTime}ms`);
       };
 
       const handleUserTyping = (data) => {
@@ -689,16 +690,16 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       // Listen for user join/leave events
       const handleUserJoined = (data) => {
-        console.log('🔌 User joined conversation:', data);
+        logger.debug('🔌 User joined conversation:', data);
       };
 
       const handleUserLeft = (data) => {
-        console.log('🔌 User left conversation:', data);
+        logger.debug('🔌 User left conversation:', data);
       };
 
       // Listen for messages read events
       const handleMessagesRead = (data) => {
-        console.log('🔌 Messages marked as read by:', data);
+        logger.debug('🔌 Messages marked as read by:', data);
         if (data.userId !== currentUser?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
           setOtherParticipantReadAt(data.readAt || data.last_read_at);
         }
@@ -706,7 +707,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       // Listen for message deleted events
       const handleMessageDeleted = (data) => {
-        console.log('🔌 Message deleted:', data);
+        logger.debug('🔌 Message deleted:', data);
         if (conversation?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
           setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
         }
@@ -749,7 +750,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         if (container) {
           // Force scroll to bottom
           container.scrollTop = container.scrollHeight;
-          console.log('✅ Scrolled to bottom after initial load complete', {
+          logger.debug('✅ Scrolled to bottom after initial load complete', {
             scrollTop: container.scrollTop,
             scrollHeight: container.scrollHeight,
             clientHeight: container.clientHeight
@@ -759,7 +760,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           setTimeout(() => {
             if (container.scrollTop < container.scrollHeight - container.clientHeight - 10) {
               container.scrollTop = container.scrollHeight;
-              console.log('✅ Re-scrolled to bottom (second attempt)');
+              logger.debug('✅ Re-scrolled to bottom (second attempt)');
             }
           }, 200);
         }
@@ -907,10 +908,10 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         setHighlightedMessageId(null);
       }, 3000);
     } else {
-      console.warn(`Message with ID ${messageId} not found in current view`);
+      logger.warn(`Message with ID ${messageId} not found in current view`);
       // If message is not in current view, we might need to load more messages
       // For now, just show a notification
-      console.log('Message not found in current view. Try scrolling up to load more messages.');
+      logger.debug('Message not found in current view. Try scrolling up to load more messages.');
       
       // You could implement a toast notification here instead of console.log
       // For now, we'll just log it to avoid interrupting the user experience
@@ -1112,17 +1113,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           messages.map((message, index) => {
             // Debug logging for message rendering
             if (message.id?.startsWith('temp_')) {
-              console.log('🔍 Rendering temp message:', message.id, 'at index:', index);
+              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', index);
             }
             
             // Log all message IDs being rendered for debugging
             if (index === messages.length - 1 || index === messages.length - 2) {
-              console.log('🔍 Rendering message at index:', index, 'ID:', message.id, 'Content:', message.content?.substring(0, 20), 'Sender:', message.sender_id, 'IsOwn:', message.sender_id === currentUser?.id);
+              logger.debug('🔍 Rendering message at index:', index, 'ID:', message.id, 'Content:', message.content?.substring(0, 20), 'Sender:', message.sender_id, 'IsOwn:', message.sender_id === currentUser?.id);
             }
             
             // CRITICAL DEBUG: Check if message is valid before rendering
             if (!message || !message.id || !message.content) {
-              console.error('❌ Invalid message at index:', index, message);
+              logger.error('❌ Invalid message at index:', index, message);
               return null;
             }
             
@@ -1149,7 +1150,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   messageRefs.current[message.id] = el;
                   // Debug: Log when message element is actually in DOM
                   if (index === messages.length - 1) {
-                    console.log('🔍 Last message element mounted in DOM:', {
+                    logger.debug('🔍 Last message element mounted in DOM:', {
                       messageId: message.id,
                       content: message.content?.substring(0, 20),
                       isVisible: el.offsetParent !== null,

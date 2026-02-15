@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { PlayCircle, ChevronRight, Video, Upload, Search } from 'lucide-react';
 import { format } from 'date-fns';
@@ -49,7 +50,7 @@ const StudentVideoLibrary = () => {
         try { token = await refreshAuthToken(); } catch {}
       }
       if (!token) {
-        console.warn('No auth token for student videos fetch; skipping.');
+        logger.warn('No auth token for student videos fetch; skipping.');
         setMyVideos([]);
         return;
       }
@@ -64,7 +65,7 @@ const StudentVideoLibrary = () => {
         throw new Error(response.data.message || 'Failed to fetch videos');
       }
     } catch (err) {
-      console.error('Error fetching student videos:', err);
+      logger.error('Error fetching student videos:', err);
       setError('Erreur lors du chargement de vos vidéos');
     } finally {
       setLoading(false);
@@ -80,7 +81,7 @@ const StudentVideoLibrary = () => {
         try { token = await refreshAuthToken(); } catch {}
       }
       if (!token) {
-        console.warn('No auth token for coach resources fetch; skipping.');
+        logger.warn('No auth token for coach resources fetch; skipping.');
         setCoachResources([]);
         setFolders([]);
         return;
@@ -104,7 +105,7 @@ const StudentVideoLibrary = () => {
         throw new Error(foldersResponse.data.message || 'Failed to fetch folders');
       }
     } catch (err) {
-      console.error('Error fetching coach resources:', err);
+      logger.error('Error fetching coach resources:', err);
       setError('Erreur lors du chargement des ressources');
     } finally {
       setLoading(false);

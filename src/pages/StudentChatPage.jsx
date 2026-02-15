@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -62,7 +63,7 @@ const StudentChatPage = () => {
       setConversations(sortedConversations);
       setError(null);
     } catch (err) {
-      console.error('Error fetching conversations:', err);
+      logger.error('Error fetching conversations:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -111,7 +112,7 @@ const StudentChatPage = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching coach info:', error);
+        logger.error('Error fetching coach info:', error);
       }
     };
 
@@ -249,7 +250,7 @@ const StudentChatPage = () => {
       setSelectedConversation(newConversation);
       setShowConversationList(false); // Hide list and show chat window on mobile
     } catch (err) {
-      console.error('Error creating conversation:', err);
+      logger.error('Error creating conversation:', err);
     }
   };
 
@@ -275,7 +276,7 @@ const StudentChatPage = () => {
             }
           });
         } catch (error) {
-          console.error('❌ Error marking messages as read via HTTP:', error);
+          logger.error('❌ Error marking messages as read via HTTP:', error);
           // Fallback to socket
           if (isConnected && markMessagesAsRead) {
               markMessagesAsRead(conversation.id);

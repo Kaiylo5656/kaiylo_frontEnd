@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -25,7 +26,7 @@ const ConfirmEmailPage = () => {
         
         if (error) {
           setStatus('error');
-          console.error('Email confirmation error from hash:', { error, errorCode, errorDescription });
+          logger.error('Email confirmation error from hash:', { error, errorCode, errorDescription });
           
           if (errorCode === 'otp_expired' || errorDescription?.includes('expired')) {
             setMessage('Ce lien de confirmation a expiré. Veuillez demander un nouveau lien de confirmation depuis la page de connexion.');
@@ -87,7 +88,7 @@ const ConfirmEmailPage = () => {
         });
 
         if (verifyError) {
-          console.error('Email confirmation error:', verifyError);
+          logger.error('Email confirmation error:', verifyError);
           setStatus('error');
           
           // Provide user-friendly error messages
@@ -114,7 +115,7 @@ const ConfirmEmailPage = () => {
           setMessage('Erreur lors de la confirmation. Aucune donnée utilisateur retournée.');
         }
       } catch (error) {
-        console.error('Unexpected error during email confirmation:', error);
+        logger.error('Unexpected error during email confirmation:', error);
         setStatus('error');
         setMessage('Une erreur inattendue s\'est produite. Veuillez réessayer.');
       }

@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
@@ -34,7 +35,7 @@ const StudentDashboard = () => {
           return parsedDate;
         }
       } catch (error) {
-        console.error('Error parsing date from URL:', error);
+        logger.error('Error parsing date from URL:', error);
       }
     }
     return new Date();
@@ -63,7 +64,7 @@ const StudentDashboard = () => {
           setSelectedDate(parsedDate);
         }
       } catch (error) {
-        console.error('Error parsing date from URL:', error);
+        logger.error('Error parsing date from URL:', error);
       }
     }
   }, [searchParams]);
@@ -255,10 +256,10 @@ const StudentDashboard = () => {
 
       // If we get a 401 error, try to refresh the token and retry once
       if (response.status === 401) {
-        console.log('🔄 Token expired, attempting to refresh...');
+        logger.debug('🔄 Token expired, attempting to refresh...');
         try {
           const refreshedToken = await refreshAuthToken();
-          console.log('✅ Token refreshed, retrying session completion...');
+          logger.debug('✅ Token refreshed, retrying session completion...');
 
           response = await fetch(buildApiUrl(`/api/assignments/${session.id}/complete`), {
             method: 'PUT',
@@ -273,7 +274,7 @@ const StudentDashboard = () => {
             })
           });
         } catch (refreshError) {
-          console.error('❌ Failed to refresh token:', refreshError);
+          logger.error('❌ Failed to refresh token:', refreshError);
           throw new Error('Authentication failed. Please log in again.');
         }
       }
@@ -305,7 +306,7 @@ const StudentDashboard = () => {
         }
       }
     } catch (error) {
-      console.error('Error completing session:', error);
+      logger.error('Error completing session:', error);
       alert('Erreur lors de la validation de la séance');
     }
   };

@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Tag, Plus, Loader2 } from 'lucide-react';
 import { buildApiUrl } from '../../config/api';
@@ -54,7 +55,7 @@ const ExerciseTagTypeahead = ({
         throw new Error('Failed to fetch tags');
       }
     } catch (err) {
-      console.error('Error fetching tags:', err);
+      logger.error('Error fetching tags:', err);
       setError('Failed to load tags');
     } finally {
       setLoading(false);
@@ -150,7 +151,7 @@ const ExerciseTagTypeahead = ({
     // Validate the tag name
     const validation = validateTagName(normalizedTag);
     if (!validation.isValid) {
-      console.warn('Invalid tag name:', validation.error);
+      logger.warn('Invalid tag name:', validation.error);
       return;
     }
     

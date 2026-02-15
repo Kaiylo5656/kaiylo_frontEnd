@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
@@ -138,7 +139,7 @@ const ChatList = ({
       
       setAvailableUsers(allUsers);
     } catch (error) {
-      console.error('Error fetching available users:', error);
+      logger.error('Error fetching available users:', error);
     } finally {
       setLoading(false);
     }
@@ -166,14 +167,14 @@ const ChatList = ({
 
     try {
       setDeleting(true);
-      console.log('🔍 Starting delete conversation process...');
-      console.log('🔍 Conversation ID:', conversationToDelete.id);
+      logger.debug('🔍 Starting delete conversation process...');
+      logger.debug('🔍 Conversation ID:', conversationToDelete.id);
       
       const token = await getAuthToken();
-      console.log('🔍 Token obtained:', token ? 'Token found' : 'No token');
+      logger.debug('🔍 Token obtained:', token ? 'Token found' : 'No token');
       
       if (!token) {
-        console.error('❌ No authentication token available');
+        logger.error('❌ No authentication token available');
         alert('Authentication error. Please log in again.');
         return;
       }
@@ -186,11 +187,11 @@ const ChatList = ({
         }
       });
 
-      console.log('🔍 Delete response status:', response.status);
-      console.log('🔍 Delete response ok:', response.ok);
+      logger.debug('🔍 Delete response status:', response.status);
+      logger.debug('🔍 Delete response ok:', response.ok);
 
       if (response.ok) {
-        console.log('✅ Conversation deleted successfully');
+        logger.debug('✅ Conversation deleted successfully');
         
         // Call the parent component's delete handler
         if (onDeleteConversation) {
@@ -205,11 +206,11 @@ const ChatList = ({
         setConversationToDelete(null);
       } else {
         const errorData = await response.json();
-        console.error('❌ Error deleting conversation:', errorData);
+        logger.error('❌ Error deleting conversation:', errorData);
         alert(`Failed to delete conversation: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('❌ Error deleting conversation:', error);
+      logger.error('❌ Error deleting conversation:', error);
       alert('Failed to delete conversation. Please try again.');
     } finally {
       setDeleting(false);
@@ -287,7 +288,7 @@ const ChatList = ({
           setUserNamesMap(namesMap);
         }
       } catch (error) {
-        console.error('Error fetching user names:', error);
+        logger.error('Error fetching user names:', error);
       }
     };
 

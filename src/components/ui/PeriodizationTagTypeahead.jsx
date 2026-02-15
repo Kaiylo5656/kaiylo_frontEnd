@@ -1,3 +1,4 @@
+import logger from '../../utils/logger';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Tag, Plus, Loader2, Edit2 } from 'lucide-react';
 import { buildApiUrl } from '../../config/api';
@@ -54,14 +55,14 @@ const PeriodizationTagTypeahead = ({
         const tags = response.data.data;
         // Debug: log first tag to see structure
         if (tags && tags.length > 0) {
-          console.log('Periodization tag structure:', tags[0]);
+          logger.debug('Periodization tag structure:', tags[0]);
         }
         setAllTags(tags);
       } else {
         throw new Error('Failed to fetch tags');
       }
     } catch (err) {
-      console.error('Error fetching tags:', err);
+      logger.error('Error fetching tags:', err);
       setError('Failed to load tags');
     } finally {
       setLoading(false);
@@ -110,7 +111,7 @@ const PeriodizationTagTypeahead = ({
         await fetchTags();
       }
     } catch (err) {
-      console.error('Error renaming tag:', err);
+      logger.error('Error renaming tag:', err);
       alert('Erreur lors du renommage du tag');
     } finally {
       setEditingTag(null);
@@ -207,7 +208,7 @@ const PeriodizationTagTypeahead = ({
     
     const validation = validateTagName(normalizedTag);
     if (!validation.isValid) {
-      console.warn('Invalid tag name:', validation.error);
+      logger.warn('Invalid tag name:', validation.error);
       return;
     }
     

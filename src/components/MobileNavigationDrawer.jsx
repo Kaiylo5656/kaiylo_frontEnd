@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -140,7 +141,7 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
         setUnreadCount(totalUnread);
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      logger.error('Error fetching unread count:', error);
     }
   };
 
@@ -173,7 +174,7 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
   };
 
   const handleClientsClick = () => {
-    console.log('🔍 Clients button clicked!');
+    logger.debug('🔍 Clients button clicked!');
     navigate('/coach/dashboard?reset=true');
     onClose();
   };

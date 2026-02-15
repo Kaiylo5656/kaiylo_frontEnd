@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -78,7 +79,7 @@ const ExerciseValidationModal = ({
             }
           }
         } catch (error) {
-          console.error('Error fetching details:', error);
+          logger.error('Error fetching details:', error);
         }
       }
     };

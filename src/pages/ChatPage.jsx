@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -70,7 +71,7 @@ const ChatPage = () => {
       setConversations(sortedConversations);
       setError(null);
     } catch (err) {
-      console.error('Error fetching conversations:', err);
+      logger.error('Error fetching conversations:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -99,7 +100,7 @@ const ChatPage = () => {
     if (!socket || !isConnected) return;
 
     const handleMessagesRead = (data) => {
-      console.log('🔌 Messages marked as read:', data);
+      logger.debug('🔌 Messages marked as read:', data);
       // Update last_read_at for the conversation
       // The server may send conversationId or conversation_id
       const conversationId = data?.conversationId || data?.conversation_id;
@@ -190,7 +191,7 @@ const ChatPage = () => {
       setSelectedConversation(newConversation);
       setShowConversationList(false); // Hide list on mobile when creating new conversation
     } catch (err) {
-      console.error('Error creating conversation:', err);
+      logger.error('Error creating conversation:', err);
     }
   };
 
@@ -246,10 +247,10 @@ const ChatPage = () => {
           throw new Error('Failed to mark as read via HTTP');
         }
       } catch (error) {
-        console.error('❌ Error marking messages as read via HTTP:', error);
+        logger.error('❌ Error marking messages as read via HTTP:', error);
         // Fallback to socket if HTTP fails
         if (isConnected && markMessagesAsRead) {
-          console.log('🔄 Falling back to socket for read status...');
+          logger.debug('🔄 Falling back to socket for read status...');
           markMessagesAsRead(conversation.id);
         }
       }
@@ -299,7 +300,7 @@ const ChatPage = () => {
         setSelectedConversation(null);
       }
     } catch (err) {
-      console.error('Error deleting conversation:', err);
+      logger.error('Error deleting conversation:', err);
     }
   };
 

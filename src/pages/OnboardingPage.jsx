@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,7 +31,7 @@ const OnboardingPage = () => {
 
   const handleSubmit = async () => {
     if (!user) {
-      console.error('❌ No user found');
+      logger.error('❌ No user found');
       alert('Vous devez être connecté pour continuer');
       return;
     }
@@ -46,12 +47,12 @@ const OnboardingPage = () => {
       const token = await getAuthToken();
       
       if (!token) {
-        console.error('❌ No auth token found');
+        logger.error('❌ No auth token found');
         alert('Vous devez être connecté pour continuer');
         return;
       }
 
-      console.log('🔄 Updating profile with data:', {
+      logger.debug('🔄 Updating profile with data:', {
         userId: user.id,
         gender: formData.gender,
         birth_date: formData.birthDate,
@@ -79,15 +80,15 @@ const OnboardingPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Erreur inconnue' }));
-        console.error('❌ Error updating profile:', errorData);
+        logger.error('❌ Error updating profile:', errorData);
         throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('✅ Profile updated successfully:', result);
+      logger.debug('✅ Profile updated successfully:', result);
       navigate('/student/dashboard');
     } catch (error) {
-      console.error('❌ Error updating profile:', error);
+      logger.error('❌ Error updating profile:', error);
       alert(`Erreur lors de la mise à jour du profil: ${error.message || 'Erreur inconnue'}`);
     } finally {
       setLoading(false);

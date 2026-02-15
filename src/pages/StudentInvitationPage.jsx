@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -76,23 +77,23 @@ const StudentInvitationPage = () => {
       password: data.password,
     };
 
-    console.log('🎯 Submitting registration with data:', {
+    logger.debug('🎯 Submitting registration with data:', {
       ...registrationData,
       password: '***'
     });
 
     const result = await registerUser(registrationData, navigate);
 
-    console.log('📋 Registration result:', result);
+    logger.debug('📋 Registration result:', result);
 
     if (!result.success) {
-      console.error('❌ Registration failed:', result.error);
+      logger.error('❌ Registration failed:', result.error);
       setError('root', {
         type: 'manual',
         message: result.error || 'An unexpected error occurred. Please try again.'
       });
     } else {
-      console.log('✅ Registration successful, should redirect to student dashboard');
+      logger.debug('✅ Registration successful, should redirect to student dashboard');
     }
     
     setIsLoading(false);

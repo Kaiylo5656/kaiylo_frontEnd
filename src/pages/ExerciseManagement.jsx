@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -69,7 +70,7 @@ const ExerciseManagement = () => {
   // Extract all tags from exercises for the typeahead (including duplicates for counting)
   const availableTags = useMemo(() => {
     const allTags = exercises.flatMap(exercise => exercise.tags || []);
-    console.log('🏷️ All tags (with duplicates for counting):', allTags);
+    logger.debug('🏷️ All tags (with duplicates for counting):', allTags);
     return allTags.filter(tag => tag && tag.trim() !== '');
   }, [exercises]);
 
@@ -99,9 +100,9 @@ const ExerciseManagement = () => {
     });
 
     // Then sort the filtered results
-    console.log('🔍 About to sort:', { sort, dir, filteredCount: filtered.length });
+    logger.debug('🔍 About to sort:', { sort, dir, filteredCount: filtered.length });
     if (sort === 'createdAt' && filtered.length > 0) {
-      console.log('📅 Sample exercises before sorting:', filtered.slice(0, 3).map(ex => ({
+      logger.debug('📅 Sample exercises before sorting:', filtered.slice(0, 3).map(ex => ({
         title: ex.title,
         created_at: ex.created_at,
         id: ex.id
@@ -109,7 +110,7 @@ const ExerciseManagement = () => {
     }
     const sorted = sortExercises(filtered, sort, dir);
     if (sort === 'createdAt' && sorted.length > 0) {
-      console.log('📊 Sample exercises after sorting:', sorted.slice(0, 3).map(ex => ({
+      logger.debug('📊 Sample exercises after sorting:', sorted.slice(0, 3).map(ex => ({
         title: ex.title,
         created_at: ex.created_at,
         id: ex.id
@@ -140,10 +141,10 @@ const ExerciseManagement = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔄 Fetched exercises:', data.exercises);
+        logger.debug('🔄 Fetched exercises:', data.exercises);
         
         // Debug: Check the first few exercises for created_at values
-        console.log('🔍 First 5 exercises with created_at:', data.exercises?.slice(0, 5).map(ex => ({
+        logger.debug('🔍 First 5 exercises with created_at:', data.exercises?.slice(0, 5).map(ex => ({
           id: ex.id,
           title: ex.title,
           created_at: ex.created_at,
@@ -153,11 +154,11 @@ const ExerciseManagement = () => {
         // Backend returns { exercises: [...] }, so we need to extract the exercises array
         setExercises(data.exercises || []);
       } else {
-        console.error('Failed to fetch exercises');
+        logger.error('Failed to fetch exercises');
         setExercises([]); // Set empty array on error
       }
     } catch (error) {
-      console.error('Error fetching exercises:', error);
+      logger.error('Error fetching exercises:', error);
     } finally {
       setLoading(false);
     }
@@ -181,7 +182,7 @@ const ExerciseManagement = () => {
         demoVideoURL: formData.demoVideoURL
       };
       
-      console.log('📦 Frontend sending exerciseData:', exerciseData);
+      logger.debug('📦 Frontend sending exerciseData:', exerciseData);
       
       const token = localStorage.getItem('authToken');
       
@@ -198,11 +199,11 @@ const ExerciseManagement = () => {
         fetchExercises();
       } else {
         const errorData = await response.text();
-        console.error('Failed to save exercise:', response.status, errorData);
+        logger.error('Failed to save exercise:', response.status, errorData);
         throw new Error('Failed to save exercise');
       }
     } catch (error) {
-      console.error('Error saving exercise:', error);
+      logger.error('Error saving exercise:', error);
       throw error;
     }
   };
@@ -220,7 +221,7 @@ const ExerciseManagement = () => {
         demoVideoURL: formData.demoVideoURL
       };
       
-      console.log('📦 Frontend updating exerciseData:', exerciseData);
+      logger.debug('📦 Frontend updating exerciseData:', exerciseData);
       
       const token = localStorage.getItem('authToken');
       
@@ -238,19 +239,19 @@ const ExerciseManagement = () => {
         fetchExercises();
       } else {
         const errorData = await response.text();
-        console.error('Failed to update exercise:', response.status, errorData);
+        logger.error('Failed to update exercise:', response.status, errorData);
         throw new Error('Failed to update exercise');
       }
     } catch (error) {
-      console.error('Error updating exercise:', error);
+      logger.error('Error updating exercise:', error);
       throw error;
     }
   };
 
   // Handle row click to open detail modal
   const handleRowClick = (exercise) => {
-    console.log('🔍 Opening detail modal for exercise:', exercise);
-    console.log('🔍 Exercise ID:', exercise.id);
+    logger.debug('🔍 Opening detail modal for exercise:', exercise);
+    logger.debug('🔍 Exercise ID:', exercise.id);
     setSelectedExerciseId(exercise.id);
     setShowDetailModal(true);
   };
@@ -263,8 +264,8 @@ const ExerciseManagement = () => {
 
   // Edit exercise
   const handleEdit = (exercise) => {
-    console.log('✏️ Editing exercise:', exercise);
-    console.log('✏️ Exercise tags:', exercise.tags);
+    logger.debug('✏️ Editing exercise:', exercise);
+    logger.debug('✏️ Exercise tags:', exercise.tags);
     setEditingExercise(exercise);
     setShowModal(true);
   };
@@ -297,10 +298,10 @@ const ExerciseManagement = () => {
         setExerciseToDelete(null);
         fetchExercises();
       } else {
-        console.error('Failed to delete exercise');
+        logger.error('Failed to delete exercise');
       }
     } catch (error) {
-      console.error('Error deleting exercise:', error);
+      logger.error('Error deleting exercise:', error);
     } finally {
       setDeleting(false);
     }
@@ -345,12 +346,12 @@ const ExerciseManagement = () => {
         setSelectedExercises([]); // Clear selection
         fetchExercises();
       } else {
-        console.error('Failed to delete some exercises');
+        logger.error('Failed to delete some exercises');
         // Still refresh to show current state
         fetchExercises();
       }
     } catch (error) {
-      console.error('Error deleting exercises:', error);
+      logger.error('Error deleting exercises:', error);
     } finally {
       setDeleting(false);
     }

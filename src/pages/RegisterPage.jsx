@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -123,8 +124,8 @@ const RegisterPage = () => {
         password: data.password,
         role: 'coach'
       }).catch(error => {
-        console.error('Registration error:', error);
-        console.error('Error response:', error.response?.data);
+        logger.error('Registration error:', error);
+        logger.error('Error response:', error.response?.data);
         const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
         throw new Error(errorMessage);
       });

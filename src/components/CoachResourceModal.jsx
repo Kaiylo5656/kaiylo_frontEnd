@@ -1,3 +1,4 @@
+import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
@@ -116,7 +117,7 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
                 }}
                 onCanPlay={() => setIsVideoLoading(false)}
                 onError={async (error) => {
-                  console.error('Video error:', error);
+                  logger.error('Video error:', error);
                   const videoElement = error?.target;
                   const mediaError = videoElement?.error;
                   
@@ -155,7 +156,7 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
                           }
                         }
                       } catch (refreshError) {
-                        console.error('Failed to refresh resource:', refreshError);
+                        logger.error('Failed to refresh resource:', refreshError);
                         errorMessage = 'Le fichier vidéo semble avoir été supprimé. Impossible de le charger.';
                         setIsFileMissing(true);
                       }
@@ -210,7 +211,7 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
                               }
                             }
                           } catch (refreshError) {
-                            console.error('Failed to refresh resource:', refreshError);
+                            logger.error('Failed to refresh resource:', refreshError);
                           }
                           
                           if (videoRef.current) {
