@@ -1211,8 +1211,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                       <Card
                         className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
                           isOwnMessage
-                            ? 'bg-primary text-primary-foreground border-primary rounded-full pl-1 pr-1'
-                            : 'bg-white/15 text-card-foreground border-0 rounded-full pl-1 pr-1'
+                            ? 'bg-primary text-primary-foreground border-primary rounded-[25px] pl-1 pr-1'
+                            : 'bg-white/15 text-card-foreground border-0 rounded-[25px] pl-1 pr-1'
                         }`}
                         style={{ 
                           overflowWrap: 'break-word',
