@@ -23,6 +23,7 @@ import useSortParams from '../hooks/useSortParams';
 import logger from '../utils/logger';
 import PeriodizationTab from './PeriodizationTab';
 import StudentSidebar from './StudentSidebar';
+import CoachStudentBottomNav from './CoachStudentBottomNav';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -121,6 +122,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [markingVideoId, setMarkingVideoId] = useState(null);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
+
+  // Coach mobile: match VideoLibrary layout (analyse tab only)
+  const [isCoachMobile, setIsCoachMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsCoachMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Block information state
   const [isCreateBlockModalOpen, setIsCreateBlockModalOpen] = useState(false);
@@ -1179,13 +1189,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               // Clear the actual RPE rating for the new session
               rpe_rating: undefined,
               rpeRating: undefined,
-              // Clear student comments and video data
+              // Clear student comments and uploaded video data; keep coach "video requested" flag (set.video)
               feedback: undefined,
               comment: undefined,
               notes: undefined,
               student_comment: undefined,
               video_url: undefined,
-              video: undefined,
+              video: set.video, // preserve coach request for video (boolean)
               hasVideo: undefined,
               videoStatus: undefined
             })) : ex.sets.map(set => ({
@@ -2717,7 +2727,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           return (
             <div
               key={session.sessionId}
-              className="px-5 py-3.5 transition-colors cursor-pointer rounded-2xl"
+              className="px-4 md:px-5 py-3 md:py-[14px] transition-colors cursor-pointer rounded-2xl"
               style={{
                 backgroundColor: backgroundColor,
                 borderWidth: '0px',
@@ -2729,35 +2739,86 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               onMouseLeave={() => setHoveredSessionId(null)}
               onClick={() => toggleSession(session.sessionId)}
             >
-              {/* Session Header */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+              {/* Session Header - same structure as VideoLibrary */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0 overflow-visible md:overflow-hidden">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 512"
-                    className={`text-white/50 transition-transform flex-shrink-0 ${isOpen ? 'rotate-90' : ''
-                      }`}
+                    viewBox="0 0 384 512"
+                    className={`text-white/50 transition-transform flex-shrink-0 ${isOpen ? '' : '-rotate-90'}`}
                     style={{ width: '16px', height: '16px' }}
                     fill="currentColor"
                     aria-hidden="true"
                   >
-                    <path d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                    <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
                   </svg>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-white font-light text-base flex items-center gap-2">
-                      {sessionName} <span style={{ opacity: 0.5 }}>- {sessionDate}</span>
-                      <span className="text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-4 w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                          <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
-                        </svg>
-                        <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
+                  <div className="min-w-0 flex-1 flex flex-row items-center justify-between gap-3 md:justify-start">
+                    <h3 className="text-white font-light text-sm md:text-base flex flex-col md:flex-row md:items-center gap-1 md:gap-2 min-w-0">
+                      <span className="flex items-center gap-2 min-w-0 truncate">
+                        {sessionName}
+                        <span className="text-xs md:text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                            <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
+                          </svg>
+                          <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
+                        </span>
+                      </span>
+                      <span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
+                        <span className="hidden md:inline">- {sessionDate} - </span>
                       </span>
                     </h3>
+
+                    {/* Status indicator + Mark session completed - Mobile */}
+                    <div className="flex items-center gap-2 flex-shrink-0 md:hidden">
+                  {session.videos.some(v => v.status === 'pending') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
+                        disabled={markingSessionId === session.sessionId}
+                        title="Marquer cette séance en complété"
+                        className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'rgba(250, 250, 250, 0.5)',
+                          fontWeight: '400'
+                        }}
+                        onMouseEnter={(e) => {
+                          setHoveringValidateButtonSessionId(session.sessionId);
+                          if (markingSessionId === session.sessionId) return;
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                          e.currentTarget.style.color = '#D48459';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                        onMouseLeave={(e) => {
+                          setHoveringValidateButtonSessionId(null);
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                      >
+                        {markingSessionId === session.sessionId ? (
+                            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                          ) : (
+                            <CircleCheckIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                          )}
+                        </button>
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                          À feedback
+                        </span>
+                      </>
+                    )}
+                    {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                        Complété
+                      </span>
+                    )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Status indicator + Mark session completed */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Status indicator + Mark session completed - Desktop */}
+                <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
                     <>
                       <button
@@ -2804,9 +2865,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 </div>
               </div>
 
-              {/* Session Videos (Collapsible) */}
+              {/* Session Videos (Collapsible) - same structure as VideoLibrary */}
               {isOpen && (
-                <div className="mt-2 pt-2 pl-6">
+                <div className="mt-2 pt-2 pl-4 md:pl-6">
                   <div className="flex flex-col gap-[7px]">
                     {session.videos.map((video) => {
                       const isVideoRowHovered = hoveredVideoId === video.id;
@@ -2815,171 +2876,166 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         ? 'rgba(255, 255, 255, 0.14)'
                         : 'rgba(255, 255, 255, 0.07)';
                       return (
-                      <div
-                        key={video.id}
-                        className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
-                        style={{
-                          backgroundColor: videoRowBg,
-                          borderWidth: '0px',
-                          borderColor: 'rgba(0, 0, 0, 0)',
-                          borderStyle: 'none',
-                          borderImage: 'none'
-                        }}
-                        onMouseEnter={() => setHoveredVideoId(video.id)}
-                        onMouseLeave={() => setHoveredVideoId(null)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVideoClick(video);
-                        }}
-                      >
-                        <div className="flex items-center gap-4">
-                          {/* Video Thumbnail */}
-                          <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                            {video?.video_url && video.video_url.trim() !== '' ? (
-                              <>
-                                <video
-                                  src={video.video_url}
-                                  className="w-full h-full object-cover"
-                                  preload="metadata"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                  <PlayCircle size={24} className="text-white" />
+                        <div
+                          key={video.id}
+                          className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
+                          style={{
+                            backgroundColor: videoRowBg,
+                            borderWidth: '0px',
+                            borderColor: 'rgba(0, 0, 0, 0)',
+                            borderStyle: 'none',
+                            borderImage: 'none'
+                          }}
+                          onMouseEnter={() => setHoveredVideoId(video.id)}
+                          onMouseLeave={() => setHoveredVideoId(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVideoClick(video);
+                          }}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+                            {/* Video Thumbnail */}
+                            <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                              {video?.video_url && video.video_url.trim() !== '' ? (
+                                <>
+                                  <video
+                                    src={video.video_url}
+                                    className="w-full h-full object-cover"
+                                    preload="metadata"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                    <PlayCircle size={24} className="text-white" />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                                  <Video size={24} className="text-gray-500" />
                                 </div>
-                              </>
-                            ) : (
-                              <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                                <Video size={24} className="text-gray-500" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Video Info */}
-                          <div className="flex-1 min-w-0">
-                            {/* Exercise Tag and Date */}
-                            <div className="flex items-center gap-1 mb-2">
-                              <span className="text-white font-light text-base">
-                                {video.exercise_name}
-                              </span>
-                              <span className="text-white/50">-</span>
-                              <span className="text-white/50 text-sm font-extralight">
-                                {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
-                              </span>
+                              )}
                             </div>
 
-                            {/* Series */}
-                            <div className="text-white/75 text-sm font-extralight">
-                              {(() => {
-                                const { weight, reps } = getVideoWeightAndReps(video);
-                                const seriesText = `Série ${video.set_number || 1}/3`;
-                                const repsText = reps > 0 ? `${reps} reps` : null;
-                                const weightText = weight > 0 ? `${weight}kg` : null;
-
-                                if (repsText && weightText) {
-                                  return (
-                                    <>
-                                      {seriesText} • {repsText}{' '}
-                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                    </>
-                                  );
-                                } else if (repsText) {
-                                  return `${seriesText} • ${repsText}`;
-                                } else if (weightText) {
-                                  return (
-                                    <>
-                                      {seriesText} •{' '}
-                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                    </>
-                                  );
-                                }
-                                return seriesText;
-                              })()}
-                            </div>
-
-                            {/* Coach Feedback */}
-                            {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                              <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
-                                {video.coach_feedback_audio_url && (
-                                  <div className="text-xs">
-                                    <VoiceMessage
-                                      message={{
-                                        file_url: video.coach_feedback_audio_url,
-                                        message_type: 'audio',
-                                        file_type: 'audio/webm'
-                                      }}
-                                      isOwnMessage={false}
-                                    />
-                                  </div>
-                                )}
-                                {video.coach_feedback && (
-                                  <div className="flex items-start gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                                      <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
-                                    </svg>
-                                    <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                      {video.coach_feedback}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Status Badge + Validate button */}
-                          {(() => {
-                            const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
-                            const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
-
-                            if (isCompleted) {
-                              return (
-                                <div className="flex-shrink-0 flex items-center">
-                                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                                    Complété
+                            {/* Video Info */}
+                            <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
+                              <div className="flex-1 min-w-0">
+                                {/* Exercise Tag and Date */}
+                                <div className="flex flex-col md:flex-row md:items-center gap-1 mb-2 md:mb-0">
+                                  <span className="text-white font-light text-sm md:text-base">
+                                    {video.exercise_name}
+                                  </span>
+                                  <span className="hidden md:inline text-white/50">-</span>
+                                  <span className="text-white/50 text-xs md:text-sm font-extralight">
+                                    {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
                                   </span>
                                 </div>
-                              );
-                            }
-                            return (
-                              <div className="flex-shrink-0 flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
-                                  disabled={markingVideoId === video.id}
-                                  title="Marquer cet exercice en complété"
-                                  className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                                  style={{
-                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                    color: 'rgba(250, 250, 250, 0.5)',
-                                    fontWeight: '400'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    setHoveringValidateVideoId(video.id);
-                                    if (markingVideoId === video.id) return;
-                                    e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                                    e.currentTarget.style.color = '#D48459';
-                                    e.currentTarget.style.fontWeight = '400';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    setHoveringValidateVideoId(null);
-                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                    e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                                    e.currentTarget.style.fontWeight = '400';
-                                  }}
-                                >
-                                  {markingVideoId === video.id ? (
-                                    <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                  ) : (
-                                    <CircleCheckIcon className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                                <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                  À feedback
-                                </span>
+
+                                {/* Series */}
+                                <div className="text-white/75 text-xs md:text-sm font-extralight">
+                                {(() => {
+                                  const { weight, reps } = getVideoWeightAndReps(video);
+                                  const seriesText = `Série ${video.set_number || 1}/3`;
+                                  const repsText = reps > 0 ? `${reps} reps` : null;
+                                  const weightText = weight > 0 ? `${weight}kg` : null;
+
+                                  if (repsText && weightText) {
+                                    return (
+                                      <>
+                                        {seriesText} • {repsText}{' '}
+                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                      </>
+                                    );
+                                  } else if (repsText) {
+                                    return `${seriesText} • ${repsText}`;
+                                  } else if (weightText) {
+                                    return (
+                                      <>
+                                        {seriesText} •{' '}
+                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                      </>
+                                    );
+                                  }
+                                  return seriesText;
+                                })()}
                               </div>
-                            );
-                          })()}
+
+                              {/* Coach Feedback */}
+                              {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                                <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
+                                  {video.coach_feedback_audio_url && (
+                                    <div className="text-xs">
+                                      <VoiceMessage
+                                        message={{
+                                          file_url: video.coach_feedback_audio_url,
+                                          message_type: 'audio',
+                                          file_type: 'audio/webm'
+                                        }}
+                                        isOwnMessage={false}
+                                      />
+                                    </div>
+                                  )}
+                                  {video.coach_feedback && (
+                                    <div className="flex items-start gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                        <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
+                                      </svg>
+                                      <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                        {video.coach_feedback}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Status Badge + Validate button - same as VideoLibrary */}
+                            <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
+                              {video.status === 'pending' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                    disabled={markingVideoId === video.id}
+                                    title="Marquer cet exercice en complété"
+                                    className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                    style={{
+                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                      color: 'rgba(250, 250, 250, 0.5)',
+                                      fontWeight: '400'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      setHoveringValidateVideoId(video.id);
+                                      if (markingVideoId === video.id) return;
+                                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                      e.currentTarget.style.color = '#D48459';
+                                      e.currentTarget.style.fontWeight = '400';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      setHoveringValidateVideoId(null);
+                                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                      e.currentTarget.style.fontWeight = '400';
+                                    }}
+                                  >
+                                    {markingVideoId === video.id ? (
+                                      <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                    ) : (
+                                      <CircleCheckIcon className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                    À feedback
+                                  </span>
+                                </>
+                              )}
+                              {(video.status === 'completed' || video.status === 'reviewed') && (
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                  Complété
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
@@ -3256,7 +3312,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     </svg>
                     <span className="truncate text-[14px] font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>{session.title || 'Séance'}</span>
                     {hasMultipleSessions && (
-                      <span className="text-white/40 text-[12px] font-light flex-shrink-0">{sessionIndex + 1}/{sessions.length}</span>
+                      <span className="text-white/50 text-[12px] font-normal flex-shrink-0">{sessionIndex + 1}/{sessions.length}</span>
                     )}
                   </div>
 
@@ -3372,47 +3428,47 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 <div className="border-b border-white/10 mb-2"></div>
 
                 <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0" style={{ marginTop: '12px' }}>
-                      {exercises.slice(0, visibleExercisesCount).map((exercise, index) => {
-                        // Déterminer la couleur du nombre de séries basée sur les statuts de validation
-                        const getSetsColor = () => {
-                          // Seulement pour les séances terminées
-                          if (session.status !== 'completed') return null;
+                  {exercises.slice(0, visibleExercisesCount).map((exercise, index) => {
+                    // Déterminer la couleur du nombre de séries basée sur les statuts de validation
+                    const getSetsColor = () => {
+                      // Seulement pour les séances terminées
+                      if (session.status !== 'completed') return null;
 
-                          if (!exercise.sets || exercise.sets.length === 0) return null;
+                      if (!exercise.sets || exercise.sets.length === 0) return null;
 
-                          // Vérifier les statuts de validation de toutes les séries
-                          const hasFailed = exercise.sets.some(set => set.validation_status === 'failed');
-                          const allCompleted = exercise.sets.every(set => set.validation_status === 'completed');
+                      // Vérifier les statuts de validation de toutes les séries
+                      const hasFailed = exercise.sets.some(set => set.validation_status === 'failed');
+                      const allCompleted = exercise.sets.every(set => set.validation_status === 'completed');
 
-                          if (hasFailed) return 'text-red-500'; // Rouge si au moins une série est en échec
-                          if (allCompleted) return 'text-[#2FA064]'; // Vert si toutes les séries sont validées
+                      if (hasFailed) return 'text-red-500'; // Rouge si au moins une série est en échec
+                      if (allCompleted) return 'text-[#2FA064]'; // Vert si toutes les séries sont validées
 
-                          return null; // Couleur par défaut si pas toutes les séries sont validées
-                        };
+                      return null; // Couleur par défaut si pas toutes les séries sont validées
+                    };
 
-                        const setsColor = getSetsColor();
-                        const isCompleted = setsColor === 'text-[#2FA064]';
-                        const isFailed = setsColor === 'text-red-500';
+                    const setsColor = getSetsColor();
+                    const isCompleted = setsColor === 'text-[#2FA064]';
+                    const isFailed = setsColor === 'text-red-500';
 
-                        return (
-                          <div key={index} className="text-[11px] text-white truncate font-extralight">
-                            <span className={`${setsColor || ''} ${isCompleted || isFailed ? 'font-normal' : ''}`}>
-                              {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
-                            </span>
-                            {' '}
-                            {exercise.useRir ? (
-                              <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
-                            ) : (
-                              <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
-                            )} - <span className="font-light text-white/75">{exercise.name}</span>
-                          </div>
-                        );
-                      })}
-                      {exercises.length > visibleExercisesCount && (
-                        <div className="text-[11px] text-white/50 font-extralight">
-                          + {exercises.length - visibleExercisesCount} exercice{(exercises.length - visibleExercisesCount) > 1 ? 's' : ''}
-                        </div>
-                      )}
+                    return (
+                      <div key={index} className="text-[11px] text-white truncate font-extralight">
+                        <span className={`${setsColor || ''} ${isCompleted || isFailed ? 'font-normal' : ''}`}>
+                          {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
+                        </span>
+                        {' '}
+                        {exercise.useRir ? (
+                          <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
+                        ) : (
+                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
+                        )} - <span className="font-light text-white/75">{exercise.name}</span>
+                      </div>
+                    );
+                  })}
+                  {exercises.length > visibleExercisesCount && (
+                    <div className="text-[11px] text-white/50 font-extralight">
+                      + {exercises.length - visibleExercisesCount} exercice{(exercises.length - visibleExercisesCount) > 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
@@ -3955,7 +4011,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 pb-[80px] md:pb-0">
         {loading ? (
           <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-8 w-8 text-[#d4845a] animate-spin" />
@@ -3983,7 +4039,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     )}
                   </button>
                 )}
-                <div className="flex items-center md:items-start gap-4 md:gap-6 border-b border-b-[rgba(255,255,255,0.1)] ml-0 mt-3">
+                <div className="flex items-center md:items-start gap-4 md:gap-6 border-b border-b-[rgba(255,255,255,0.1)] ml-0 mt-3 pb-3 md:pb-0">
                   <div className="w-[50px] h-[50px] md:w-[60px] md:h-[60px] rounded-full bg-[rgba(255,255,255,0.1)] flex items-center justify-center shrink-0 overflow-hidden relative">
                     <svg
                       className="w-[24px] h-[24px] md:w-[28px] md:h-[28px] text-white/80"
@@ -4000,8 +4056,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <h1 className="text-lg md:text-xl font-light flex-shrink-0" style={{ fontWeight: 200 }}>
                         {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
                       </h1>
-                      {/* Menu déroulant sur mobile */}
-                      <div className="md:hidden relative flex-shrink-0" style={{ minWidth: '120px' }}>
+                      {/* Menu déroulant sur mobile - REMOVED in favor of bottom nav */}
+                      {/* <div className="md:hidden relative flex-shrink-0" style={{ minWidth: '120px' }}>
                         <select
                           value={activeTab}
                           onChange={(e) => setActiveTab(e.target.value)}
@@ -4019,13 +4075,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           <option value="analyse">Analyse vidéo</option>
                           <option value="suivi">Suivi Financier</option>
                         </select>
-                        {/* Flèche du dropdown */}
                         <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)' }}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
-                      </div>
+                      </div> */}
                     </div>
 
                     {/* Onglets sur desktop */}
@@ -4508,7 +4563,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             const dateHeaderHeight = 30; // Date header height
                             const paddingHeight = 8; // Top and bottom padding (pt-1 pb-2)
                             const baseHeight = dateHeaderHeight + paddingHeight;
-                            
+
                             // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
                             // Base height: ~100px (header + padding + footer)
                             // Each exercise: ~20px + gap: ~6px
@@ -4517,12 +4572,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
                             const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
                             const sessionHeight = sessionBaseHeight + exercisesHeight;
-                            
+
                             // When in 5 exercises view, use the calculated height (minimum 240px for session)
                             // When in 8 exercises view, keep minimum 300px
                             const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
                             const totalHeight = baseHeight + minSessionHeight;
-                            
+
                             return totalHeight;
                           };
 
@@ -5260,8 +5315,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                   {/* Calendar Grid */}
                   <div className="pr-0 md:pr-14 pt-4">
-                    {/* Day Headers */}
-                    <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
+                    {/* Day Headers - Hidden on mobile */}
+                    <div className="hidden md:grid grid-cols-7 gap-1 md:gap-2 mb-2">
                       {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
                         <div key={day} className="text-center text-[10px] md:text-[12px] text-white/75 font-extralight">
                           {day}
@@ -5370,8 +5425,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 </button>
                               </div>
 
-                              {/* The Grid for this week */}
-                              <div className="relative grid grid-cols-7 gap-1 md:gap-2">
+                              {/* The Grid for this week - Vertical on mobile, Grid on Desktop */}
+                              <div className="relative grid grid-cols-1 md:grid-cols-7 gap-1 md:gap-2">
                                 {weekDays.map(({ day, index }) => {
                                   const dateKey = format(day, 'yyyy-MM-dd');
                                   const sessionsOnDay = (workoutSessions[dateKey] || []).filter(session => {
@@ -5387,11 +5442,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                     if (!isDetailedView) {
                                       return null; // Use fixed height h-[142px] for non-detailed view
                                     }
-                                    
+
                                     const dateHeaderHeight = 30; // Date header height
                                     const paddingHeight = 12; // Top and bottom padding (p-1.5 md:p-2)
                                     const baseHeight = dateHeaderHeight + paddingHeight;
-                                    
+
                                     // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
                                     // Base height: ~100px (header + padding + footer)
                                     // Each exercise: ~20px + gap: ~6px
@@ -5400,24 +5455,24 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                     const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
                                     const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
                                     const sessionHeight = sessionBaseHeight + exercisesHeight;
-                                    
+
                                     // When in 5 exercises view, use the calculated height (minimum 240px for session)
                                     // When in 8 exercises view, keep minimum 300px
                                     const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
                                     const totalHeight = baseHeight + minSessionHeight;
-                                    
+
                                     return totalHeight;
                                   };
 
                                   const trainingDayHeight = calculateTrainingDayHeight();
                                   // In 5 exercises view with detailed view, use height instead of minHeight to match child container height exactly
                                   const useFixedHeight = isDetailedView && visibleExercisesCount === 5;
-                                  
+
                                   const trainingDayStyle = {
                                     backgroundColor: copiedSession && hoveredPasteDate === dateKey ? 'rgba(212, 132, 90, 0.08)' : 'rgba(255,255,255,0.05)',
                                     transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s ease-out, height 0.3s ease-out'
                                   };
-                                  
+
                                   if (isDetailedView && trainingDayHeight !== null) {
                                     if (useFixedHeight) {
                                       trainingDayStyle.height = `${trainingDayHeight}px`;
@@ -5432,8 +5487,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                       className={`bg-[rgba(255,255,255,0.05)] rounded-lg md:rounded-xl p-1.5 md:p-2 flex flex-col transition-all duration-300 relative group cursor-pointer ${isDetailedView && trainingDayHeight === null
                                         ? 'min-h-[260px]'
                                         : !isDetailedView
-                                        ? 'h-[142px]'
-                                        : ''
+                                          ? 'h-[142px]'
+                                          : ''
                                         }`}
                                       style={trainingDayStyle}
                                       onClick={() => handleDayClick(day)}
@@ -5457,19 +5512,24 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                         }
                                       }}
                                     >
-                                      <div className="text-xs md:text-sm text-white/75 mb-1 md:mb-1.5 flex justify-end items-center gap-0.5 md:gap-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDayClick(day);
-                                          }}
-                                          className="hidden md:block p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95 pointer-events-none group-hover:pointer-events-auto"
-                                        >
-                                          <Plus className="h-3 w-3 md:h-4 md:w-4 text-[#BFBFBF] transition-opacity" />
-                                        </button>
-                                        <span className={`text-[10px] md:text-[12px] font-extralight ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-4 w-4 md:h-5 md:w-5 text-white' : 'text-white/75'}`}>
-                                          {format(day, 'd')}
+                                      <div className="text-xs md:text-sm text-white/75 mb-1 md:mb-1.5 flex justify-between md:justify-end items-center gap-0.5 md:gap-1">
+                                        <span className="md:hidden text-sm font-medium text-white/90 capitalize">
+                                          {format(day, 'EEEE', { locale: fr })}
                                         </span>
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDayClick(day);
+                                            }}
+                                            className="hidden md:block p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95 pointer-events-none group-hover:pointer-events-auto"
+                                          >
+                                            <Plus className="h-3 w-3 md:h-4 md:w-4 text-[#BFBFBF] transition-opacity" />
+                                          </button>
+                                          <span className={`text-[12px] md:text-[12px] font-extralight ${isToday ? 'bg-[#d4845a] rounded-full flex items-center justify-center h-5 w-5 md:h-5 md:w-5 text-white' : 'text-white/75'}`}>
+                                            {format(day, 'd')}
+                                          </span>
+                                        </div>
                                       </div>
 
                                       {isDetailedView ? (
@@ -5889,28 +5949,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               )}
 
               {activeTab === 'analyse' && (
-                <div className="p-4">
-                  {/* Filters */}
-                  <div className="flex items-center gap-[14px] mb-6">
+                <div className="p-0 md:p-4">
+                  {/* Filters - same structure as VideoLibrary on mobile */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[14px] mb-6">
                     {/* Status Filter */}
                     <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
                       <DropdownMenuTrigger asChild>
                         <button
                           ref={statusFilterButtonRef}
-                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
+                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto overflow-hidden focus:outline-none focus-visible:outline-none"
                           style={{
                             color: isStatusFilterOpen || statusFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                             fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : '200',
-                            width: `${statusFilterMinWidth}px`,
-                            minWidth: `${statusFilterMinWidth}px`
+                            ...(!isCoachMobile && {
+                              width: `${statusFilterMinWidth}px`,
+                              minWidth: `${statusFilterMinWidth}px`
+                            })
                           }}
                         >
                           <span
-                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                              isStatusFilterOpen || statusFilter !== ''
-                                ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                                : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                            }`}
+                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isStatusFilterOpen || statusFilter !== ''
+                              ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                              : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                              }`}
                             aria-hidden
                           />
                           <span ref={statusFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{statusFilter || 'Tous les statuts'}</span>
@@ -6096,21 +6157,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <DropdownMenuTrigger asChild>
                         <button
                           ref={exerciseFilterButtonRef}
-                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
+                          className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto overflow-hidden focus:outline-none focus-visible:outline-none"
                           style={{
                             color: isExerciseFilterOpen || exerciseFilter !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                             fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : '200',
-                            width: `${exerciseFilterMinWidth}px`,
-                            minWidth: `${exerciseFilterMinWidth}px`,
-                            outline: 'none'
+                            outline: 'none',
+                            ...(!isCoachMobile && {
+                              width: `${exerciseFilterMinWidth}px`,
+                              minWidth: `${exerciseFilterMinWidth}px`
+                            })
                           }}
                         >
                           <span
-                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                              isExerciseFilterOpen || exerciseFilter !== ''
-                                ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                                : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                            }`}
+                            className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isExerciseFilterOpen || exerciseFilter !== ''
+                              ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                              : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                              }`}
                             aria-hidden
                           />
                           <span ref={exerciseFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || exerciseFilter !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exerciseFilter || 'Exercice'}</span>
@@ -6267,25 +6329,26 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Date Filter */}
-                    <div className="relative">
+                    {/* Date Filter - hidden on mobile */}
+                    <div className="hidden sm:block relative w-full sm:w-auto">
                       <div
                         ref={dateFilterButtonRef}
                         onClick={() => dateInputRef.current?.showPicker()}
-                        className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 overflow-hidden"
+                        className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 overflow-hidden w-full sm:w-auto"
                         style={{
                           color: dateFilter ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
                           fontWeight: dateFilter ? '400' : '200',
-                          width: `${dateFilterMinWidth}px`,
-                          minWidth: `${dateFilterMinWidth}px`
+                          ...(!isCoachMobile && {
+                            width: `${dateFilterMinWidth}px`,
+                            minWidth: `${dateFilterMinWidth}px`
+                          })
                         }}
                       >
                         <span
-                          className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                            dateFilter
-                              ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                              : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                          }`}
+                          className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${dateFilter
+                            ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                            : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                            }`}
                           aria-hidden
                         />
                         <svg
@@ -6318,9 +6381,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </div>
                     </div>
 
-                    {/* Video Count + Mark all completed button */}
-                    <div className="ml-auto flex items-center gap-3">
-                      <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    {/* Video Count + Mark all completed button - same as VideoLibrary on mobile */}
+                    <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
+                      <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
                         {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
                       </span>
                       {videosNeedingFeedback > 0 && (
@@ -6362,10 +6425,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     </div>
                   </div>
 
+                  <div className="relative min-h-[320px]">
                   {videosLoading && (
-                    <div className="flex items-center justify-center py-8">
+                    <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
                       <div
-                        className="rounded-full border-2 border-transparent animate-spin"
+                        className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
                         style={{
                           borderTopColor: '#d4845a',
                           borderRightColor: '#d4845a',
@@ -6377,6 +6441,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   )}
 
                   {!videosLoading && renderStudentVideosGrouped()}
+                  </div>
                 </div>
               )}
 
@@ -6392,31 +6457,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               )}
             </div>
 
-        {/* Modals */}
-        <CreateWorkoutSessionModal
-          isOpen={isCreateModalOpen}
-          onClose={() => {
-            setIsCreateModalOpen(false);
-            setSelectedSession(null); // Réinitialiser selectedSession à la fermeture
-          }}
-          selectedDate={selectedDate}
-          onSessionCreated={handleSessionCreated}
-          studentId={student.id}
-          existingSession={selectedSession}
-          onCopySession={(sessionForCopy, fromDate) => {
-            setCopiedSession({ session: sessionForCopy, fromDate });
-          }}
-        />
+            {/* Modals */}
+            <CreateWorkoutSessionModal
+              isOpen={isCreateModalOpen}
+              onClose={() => {
+                setIsCreateModalOpen(false);
+                setSelectedSession(null); // Réinitialiser selectedSession à la fermeture
+              }}
+              selectedDate={selectedDate}
+              onSessionCreated={handleSessionCreated}
+              studentId={student.id}
+              existingSession={selectedSession}
+              onCopySession={(sessionForCopy, fromDate) => {
+                setCopiedSession({ session: sessionForCopy, fromDate });
+              }}
+            />
 
-        <WorkoutSessionDetailsModal
-          isOpen={isDetailsModalOpen}
-          onClose={() => setIsDetailsModalOpen(false)}
-          session={selectedSession}
-          selectedDate={selectedDate}
-          onCopySession={(sessionForCopy, fromDate) => {
-            setCopiedSession({ session: sessionForCopy, fromDate });
-          }}
-        />
+            <WorkoutSessionDetailsModal
+              isOpen={isDetailsModalOpen}
+              onClose={() => setIsDetailsModalOpen(false)}
+              session={selectedSession}
+              selectedDate={selectedDate}
+              onCopySession={(sessionForCopy, fromDate) => {
+                setCopiedSession({ session: sessionForCopy, fromDate });
+              }}
+            />
 
             <StudentProfileModal
               isOpen={isProfileModalOpen}
@@ -6815,6 +6880,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           existingBlocks={blocks}
           initialDate={overviewWeekDate}
         />
+
+        {/* Mobile Bottom Navigation */}
+        <CoachStudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
     </div>
   );

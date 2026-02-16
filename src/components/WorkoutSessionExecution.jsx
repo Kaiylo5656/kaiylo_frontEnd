@@ -69,15 +69,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
-  
+
   // Calculate estimated duration: each exercise = 10 minutes
   const calculateEstimatedDuration = () => {
     const totalMinutes = exercises.length * 10;
     if (totalMinutes === 0) return '0min';
-    
+
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    
+
     if (hours > 0 && minutes > 0) {
       return `${hours}h${minutes.toString().padStart(2, '0')}`;
     } else if (hours > 0) {
@@ -86,18 +86,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       return `${minutes}min`;
     }
   };
-  
+
   const estimatedDuration = calculateEstimatedDuration();
-  
+
   // Generate a unique storage key for this session (memoized)
   const sessionId = React.useMemo(() => {
     return session?.id || session?.workout_sessions?.id || session?.assignment_id;
   }, [session]);
-  
+
   const storageKey = React.useMemo(() => {
     return sessionId ? `workout_progress_${sessionId}` : null;
   }, [sessionId]);
-  
+
   // Helper function to save progress to localStorage
   const saveProgressToStorage = React.useCallback((progressData) => {
     if (!storageKey) return;
@@ -114,7 +114,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       logger.error('Error saving progress to localStorage:', error);
     }
   }, [storageKey]);
-  
+
   // Helper function to load progress from localStorage
   const loadProgressFromStorage = React.useCallback(() => {
     if (!storageKey) return null;
@@ -129,7 +129,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     }
     return null;
   }, [storageKey]);
-  
+
   // Helper function to clear progress from localStorage
   const clearProgressFromStorage = React.useCallback(() => {
     if (!storageKey) return;
@@ -140,19 +140,19 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       logger.error('Error clearing progress from localStorage:', error);
     }
   }, [storageKey]);
-  
+
   // Gérer l'avertissement avant de quitter la page (fermeture d'onglet, navigation)
   useEffect(() => {
     // Ne pas afficher l'avertissement si on est encore sur la page aperçu
     if (!isSessionStarted) {
       return;
     }
-    
-    const hasProgress = Object.keys(completedSets).length > 0 || 
-                        currentExerciseIndex > 0 || 
-                        Object.keys(exerciseComments).length > 0 ||
-                        localVideos.length > 0;
-    
+
+    const hasProgress = Object.keys(completedSets).length > 0 ||
+      currentExerciseIndex > 0 ||
+      Object.keys(exerciseComments).length > 0 ||
+      localVideos.length > 0;
+
     if (!hasProgress) {
       return; // Pas besoin d'avertir si pas de progression
     }
@@ -170,13 +170,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
-  
+
   // Load saved progress on mount or when session changes (only once per session)
   useEffect(() => {
     if (!sessionId || !storageKey) {
       return;
     }
-    
+
     // Check if we've already restored for this session
     if (lastRestoredSessionId.current === sessionId && hasRestoredProgress.current) {
       // Already restored for this session, but check if flag is stuck
@@ -188,12 +188,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       logger.debug('⏭️ Skipping restoration - already restored for session:', sessionId);
       return;
     }
-    
+
     logger.debug('🔄 Starting restoration check for session:', sessionId, {
       lastRestoredSessionId: lastRestoredSessionId.current,
       hasRestoredProgress: hasRestoredProgress.current
     });
-    
+
     // If session changed, reset flags and clear any pending timeout
     if (lastRestoredSessionId.current !== sessionId && lastRestoredSessionId.current !== null) {
       hasRestoredProgress.current = false;
@@ -203,10 +203,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         restoreTimeoutRef.current = null;
       }
     }
-    
+
     // Prevent saving during restoration
     isRestoringProgress.current = true;
-    
+
     // Load saved progress synchronously to avoid race conditions
     try {
       const saved = safeGetItem(storageKey);
@@ -220,7 +220,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           selectedSetIndex: savedProgress.selectedSetIndex,
           exerciseCommentsKeys: Object.keys(savedProgress.exerciseComments || {})
         });
-        
+
         // Restore all states directly (we control restoration with hasRestoredProgress flag)
         if (savedProgress.completedSets) {
           logger.debug('✅ Restoring completedSets:', savedProgress.completedSets);
@@ -271,24 +271,24 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             timestamp: new Date().toISOString()
           }));
           setLocalVideos(restoredVideos);
-          
+
           // Restaurer le RPE dans completedSets et réinitialiser l'état hasVideo pour les vidéos qui ne peuvent pas être restaurées
           // Cela permet à l'étudiant de re-uploader la vidéo
           setCompletedSets(prev => {
             const updated = { ...prev };
             let hasResetVideos = false;
-            
+
             restoredVideos.forEach(video => {
               const key = `${video.exerciseIndex}-${video.setIndex}`;
               const currentSetData = updated[key];
-              
+
               // Restaurer le RPE dans completedSets
               if (video.rpeRating !== null && video.rpeRating !== undefined) {
                 updated[key] = typeof currentSetData === 'object' && currentSetData !== null
                   ? { ...currentSetData, rpeRating: video.rpeRating }
                   : { rpeRating: video.rpeRating };
               }
-              
+
               // Si la vidéo n'a pas de fichier (null) et n'est pas "no-video", 
               // cela signifie qu'elle ne peut pas être restaurée
               if (video.file === null) {
@@ -304,11 +304,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 }
               }
             });
-            
+
             if (hasResetVideos) {
               logger.debug('⚠️ Des vidéos étaient enregistrées mais les fichiers ne peuvent pas être restaurés. L\'état a été réinitialisé pour permettre un nouvel upload.');
             }
-            
+
             return updated;
           });
         }
@@ -318,17 +318,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     } catch (error) {
       logger.error('Error loading progress from localStorage:', error);
     }
-    
+
     // Mark as restored immediately
     hasRestoredProgress.current = true;
     lastRestoredSessionId.current = sessionId;
-    
+
     // Clear any existing timeout
     if (restoreTimeoutRef.current) {
       clearTimeout(restoreTimeoutRef.current);
       restoreTimeoutRef.current = null;
     }
-    
+
     // Reset the flag immediately after a short delay to allow React to process state updates
     // Use a simple setTimeout instead of requestAnimationFrame for more reliable execution
     restoreTimeoutRef.current = setTimeout(() => {
@@ -336,7 +336,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       restoreTimeoutRef.current = null;
       logger.debug('✅ Progress restoration complete, saving enabled');
     }, 150);
-    
+
     // Safety mechanism: also reset the flag after a longer delay to ensure it's never stuck
     setTimeout(() => {
       if (isRestoringProgress.current) {
@@ -348,7 +348,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         }
       }
     }, 1000);
-    
+
     // Fetch videos from API for this session (after localStorage restoration)
     // This will merge uploaded videos from Supabase with local videos
     // Wait a bit to ensure exercises are loaded
@@ -362,17 +362,17 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       }
     }
   }, [sessionId, storageKey, session, exercises]);
-  
+
   // Function to fetch videos from API for this session
   const fetchSessionVideosFromAPI = React.useCallback(async (assignmentId) => {
     if (!assignmentId) return;
-    
+
     // Wait for exercises to be available
     if (!exercises || exercises.length === 0) {
       logger.debug('⏳ Waiting for exercises to load before fetching videos...');
       return;
     }
-    
+
     try {
       const token = await getAuthToken();
       const response = await axios.get(
@@ -382,38 +382,38 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           params: { assignmentId }
         }
       );
-      
+
       if (response.data.success && response.data.data && response.data.data.length > 0) {
         logger.debug('📹 Fetched videos from API for session:', assignmentId, response.data.data.length, 'videos');
         logger.debug('📊 Available exercises:', exercises.map((ex, idx) => ({ index: idx, name: ex.name, id: ex.exerciseId })));
-        
-            // Map API videos to local video format
-            const apiVideos = response.data.data
-              .filter(video => {
-                // Only include videos with valid URL and that are not still processing
-                const hasValidUrl = video.video_url && video.video_url.trim() !== '';
-                const isReady = video.status === 'READY' || video.status === 'completed' || video.status === 'reviewed';
-                const isNotProcessing = !['PROCESSING', 'UPLOADING', 'PENDING'].includes(video.status);
-                
-                if (!hasValidUrl) {
-                  logger.debug(`⏭️ Skipping video ${video.id}: No valid URL`);
-                  return false;
-                }
-                
-                if (!isReady && !isNotProcessing) {
-                  logger.debug(`⏭️ Skipping video ${video.id}: Still processing (status: ${video.status})`);
-                  return false;
-                }
-                
-                return true;
-              })
-              .map(video => {
+
+        // Map API videos to local video format
+        const apiVideos = response.data.data
+          .filter(video => {
+            // Only include videos with valid URL and that are not still processing
+            const hasValidUrl = video.video_url && video.video_url.trim() !== '';
+            const isReady = video.status === 'READY' || video.status === 'completed' || video.status === 'reviewed';
+            const isNotProcessing = !['PROCESSING', 'UPLOADING', 'PENDING'].includes(video.status);
+
+            if (!hasValidUrl) {
+              logger.debug(`⏭️ Skipping video ${video.id}: No valid URL`);
+              return false;
+            }
+
+            if (!isReady && !isNotProcessing) {
+              logger.debug(`⏭️ Skipping video ${video.id}: Still processing (status: ${video.status})`);
+              return false;
+            }
+
+            return true;
+          })
+          .map(video => {
             // Extract exercise index and set index from metadata or video data
             const metadata = video.metadata || {};
             const exerciseName = video.exercise_name || metadata.exercise_name || '';
             const setNumber = video.set_number || metadata.set_number || 1;
             const setIndex = video.set_index !== undefined ? video.set_index : (metadata.set_index !== undefined ? metadata.set_index : (setNumber - 1));
-            
+
             // PRIORITY 1: Use exercise_index from metadata if available (most reliable)
             let exerciseIndex = -1;
             if (metadata.exercise_index !== undefined && metadata.exercise_index !== null) {
@@ -425,7 +425,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 exerciseIndex = -1;
               }
             }
-            
+
             // PRIORITY 2: Try to find by exercise_id if available
             if (exerciseIndex === -1 && video.exercise_id) {
               exerciseIndex = exercises.findIndex(ex => ex.exerciseId === video.exercise_id);
@@ -433,7 +433,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 logger.debug(`✅ Found exercise by exercise_id: ${video.exercise_id} at index ${exerciseIndex}`);
               }
             }
-            
+
             // PRIORITY 3: Find matching exercise by name (flexible matching)
             if (exerciseIndex === -1 && exerciseName) {
               // Normalize names for comparison (trim, lowercase, remove extra spaces)
@@ -441,28 +441,28 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 if (!name) return '';
                 return name.toLowerCase().trim().replace(/\s+/g, ' ');
               };
-              
+
               const normalizedExerciseName = normalizeName(exerciseName);
-              
+
               // Try exact match first
-              exerciseIndex = exercises.findIndex(ex => 
+              exerciseIndex = exercises.findIndex(ex =>
                 normalizeName(ex.name) === normalizedExerciseName
               );
-              
+
               // Try partial match if exact match fails
               if (exerciseIndex === -1) {
                 exerciseIndex = exercises.findIndex(ex => {
                   const normalizedExName = normalizeName(ex.name);
-                  return normalizedExName.includes(normalizedExerciseName) || 
-                         normalizedExerciseName.includes(normalizedExName);
+                  return normalizedExName.includes(normalizedExerciseName) ||
+                    normalizedExerciseName.includes(normalizedExName);
                 });
               }
-              
+
               if (exerciseIndex !== -1) {
                 logger.debug(`✅ Found exercise by name matching: "${exerciseName}" -> "${exercises[exerciseIndex]?.name}" at index ${exerciseIndex}`);
               }
             }
-            
+
             if (exerciseIndex === -1) {
               logger.warn('⚠️ Could not find exercise for video:', {
                 exerciseName,
@@ -472,7 +472,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               });
               return null;
             }
-            
+
             return {
               exerciseIndex,
               setIndex,
@@ -501,20 +501,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             };
           })
           .filter(video => video !== null); // Remove null entries
-        
+
         if (apiVideos.length > 0) {
           logger.debug('✅ Mapped', apiVideos.length, 'videos from API');
-          
+
           // Merge with local videos, prioritizing API videos (they're already uploaded)
           setLocalVideos(prev => {
             const merged = [...prev];
-            
+
             apiVideos.forEach(apiVideo => {
-              const existingIndex = merged.findIndex(v => 
-                v.exerciseIndex === apiVideo.exerciseIndex && 
+              const existingIndex = merged.findIndex(v =>
+                v.exerciseIndex === apiVideo.exerciseIndex &&
                 v.setIndex === apiVideo.setIndex
               );
-              
+
               if (existingIndex !== -1) {
                 // Replace local video with API video (API video is the source of truth)
                 logger.debug(`🔄 Replacing local video with API video for exercise ${apiVideo.exerciseIndex}, set ${apiVideo.setIndex}`);
@@ -524,10 +524,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 merged.push(apiVideo);
               }
             });
-            
+
             return merged;
           });
-          
+
           // Update completedSets to mark these sets as having videos
           setCompletedSets(prev => {
             const updated = { ...prev };
@@ -551,13 +551,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       // Don't throw - this is not critical, just a nice-to-have feature
     }
   }, [exercises, session, getAuthToken]);
-  
+
   // Save progress whenever it changes (but not during restoration)
   useEffect(() => {
     if (!sessionId || !storageKey) {
       return;
     }
-    
+
     if (isRestoringProgress.current) {
       // Don't save if we're still restoring
       // But check if the timeout has expired (safety check)
@@ -573,13 +573,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         return;
       }
     }
-    
+
     if (!hasRestoredProgress.current) {
       // Don't save if we haven't restored yet (initial mount)
       logger.debug('⏸️ Skipping save - restoration not complete yet');
       return;
     }
-    
+
     const progressData = {
       completedSets,
       currentExerciseIndex,
@@ -601,38 +601,38 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           return !isFromSupabase;
         })
         .map(v => {
-        const exerciseIndex = v.exerciseIndex;
-        const setIndex = v.setIndex;
-        const key = `${exerciseIndex}-${setIndex}`;
-        const setData = completedSets[key];
-        const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
-          ? setData.rpeRating 
-          : (v.rpeRating || null);
-        
-        return {
-          exerciseIndex,
-          setIndex,
-          rpeRating,
-        comment: v.comment,
-        hasVideo: v.file && v.file !== 'no-video',
-        isNoVideo: v.file === 'no-video'
-        };
-      })
+          const exerciseIndex = v.exerciseIndex;
+          const setIndex = v.setIndex;
+          const key = `${exerciseIndex}-${setIndex}`;
+          const setData = completedSets[key];
+          const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData)
+            ? setData.rpeRating
+            : (v.rpeRating || null);
+
+          return {
+            exerciseIndex,
+            setIndex,
+            rpeRating,
+            comment: v.comment,
+            hasVideo: v.file && v.file !== 'no-video',
+            isNoVideo: v.file === 'no-video'
+          };
+        })
     };
-    
+
     // Only save if there's actual progress (not just empty initial state)
-    const hasProgress = Object.keys(completedSets).length > 0 || 
-                        currentExerciseIndex > 0 || 
-                        Object.keys(exerciseComments).length > 0 ||
-                        localVideos.length > 0;
-    
+    const hasProgress = Object.keys(completedSets).length > 0 ||
+      currentExerciseIndex > 0 ||
+      Object.keys(exerciseComments).length > 0 ||
+      localVideos.length > 0;
+
     if (!hasProgress) {
       logger.debug('⏸️ Skipping save - no progress to save yet');
       return;
     }
-    
-    logger.debug('💾 Saving progress to localStorage:', { 
-      sessionId, 
+
+    logger.debug('💾 Saving progress to localStorage:', {
+      sessionId,
       currentExerciseIndex,
       completedSetsCount: Object.keys(completedSets).length,
       completedSets: completedSets,
@@ -642,23 +642,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       exerciseComments: exerciseComments,
       localVideosCount: localVideos.length
     });
-    
+
     saveProgressToStorage(progressData);
   }, [completedSets, currentExerciseIndex, currentSetIndex, selectedSetIndex, exerciseComments, localVideos, sessionId, storageKey, saveProgressToStorage]);
-  
+
   // Note: Coach feedback should be included in exercise data from the backend
   // The /api/workout-sessions/videos endpoint is coach-only, so we don't fetch it here
   // Coach feedback will be displayed if it's already in exercises[].coach_feedback
-  
+
   // Mesurer les positions des cartes et mettre à jour les positions des points
   useEffect(() => {
     const updateDotPositions = () => {
       if (!exerciseListRef.current) return;
-      
+
       const listRect = exerciseListRef.current.getBoundingClientRect();
       const listTop = listRect.top;
       const positions = {};
-      
+
       exerciseCardRefs.current.forEach((ref, index) => {
         if (ref) {
           const cardRect = ref.getBoundingClientRect();
@@ -669,28 +669,28 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           positions[index] = cardCenter;
         }
       });
-      
+
       setDotPositions(positions);
     };
-    
+
     updateDotPositions();
-    
+
     // Mettre à jour lors du redimensionnement ou du changement de contenu
     window.addEventListener('resize', updateDotPositions);
     const timer = setTimeout(updateDotPositions, 100); // Petit délai pour permettre le rendu
     const observer = new MutationObserver(updateDotPositions); // Observer les changements DOM
-    
+
     if (exerciseListRef.current) {
       observer.observe(exerciseListRef.current, { childList: true, subtree: true, attributes: true });
     }
-    
+
     return () => {
       window.removeEventListener('resize', updateDotPositions);
       clearTimeout(timer);
       observer.disconnect();
     };
   }, [exercises, currentExerciseIndex, completedSets]);
-  
+
   // Vérifier si un exercice a été commencé (au moins un set complété ou une vidéo uploadée)
   const hasExerciseBeenStarted = (exerciseIndex) => {
     const exercise = exercises[exerciseIndex];
@@ -702,7 +702,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
       const key = `${exerciseIndex}-${setIndex}`;
       const setData = completedSets[key];
-      
+
       // Vérifier le statut du set
       let status = 'pending';
       if (setData && typeof setData === 'object' && 'status' in setData) {
@@ -710,7 +710,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       } else if (typeof setData === 'string') {
         status = setData;
       }
-      
+
       if (status === 'completed' || status === 'failed') {
         return true;
       }
@@ -737,12 +737,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     // Parcourir tous les sets de l'exercice
     for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
       const set = exercise.sets[setIndex];
-      
+
       // Si le set nécessite une vidéo
       if (set.video === true) {
         // Vérifier si une vidéo a été uploadée pour ce set
         const hasVideo = hasVideoForSet(exerciseIndex, setIndex);
-        
+
         // Vérifier aussi si "no-video" a été choisi
         const hasNoVideoChoice = localVideos.some(
           (video) =>
@@ -750,14 +750,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             video.setIndex === setIndex &&
             video.file === 'no-video'
         );
-        
+
         // Si aucune vidéo n'est uploadée et "no-video" n'a pas été choisi, la vidéo est manquante
         if (!hasVideo && !hasNoVideoChoice) {
           return true;
         }
       }
     }
-    
+
     return false;
   };
 
@@ -773,7 +773,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         return true;
       }
     }
-    
+
     return false;
   };
 
@@ -798,7 +798,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         if (status === 'completed') {
           const key = `${exerciseIndex}-${setIndex}`;
           const setData = completedSets[key];
-          
+
           if (exercise.useRir) {
             // Si coach demande RPE : vérifier la charge (studentWeight)
             const hasWeight = setData && typeof setData === 'object' && 'studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined && setData.studentWeight !== '';
@@ -815,7 +815,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         }
       }
     }
-    
+
     return false;
   };
 
@@ -844,7 +844,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               video.setIndex === setIndex &&
               video.file === 'no-video'
           );
-          
+
           if (!hasVideo && !hasNoVideoChoice) {
             missingVideosCount++;
           }
@@ -857,7 +857,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         if (status === 'completed') {
           const key = `${exerciseIndex}-${setIndex}`;
           const setData = completedSets[key];
-          
+
           if (exercise.useRir) {
             // Si coach demande RPE : vérifier la charge (studentWeight)
             const hasWeight = setData && typeof setData === 'object' && 'studentWeight' in setData && setData.studentWeight !== null && setData.studentWeight !== undefined && setData.studentWeight !== '';
@@ -877,7 +877,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
     return { missingVideosCount, missingRpeCount, missingWeightCount };
   };
-  
+
   // Handle exercise selection - Ouvre la modale de validation
   const handleExerciseSelection = (exerciseIndex) => {
     // Ne rien faire si la séance n'a pas encore commencé
@@ -953,7 +953,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
     const scheme = reps ? `${totalSets}x${reps}` : `${totalSets} séries`;
     let weightLabel = null;
-    
+
     if (weight !== undefined && weight !== null && weight !== '') {
       if (exercise.useRir) {
         // Mode RPE : afficher "RPE X"
@@ -971,9 +971,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const isVideoUploadEnabled = (exerciseIndex) => {
     const selectedSet = getSelectedSetIndex(exerciseIndex);
     const exercise = exercises[exerciseIndex];
-    
+
     if (!exercise || !Array.isArray(exercise.sets)) return false;
-    
+
     const set = exercise.sets[selectedSet];
     return set && set.video === true;
   };
@@ -984,22 +984,22 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     if (!exercise || !Array.isArray(exercise.sets)) {
       return false;
     }
-    
+
     const totalSets = exercise.sets.length;
     let finalizedCount = 0;
-    
+
     for (let i = 0; i < totalSets; i++) {
       const status = getSetStatus(exerciseIndex, i);
       // Count sets that have any status (completed or failed) - not just completed
       if (status !== 'pending') finalizedCount++;
     }
-    
+
     return finalizedCount === totalSets;
   };
 
   const handleSetValidation = (exerciseIndex, status, setIndex = null) => {
     const exercise = exercises[exerciseIndex];
-    
+
     if (!exercise || !Array.isArray(exercise.sets)) {
       return;
     }
@@ -1007,7 +1007,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     // If setIndex is provided, update that specific set
     // Otherwise, update the current set
     const targetSet = setIndex !== null ? setIndex : getCurrentSetIndex(exerciseIndex);
-    
+
     if (targetSet >= exercise.sets.length) {
       return; // Invalid set index
     }
@@ -1016,13 +1016,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const key = `${exerciseIndex}-${targetSet}`;
     setCompletedSets(prev => {
       const currentSetData = prev[key];
-      
+
       // If currentSetData is an object (has video or other properties), preserve them
       // Otherwise, create a new object with the status
       const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
         ? { ...currentSetData, status }
         : { status };
-      
+
       return {
         ...prev,
         [key]: updatedSetData
@@ -1033,7 +1033,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const currentSet = getCurrentSetIndex(exerciseIndex);
     if (setIndex === null || setIndex === currentSet) {
       const nextSet = targetSet + 1;
-      
+
       // Only advance if there's a next set available
       if (nextSet < exercise.sets.length) {
         // Update current set index to next set
@@ -1041,13 +1041,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           ...prev,
           [exerciseIndex]: nextSet
         }));
-        
+
         // Also select the next set for video details
         setSelectedSetForVideo(prev => ({
           ...prev,
           [exerciseIndex]: nextSet
         }));
-        
+
         // Update selectedSetIndex to visually select the next set
         setSelectedSetIndex(prev => ({
           ...prev,
@@ -1061,13 +1061,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             ...prev,
             [exerciseIndex + 1]: 0
           }));
-          
+
           // Also select the first set of next exercise
           setSelectedSetForVideo(prev => ({
             ...prev,
             [exerciseIndex + 1]: 0
           }));
-          
+
           // Update selectedSetIndex to visually select the first set of next exercise
           setSelectedSetIndex(prev => ({
             ...prev,
@@ -1081,7 +1081,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   // Gérer la mise à jour du RPE pour une série
   const handleRpeUpdate = (exerciseIndex, setIndex, rpeRating) => {
     const exercise = exercises[exerciseIndex];
-    
+
     if (!exercise || !Array.isArray(exercise.sets)) {
       return;
     }
@@ -1094,12 +1094,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const key = `${exerciseIndex}-${setIndex}`;
     setCompletedSets(prev => {
       const currentSetData = prev[key];
-      
+
       // Préserver les données existantes et ajouter/mettre à jour le RPE
       const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
         ? { ...currentSetData, rpeRating }
         : { rpeRating };
-      
+
       return {
         ...prev,
         [key]: updatedSetData
@@ -1110,7 +1110,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   // Gérer la mise à jour de la charge saisie par l'élève (quand coach demande RPE)
   const handleWeightUpdate = (exerciseIndex, setIndex, weight) => {
     const exercise = exercises[exerciseIndex];
-    
+
     if (!exercise || !Array.isArray(exercise.sets)) {
       return;
     }
@@ -1123,12 +1123,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const key = `${exerciseIndex}-${setIndex}`;
     setCompletedSets(prev => {
       const currentSetData = prev[key];
-      
+
       // Préserver les données existantes et ajouter/mettre à jour la charge
       const updatedSetData = typeof currentSetData === 'object' && currentSetData !== null
         ? { ...currentSetData, studentWeight: weight }
         : { studentWeight: weight };
-      
+
       return {
         ...prev,
         [key]: updatedSetData
@@ -1139,7 +1139,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const getSetStatus = (exerciseIndex, setIndex) => {
     const key = `${exerciseIndex}-${setIndex}`;
     const setData = completedSets[key];
-    
+
     // If setData is an object with a status property, return it
     if (setData && typeof setData === 'object' && 'status' in setData) {
       return setData.status;
@@ -1161,7 +1161,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         if (video.exerciseIndex === exerciseIndex && video.setIndex === setIndex) {
           return video.file !== null && video.file !== undefined && video.file !== 'no-video';
         }
-        
+
         // Format alternatif: via exerciseInfo et setInfo
         if (video.exerciseInfo && video.setInfo) {
           const videoExerciseIndex = video.exerciseInfo.exerciseIndex;
@@ -1170,7 +1170,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             return video.file !== null && video.file !== undefined && video.file !== 'no-video';
           }
         }
-        
+
         // Format alternatif: via exerciseIndex direct et setInfo
         if (video.exerciseIndex === exerciseIndex && video.setInfo) {
           const videoSetIndex = video.setInfo.setIndex;
@@ -1178,20 +1178,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             return video.file !== null && video.file !== undefined && video.file !== 'no-video';
           }
         }
-        
+
         return false;
       }
     );
-    
+
     if (hasLocalVideo) {
       return true;
     }
-    
+
     // PRIORITÉ 2: Vérifier dans completedSets seulement si aucune vidéo trouvée dans localVideos
     // ET vérifier que le setIndex correspond exactement
     const key = `${exerciseIndex}-${setIndex}`;
     const setData = completedSets[key];
-    
+
     if (setData && typeof setData === 'object' && setData.hasVideo === true) {
       // Double vérification: s'assurer qu'une vidéo existe vraiment dans localVideos pour ce set spécifique
       const hasMatchingVideo = localVideos.some((video) => {
@@ -1199,11 +1199,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         const videoSetIndex = video.setIndex ?? video.setInfo?.setIndex;
         return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
       });
-      
+
       // Ne retourner true que si une vidéo correspond vraiment à ce set
       return hasMatchingVideo;
     }
-    
+
     return false;
   };
 
@@ -1258,14 +1258,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   const isAllExercisesCompleted = () => {
     if (!exercises || exercises.length === 0) return false;
-    
+
     // Check if all exercises have all sets finalized
     for (let i = 0; i < exercises.length; i++) {
       if (!isExerciseFullyComplete(i)) {
         return false;
       }
     }
-    
+
     return true;
   };
 
@@ -1274,21 +1274,21 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       alert('Veuillez compléter tous les exercices avant de terminer la séance');
       return;
     }
-    
+
     // Vérifier si des vidéos sont manquantes avant de valider
     if (hasMissingVideosForSession()) {
       setPendingSessionCompletion(true);
       setIsMissingVideosModalOpen(true);
       return;
     }
-    
+
     // Vérifier si des RPE sont manquants avant de valider
     if (hasMissingRpeForSession()) {
       setPendingSessionCompletion(true);
       setIsMissingVideosModalOpen(true);
       return;
     }
-    
+
     setIsCompletionModalOpen(true);
   };
 
@@ -1301,7 +1301,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const videosToUpload = localVideos.filter(video => {
       // Skip videos that are already uploaded via TUS (have status and videoId)
       const isAlreadyUploadedViaTUS = (
-        (video.status === 'READY' || video.status === 'UPLOADED_RAW') && 
+        (video.status === 'READY' || video.status === 'UPLOADED_RAW') &&
         video.videoId
       );
       // Skip videos that were retrieved from Supabase API (already uploaded)
@@ -1310,9 +1310,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       const isNoVideo = video.file === 'no-video';
       // Skip videos that have a videoId (already uploaded, even if status is not set)
       const hasVideoId = !!video.videoId;
-      
+
       const shouldSkip = isAlreadyUploadedViaTUS || isFromSupabase || isNoVideo || hasVideoId;
-      
+
       if (shouldSkip) {
         logger.debug(`⏭️ Skipping video upload for exercise ${video.exerciseIndex}, set ${video.setIndex}:`, {
           isAlreadyUploadedViaTUS,
@@ -1324,20 +1324,20 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           file: typeof video.file === 'string' ? video.file : (video.file ? 'File object' : 'null')
         });
       }
-      
+
       return !shouldSkip;
     });
-    
+
     logger.debug(`📊 Video upload check: ${localVideos.length} total videos, ${videosToUpload.length} to upload, ${localVideos.length - videosToUpload.length} already uploaded`);
 
     // If there are videos that need to be uploaded (old flow for compatibility)
     if (videosToUpload.length > 0) {
       setIsVideoProcessingModalOpen(true); // Open processing modal
       setIsUploadingVideos(true);
-      
+
       try {
         let authToken = await getAuthToken();
-        
+
         // Step 1: Upload only videos that haven't been uploaded yet
         for (let i = 0; i < videosToUpload.length; i++) {
           const videoData = videosToUpload[i];
@@ -1369,8 +1369,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           const exerciseIndex = videoData.exerciseInfo?.exerciseIndex ?? videoData.exerciseIndex;
           const rpeKey = `${exerciseIndex}-${setIndex}`;
           const setData = completedSets[rpeKey];
-          const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
-            ? setData.rpeRating 
+          const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData)
+            ? setData.rpeRating
             : (videoData.rpeRating || 0);
 
           formData.append('exerciseInfo', JSON.stringify(videoData.exerciseInfo));
@@ -1419,37 +1419,37 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             throw new Error(errorMessage);
           }
         }
-        
+
         setIsUploadingVideos(false);
-        
+
         // Step 1.5: Upload RPE for sets without video requirement but with RPE
         // Parcourir toutes les séries pour trouver celles qui ont un RPE mais pas de vidéo
         if (exercises && exercises.length > 0) {
           for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
             const exercise = exercises[exerciseIndex];
             if (!exercise || !exercise.sets) continue;
-            
+
             for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
               const set = exercise.sets[setIndex];
               const key = `${exerciseIndex}-${setIndex}`;
               const setData = completedSets[key];
-              
+
               // Vérifier si cette série a un RPE
-              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
-                ? setData.rpeRating 
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData)
+                ? setData.rpeRating
                 : null;
-              
+
               if (!rpeRating) continue; // Pas de RPE, on passe
-              
+
               // Vérifier si cette série a déjà été traitée dans localVideos
               const alreadyProcessed = localVideos.some(video => {
                 const videoExerciseIndex = video.exerciseInfo?.exerciseIndex ?? video.exerciseIndex;
                 const videoSetIndex = video.setInfo?.setIndex ?? video.setIndex;
                 return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
               });
-              
+
               if (alreadyProcessed) continue; // Déjà traité, on passe
-              
+
               // Cette série a un RPE mais pas de vidéo, créer un enregistrement
               try {
                 const setNumber = setIndex + 1;
@@ -1466,7 +1466,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   weight: set.weight || 0,
                   reps: set.reps || 0
                 };
-                
+
                 const formData = new FormData();
                 formData.append('noVideo', 'true'); // Pas de vidéo
                 formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
@@ -1479,13 +1479,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
                 if (session?.id) formData.append('session_id', String(session.id));
                 if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
-                
+
                 let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${authToken}` },
                   body: formData
                 });
-                
+
                 if (response.status === 401) {
                   authToken = await refreshAuthToken();
                   response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
@@ -1494,7 +1494,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                     body: formData
                   });
                 }
-                
+
                 if (!response.ok) {
                   logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                   // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
@@ -1508,7 +1508,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             }
           }
         }
-        
+
         // Step 2: Trigger backend compression for videos uploaded via old flow
         // Videos uploaded via TUS are already being processed by the worker
         setIsCompressing(true);
@@ -1540,13 +1540,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       } catch (error) {
         logger.error('Error during video upload (old flow):', error);
         const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
-        
+
         if (errorMessage.toLowerCase().includes('too large') || errorMessage.toLowerCase().includes('trop volumineux')) {
           alert(`❌ ${errorMessage}\n\nVeuillez sélectionner une vidéo plus petite (maximum 300 MB).`);
         } else {
           alert(`❌ Erreur lors du téléversement des vidéos:\n\n${errorMessage}\n\nVeuillez réessayer.`);
         }
-        
+
         setIsVideoProcessingModalOpen(false);
         setIsUploadingVideos(false);
         setIsCompressing(false);
@@ -1562,37 +1562,37 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     } else if (localVideos.length > 0) {
       // All videos were already uploaded via TUS, just confirm session completion
       logger.debug('✅ All videos already uploaded via TUS, proceeding to session confirmation');
-      
+
       try {
         let authToken = await getAuthToken();
-        
+
         // Still need to upload RPE for sets without video requirement but with RPE
         if (exercises && exercises.length > 0) {
           for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
             const exercise = exercises[exerciseIndex];
             if (!exercise || !exercise.sets) continue;
-            
+
             for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
               const set = exercise.sets[setIndex];
               const key = `${exerciseIndex}-${setIndex}`;
               const setData = completedSets[key];
-              
+
               // Vérifier si cette série a un RPE
-              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
-                ? setData.rpeRating 
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData)
+                ? setData.rpeRating
                 : null;
-              
+
               if (!rpeRating) continue; // Pas de RPE, on passe
-              
+
               // Vérifier si cette série a déjà été traitée dans localVideos
               const alreadyProcessed = localVideos.some(video => {
                 const videoExerciseIndex = video.exerciseInfo?.exerciseIndex ?? video.exerciseIndex;
                 const videoSetIndex = video.setInfo?.setIndex ?? video.setIndex;
                 return videoExerciseIndex === exerciseIndex && videoSetIndex === setIndex;
               });
-              
+
               if (alreadyProcessed) continue; // Déjà traité, on passe
-              
+
               // Cette série a un RPE mais pas de vidéo, créer un enregistrement
               try {
                 const setNumber = setIndex + 1;
@@ -1609,7 +1609,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   weight: set.weight || 0,
                   reps: set.reps || 0
                 };
-                
+
                 const formData = new FormData();
                 formData.append('noVideo', 'true');
                 formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
@@ -1622,13 +1622,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
                 if (session?.id) formData.append('session_id', String(session.id));
                 if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
-                
+
                 let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${authToken}` },
                   body: formData
                 });
-                
+
                 if (response.status === 401) {
                   authToken = await refreshAuthToken();
                   response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
@@ -1637,7 +1637,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                     body: formData
                   });
                 }
-                
+
                 if (!response.ok) {
                   logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                 } else {
@@ -1649,7 +1649,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             }
           }
         }
-        
+
         // Trigger finalize to ensure TUS uploads are processed and visible to coaches
         try {
           const finalizeResponse = await fetch(buildApiUrl(`/api/workout-sessions/${session.id}/finalize-videos`), {
@@ -1659,7 +1659,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               'Content-Type': 'application/json'
             }
           });
-  
+
           if (!finalizeResponse.ok) {
             logger.error('Failed to trigger video finalization for TUS uploads.');
           } else {
@@ -1668,7 +1668,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         } catch (error) {
           logger.error('Error triggering finalization for TUS uploads:', error);
         }
-        
+
         // Clear local videos since they're already uploaded
         setLocalVideos([]);
         logger.debug('🧹 Cleaned localVideos - all videos already uploaded via TUS');
@@ -1677,14 +1677,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         logger.error('Error during video processing:', error);
         // Extract and display specific error message
         const errorMessage = error.message || 'Une erreur est survenue lors du téléversement des vidéos.';
-        
+
         // Check if it's a file size error
         if (errorMessage.toLowerCase().includes('too large') || errorMessage.toLowerCase().includes('trop volumineux')) {
           alert(`❌ ${errorMessage}\n\nVeuillez sélectionner une vidéo plus petite (maximum 300 MB).`);
         } else {
           alert(`❌ Erreur lors du téléversement des vidéos:\n\n${errorMessage}\n\nVeuillez réessayer.`);
         }
-        
+
         setIsVideoProcessingModalOpen(false);
         setIsValidatingSession(false); // Re-enable button on error
         setIsCompletionModalOpen(false); // Close modal on error
@@ -1700,24 +1700,24 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       // Pas de vidéos, mais on doit quand même sauvegarder les RPE des séries sans vidéo
       try {
         let authToken = await getAuthToken();
-        
+
         if (exercises && exercises.length > 0) {
           for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex++) {
             const exercise = exercises[exerciseIndex];
             if (!exercise || !exercise.sets) continue;
-            
+
             for (let setIndex = 0; setIndex < exercise.sets.length; setIndex++) {
               const set = exercise.sets[setIndex];
               const key = `${exerciseIndex}-${setIndex}`;
               const setData = completedSets[key];
-              
+
               // Vérifier si cette série a un RPE
-              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData) 
-                ? setData.rpeRating 
+              const rpeRating = (setData && typeof setData === 'object' && 'rpeRating' in setData)
+                ? setData.rpeRating
                 : null;
-              
+
               if (!rpeRating) continue; // Pas de RPE, on passe
-              
+
               // Cette série a un RPE mais pas de vidéo, créer un enregistrement
               try {
                 const setNumber = setIndex + 1;
@@ -1734,7 +1734,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   weight: set.weight || 0,
                   reps: set.reps || 0
                 };
-                
+
                 const formData = new FormData();
                 formData.append('noVideo', 'true'); // Pas de vidéo
                 formData.append('exerciseInfo', JSON.stringify(exerciseInfo));
@@ -1747,13 +1747,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 if (exerciseInfo.exerciseIndex !== undefined) formData.append('exercise_index', String(exerciseInfo.exerciseIndex));
                 if (session?.id) formData.append('session_id', String(session.id));
                 if (session?.assignment_id || session?.id) formData.append('assignment_id', String(session?.assignment_id || session?.id));
-                
+
                 let response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${authToken}` },
                   body: formData
                 });
-                
+
                 if (response.status === 401) {
                   authToken = await refreshAuthToken();
                   response = await fetch(buildApiUrl('/api/workout-sessions/upload-video'), {
@@ -1762,7 +1762,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                     body: formData
                   });
                 }
-                
+
                 if (!response.ok) {
                   logger.warn(`Failed to save RPE for exercise ${exerciseIndex}, set ${setIndex}:`, response.status);
                   // Ne pas bloquer la complétion de la séance si l'enregistrement du RPE échoue
@@ -1781,25 +1781,24 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         // Ne pas bloquer la complétion de la séance si l'enregistrement des RPE échoue
       }
     }
-    
+
     // Step 3: Complete the session locally (happens for sessions with or without videos)
     setSessionStatus('completed');
-    
+
     // Clear saved progress from localStorage when session is completed
     // This includes video metadata that was stored temporarily
     clearProgressFromStorage();
-    
+
     // Clear local videos state since they're now in Supabase Storage and database
     // No need to keep them in memory after session completion
     setLocalVideos([]);
-    
+
     logger.debug('🧹 Cleaned localStorage and localVideos after session completion');
-    
-    // Keep modal open - don't close it here
-    // The parent component (StudentDashboard) will handle closing this modal
-    // and opening the success modal after API call completes
-    setIsValidatingSession(false);
-    
+
+    // Keep modal open with loading state - don't set isValidatingSession(false) here
+    // The parent will unmount this component when done. Keeping loading visible
+    // avoids the "freeze" UX (modal with no loading while parent's API call runs).
+
     // Call onCompleteSession - parent will handle closing modal and showing success
     onCompleteSession({
       ...session,
@@ -1845,23 +1844,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       status: videoData.status,
       file: videoData.file ? 'Present' : 'None'
     });
-    
+
     // Get exercise and set indices from videoData (more reliable than currentExerciseIndex)
-    const exerciseIndex = videoData.exerciseInfo?.exerciseIndex !== undefined 
-      ? videoData.exerciseInfo.exerciseIndex 
+    const exerciseIndex = videoData.exerciseInfo?.exerciseIndex !== undefined
+      ? videoData.exerciseInfo.exerciseIndex
       : currentExerciseIndex;
-      
+
     // Prioritize setIndex from setInfo, fallback to selectedSetForVideo
     const setIndex = videoData.setInfo?.setIndex !== undefined
       ? videoData.setInfo.setIndex
       : (videoData.setInfo?.setNumber ? videoData.setInfo.setNumber - 1 : (selectedSetForVideo[exerciseIndex] ?? 0));
 
     logger.debug('🔄 Processing upload for target:', { exerciseIndex, setIndex });
-    
+
     // Use flushSync to force immediate state updates for "no-video" choice
     // This ensures the UI updates immediately when user clicks "Pas de vidéo"
     const isNoVideo = videoData.file === 'no-video';
-    
+
     if (isNoVideo) {
       // Force synchronous updates for immediate UI feedback
       flushSync(() => {
@@ -1881,7 +1880,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             },
           ];
         });
-        
+
         // Add video status for badge rendering
         setCompletedSets(prev => {
           const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
@@ -1914,7 +1913,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           },
         ];
       });
-      
+
       // If video was uploaded successfully (has videoId and status), re-fetch from API to get signed URL
       // This ensures the video can be displayed in the modal when reopened
       if (videoData.videoId && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
@@ -1927,7 +1926,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           }, 500);
         }
       }
-      
+
       // Add video status for badge rendering
       setCompletedSets(prev => {
         const currentSetData = prev[`${exerciseIndex}-${setIndex}`] || {};
@@ -1943,14 +1942,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         };
       });
     }
-    
+
     setIsVideoModalOpen(false);
   }, [currentExerciseIndex, selectedSetForVideo]);
 
   // Handle video deletion - completely remove video from localVideos
   const handleVideoDelete = useCallback((exerciseInfo, setInfo) => {
-    const exerciseIndex = exerciseInfo?.exerciseIndex !== undefined 
-      ? exerciseInfo.exerciseIndex 
+    const exerciseIndex = exerciseInfo?.exerciseIndex !== undefined
+      ? exerciseInfo.exerciseIndex
       : currentExerciseIndex;
     const setIndex = setInfo?.setIndex !== undefined
       ? setInfo.setIndex
@@ -1994,13 +1993,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       }
       return;
     }
-    
+
     // Vérifier s'il y a une progression à sauvegarder
-    const hasProgress = Object.keys(completedSets).length > 0 || 
-                        currentExerciseIndex > 0 || 
-                        Object.keys(exerciseComments).length > 0 ||
-                        localVideos.length > 0;
-    
+    const hasProgress = Object.keys(completedSets).length > 0 ||
+      currentExerciseIndex > 0 ||
+      Object.keys(exerciseComments).length > 0 ||
+      localVideos.length > 0;
+
     // Si la séance a été commencée et qu'il y a de la progression, afficher le modal d'avertissement
     if (hasProgress) {
       setIsLeaveWarningModalOpen(true);
@@ -2038,7 +2037,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     const handlePopState = (event) => {
       // Empêcher la navigation par défaut en ré-ajoutant l'entrée dans l'historique
       window.history.pushState({ preventBack: true }, '', window.location.href);
-      
+
       // Utiliser handleBack qui gère déjà la logique d'affichage de la modale
       handleBack();
     };
@@ -2056,7 +2055,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       <div className="bg-black text-white min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400">Aucune séance trouvée</p>
-          <Button 
+          <Button
             onClick={handleBack}
             className="mt-4 bg-[#d4845a] hover:bg-[#c47850] text-white"
           >
@@ -2068,7 +2067,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   }
 
   return (
-    <div 
+    <div
       className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
         background: 'unset',
@@ -2077,7 +2076,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       }}
     >
       {/* Image de fond */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -2092,9 +2091,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           backgroundColor: '#0a0a0a'
         }}
       />
-      
+
       {/* Layer blur sur l'écran */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -2106,49 +2105,49 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           backgroundColor: 'rgba(0, 0, 0, 0.01)',
           zIndex: 6,
           pointerEvents: 'none',
-          opacity: 0.95
+          opacity: 1
         }}
       />
 
       {/* Gradient conique Figma - partie droite */}
-      <div 
+      <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '0',
           transform: 'translateY(-50%)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite'
         }}
       />
-      
+
       {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div 
+      <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '50vw',
           transform: 'translateY(-50%) scaleX(-1)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
         }}
       />
 
@@ -2208,7 +2207,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               const progress = total > 0 ? (finalized / total) * 100 : 0;
               return (
                 <div className="h-[3px] w-full bg-white/10 rounded-full overflow-hidden mt-2">
-                  <div 
+                  <div
                     className="h-full bg-[#d4845a] transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
@@ -2231,15 +2230,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           // On ne trace la ligne que s'il y a au moins 2 points différents
           const hasMultiplePoints = validPositions.length > 1 && lastDotPosition > firstDotPosition;
           const lineHeight = hasMultiplePoints ? lastDotPosition - firstDotPosition : 0;
-          
+
           return (
             <div className="absolute left-[27px] top-0 bottom-0 pl-[10px]" style={{ width: '5px' }}>
               <div className="relative w-full h-full flex flex-col items-center">
                 {/* Ligne verticale pointillée - commence au premier point et s'arrête exactement au dernier point */}
                 {hasMultiplePoints && lineHeight > 0 && (
-                  <div 
+                  <div
                     className="absolute w-[1px] border-l border-dashed border-[#d4845a]/30"
-                    style={{ 
+                    style={{
                       left: '50%',
                       transform: 'translateX(-50%)',
                       top: `${firstDotPosition}px`,
@@ -2252,15 +2251,14 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   {exercises.map((_, index) => {
                     const exerciseCompleted = isExerciseFullyComplete(index);
                     const topPosition = dotPositions[index];
-                    
+
                     if (topPosition === undefined) return null;
-                    
+
                     return (
-                      <div 
-                        key={index} 
-                        className={`w-[5px] h-[5px] rounded-full flex-shrink-0 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 ${
-                          exerciseCompleted ? 'bg-[#d4845a]' : 'bg-white'
-                        }`}
+                      <div
+                        key={index}
+                        className={`w-[5px] h-[5px] rounded-full flex-shrink-0 absolute left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 ${exerciseCompleted ? 'bg-[#d4845a]' : 'bg-white'
+                          }`}
                         style={{ top: `${topPosition}px` }}
                       ></div>
                     );
@@ -2271,8 +2269,8 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           );
         })()}
 
-        <div 
-          ref={exerciseListRef} 
+        <div
+          ref={exerciseListRef}
           className="space-y-[10px] ml-[-5px] flex flex-col w-full"
         >
           {exercises && exercises.length > 0 ? (
@@ -2280,9 +2278,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               const isActive = exerciseIndex === currentExerciseIndex;
               const isCompleted = isExerciseFullyComplete(exerciseIndex);
               const exerciseSummary = getExerciseSummary(exercise);
-              
+
               return (
-                <div 
+                <div
                   key={exerciseIndex}
                   ref={el => exerciseCardRefs.current[exerciseIndex] = el}
                   onClick={() => handleExerciseSelection(exerciseIndex)}
@@ -2310,9 +2308,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                           </p>
                         )}
                       </div>
-                      
-                      {/* Set indicators - compact row */}
-                      <div className="flex gap-[10px] items-center flex-shrink-0">
+
+                      {/* Set indicators - compact row, wrap after 5 sets */}
+                      <div className="flex flex-wrap gap-x-[10px] gap-y-[6px] items-center max-w-[125px] flex-shrink-0 justify-start">
                         {exercise.sets?.map((set, setIndex) => {
                           const status = getSetStatus(exerciseIndex, setIndex);
                           const selectedSetIndex = getSelectedSetIndex(exerciseIndex);
@@ -2328,7 +2326,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                           }
 
                           const isButtonDimmed = !isActive || !isSessionStarted;
-                          
+
                           return (
                             <button
                               key={setIndex}
@@ -2343,7 +2341,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                                 transition-all duration-150
                                 ${variantClasses}
                                 ${isActive && isSessionStarted
-                                  ? 'cursor-pointer hover:opacity-80' 
+                                  ? 'cursor-pointer hover:opacity-80'
                                   : 'cursor-default'
                                 }
                               `}
@@ -2354,38 +2352,38 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                               title={isActive && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
                             >
                               {status === 'completed' && (
-                                <svg 
-                                  width="12" 
-                                  height="12" 
-                                  viewBox="0 0 12 12" 
-                                  fill="none" 
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
                                   className="flex-shrink-0 relative z-10"
                                   style={{ display: 'block', margin: '0' }}
                                 >
-                                  <path 
-                                    d="M2 6L4.5 8.5L10 3" 
-                                    stroke="#4ADE80" 
-                                    strokeWidth="2" 
-                                    strokeLinecap="round" 
+                                  <path
+                                    d="M2 6L4.5 8.5L10 3"
+                                    stroke="#4ADE80"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
                                     strokeLinejoin="round"
                                   />
                                 </svg>
                               )}
                               {status === 'failed' && (
-                                <svg 
-                                  width="12" 
-                                  height="12" 
-                                  viewBox="0 0 12 12" 
-                                  fill="none" 
-                                  xmlns="http://www.w3.org/2000/svg" 
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
                                   className="flex-shrink-0 relative z-10"
                                   style={{ display: 'block', margin: '0' }}
                                 >
-                                  <path 
-                                    d="M3 3L9 9M9 3L3 9" 
-                                    stroke="#DA3336" 
-                                    strokeWidth="1.5" 
-                                    strokeLinecap="round" 
+                                  <path
+                                    d="M3 3L9 9M9 3L3 9"
+                                    stroke="#DA3336"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
                                     strokeLinejoin="round"
                                   />
                                 </svg>
@@ -2404,7 +2402,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               Aucun exercice trouvé
             </div>
           )}
-          
+
           {/* Bouton Commencer/Reprendre la séance */}
           {!isSessionStarted && (() => {
             // Vérifier s'il y a au moins une série validée (completed ou failed)
@@ -2412,7 +2410,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               const setData = completedSets[key];
               return setData && (setData.status === 'completed' || setData.status === 'failed');
             });
-            
+
             return (
               <button
                 onClick={handleStartSession}
@@ -2457,9 +2455,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             {(() => {
               const { missingVideosCount, missingRpeCount, missingWeightCount } = getMissingVideosAndRpeCount();
               const hasMissingItems = missingVideosCount > 0 || missingRpeCount > 0 || missingWeightCount > 0;
-              
+
               if (!hasMissingItems) return null;
-              
+
               const messages = [];
               if (missingVideosCount > 0) {
                 messages.push(`${missingVideosCount} vidéo${missingVideosCount > 1 ? 's' : ''} manquante${missingVideosCount > 1 ? 's' : ''}`);
@@ -2470,7 +2468,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               if (missingRpeCount > 0) {
                 messages.push(`${missingRpeCount} RPE manquant${missingRpeCount > 1 ? 's' : ''}`);
               }
-              
+
               return (
                 <p className="text-[#d4845a] text-[11px] font-medium text-center mt-[8px] whitespace-pre-wrap" style={{ fontFamily: 'Inter, sans-serif' }}>
                   {messages.join(' • ')}
@@ -2489,12 +2487,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         const activeSetIndex = selectedSetForVideo[activeExerciseIndex] ?? 0;
         const activeExercise = exercises[activeExerciseIndex];
         const activeSet = activeExercise?.sets?.[activeSetIndex];
-        
+
         // Trouver la vidéo existante pour ce set spécifique
         const existingVideoForSet = localVideos.find(
           v => v.exerciseIndex === activeExerciseIndex && v.setIndex === activeSetIndex
         );
-        
+
         logger.debug('🔍 existingVideoForSet lookup:', {
           activeExerciseIndex,
           activeSetIndex,
@@ -2517,9 +2515,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
         // Log pour déboguer l'ouverture du modal
         if (isVideoModalOpen) {
-          logger.debug('🎥 Opening Video Modal for:', { 
+          logger.debug('🎥 Opening Video Modal for:', {
             exercise: activeExercise?.name,
-            exerciseIndex: activeExerciseIndex, 
+            exerciseIndex: activeExerciseIndex,
             setIndex: activeSetIndex,
             existingVideo: existingVideoForSet ? 'Found' : 'None',
             hasVideoUrl: existingVideoForSet?.videoUrl ? 'Yes' : 'No',
@@ -2537,7 +2535,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             status: existingVideoForSet.status
           });
         }
-        
+
         return (
           <WorkoutVideoUploadModal
             // Clé unique pour forcer le remontage du composant quand les indices changent
@@ -2567,15 +2565,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       })()}
 
       {/* Session Completion Modal */}
-        <SessionCompletionModal
-          isOpen={isCompletionModalOpen}
-          onClose={() => {
-            if (!isValidatingSession) {
-              setIsCompletionModalOpen(false);
-            }
-          }}
-          onComplete={handleSessionCompletion}
-          isValidating={isValidatingSession}
+      <SessionCompletionModal
+        isOpen={isCompletionModalOpen}
+        onClose={() => {
+          if (!isValidatingSession) {
+            setIsCompletionModalOpen(false);
+          }
+        }}
+        onComplete={handleSessionCompletion}
+        isValidating={isValidatingSession}
         isUploading={isUploadingVideos}
         uploadProgress={uploadProgress}
       />
@@ -2672,18 +2670,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         onConfirm={() => {
           // "Terminer quand même la séance" - permettre la validation malgré vidéos/RPE manquants
           setIsMissingVideosModalOpen(false);
-          
+
           if (pendingSessionCompletion) {
             setPendingSessionCompletion(false);
             setIsCompletionModalOpen(true);
             return;
           }
-          
+
           // Si un changement d'exercice était en attente, l'appliquer maintenant
           if (pendingExerciseChange !== null) {
             const newExerciseIndex = pendingExerciseChange;
             setPendingExerciseChange(null);
-            
+
             // Si on était dans la modale de validation, la fermer et changer d'exercice
             if (isExerciseValidationModalOpen) {
               setIsExerciseValidationModalOpen(false);

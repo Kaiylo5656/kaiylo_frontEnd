@@ -14,7 +14,7 @@ const StudentMonthlyView = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Track scroll attempts when at top (forcing scroll)
   const forceScrollAttempts = useRef(0);
   const isAtTop = useRef(false);
@@ -34,11 +34,11 @@ const StudentMonthlyView = () => {
   // Group days into weeks, placing each day directly under its corresponding day of week
   const weeks = useMemo(() => {
     const weeksMap = new Map(); // Map week index to array of 7 days
-    
+
     daysInMonth.forEach(day => {
       // Get day of week (0 = Monday, 6 = Sunday)
       const dayOfWeek = getDay(day) === 0 ? 6 : getDay(day) - 1;
-      
+
       // Calculate which week this day belongs to
       // Find the first day of the month's day of week
       const firstDayOfWeek = getDay(monthStart) === 0 ? 6 : getDay(monthStart) - 1;
@@ -46,22 +46,22 @@ const StudentMonthlyView = () => {
       const dayIndex = Math.floor((day.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
       // Calculate which week (0-indexed)
       const weekIndex = Math.floor((dayIndex + firstDayOfWeek) / 7);
-      
+
       // Initialize week if it doesn't exist
       if (!weeksMap.has(weekIndex)) {
         weeksMap.set(weekIndex, new Array(7).fill(null));
       }
-      
+
       // Place day in the correct position
       const week = weeksMap.get(weekIndex);
       week[dayOfWeek] = day;
     });
-    
+
     // Convert map to sorted array
     const weeksArray = Array.from(weeksMap.entries())
       .sort((a, b) => a[0] - b[0])
       .map(entry => entry[1]);
-    
+
     return weeksArray;
   }, [daysInMonth, monthStart]);
 
@@ -82,28 +82,28 @@ const StudentMonthlyView = () => {
   useEffect(() => {
     const handleScroll = (e) => {
       // Find the scrollable container (from MainLayout)
-      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                              document.querySelector('.overflow-y-auto');
-      
+      const scrollContainer = document.querySelector('.dashboard-scrollbar') ||
+        document.querySelector('.overflow-y-auto');
+
       if (!scrollContainer) return;
-      
+
       const scrollTop = scrollContainer.scrollTop;
       const scrollHeight = scrollContainer.scrollHeight;
       const clientHeight = scrollContainer.clientHeight;
       const distanceFromTop = scrollTop;
-      
+
       // Check if we're at or very close to the top (within 5px)
       const atTop = distanceFromTop <= 5;
-      
+
       // Check if user is trying to scroll up
       const isScrollingUp = scrollTop <= lastScrollTop.current;
       lastScrollTop.current = scrollTop;
-      
+
       if (atTop && isScrollingUp) {
         // User is at top and trying to scroll up (forcing)
         isAtTop.current = true;
         forceScrollAttempts.current += 1;
-        
+
         // Require multiple force attempts (user trying to scroll when already at top)
         // This indicates intentional "pull" to navigate
         if (forceScrollAttempts.current >= 5) {
@@ -122,20 +122,20 @@ const StudentMonthlyView = () => {
 
     // Also handle wheel events when at top to detect "forcing"
     const handleWheel = (e) => {
-      const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                              document.querySelector('.overflow-y-auto');
-      
+      const scrollContainer = document.querySelector('.dashboard-scrollbar') ||
+        document.querySelector('.overflow-y-auto');
+
       if (!scrollContainer) return;
-      
+
       const scrollTop = scrollContainer.scrollTop;
       const scrollHeight = scrollContainer.scrollHeight;
       const clientHeight = scrollContainer.clientHeight;
       const distanceFromTop = scrollTop;
-      
+
       // If at top and user scrolls up with wheel, count as force attempt
       if (distanceFromTop <= 5 && e.deltaY < 0) {
         forceScrollAttempts.current += 1;
-        
+
         if (forceScrollAttempts.current >= 3) {
           navigate('/student/dashboard');
           forceScrollAttempts.current = 0;
@@ -146,9 +146,9 @@ const StudentMonthlyView = () => {
       }
     };
 
-    const scrollContainer = document.querySelector('.dashboard-scrollbar') || 
-                            document.querySelector('.overflow-y-auto');
-    
+    const scrollContainer = document.querySelector('.dashboard-scrollbar') ||
+      document.querySelector('.overflow-y-auto');
+
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
       scrollContainer.addEventListener('wheel', handleWheel, { passive: true });
@@ -221,7 +221,7 @@ const StudentMonthlyView = () => {
   const dayNames = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 
   return (
-    <div 
+    <div
       className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
         background: 'unset',
@@ -230,7 +230,7 @@ const StudentMonthlyView = () => {
       }}
     >
       {/* Image de fond */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -245,9 +245,9 @@ const StudentMonthlyView = () => {
           backgroundColor: '#0a0a0a'
         }}
       />
-      
+
       {/* Layer blur sur l'écran */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -264,44 +264,44 @@ const StudentMonthlyView = () => {
       />
 
       {/* Gradient conique Figma - partie droite */}
-      <div 
+      <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '0',
           transform: 'translateY(-50%)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite'
         }}
       />
-      
+
       {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div 
+      <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '50vw',
           transform: 'translateY(-50%) scaleX(-1)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
         }}
       />
 
@@ -396,18 +396,15 @@ const StudentMonthlyView = () => {
                   <button
                     key={day.toISOString()}
                     onClick={() => handleDayClick(day)}
-                    className={`flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px] transition-colors ${
-                      isSelected
-                        ? 'border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[7.5px]'
-                        : 'hover:bg-white/5'
-                    }`}
+                    className={`flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px] transition-colors ${isSelected
+                      ? 'border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[7.5px]'
+                      : 'hover:bg-white/5'
+                      }`}
                   >
-                    <div className={`flex flex-col gap-[5px] items-center ${
-                      isSelected ? 'bg-[#d4845a] rounded-[5px] w-[19px] shrink-0' : ''
-                    }`}>
-                      <p className={`text-[10px] font-normal leading-normal text-center ${
-                        isSelected ? 'text-white' : isToday ? 'text-white' : 'text-white/50'
+                    <div className={`flex flex-col gap-[5px] items-center ${isSelected ? 'bg-[#d4845a] rounded-[5px] w-[19px] shrink-0' : ''
                       }`}>
+                      <p className={`text-[10px] font-normal leading-normal text-center ${isSelected ? 'text-white' : isToday ? 'text-white' : 'text-white/50'
+                        }`}>
                         {format(day, 'd')}
                       </p>
                     </div>
@@ -417,13 +414,12 @@ const StudentMonthlyView = () => {
                         assignmentsForDay.map((assignment, idx) => (
                           <div
                             key={assignment.id || idx}
-                            className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${
-                              assignment.status === 'completed'
-                                ? 'bg-[#2fa064]'
-                                : isSelected
-                                  ? 'bg-white'
-                                  : 'bg-white/60'
-                            }`}
+                            className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${assignment.status === 'completed'
+                              ? 'bg-[#2fa064]'
+                              : isSelected
+                                ? 'bg-white'
+                                : 'bg-white/60'
+                              }`}
                           />
                         ))
                       ) : null}

@@ -991,6 +991,34 @@ input:autofill {
   }
 }
 
+/* Animation organique plus brillante pour l'interface étudiant */
+@keyframes organicGradientBright {
+  0% {
+    filter: brightness(1.5);
+    opacity: 1;
+  }
+  20% {
+    filter: brightness(1.55);
+    opacity: 1;
+  }
+  40% {
+    filter: brightness(1.45);
+    opacity: 1;
+  }
+  60% {
+    filter: brightness(1.53);
+    opacity: 1;
+  }
+  80% {
+    filter: brightness(1.47);
+    opacity: 1;
+  }
+  100% {
+    filter: brightness(1.5);
+    opacity: 1;
+  }
+}
+
 /* Fix width for tab buttons to prevent layout shift on hover */
 .tab-button-fixed-width {
   position: relative;

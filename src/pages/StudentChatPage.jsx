@@ -26,7 +26,7 @@ const StudentChatPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConversationList, setShowConversationList] = useState(true);
   const [coachNamesMap, setCoachNamesMap] = useState({});
-  
+
   // Get studentId from URL parameters (for coaches linking to chat)
   const studentId = searchParams.get('studentId');
 
@@ -48,7 +48,7 @@ const StudentChatPage = () => {
 
       const data = await response.json();
       const conversations = data.data || [];
-      
+
       // Sort conversations by last_message_at (most recent first)
       const sortedConversations = conversations.sort((a, b) => {
         if (!a.last_message_at && !b.last_message_at) {
@@ -56,10 +56,10 @@ const StudentChatPage = () => {
         }
         if (!a.last_message_at) return 1;
         if (!b.last_message_at) return -1;
-        
+
         return new Date(b.last_message_at) - new Date(a.created_at);
       });
-      
+
       setConversations(sortedConversations);
       setError(null);
     } catch (err) {
@@ -70,54 +70,31 @@ const StudentChatPage = () => {
     }
   };
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  // Fetch coach information to display names instead of emails
-  useEffect(() => {
-    const fetchCoachInfo = async () => {
-      if (!user || user.role !== 'student') return;
-      
-      try {
-        const token = await getAuthToken();
-        const response = await fetch(buildApiUrl('/api/coach'), {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          // Handle both array and object responses
-          const coachData = Array.isArray(data.data) ? data.data[0] : (data.data || {});
-          
-          // Create a map of coach ID to coach name
-          // For students, there's only one coach, so we map all conversation IDs to this coach's name
-          if (coachData.id && coachData.name) {
-            // Store the coach info - we'll use it for all conversations since there's only one coach
-            const newMap = {
-              [coachData.id]: coachData.name,
-              // Also add a special key to access the coach name directly
-              'coach': coachData.name
-            };
-            // Also map all conversation participant IDs to this coach's name
-            conversations.forEach(conv => {
-              if (conv.other_participant_id) {
-                newMap[conv.other_participant_id] = coachData.name;
-              }
-            });
-            setCoachNamesMap(newMap);
-          }
+  // Fetch coach info (runs in parallel with conversations - no dependency on conversations)
+  const fetchCoachInfo = async () => {
+    if (!user || user.role !== 'student') return;
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/coach'), {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const coachData = Array.isArray(data.data) ? data.data[0] : (data.data || {});
+        if (coachData?.id && coachData?.name) {
+          setCoachNamesMap({ [coachData.id]: coachData.name, 'coach': coachData.name });
         }
-      } catch (error) {
-        logger.error('Error fetching coach info:', error);
       }
-    };
+    } catch (error) {
+      logger.error('Error fetching coach info:', error);
+    }
+  };
 
-    fetchCoachInfo();
-  }, [user, getAuthToken, conversations]);
+  // Load conversations + coach info in parallel for faster page load
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([fetchConversations(), fetchCoachInfo()]);
+  }, [user?.id]);
 
   // Listen for socket events (new_message, messages_read)
   useEffect(() => {
@@ -126,21 +103,21 @@ const StudentChatPage = () => {
     const handleNewMessageSocket = (data) => {
       const conversationId = data.conversationId || data.conversation_id;
       const senderId = data.sender_id;
-      
+
       setConversations(prev => {
         // Check if conversation exists
         const exists = prev.some(c => c.id === conversationId);
         if (!exists) {
-            // If we don't have the conversation, we might want to fetch it or ignore
-            // For now, we'll ignore to avoid complexity, or trigger a refetch
-            fetchConversations(); 
-            return prev;
+          // If we don't have the conversation, we might want to fetch it or ignore
+          // For now, we'll ignore to avoid complexity, or trigger a refetch
+          fetchConversations();
+          return prev;
         }
 
         return prev.map(conv => {
           if (conv.id === conversationId) {
             const isMyMessage = senderId === user?.id;
-            
+
             // If message is from other user AND we are not currently viewing this conversation, increment unread_count
             // Note: If selectedConversation is this conversation, we might want to mark as read immediately?
             // But usually we rely on the ChatWindow to call markMessagesAsRead.
@@ -148,12 +125,12 @@ const StudentChatPage = () => {
             // Here we are updating the list state. 
             // If the user is IN the conversation (selectedConversation?.id === conversationId), 
             // the unread count in the list should ideally stay 0 or be reset.
-            
+
             let newUnreadCount = conv.unread_count || 0;
             if (!isMyMessage && selectedConversation?.id !== conversationId) {
               newUnreadCount += 1;
             }
-            
+
             return {
               ...conv,
               last_message: data,
@@ -169,7 +146,7 @@ const StudentChatPage = () => {
     const handleMessagesReadSocket = (data) => {
       const { conversationId, userId, readAt } = data;
       const convId = conversationId || data.conversation_id;
-      
+
       setConversations(prev => prev.map(conv => {
         if (conv.id === convId) {
           // If I read the messages, reset unread count
@@ -205,10 +182,10 @@ const StudentChatPage = () => {
   useEffect(() => {
     if (studentId && conversations.length > 0) {
       // Look for existing conversation with this student
-      const existingConversation = conversations.find(conv => 
+      const existingConversation = conversations.find(conv =>
         conv.other_participant_id === studentId
       );
-      
+
       if (existingConversation) {
         setSelectedConversation(existingConversation);
         setShowConversationList(false); // Hide list and show chat window on mobile
@@ -238,7 +215,7 @@ const StudentChatPage = () => {
 
       const data = await response.json();
       const newConversation = data.data;
-      
+
       setConversations(prev => {
         // Check if the conversation already exists in the list
         if (prev.some(conv => conv.id === newConversation.id)) {
@@ -258,30 +235,30 @@ const StudentChatPage = () => {
   const handleSelectConversation = async (conversation) => {
     setSelectedConversation(conversation);
     setShowConversationList(false); // Hide conversation list on mobile
-    
+
     // Mark as read locally and via socket/HTTP
     if (conversation.unread_count > 0) {
-        setConversations(prev => prev.map(c => 
-            c.id === conversation.id ? { ...c, unread_count: 0, last_read_at: new Date().toISOString() } : c
-        ));
-        
-        // Mark as read on server via HTTP for reliability
-        try {
-          const token = await getAuthToken();
-          await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/read`), {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-        } catch (error) {
-          logger.error('❌ Error marking messages as read via HTTP:', error);
-          // Fallback to socket
-          if (isConnected && markMessagesAsRead) {
-              markMessagesAsRead(conversation.id);
+      setConversations(prev => prev.map(c =>
+        c.id === conversation.id ? { ...c, unread_count: 0, last_read_at: new Date().toISOString() } : c
+      ));
+
+      // Mark as read on server via HTTP for reliability
+      try {
+        const token = await getAuthToken();
+        await fetch(buildApiUrl(`/api/chat/conversations/${conversation.id}/read`), {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
+        });
+      } catch (error) {
+        logger.error('❌ Error marking messages as read via HTTP:', error);
+        // Fallback to socket
+        if (isConnected && markMessagesAsRead) {
+          markMessagesAsRead(conversation.id);
         }
+      }
     }
   };
 
@@ -293,9 +270,9 @@ const StudentChatPage = () => {
 
   // Handle new message
   const handleNewMessage = (conversationId, message) => {
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
       )
@@ -304,9 +281,9 @@ const StudentChatPage = () => {
 
   // Handle message sent
   const handleMessageSent = (conversationId, message) => {
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
       )
@@ -316,16 +293,16 @@ const StudentChatPage = () => {
   // Extract potential first name from email (e.g., "tchomarat2001@gmail.com" -> "Tchomarat")
   const extractNameFromEmail = (email) => {
     if (!email || !email.includes('@')) return null;
-    
+
     const emailPart = email.split('@')[0];
     // Remove numbers and special characters, keep only letters
     const namePart = emailPart.replace(/\d+/g, '').trim();
-    
+
     if (namePart.length > 0) {
       // Capitalize first letter
       return namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase();
     }
-    
+
     return null;
   };
 
@@ -334,7 +311,7 @@ const StudentChatPage = () => {
     // For students, there's only one coach, so try to get it from coachNamesMap
     // Try with the special 'coach' key first, then with any ID in the map
     let coachName = null;
-    
+
     if (coachNamesMap['coach']) {
       // Use the stored coach name directly (for students, there's only one coach)
       coachName = coachNamesMap['coach'];
@@ -351,7 +328,7 @@ const StudentChatPage = () => {
         }
       }
     }
-    
+
     // If we have the coach name from the API, extract first name (same logic as ChatWindow)
     if (coachName) {
       // If it looks like an email, return just "Coach" (shouldn't happen if API returns correctly)
@@ -362,7 +339,7 @@ const StudentChatPage = () => {
       const firstName = coachName.split(' ')[0] || coachName;
       return `Coach ${firstName}`;
     }
-    
+
     // Fallback: if coach name is not yet loaded from API, don't use email extraction
     // Just return "Coach" until the API call completes
     return 'Coach';
@@ -374,10 +351,26 @@ const StudentChatPage = () => {
     return displayName.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  // Format last message preview
+  // Format duration for voice message preview (e.g. 65 -> "1:05")
+  const formatVoiceDuration = (seconds) => {
+    if (seconds == null || isNaN(seconds) || seconds < 0) return null;
+    const s = Math.floor(Number(seconds));
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Format last message preview (Instagram-style for voice: "Message vocal • 0:45")
   const formatLastMessage = (message) => {
     if (!message) return 'No messages yet';
-    const content = message.content;
+    // Voice/audio message: show "Message vocal • 0:45" instead of filename
+    const isVoice = message.message_type === 'audio' || message.file_type?.startsWith('audio/') ||
+      (message.content && (message.content.includes('voice-message') || /\.(webm|ogg|m4a|mp3)$/i.test(message.content)));
+    if (isVoice) {
+      const durationStr = formatVoiceDuration(message.duration);
+      return durationStr ? `Message vocal • ${durationStr}` : 'Message vocal';
+    }
+    const content = message.content || '';
     return content.length > 40 ? content.substring(0, 40) + '...' : content;
   };
 
@@ -387,24 +380,24 @@ const StudentChatPage = () => {
     const date = new Date(timestamp);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
-    
+
     if (isToday) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: false 
+        hour12: false
       });
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
       });
     }
   };
 
   return (
     <>
-      <div 
+      <div
         className="text-foreground w-full h-full relative overflow-hidden flex flex-col"
         style={{
           background: 'unset',
@@ -414,7 +407,7 @@ const StudentChatPage = () => {
         }}
       >
         {/* Image de fond */}
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: '0',
@@ -429,9 +422,9 @@ const StudentChatPage = () => {
             backgroundColor: '#0a0a0a'
           }}
         />
-        
+
         {/* Layer blur sur l'écran */}
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: '0',
@@ -448,44 +441,44 @@ const StudentChatPage = () => {
         />
 
         {/* Gradient conique Figma - partie droite */}
-        <div 
+        <div
           style={{
             position: 'absolute',
-            top: '-175px',
+            top: '-25px',
             left: '0',
             transform: 'translateY(-50%)',
             width: '50vw',
-            height: '600px',
+            height: '900px',
             borderRadius: '0',
             background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
             backdropFilter: 'blur(75px)',
             boxShadow: 'none',
-            filter: 'brightness(1.25)',
+            filter: 'brightness(1.5)',
             zIndex: 5,
             pointerEvents: 'none',
-            opacity: 0.75,
-            animation: 'organicGradient 15s ease-in-out infinite'
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite'
           }}
         />
-        
+
         {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-        <div 
+        <div
           style={{
             position: 'absolute',
-            top: '-175px',
+            top: '-25px',
             left: '50vw',
             transform: 'translateY(-50%) scaleX(-1)',
             width: '50vw',
-            height: '600px',
+            height: '900px',
             borderRadius: '0',
             background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
             backdropFilter: 'blur(75px)',
             boxShadow: 'none',
-            filter: 'brightness(1.25)',
+            filter: 'brightness(1.5)',
             zIndex: 5,
             pointerEvents: 'none',
-            opacity: 0.75,
-            animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
           }}
         />
 
@@ -519,128 +512,128 @@ const StudentChatPage = () => {
 
         {/* Content wrapper */}
         <div className="relative z-10 flex flex-col h-full overflow-hidden">
-        {/* List view: show when loading (with skeleton), on error, or when no conversation selected */}
-        {(loading || error || (showConversationList && !selectedConversation)) ? (
-          <>
-            <Header />
-            <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
-              <h1 className="text-[28px] font-light text-center text-white mb-6">
-                Messages
-              </h1>
-            </div>
-
-            {!error && (
-              <div className="px-10 py-3 flex-shrink-0 w-full max-w-6xl mx-auto">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[99px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                    style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
-                  />
-                </div>
+          {/* List view: show when loading (with skeleton), on error, or when no conversation selected */}
+          {(loading || error || (showConversationList && !selectedConversation)) ? (
+            <>
+              <Header />
+              <div className="px-10 pt-6 pb-4 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center">
+                <h1 className="text-[28px] font-light text-center text-white mb-6">
+                  Messages
+                </h1>
               </div>
-            )}
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 px-10 w-full max-w-6xl mx-auto">
-              {loading ? (
-                <div className="space-y-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="px-4 py-4 rounded-lg mb-2 animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '15px' }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full flex-shrink-0 bg-white/10" />
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="h-4 rounded w-2/3 bg-white/10" />
-                          <div className="h-3 rounded w-full bg-white/5" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center px-4">
-                    <div className="text-red-400 text-lg font-semibold mb-2">Erreur</div>
-                    <div className="text-gray-400 mb-4">{error}</div>
-                    <button
-                      onClick={fetchConversations}
-                      className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
-                    >
-                      Réessayer
-                    </button>
+              {!error && (
+                <div className="px-10 py-3 flex-shrink-0 w-full max-w-6xl mx-auto">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-[#404040] rounded-[99px] text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}
+                    />
                   </div>
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="p-6 text-center text-gray-400">
-                  <div className="text-sm text-white/50">
-                    {searchTerm ? 'Aucune conversation trouvée' : 'Aucune conversation'}
-                  </div>
-                  <div className="text-xs mt-2 text-white/50 font-light">
-                    {searchTerm ? 'Essayez un autre terme de recherche' : 'Commencez une nouvelle conversation'}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {filteredConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      onClick={() => handleSelectConversation(conversation)}
-                      className="px-4 py-4 bg-[rgba(255,255,255,0.03)] active:bg-[#262626] touch-target cursor-pointer rounded-lg mb-2"
-                      style={{
-                        borderWidth: '0.5px',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderBottomStyle: 'solid',
-                        borderRadius: '15px'
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Avatar */}
-                        <div className="flex-shrink-0 relative">
-                          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-medium text-lg">
-                            {getCoachDisplayName(conversation).charAt(0).toUpperCase() || 'C'}
-                          </div>
-                          {conversation.unread_count > 0 && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#d4845a] rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#0a0a0a]">
-                              {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-medium text-white truncate text-sm">
-                              {getCoachDisplayName(conversation)}
-                            </h4>
-                            <time className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                              {formatTimestamp(conversation.last_message_at)}
-                            </time>
-                          </div>
-                          <p className="text-xs text-gray-400 truncate">
-                            {formatLastMessage(conversation.last_message)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 px-10 w-full max-w-6xl mx-auto">
+                {loading ? (
+                  <div className="space-y-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="px-4 py-4 rounded-lg mb-2 animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '15px' }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full flex-shrink-0 bg-white/10" />
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="h-4 rounded w-2/3 bg-white/10" />
+                            <div className="h-3 rounded w-full bg-white/5" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : error ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center px-4">
+                      <div className="text-red-400 text-lg font-semibold mb-2">Erreur</div>
+                      <div className="text-gray-400 mb-4">{error}</div>
+                      <button
+                        onClick={fetchConversations}
+                        className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 touch-target"
+                      >
+                        Réessayer
+                      </button>
+                    </div>
+                  </div>
+                ) : filteredConversations.length === 0 ? (
+                  <div className="p-6 text-center text-gray-400">
+                    <div className="text-sm text-white/50">
+                      {searchTerm ? 'Aucune conversation trouvée' : 'Aucune conversation'}
+                    </div>
+                    <div className="text-xs mt-2 text-white/50 font-light">
+                      {searchTerm ? 'Essayez un autre terme de recherche' : 'Commencez une nouvelle conversation'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredConversations.map((conversation) => (
+                      <div
+                        key={conversation.id}
+                        onClick={() => handleSelectConversation(conversation)}
+                        className="px-4 py-4 bg-[rgba(255,255,255,0.03)] active:bg-[#262626] touch-target cursor-pointer rounded-lg mb-2"
+                        style={{
+                          borderWidth: '0.5px',
+                          borderColor: 'rgba(255, 255, 255, 0.1)',
+                          borderBottomStyle: 'solid',
+                          borderRadius: '15px'
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Avatar */}
+                          <div className="flex-shrink-0 relative">
+                            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-medium text-lg">
+                              {getCoachDisplayName(conversation).charAt(0).toUpperCase() || 'C'}
+                            </div>
+                            {conversation.unread_count > 0 && (
+                              <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#d4845a] rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#0a0a0a]">
+                                {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-medium text-white truncate text-sm">
+                                {getCoachDisplayName(conversation)}
+                              </h4>
+                              <time className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                                {formatTimestamp(conversation.last_message_at)}
+                              </time>
+                            </div>
+                            <p className="text-xs text-gray-400 truncate">
+                              {formatLastMessage(conversation.last_message)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Chat Window - Full Screen on Mobile with flex layout */
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
+              <ChatWindow
+                conversation={selectedConversation}
+                currentUser={user}
+                onNewMessage={handleNewMessage}
+                onMessageSent={handleMessageSent}
+                onBack={handleBackToList}
+              />
             </div>
-          </>
-        ) : (
-          /* Chat Window - Full Screen on Mobile with flex layout */
-          <div className="flex-1 overflow-hidden flex flex-col" style={{ minHeight: 0 }}>
-            <ChatWindow
-              conversation={selectedConversation}
-              currentUser={user}
-              onNewMessage={handleNewMessage}
-              onMessageSent={handleMessageSent}
-              onBack={handleBackToList}
-            />
-          </div>
           )}
         </div>
       </div>

@@ -63,23 +63,11 @@ const useSocket = () => {
         }
       }
       
-      // Test token validity with a simple API call
-      try {
-        const testResponse = await fetch(`${socketUrl.replace('/socket.io', '')}/api/socket-health`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (testResponse.ok) {
-          logger.debug('✅ Token is valid for API calls');
-        } else {
-          logger.warn('⚠️ Token validation failed:', testResponse.status);
-        }
-      } catch (testError) {
-        logger.warn('⚠️ Token validation test failed:', testError.message);
-      }
+      // Optional token validation - fire-and-forget, don't block socket connection
+      const healthUrl = `${socketUrl.replace('/socket.io', '')}/api/socket-health`;
+      fetch(healthUrl, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      }).then(r => r.ok && logger.debug('✅ Token valid for API')).catch(() => {});
 
       const newSocket = io(socketUrl, {
         auth: { token },

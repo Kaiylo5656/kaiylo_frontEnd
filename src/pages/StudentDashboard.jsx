@@ -49,7 +49,9 @@ const StudentDashboard = () => {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [shouldCloseCompletionModal, setShouldCloseCompletionModal] = useState(false);
   const [direction, setDirection] = useState(0);
+  const [dayDirection, setDayDirection] = useState(0); // Direction for day animation
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isDayAnimating, setIsDayAnimating] = useState(false);
   const scrollContainerRef = useRef(null);
   const weekSwipeRef = useRef({ startX: null, startY: null });
 
@@ -140,13 +142,6 @@ const StudentDashboard = () => {
     weekSwipeRef.current.startY = touch.clientY;
   };
 
-  const handleWeekSwipeMove = (e) => {
-    // Empêcher le scroll pendant le swipe
-    if (weekSwipeRef.current.startX !== null) {
-      e.preventDefault();
-    }
-  };
-
   const handleWeekSwipeEnd = (e) => {
     if (weekSwipeRef.current.startX === null || weekSwipeRef.current.startY === null) {
       return;
@@ -175,6 +170,98 @@ const StudentDashboard = () => {
     // Réinitialiser
     weekSwipeRef.current.startX = null;
     weekSwipeRef.current.startY = null;
+  };
+
+  // --- Day Swipe Logic ---
+  const daySwipeRef = useRef({ startX: null, startY: null });
+
+  const changeDay = (dir) => {
+    if (isDayAnimating) return;
+
+    setIsDayAnimating(true);
+    setDayDirection(dir === 'next' ? 1 : -1);
+
+    const newDate = dir === 'next' ? addDays(selectedDate, 1) : subDays(selectedDate, 1);
+    setSelectedDate(newDate);
+
+    // If the new date is outside the current week view, update the week view
+    const currentWeekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+    const newDateWeekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+
+    if (currentWeekStart.getTime() !== newDateWeekStart.getTime()) {
+      setCurrentDate(newDate);
+    }
+  };
+
+  const handleDaySwipeStart = (e) => {
+    // Enable swipe always, logic in End will determine action based on scroll position
+    const touch = e.touches[0];
+    daySwipeRef.current.startX = touch.clientX;
+    daySwipeRef.current.startY = touch.clientY;
+  };
+
+  const handleDaySwipeMove = (e) => {
+    // Optional: add logic if needed
+  };
+
+  const handleDaySwipeEnd = (e) => {
+    if (daySwipeRef.current.startX === null || daySwipeRef.current.startY === null) {
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const endX = touch.clientX;
+    const endY = touch.clientY;
+    const diffX = daySwipeRef.current.startX - endX;
+    const diffY = daySwipeRef.current.startY - endY;
+
+    // Minimum distance
+    const minSwipeDistance = 50;
+    const scrollTolerance = 10; // Pixels tolerance for scroll boundary
+
+    // Horizontal check
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > minSwipeDistance) {
+      // Check boundaries if scroll container exists
+      const container = scrollContainerRef.current;
+      const isMultiple = selectedAssignments.length > 1;
+
+      if (diffX > 0) {
+        // Swipe Left -> Next Day
+        // Action: Go Next if NOT multiple OR (Multiple AND At End of Scroll)
+        let canGoNext = true;
+        if (isMultiple && container) {
+          const { scrollLeft, scrollWidth, clientWidth } = container;
+          // Check if we are at the end (within tolerance)
+          // StartX > EndX means user moved finger LEFT. Scroll Left increases.
+          // Note: When scrolling, scrollLeft updates. 
+          // If we are already at the end, scrollLeft doesn't increase further.
+          // If we are NOT at the end, scroll happen. We shouldn't change day.
+
+          // Correct Logic: 
+          // If we are at the rightmost edge, allow next.
+          if (Math.abs(scrollWidth - clientWidth - scrollLeft) > scrollTolerance) {
+            canGoNext = false;
+          }
+        }
+
+        if (canGoNext) changeDay('next');
+      } else {
+        // Swipe Right -> Previous Day
+        // Action: Go Prev if NOT multiple OR (Multiple AND At Start of Scroll)
+        let canGoPrev = true;
+        if (isMultiple && container) {
+          const { scrollLeft } = container;
+          if (scrollLeft > scrollTolerance) {
+            canGoPrev = false;
+          }
+        }
+
+        if (canGoPrev) changeDay('prev');
+      }
+    }
+
+    daySwipeRef.current.startX = null;
+    daySwipeRef.current.startY = null;
   };
 
 
@@ -380,20 +467,20 @@ const StudentDashboard = () => {
       <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '0',
           transform: 'translateY(-50%)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite'
         }}
       />
 
@@ -401,20 +488,20 @@ const StudentDashboard = () => {
       <div
         style={{
           position: 'absolute',
-          top: '-175px',
+          top: '-25px',
           left: '50vw',
           transform: 'translateY(-50%) scaleX(-1)',
           width: '50vw',
-          height: '600px',
+          height: '900px',
           borderRadius: '0',
           background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
           boxShadow: 'none',
-          filter: 'brightness(1.25)',
+          filter: 'brightness(1.5)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 0.75,
-          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
+          opacity: 1.0,
+          animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
         }}
       />
 
@@ -464,15 +551,15 @@ const StudentDashboard = () => {
         {/* Planning de la semaine - Design Figma */}
         <div
           className="relative mb-6 md:mb-8 -mx-10 md:-mx-10 px-2 md:px-5"
+          style={{ touchAction: 'pan-y' }}
           onTouchStart={handleWeekSwipeStart}
-          onTouchMove={handleWeekSwipeMove}
           onTouchEnd={handleWeekSwipeEnd}
         >
           <div className="flex items-center justify-center gap-0 w-full">
-            {/* Flèche gauche */}
+            {/* Flèche gauche - compact sur iPhone SE, écart original sur téléphones plus larges */}
             <button
               onClick={() => changeWeek('prev')}
-              className="flex items-center justify-center min-w-[36px] md:min-w-[44px] min-h-[36px] md:min-h-[44px] w-[36px] md:w-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pl-3 md:pl-[25px]"
+              className="flex items-center justify-center min-w-[32px] w-[32px] min-[376px]:min-w-[36px] min-[376px]:w-[36px] md:min-w-[44px] md:w-[44px] min-h-[36px] md:min-h-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pl-2 min-[376px]:pl-3 md:pl-[25px]"
               aria-label="Semaine précédente"
             >
               <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
@@ -526,7 +613,7 @@ const StudentDashboard = () => {
                       const hasAssignments = totalCount > 0;
 
                       return (
-                        <div key={dayStr} className="flex flex-col items-center flex-shrink-0" style={{ width: 'calc(100% / 7)', minWidth: '40px' }}>
+                        <div key={dayStr} className="flex flex-col items-center flex-shrink-0 min-w-[38px] min-[376px]:min-w-[40px]" style={{ width: 'calc(100% / 7)' }}>
                           <button
                             onClick={() => !isAnimating && setSelectedDate(day)}
                             className={`flex flex-col items-center gap-0.5 md:gap-1 px-0.5 md:px-1.5 sm:px-2.5 pt-2 md:pt-2.5 pb-[10px] md:pb-[12px] rounded-[7px] text-[10px] md:text-[11px] font-normal transition-colors ${isSelected
@@ -572,10 +659,10 @@ const StudentDashboard = () => {
               </div>
             </div>
 
-            {/* Flèche droite */}
+            {/* Flèche droite - compact sur iPhone SE, écart original sur téléphones plus larges */}
             <button
               onClick={() => changeWeek('next')}
-              className="flex items-center justify-center min-w-[36px] md:min-w-[44px] min-h-[36px] md:min-h-[44px] w-[36px] md:w-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pr-3 md:pr-[25px]"
+              className="flex items-center justify-center min-w-[32px] w-[32px] min-[376px]:min-w-[36px] min-[376px]:w-[36px] md:min-w-[44px] md:w-[44px] min-h-[36px] md:min-h-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pr-2 min-[376px]:pr-3 md:pr-[25px]"
               aria-label="Semaine suivante"
             >
               <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
@@ -583,177 +670,219 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        {selectedAssignments.length > 0 ? (
-          selectedAssignments.length > 1 ? (
-            // Mode horizontal avec scroll pour plusieurs séances
-            <div className="w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
-              <div
-                ref={scrollContainerRef}
-                className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
-                style={{
-                  scrollSnapType: 'x mandatory',
-                  flex: '1 1 0',
-                  minHeight: 0,
-                  width: '100%',
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-                onScroll={(e) => {
-                  const container = e.target;
-                  const scrollLeft = container.scrollLeft;
-                  const containerWidth = container.clientWidth;
-                  // Calculer la largeur d'une carte (width + gap)
-                  const cardWidth = containerWidth;
-                  const gap = 16; // gap-4 = 16px
-                  const totalCardWidth = cardWidth + gap;
-                  const newIndex = Math.round(scrollLeft / totalCardWidth);
-                  setCurrentCardIndex(Math.min(Math.max(0, newIndex), selectedAssignments.length - 1));
-                }}
-              >
-                {selectedAssignments.map((assignment, index) => (
-                  <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.07)',
-                    borderImage: 'none',
-                    borderColor: 'transparent',
-                    marginBottom: '10px',
-                    width: '100%',
-                    maxWidth: '100%',
-                    minWidth: '100%',
-                    height: '100%',
-                    scrollSnapAlign: 'start'
-                  }}>
-                    <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
-                      <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0 flex items-center gap-2">
-                        <span>{assignment.workout_sessions?.title || 'Workout'}</span>
-                        {selectedAssignments.length > 1 && (
-                          <span className="text-white/40 text-[14px] font-light">
-                            {index + 1}/{selectedAssignments.length}
-                          </span>
-                        )}
-                      </CardTitle>
-                      <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
-                    </CardHeader>
-                    <CardContent className="px-4 mx-5 flex-1 flex flex-col">
-                      <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
-                        {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                          <div key={exIndex} className="flex justify-between items-center gap-4">
-                            <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                            <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
-                              {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} {' '}
-                              {ex.useRir ? (
-                                <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
-                              ) : (
-                                <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
-                              )}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
-                        {assignment.workout_sessions?.exercises?.length || 0} exercices
-                      </p>
-                      <Button
-                        className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                          ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
-                          : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
-                          }`}
-                        onClick={() => handleStartSession(assignment)}
-                        disabled={assignment.status === 'completed'}
-                      >
-                        {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-              {/* Dots de pagination */}
-              <div className="flex justify-center items-center gap-2 flex-shrink-0" style={{ pointerEvents: 'auto', marginTop: '0px', paddingTop: '16px', paddingBottom: '0px' }}>
-                {selectedAssignments.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      if (scrollContainerRef.current) {
-                        const container = scrollContainerRef.current;
+        {/* Content Area with Day Swipe Handler */}
+        <div
+          className="w-full flex-1 flex flex-col relative overflow-hidden"
+          onTouchStart={handleDaySwipeStart}
+          onTouchMove={handleDaySwipeMove}
+          onTouchEnd={handleDaySwipeEnd}
+        >
+          <AnimatePresence
+            initial={false}
+            custom={dayDirection}
+            mode="popLayout"
+            onExitComplete={() => setIsDayAnimating(false)}
+          >
+            <motion.div
+              key={format(selectedDate, 'yyyy-MM-dd')}
+              custom={dayDirection}
+              variants={{
+                enter: (direction) => ({
+                  x: direction > 0 ? '100%' : '-100%',
+                  opacity: 0,
+                }),
+                center: {
+                  x: 0,
+                  opacity: 1,
+                },
+                exit: (direction) => ({
+                  x: direction > 0 ? '-100%' : '100%',
+                  opacity: 0,
+                }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
+              className="w-full flex-1 flex flex-col"
+            >
+              {selectedAssignments.length > 0 ? (
+                selectedAssignments.length > 1 ? (
+                  // Mode horizontal avec scroll pour plusieurs séances
+                  <div className="w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
+                    <div
+                      ref={scrollContainerRef}
+                      className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
+                      style={{
+                        scrollSnapType: 'x mandatory',
+                        flex: '1 1 0',
+                        minHeight: 0,
+                        width: '100%',
+                        overflowX: 'auto',
+                        overflowY: 'hidden',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                      onScroll={(e) => {
+                        const container = e.target;
+                        const scrollLeft = container.scrollLeft;
                         const containerWidth = container.clientWidth;
+                        // Calculer la largeur d'une carte (width + gap)
                         const cardWidth = containerWidth;
                         const gap = 16; // gap-4 = 16px
                         const totalCardWidth = cardWidth + gap;
-                        container.scrollTo({
-                          left: index * totalCardWidth,
-                          behavior: 'smooth'
-                        });
-                      }
-                    }}
-                    className={`transition-all duration-200 rounded-full font-light ${index === currentCardIndex
-                      ? 'w-1.5 h-1.5 bg-[#e87c3e]'
-                      : 'w-1.5 h-1.5 bg-white/10'
-                      }`}
-                    style={{
-                      boxShadow: index === currentCardIndex ? '0 0 10px rgba(232, 124, 62, 0.6)' : '0 0 4px rgba(255, 255, 255, 0.2)',
-                      fontWeight: index === currentCardIndex ? 300 : undefined
-                    }}
-                    aria-label={`Aller à la séance ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            // Mode vertical pour une seule séance
-            <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
-              {selectedAssignments.map((assignment, index) => (
-                <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
-                  <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
-                    <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
-                      {assignment.workout_sessions?.title || 'Workout'}
-                    </CardTitle>
-                    <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
-                  </CardHeader>
-                  <CardContent className="px-4 mx-5 flex-1 flex flex-col">
-                    <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
-                      {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                        <div key={exIndex} className="flex justify-between items-center gap-4">
-                          <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                          <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
-                            {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} {' '}
-                            {ex.useRir ? (
-                              <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
-                            ) : (
-                              <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
-                            )}
-                          </p>
-                        </div>
+                        const newIndex = Math.round(scrollLeft / totalCardWidth);
+                        setCurrentCardIndex(Math.min(Math.max(0, newIndex), selectedAssignments.length - 1));
+                      }}
+                    >
+                      {selectedAssignments.map((assignment, index) => (
+                        <Card key={assignment.id || index} className="border-border rounded-[25px] border-0 flex flex-col flex-shrink-0" style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                          borderImage: 'none',
+                          borderColor: 'transparent',
+                          marginBottom: '10px',
+                          width: '100%',
+                          maxWidth: '100%',
+                          minWidth: '100%',
+                          height: '100%',
+                          scrollSnapAlign: 'start'
+                        }}>
+                          <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
+                            <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0 flex items-center gap-2">
+                              <span>{assignment.workout_sessions?.title || 'Workout'}</span>
+                              {selectedAssignments.length > 1 && (
+                                <span className="text-white/40 text-[14px] font-light">
+                                  {index + 1}/{selectedAssignments.length}
+                                </span>
+                              )}
+                            </CardTitle>
+                            <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                          </CardHeader>
+                          <CardContent className="px-4 mx-5 flex-1 flex flex-col">
+                            <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
+                              {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
+                                <div key={exIndex} className="flex justify-between items-center gap-4">
+                                  <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
+                                  <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
+                                    {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} {' '}
+                                    {ex.useRir ? (
+                                      <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
+                                    ) : (
+                                      <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
+                              {assignment.workout_sessions?.exercises?.length || 0} exercices
+                            </p>
+                            <Button
+                              className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
+                                ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                                : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                                }`}
+                              onClick={() => handleStartSession(assignment)}
+                              disabled={assignment.status === 'completed'}
+                            >
+                              {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                            </Button>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
-                    <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
-                      {assignment.workout_sessions?.exercises?.length || 0} exercices
-                    </p>
-                    <Button
-                      className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                        ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
-                        : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
-                        }`}
-                      onClick={() => handleStartSession(assignment)}
-                      disabled={assignment.status === 'completed'}
-                    >
-                      {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )
-        ) : (
-          <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
-            <Card className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
-              <CardContent className="px-4 mx-5 flex-1 flex items-center justify-center">
-                <p className="text-white/25 font-light text-sm text-center" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 100, fontSize: '13px' }}>
-                  Aucune séance aujourd'hui
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                    {/* Dots de pagination */}
+                    <div className="flex justify-center items-center gap-2 flex-shrink-0" style={{ pointerEvents: 'auto', marginTop: '0px', paddingTop: '16px', paddingBottom: '0px' }}>
+                      {selectedAssignments.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            if (scrollContainerRef.current) {
+                              const container = scrollContainerRef.current;
+                              const containerWidth = container.clientWidth;
+                              const cardWidth = containerWidth;
+                              const gap = 16; // gap-4 = 16px
+                              const totalCardWidth = cardWidth + gap;
+                              container.scrollTo({
+                                left: index * totalCardWidth,
+                                behavior: 'smooth'
+                              });
+                            }
+                          }}
+                          className={`transition-all duration-200 rounded-full font-light ${index === currentCardIndex
+                            ? 'w-1.5 h-1.5 bg-[#e87c3e]'
+                            : 'w-1.5 h-1.5 bg-white/10'
+                            }`}
+                          style={{
+                            boxShadow: index === currentCardIndex ? '0 0 10px rgba(232, 124, 62, 0.6)' : '0 0 4px rgba(255, 255, 255, 0.2)',
+                            fontWeight: index === currentCardIndex ? 300 : undefined
+                          }}
+                          aria-label={`Aller à la séance ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  // Mode vertical pour une seule séance
+                  <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
+                    {selectedAssignments.map((assignment, index) => (
+                      <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+                        <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
+                          <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
+                            {assignment.workout_sessions?.title || 'Workout'}
+                          </CardTitle>
+                          <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                        </CardHeader>
+                        <CardContent className="px-4 mx-5 flex-1 flex flex-col">
+                          <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
+                            {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
+                              <div key={exIndex} className="flex justify-between items-center gap-4">
+                                <p className="truncate text-white font-light flex-1 min-w-0 max-w-[60%]" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
+                                <p className="text-white/50 whitespace-nowrap font-light text-sm flex-shrink-0">
+                                  {ex.sets?.length || 0}x{ex.sets?.[0]?.reps || '?'} {' '}
+                                  {ex.useRir ? (
+                                    <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
+                                  ) : (
+                                    <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
+                                  )}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
+                            {assignment.workout_sessions?.exercises?.length || 0} exercices
+                          </p>
+                          <Button
+                            className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
+                              ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                              : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
+                              }`}
+                            onClick={() => handleStartSession(assignment)}
+                            disabled={assignment.status === 'completed'}
+                          >
+                            {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="space-y-4 w-full max-w-xl mx-auto px-2 md:px-4 flex-1 flex flex-col">
+                  <Card className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
+                    <CardContent className="px-4 mx-5 flex-1 flex items-center justify-center">
+                      <p className="text-white/25 font-light text-sm text-center" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 100, fontSize: '13px' }}>
+                        Aucune séance aujourd'hui
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Success Modal */}

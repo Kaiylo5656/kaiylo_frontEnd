@@ -40,7 +40,7 @@ const SettingsIcon = ({ className, style }) => (
   </svg>
 );
 
-const Header = () => {
+const Header = ({ onOpenFeedback }) => {
   const { user } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -547,7 +547,8 @@ const Header = () => {
       </header>
       <MobileNavigationDrawer 
         isOpen={isMobileMenuOpen} 
-        onClose={() => setIsMobileMenuOpen(false)} 
+        onClose={() => setIsMobileMenuOpen(false)}
+        onOpenFeedback={onOpenFeedback}
       />
       <NotificationSidebar 
         isOpen={isNotificationOpen} 

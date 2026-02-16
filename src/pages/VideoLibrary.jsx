@@ -1055,8 +1055,8 @@ const VideoLibrary = () => {
                           <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                         </span>
                       </span>
-                      <span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
-                        - {sessionDate} - 
+<span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
+                        <span className="hidden md:inline">- {sessionDate} - </span>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ opacity: 0.5 }}>
                           <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
                         </svg>
@@ -1610,9 +1610,9 @@ const VideoLibrary = () => {
         {/* Content area: loading overlay only here, header/tabs stay visible */}
         <div className="relative min-h-[320px]">
           {loading && (
-            <div className="absolute inset-0 flex justify-center items-center z-10">
+            <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
               <div
-                className="rounded-full border-2 border-transparent animate-spin"
+                className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
                 style={{
                   borderTopColor: '#d4845a',
                   borderRightColor: '#d4845a',

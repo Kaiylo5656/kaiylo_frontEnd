@@ -114,7 +114,14 @@ const NavLink = ({ to, icon: Icon, children, onClick, onLinkClick, disabled = fa
   );
 };
 
-const MobileNavigationDrawer = ({ isOpen, onClose }) => {
+// Icon for "Signaler un problème" (same as MainLayout floating button)
+const FeedbackIcon = ({ className, style }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className={className} style={style} fill="currentColor" aria-hidden="true">
+    <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/>
+  </svg>
+);
+
+const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
   const { user, logout, getAuthToken } = useAuth();
   const navigate = useNavigate();
   const drawerRef = useRef(null);
@@ -310,6 +317,21 @@ const MobileNavigationDrawer = ({ isOpen, onClose }) => {
               {item.name}
             </NavLink>
           ))}
+          {/* Signaler un problème — uniquement pour les coaches, en dessous de Messages */}
+          {user?.role === 'coach' && onOpenFeedback && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenFeedback();
+                onClose();
+              }}
+              className="flex items-center space-x-4 px-4 py-3 rounded-lg transition-colors text-muted-foreground hover:bg-muted/50 hover:text-foreground w-full text-left"
+              style={{ fontWeight: 300 }}
+            >
+              <FeedbackIcon className="h-6 w-6" style={{ minWidth: '24px', color: 'var(--kaiylo-primary-hex)' }} />
+              <span className="font-normal text-sm flex-1 whitespace-nowrap">Signaler un problème</span>
+            </button>
+          )}
         </nav>
 
         {/* Footer with Facturation and User Info */}

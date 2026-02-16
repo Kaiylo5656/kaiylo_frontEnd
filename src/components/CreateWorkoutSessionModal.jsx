@@ -2,7 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, MoreHorizontal, User, GripVertical, BookOpen, Check, ListOrdered, Calendar, ArrowLeft } from 'lucide-react';
+import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -1721,13 +1721,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
                   })()}
                 </span>
-                <span className="font-light truncate sm:hidden text-xs">
-                  {format(selectedDate, 'd MMM', { locale: fr })}
-                </span>
               </h2>
             </div>
             <div className="flex items-center gap-2">
               <div className="md:hidden flex items-center gap-1">
+                {/* Bibliothèque — même icône que ExerciseLibraryModal */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1735,9 +1733,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     setTimeout(() => updateLibraryPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
+                  aria-label="Bibliothèque d'exercices"
                 >
-                  <BookOpen className="w-5 h-5" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" fill="currentColor">
+                    <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z" />
+                  </svg>
                 </button>
+                {/* Agencement — même icône que le bouton Agencement de la sidebar */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1746,9 +1748,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     setTimeout(() => updateArrangementPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
+                  aria-label="Agencement des exercices"
                 >
-                  <ListOrdered className="w-5 h-5" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" fill="currentColor">
+                    <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z" />
+                  </svg>
                 </button>
+                {/* Planning — même icône que le bouton Calendrier de la sidebar */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1757,8 +1763,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     setTimeout(() => updateArrangementPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
+                  aria-label="Calendrier d'entraînement"
                 >
-                  <Calendar className="w-5 h-5" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" fill="currentColor">
+                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
+                  </svg>
                 </button>
               </div>
               <button

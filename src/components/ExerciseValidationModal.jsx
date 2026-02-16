@@ -696,10 +696,10 @@ const ExerciseValidationModal = ({
             {/* Conteneur pour le swipe avec preview */}
             <div
               ref={modalRef}
-              className="relative w-full h-full"
+              className="relative w-full h-full min-h-0 flex flex-col"
             >
               {/* Flex Container for Static Header + Animated Content */}
-              <div className="flex flex-col rounded-[27px] overflow-hidden">
+              <div className="flex flex-col flex-1 min-h-0 rounded-[27px] overflow-hidden">
 
                 {/* STATIC HEADER: Title & Navigation */}
                 <div className="px-12 pt-8 pb-0 z-10 text-white flex-shrink-0">
@@ -730,8 +730,8 @@ const ExerciseValidationModal = ({
                   </div>
                 </div>
 
-                {/* ANIMATED CONTENT BODY */}
-                <div className="relative flex-1 w-full overflow-hidden min-h-0">
+                {/* ANIMATED CONTENT BODY - scrollable when many sets */}
+                <div className="relative flex-1 min-h-0 w-full overflow-hidden">
                   <AnimatePresence initial={false} custom={direction} mode="popLayout">
                     <motion.div
                       key={exerciseIndex}
@@ -756,7 +756,7 @@ const ExerciseValidationModal = ({
                           handlePrevExercise();
                         }
                       }}
-                      className="w-full h-full overflow-y-auto overflow-x-hidden text-white shadow-xl"
+                      className="w-full h-full min-h-0 overflow-y-auto overflow-x-hidden text-white shadow-xl overscroll-contain"
                     >
                       <div className="px-6 pb-8 pt-2">
                         <div className="flex flex-col gap-[15px] items-center w-full">
