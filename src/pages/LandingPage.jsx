@@ -153,7 +153,7 @@ const LandingPage = () => {
                 <button
                   type="submit"
                   disabled={heroStatus === 'loading'}
-                  className="relative w-full md:absolute md:right-0 md:top-0 md:bottom-0 md:w-auto h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative w-full md:absolute md:right-0 md:top-0 md:bottom-0 md:w-auto h-12 px-6 bg-[#D4845A] text-white hover:bg-[#bf7348] font-medium rounded-full text-sm transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="relative z-10 font-normal">
                     {heroStatus === 'loading' ? '...' : 'Réserver mon accès'}
