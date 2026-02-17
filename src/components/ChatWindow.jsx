@@ -1196,7 +1196,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   </div>
                   
                   <div className="relative">
-                    {message.message_type === 'video_feedback' ? (
+                    {message.message_type === 'video_feedback' || message.message_type === 'video_upload' ? (
                       <VideoFeedbackMessage 
                         message={message} 
                         isOwnMessage={isOwnMessage} 

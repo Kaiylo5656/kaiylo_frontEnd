@@ -84,6 +84,8 @@ export const AuthProvider = ({ children }) => {
   const isLoggingOutRef = useRef(false); // Flag pour éviter les boucles
   const authInitializedRef = useRef(false); // Flag pour ignorer le premier SIGNED_OUT au démarrage
   const isRefreshingRef = useRef(false); // Flag pour empêcher plusieurs refresh parallèles
+  const authCheckInProgressRef = useRef(false); // Prevent concurrent checkAuthStatus calls (React 19 Strict Mode)
+  const lastAuthCheckTimeRef = useRef(0); // Timestamp of last successful auth check (prevents duplicate /auth/me calls)
   const refreshQueueRef = useRef([]); // File d'attente pour les requêtes en attente d'un nouveau token
   const refreshFailureCountRef = useRef(0); // Compteur d'échecs de refresh consécutifs
   const MAX_REFRESH_FAILURES = 3; // Nombre maximum d'échecs de refresh consécutifs avant déconnexion forcée
@@ -351,194 +353,124 @@ export const AuthProvider = ({ children }) => {
     };
   }, [refreshAuthToken]);
 
-  // Function to check if user is already authenticated (optimized with timeout)
+  // Helper: decode JWT and check if expired or expiring within `bufferSec` seconds
+  const isTokenExpiredOrExpiring = (token, bufferSec = 60) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (!payload.exp) return false; // No exp claim, can't tell
+      return Date.now() >= (payload.exp - bufferSec) * 1000;
+    } catch {
+      return true; // Can't decode → treat as expired
+    }
+  };
+
+  // Function to check if user is already authenticated
   const checkAuthStatus = async () => {
+    // Deduplication guard: prevent concurrent calls (React 19 Strict Mode, onAuthStateChange races)
+    if (authCheckInProgressRef.current) {
+      logger.debug('ℹ️ checkAuthStatus already in progress, skipping');
+      return;
+    }
+    authCheckInProgressRef.current = true;
+
     try {
       setLoading(true);
-      
-      // Vérifier d'abord localStorage (plus rapide et fiable)
-      const token = safeGetItem('authToken');
-      
-      if (token) {
-        // Token trouvé dans localStorage, vérifier avec le backend
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        try {
-          const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
-            timeout: 3000 // Timeout de 3 secondes
-          });
-          setUser(response.data.user);
-          logger.debug('✅ Auth check successful via localStorage token');
-          return; // Succès, on sort
-        } catch (error) {
-          logger.warn('⚠️ Token in localStorage invalid, checking Supabase session...');
-          // Token invalide, nettoyer et vérifier Supabase
-          safeRemoveItem('authToken');
-          delete axios.defaults.headers.common['Authorization'];
-        }
-      }
-      
-      // Check if we have any auth-related data in storage before calling Supabase
-      // This avoids unnecessary timeout if user is not logged in
-      const hasAuthData = safeGetItem('authToken') || 
-                         safeGetItem('supabaseRefreshToken') || 
+
+      // 1. Check if we have any auth-related data in storage at all
+      const hasAuthData = safeGetItem('authToken') ||
+                         safeGetItem('supabaseRefreshToken') ||
                          safeGetItem('sb-auth-token');
-      
+
       if (!hasAuthData) {
-        // No auth data in storage, user is likely not logged in
-        // Skip Supabase check to avoid timeout
         logger.debug('ℹ️ No auth data in storage, skipping Supabase check');
         setUser(null);
         return;
       }
-      
-      // Essayer Supabase uniquement si on a des données d'auth en storage
-      // Cela évite le timeout quand l'utilisateur n'est pas connecté
+
+      // 2. Get cached session from Supabase
+      let session = null;
       try {
-        logger.debug('🔄 Auth data found in storage, checking Supabase session...');
-        
-        // Essayer Supabase avec un timeout très court
-        // Si ça timeout, on considère que l'utilisateur n'est pas connecté
-        let session = null;
-        let sessionError = null;
-        
-        try {
-          // Utiliser Promise.race avec un timeout de 8 secondes
-          // (after browser close, Supabase needs time to rehydrate)
-          const sessionResult = await Promise.race([
-            supabase.auth.getSession(),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Session check timeout')), 8000) // 8 secondes
-            )
-          ]);
-          
-          session = sessionResult?.data?.session || null;
-          sessionError = sessionResult?.error || null;
-          
-          if (session && session.access_token) {
-            // Session valide trouvée
-          } else if (!session && !sessionError) {
-            // Pas de session mais pas d'erreur non plus
-            logger.debug('ℹ️ No session found in Supabase');
-          }
-        } catch (error) {
-          if (error.message === 'Session check timeout') {
-            logger.debug('⏱️ Supabase session check timeout - attempting recovery via refreshSession...');
-            // On timeout, try refreshSession with stored refresh token before wiping
-            const storedRefreshToken = safeGetItem('supabaseRefreshToken');
-            if (storedRefreshToken) {
-              try {
-                const refreshResult = await supabase.auth.refreshSession({ refresh_token: storedRefreshToken });
-                if (refreshResult?.data?.session?.access_token) {
-                  logger.debug('✅ Recovery via refreshSession succeeded after timeout');
-                  session = refreshResult.data.session;
-                } else {
-                  logger.debug('⏱️ refreshSession returned no session, clearing auth data');
-                  safeRemoveItem('authToken');
-                  safeRemoveItem('supabaseRefreshToken');
-                  safeRemoveItem('sb-auth-token');
-                  delete axios.defaults.headers.common['Authorization'];
-                  session = null;
-                }
-              } catch (refreshError) {
-                logger.debug('⏱️ refreshSession failed after timeout, clearing auth data:', refreshError.message);
-                safeRemoveItem('authToken');
-                safeRemoveItem('supabaseRefreshToken');
-                safeRemoveItem('sb-auth-token');
-                delete axios.defaults.headers.common['Authorization'];
-                session = null;
-              }
-            } else {
-              logger.debug('⏱️ No stored refresh token, clearing auth data');
-              safeRemoveItem('authToken');
-              safeRemoveItem('supabaseRefreshToken');
-              safeRemoveItem('sb-auth-token');
-              delete axios.defaults.headers.common['Authorization'];
-              session = null;
-            }
-          } else {
-            session = null;
-          }
-          sessionError = null;
-        }
-        
-        if (session && !sessionError && session.access_token) {
-          // Session Supabase valide
-          persistSessionTokens(session);
-          
-          // Vérifier que le token est bien dans les headers axios
-          if (!axios.defaults.headers.common['Authorization']) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
-          }
-          
-          // Récupérer les infos utilisateur depuis le backend
-          try {
-            const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
-              timeout: 5000, // Augmenter le timeout pour la première vérification
-              headers: {
-                'Authorization': `Bearer ${session.access_token}`
-              }
-            });
-            setUser(response.data.user);
-            logger.debug('✅ Auth check successful via Supabase session');
-            return; // Succès, on sort
-          } catch (error) {
-            logger.error('❌ Error fetching user from backend:', {
-              status: error.response?.status,
-              message: error.response?.data?.error || error.message,
-              tokenLength: session.access_token?.length
-            });
-            
-            // Si le backend retourne 401, le token Supabase est invalide
-            if (error.response?.status === 401) {
-              logger.error('❌ Backend rejected token (401). Clearing session to prevent loop.');
-              
-              // Token invalide, on doit déconnecter l'utilisateur
-              safeRemoveItem('authToken');
-              safeRemoveItem('supabaseRefreshToken');
-              // On nettoie aussi le wrapper de session complet
-              safeRemoveItem('sb-auth-token');
-              if (typeof localStorage !== 'undefined') {
-                localStorage.removeItem('sb-auth-token');
-              }
-              
-              delete axios.defaults.headers.common['Authorization'];
-              setUser(null);
-              return; 
-            } else {
-              // Si le backend échoue pour une autre raison (timeout, réseau, etc.)
-              logger.error('Backend request failed (non-401):', error.message);
-              // Utiliser les infos de la session Supabase comme fallback
-              setUser({
-                id: session.user.id,
-                email: session.user.email,
-                name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || 'User',
-                role: session.user.user_metadata?.role || 'student'
-              });
-              logger.debug('✅ Using Supabase user metadata as fallback due to backend error');
-              return; // Succès avec infos Supabase
-            }
-          }
-        }
-        
-        // Pas de session valide, on est déconnecté
-        logger.debug('ℹ️ No valid session found');
-        // Nettoyer les tokens invalides
-        safeRemoveItem('authToken');
-        safeRemoveItem('supabaseRefreshToken');
-        delete axios.defaults.headers.common['Authorization'];
-        setUser(null);
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Session check timeout')), 8000)
+          )
+        ]);
+        session = sessionResult?.data?.session || null;
       } catch (error) {
-        // Ignorer les erreurs de refresh token invalide (c'est normal si l'utilisateur est déconnecté)
-        if (error.message?.includes('Invalid Refresh Token') || error.message?.includes('Refresh Token Not Found')) {
-          logger.debug('ℹ️ Refresh token invalid (user logged out), cleaning up...');
-        } else {
-          logger.warn('⚠️ Supabase check failed:', error.message);
+        if (error.message === 'Session check timeout') {
+          logger.debug('⏱️ Supabase session check timeout');
         }
-        // Nettoyer les tokens invalides
-        safeRemoveItem('authToken');
-        safeRemoveItem('supabaseRefreshToken');
-        delete axios.defaults.headers.common['Authorization'];
-        setUser(null);
+        session = null;
+      }
+
+      // 3. If we have a session with an access_token, check if it's expired/expiring
+      if (session?.access_token && isTokenExpiredOrExpiring(session.access_token)) {
+        logger.debug('🔄 Token expired or expiring soon, refreshing...');
+        const newToken = await refreshAuthToken();
+        if (newToken) {
+          // refreshAuthToken already persists tokens and updates axios headers
+          session = { ...session, access_token: newToken };
+        } else {
+          // Refresh failed — refreshAuthToken handles logout if needed
+          setUser(null);
+          return;
+        }
+      }
+
+      // 4. If still no valid session, try refreshing from stored refresh token
+      if (!session?.access_token) {
+        logger.debug('🔄 No valid session, attempting refresh...');
+        const newToken = await refreshAuthToken();
+        if (newToken) {
+          session = { access_token: newToken };
+        } else {
+          // No session and refresh failed
+          safeRemoveItem('authToken');
+          safeRemoveItem('supabaseRefreshToken');
+          safeRemoveItem('sb-auth-token');
+          delete axios.defaults.headers.common['Authorization'];
+          setUser(null);
+          return;
+        }
+      }
+
+      // 5. We have a fresh token — persist and call /auth/me
+      persistSessionTokens(session);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`;
+
+      try {
+        const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
+          timeout: 5000,
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        setUser(response.data.user);
+        lastAuthCheckTimeRef.current = Date.now();
+        logger.debug('✅ Auth check successful');
+      } catch (error) {
+        if (error.response?.status === 401) {
+          // Token was supposed to be fresh but backend still rejected it
+          logger.error('❌ Backend rejected fresh token (401). Clearing session.');
+          safeRemoveItem('authToken');
+          safeRemoveItem('supabaseRefreshToken');
+          safeRemoveItem('sb-auth-token');
+          delete axios.defaults.headers.common['Authorization'];
+          setUser(null);
+        } else {
+          // Network/timeout error — use Supabase session data as fallback
+          logger.warn('⚠️ Backend unreachable, using Supabase session as fallback');
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession?.user) {
+            setUser({
+              id: currentSession.user.id,
+              email: currentSession.user.email,
+              name: currentSession.user.user_metadata?.name || currentSession.user.user_metadata?.full_name || 'User',
+              role: currentSession.user.user_metadata?.role || 'coach'
+            });
+          } else {
+            setUser(null);
+          }
+        }
       }
     } catch (error) {
       logger.error('Auth check failed:', error);
@@ -548,6 +480,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
     } finally {
       setLoading(false);
+      authCheckInProgressRef.current = false;
       logger.debug('✅ Auth check completed');
     }
   };
@@ -657,26 +590,32 @@ export const AuthProvider = ({ children }) => {
               logger.debug('✅ Supabase auto-refresh completed, persisting new tokens...');
               // Synchroniser le token avec localStorage et axios
               persistSessionTokens(session);
-              
+
               // Si un refresh manuel est en cours, le résoudre avec le nouveau token
               if (isRefreshingRef.current) {
                 logger.debug('🔄 Manual refresh in progress, resolving with Supabase token');
                 resolveRefreshQueue(null, session.access_token);
                 isRefreshingRef.current = false;
               }
-              
-              // Mettre à jour l'état utilisateur
-              try {
-                const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`);
-                setUser(response.data.user);
-              } catch (error) {
-                // Si le backend échoue, utiliser les infos de la session Supabase
-                setUser({
-                  id: session.user.id,
-                  email: session.user.email,
-                  name: session.user.user_metadata?.name || 'User',
-                  role: session.user.user_metadata?.role || 'coach'
-                });
+
+              // Skip /auth/me if checkAuthStatus is running OR just completed within 3s
+              const msSinceLastCheck = Date.now() - lastAuthCheckTimeRef.current;
+              if (authCheckInProgressRef.current || msSinceLastCheck < 3000) {
+                logger.debug('ℹ️ Auth check in progress or recently completed, skipping /auth/me from onAuthStateChange');
+              } else {
+                // Mettre à jour l'état utilisateur
+                try {
+                  const response = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`);
+                  setUser(response.data.user);
+                } catch (error) {
+                  // Si le backend échoue, utiliser les infos de la session Supabase
+                  setUser({
+                    id: session.user.id,
+                    email: session.user.email,
+                    name: session.user.user_metadata?.name || 'User',
+                    role: session.user.user_metadata?.role || 'coach'
+                  });
+                }
               }
             }
           }

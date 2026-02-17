@@ -2555,7 +2555,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       }
 
       // Status filter - check actual feedback presence (text or audio), not just status field
-      const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
+      const hasFeedback = (video.coach_feedback !== null && video.coach_feedback !== undefined) || video.coach_feedback_audio_url;
       const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
 
       if (statusFilter === 'A feedback' && isCompleted) return false;
@@ -2926,7 +2926,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                           {/* Status Badge + Validate button */}
                           {(() => {
-                            const hasFeedback = (video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url;
+                            const hasFeedback = (video.coach_feedback !== null && video.coach_feedback !== undefined) || video.coach_feedback_audio_url;
                             const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
 
                             if (isCompleted) {

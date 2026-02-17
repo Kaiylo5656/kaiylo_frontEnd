@@ -48,12 +48,15 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       setIsVideoLoading(true);
 
       // Determine video status based on coach feedback presence (text or audio)
-      if ((video.coach_feedback && video.coach_feedback.trim() !== '') || video.coach_feedback_audio_url) {
+      const hasAnyFeedback = (video.coach_feedback !== null && video.coach_feedback !== undefined) || video.coach_feedback_audio_url;
+      const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasAnyFeedback;
+      
+      if (isCompleted) {
         setVideoStatus('completed');
-        logger.debug('Setting status to completed - coach feedback exists (text or audio)');
+        logger.debug('Setting status to completed - video is completed or has feedback');
       } else {
         setVideoStatus('pending');
-        logger.debug('Setting status to pending - no coach feedback');
+        logger.debug('Setting status to pending - no coach feedback and not marked completed');
       }
       
       // Initialize feedback based on video type

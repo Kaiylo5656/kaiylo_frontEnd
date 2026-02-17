@@ -141,7 +141,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
 
             return (
               <div
-                key={exercise.id || exercise.exerciseId || index}
+                key={`${exercise.id || exercise.exerciseId || 'ex'}-${index}`}
                 onClick={() => {
                   if (onExerciseSelect) {
                     onExerciseSelect(index);
