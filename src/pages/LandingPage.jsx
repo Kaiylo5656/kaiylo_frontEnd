@@ -44,7 +44,9 @@ const LandingPage = () => {
   return (
     <div className="relative w-full min-h-screen text-white selection:bg-[#d4845a] selection:text-white" style={{ backgroundColor: '#0a0a0a' }}>
       {/* Image de fond */}
+      {/* Image de fond (Desktop) */}
       <div
+        className="hidden md:block"
         style={{
           position: 'absolute',
           top: '0',
@@ -60,8 +62,9 @@ const LandingPage = () => {
         }}
       />
 
-      {/* Layer blur sur l'écran */}
+      {/* Layer blur sur l'écran (Desktop) */}
       <div
+        className="hidden md:block"
         style={{
           position: 'absolute',
           top: '0',
@@ -76,6 +79,113 @@ const LandingPage = () => {
           opacity: 1
         }}
       />
+
+      {/* --- Mobile Background Elements (from StudentDashboard) --- */}
+      <div className="block md:hidden fixed inset-0 pointer-events-none z-0">
+        {/* Image de fond */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+
+        {/* Layer blur sur l'écran */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+
+        {/* Gradient conique Figma - partie droite */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite'
+          }}
+        />
+
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+          }}
+        />
+
+        {/* Top glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px] z-[7]"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+            opacity: 0.35
+          }}
+        />
+        {/* Warm orange glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px] z-[7]"
+          style={{
+            background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+            opacity: 0.45
+          }}
+        />
+        {/* Subtle bottom depth glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px] z-[7]"
+          style={{
+            background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+            opacity: 0.25
+          }}
+        />
+      </div>
 
       {/* Hero Section */}
       <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-center px-4 pt-20 pb-32">

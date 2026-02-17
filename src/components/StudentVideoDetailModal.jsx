@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import VoiceMessage from './VoiceMessage';
+import { useVideoModal } from '../contexts/VideoModalContext';
 
 /**
  * Mobile-optimized video detail modal for students
@@ -11,8 +12,15 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [videoStatus, setVideoStatus] = useState(video?.status || 'pending');
-  
   const videoRef = useRef(null);
+  const { registerVideoModalOpen, registerVideoModalClose } = useVideoModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerVideoModalOpen();
+      return () => registerVideoModalClose();
+    }
+  }, [isOpen, registerVideoModalOpen, registerVideoModalClose]);
 
   useEffect(() => {
     if (video) {

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHeight, onExerciseSelect, selectedExerciseIndex, sessionVideos = [] }) => {
+const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHeight, onExerciseSelect, selectedExerciseIndex, sessionVideos = [], isMobile = false }) => {
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event) => {
@@ -112,16 +112,32 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
     <div
       role="region"
       aria-label="Séance complète"
-      className="relative w-[320px] overflow-hidden rounded-2xl shadow-2xl flex flex-col text-white pointer-events-auto"
+      className="relative overflow-hidden rounded-2xl shadow-2xl flex flex-col text-white pointer-events-auto"
       style={{
-        background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
-        opacity: 0.95,
-        width: width,
-        height: mainModalHeight ? `${mainModalHeight}px` : 'auto',
-        maxHeight: mainModalHeight ? `${mainModalHeight}px` : '92vh'
+        background: isMobile
+          ? 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 1) 100%)'
+          : 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+        opacity: isMobile ? 1 : 0.95,
+        width: isMobile ? '100%' : width,
+        height: isMobile ? '100%' : (mainModalHeight ? `${mainModalHeight}px` : 'auto'),
+        maxHeight: isMobile ? '100%' : (mainModalHeight ? `${mainModalHeight}px` : '92vh'),
+        borderRadius: isMobile ? '16px' : undefined
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Mobile Close Button */}
+      {isMobile && (
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-white/50 hover:text-white p-2 z-10"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      )}
+
       {/* Header */}
       <div className="shrink-0 pl-6 pr-0 pt-6 pb-3 flex items-center justify-between">
         <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>

@@ -3,11 +3,19 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, PlayCircle, CheckCircle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getTagColor } from '../utils/tagColors';
 
 const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, onCopySession }) => {
-  // Mobile responsiveness
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   useEffect(() => {
     const handleResize = () => {

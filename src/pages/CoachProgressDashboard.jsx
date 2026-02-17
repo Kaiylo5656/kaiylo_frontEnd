@@ -3,7 +3,7 @@ import ProgressAnalytics from '../components/ProgressAnalytics';
 
 const CoachProgressDashboard = () => {
   return (
-    <div 
+    <div
       className="text-foreground w-full min-h-full relative overflow-hidden"
       style={{
         background: 'unset',
@@ -12,7 +12,7 @@ const CoachProgressDashboard = () => {
       }}
     >
       {/* Image de fond */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -27,9 +27,9 @@ const CoachProgressDashboard = () => {
           backgroundColor: 'transparent'
         }}
       />
-      
+
       {/* Layer blur sur l'écran */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -46,7 +46,7 @@ const CoachProgressDashboard = () => {
       />
 
       {/* Gradient conique Figma - partie droite */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -65,9 +65,9 @@ const CoachProgressDashboard = () => {
           animation: 'organicGradient 15s ease-in-out infinite'
         }}
       />
-      
+
       {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -122,7 +122,7 @@ const CoachProgressDashboard = () => {
             Monitor your students' progress and performance analytics.
           </p>
         </div>
-        
+
         <ProgressAnalytics userRole="coach" />
       </div>
     </div>

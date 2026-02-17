@@ -23,7 +23,6 @@ import useSortParams from '../hooks/useSortParams';
 import logger from '../utils/logger';
 import PeriodizationTab from './PeriodizationTab';
 import StudentSidebar from './StudentSidebar';
-import CoachStudentBottomNav from './CoachStudentBottomNav';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -2754,65 +2753,65 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </svg>
                   <div className="min-w-0 flex-1 flex flex-row items-center justify-between gap-3 md:justify-start">
                     <h3 className="text-white font-light text-sm md:text-base flex flex-col md:flex-row md:items-center gap-1 md:gap-2 min-w-0">
-                      <span className="flex items-center gap-2 min-w-0 truncate">
-                        {sessionName}
-                        <span className="text-xs md:text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                      <span className="flex flex-wrap items-center gap-2 min-w-0">
+                        <span className="min-w-0 break-words">{sessionName}</span>
+                        <span className="text-xs md:text-sm flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                             <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
                           </svg>
                           <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                         </span>
                       </span>
-                      <span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
-                        <span className="hidden md:inline">- {sessionDate} - </span>
+                      <span className="text-xs md:text-base hidden md:flex items-center gap-1.5" style={{ opacity: 0.5 }}>
+                        <span>- {sessionDate}</span>
                       </span>
                     </h3>
 
                     {/* Status indicator + Mark session completed - Mobile */}
                     <div className="flex items-center gap-2 flex-shrink-0 md:hidden">
-                  {session.videos.some(v => v.status === 'pending') && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
-                        disabled={markingSessionId === session.sessionId}
-                        title="Marquer cette séance en complété"
-                        className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          color: 'rgba(250, 250, 250, 0.5)',
-                          fontWeight: '400'
-                        }}
-                        onMouseEnter={(e) => {
-                          setHoveringValidateButtonSessionId(session.sessionId);
-                          if (markingSessionId === session.sessionId) return;
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                          e.currentTarget.style.color = '#D48459';
-                          e.currentTarget.style.fontWeight = '400';
-                        }}
-                        onMouseLeave={(e) => {
-                          setHoveringValidateButtonSessionId(null);
-                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                          e.currentTarget.style.fontWeight = '400';
-                        }}
-                      >
-                        {markingSessionId === session.sessionId ? (
-                            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                          ) : (
-                            <CircleCheckIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                          )}
-                        </button>
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                          À feedback
+                      {session.videos.some(v => v.status === 'pending') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkSessionAsCompleted(e, session.sessionId)}
+                            disabled={markingSessionId === session.sessionId}
+                            title="Marquer cette séance en complété"
+                            className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                            style={{
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              color: 'rgba(250, 250, 250, 0.5)',
+                              fontWeight: '400'
+                            }}
+                            onMouseEnter={(e) => {
+                              setHoveringValidateButtonSessionId(session.sessionId);
+                              if (markingSessionId === session.sessionId) return;
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                              e.currentTarget.style.color = '#D48459';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                            onMouseLeave={(e) => {
+                              setHoveringValidateButtonSessionId(null);
+                              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                              e.currentTarget.style.fontWeight = '400';
+                            }}
+                          >
+                            {markingSessionId === session.sessionId ? (
+                              <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                            ) : (
+                              <CircleCheckIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                            )}
+                          </button>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                            À feedback
+                          </span>
+                        </>
+                      )}
+                      {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                          Complété
                         </span>
-                      </>
-                    )}
-                    {session.videos.every(v => v.status === 'completed' || v.status === 'reviewed') && (
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                        Complété
-                      </span>
-                    )}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2930,110 +2929,110 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                                 {/* Series */}
                                 <div className="text-white/75 text-xs md:text-sm font-extralight">
-                                {(() => {
-                                  const { weight, reps } = getVideoWeightAndReps(video);
-                                  const seriesText = `Série ${video.set_number || 1}/3`;
-                                  const repsText = reps > 0 ? `${reps} reps` : null;
-                                  const weightText = weight > 0 ? `${weight}kg` : null;
+                                  {(() => {
+                                    const { weight, reps } = getVideoWeightAndReps(video);
+                                    const seriesText = `Série ${video.set_number || 1}/3`;
+                                    const repsText = reps > 0 ? `${reps} reps` : null;
+                                    const weightText = weight > 0 ? `${weight}kg` : null;
 
-                                  if (repsText && weightText) {
-                                    return (
-                                      <>
-                                        {seriesText} • {repsText}{' '}
-                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                      </>
-                                    );
-                                  } else if (repsText) {
-                                    return `${seriesText} • ${repsText}`;
-                                  } else if (weightText) {
-                                    return (
-                                      <>
-                                        {seriesText} •{' '}
-                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                      </>
-                                    );
-                                  }
-                                  return seriesText;
-                                })()}
+                                    if (repsText && weightText) {
+                                      return (
+                                        <>
+                                          {seriesText} • {repsText}{' '}
+                                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                        </>
+                                      );
+                                    } else if (repsText) {
+                                      return `${seriesText} • ${repsText}`;
+                                    } else if (weightText) {
+                                      return (
+                                        <>
+                                          {seriesText} •{' '}
+                                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                        </>
+                                      );
+                                    }
+                                    return seriesText;
+                                  })()}
+                                </div>
+
+                                {/* Coach Feedback */}
+                                {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                                  <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
+                                    {video.coach_feedback_audio_url && (
+                                      <div className="text-xs">
+                                        <VoiceMessage
+                                          message={{
+                                            file_url: video.coach_feedback_audio_url,
+                                            message_type: 'audio',
+                                            file_type: 'audio/webm'
+                                          }}
+                                          isOwnMessage={false}
+                                        />
+                                      </div>
+                                    )}
+                                    {video.coach_feedback && (
+                                      <div className="flex items-start gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                          <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
+                                        </svg>
+                                        <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                          {video.coach_feedback}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
-                              {/* Coach Feedback */}
-                              {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                                <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
-                                  {video.coach_feedback_audio_url && (
-                                    <div className="text-xs">
-                                      <VoiceMessage
-                                        message={{
-                                          file_url: video.coach_feedback_audio_url,
-                                          message_type: 'audio',
-                                          file_type: 'audio/webm'
-                                        }}
-                                        isOwnMessage={false}
-                                      />
-                                    </div>
-                                  )}
-                                  {video.coach_feedback && (
-                                    <div className="flex items-start gap-2">
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                                        <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
-                                      </svg>
-                                      <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                        {video.coach_feedback}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Status Badge + Validate button - same as VideoLibrary */}
-                            <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
-                              {video.status === 'pending' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
-                                    disabled={markingVideoId === video.id}
-                                    title="Marquer cet exercice en complété"
-                                    className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                                    style={{
-                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                      color: 'rgba(250, 250, 250, 0.5)',
-                                      fontWeight: '400'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      setHoveringValidateVideoId(video.id);
-                                      if (markingVideoId === video.id) return;
-                                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                                      e.currentTarget.style.color = '#D48459';
-                                      e.currentTarget.style.fontWeight = '400';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      setHoveringValidateVideoId(null);
-                                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                                      e.currentTarget.style.fontWeight = '400';
-                                    }}
-                                  >
-                                    {markingVideoId === video.id ? (
-                                      <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                    ) : (
-                                      <CircleCheckIcon className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                    À feedback
+                              {/* Status Badge + Validate button - same as VideoLibrary */}
+                              <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
+                                {video.status === 'pending' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                      disabled={markingVideoId === video.id}
+                                      title="Marquer cet exercice en complété"
+                                      className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                      style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        color: 'rgba(250, 250, 250, 0.5)',
+                                        fontWeight: '400'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        setHoveringValidateVideoId(video.id);
+                                        if (markingVideoId === video.id) return;
+                                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                        e.currentTarget.style.color = '#D48459';
+                                        e.currentTarget.style.fontWeight = '400';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        setHoveringValidateVideoId(null);
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                        e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                        e.currentTarget.style.fontWeight = '400';
+                                      }}
+                                    >
+                                      {markingVideoId === video.id ? (
+                                        <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                      ) : (
+                                        <CircleCheckIcon className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                      À feedback
+                                    </span>
+                                  </>
+                                )}
+                                {(video.status === 'completed' || video.status === 'reviewed') && (
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                    Complété
                                   </span>
-                                </>
-                              )}
-                              {(video.status === 'completed' || video.status === 'reviewed') && (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                                  Complété
-                                </span>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
                         </div>
                       );
                     })}
@@ -3990,7 +3989,114 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   return (
-    <div className="min-h-screen bg-transparent text-white flex">
+    <div className="min-h-screen bg-transparent text-white flex relative">
+      {/* Mobile Background Elements (Hidden on Desktop) */}
+      <div className="md:hidden">
+        {/* Image de fond */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+
+        {/* Layer blur sur l'écran */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+
+        {/* Gradient conique Figma - partie droite */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite'
+          }}
+        />
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+          }}
+        />
+        {/* Top glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+            opacity: 0.35,
+            zIndex: 5
+          }}
+        />
+        {/* Warm orange glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+            opacity: 0.45,
+            zIndex: 5
+          }}
+        />
+        {/* Subtle bottom depth glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+            opacity: 0.25,
+            zIndex: 5
+          }}
+        />
+      </div>
       {/* Sidebar - Hidden on mobile */}
       {students.length > 0 && (
         <div className="hidden md:flex ml-6 mt-3 self-stretch items-end">
@@ -4011,7 +4117,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-w-0 pb-[80px] md:pb-0">
+      <div className="flex-1 min-w-0 pb-[80px] md:pb-0 relative z-10">
         {loading ? (
           <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-8 w-8 text-[#d4845a] animate-spin" />
@@ -4056,31 +4162,28 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <h1 className="text-lg md:text-xl font-light flex-shrink-0" style={{ fontWeight: 200 }}>
                         {student?.full_name || student?.name || student?.profile?.full_name || 'Étudiant'}
                       </h1>
-                      {/* Menu déroulant sur mobile - REMOVED in favor of bottom nav */}
-                      {/* <div className="md:hidden relative flex-shrink-0" style={{ minWidth: '120px' }}>
+                      {/* Mobile Navigation Dropdown */}
+                      <div className="md:hidden relative flex-shrink-0 ml-auto" style={{ minWidth: '140px' }}>
                         <select
                           value={activeTab}
                           onChange={(e) => setActiveTab(e.target.value)}
-                          className="w-full bg-transparent border-0 px-2 py-1 pr-6 text-sm text-white focus:outline-none focus:ring-0 transition-colors"
+                          className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[var(--kaiylo-primary-hex)] transition-colors appearance-none"
                           style={{
                             color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
-                            appearance: 'none',
-                            WebkitAppearance: 'none',
-                            MozAppearance: 'none'
                           }}
                         >
-                          <option value="overview">Tableau de bord</option>
-                          <option value="training">Entraînement</option>
-                          <option value="periodization">Périodisation</option>
-                          <option value="analyse">Analyse vidéo</option>
-                          <option value="suivi">Suivi Financier</option>
+                          <option value="overview" className="bg-[#1a1a1a] text-white">Tableau de bord</option>
+                          <option value="training" className="bg-[#1a1a1a] text-white">Entraînement</option>
+                          <option value="periodization" className="bg-[#1a1a1a] text-white">Périodisation</option>
+                          <option value="analyse" className="bg-[#1a1a1a] text-white">Analyse vidéo</option>
+                          <option value="suivi" className="bg-[#1a1a1a] text-white">Suivi Financier</option>
                         </select>
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)' }}>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/50">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
-                      </div> */}
+                      </div>
                     </div>
 
                     {/* Onglets sur desktop */}
@@ -6426,21 +6529,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   </div>
 
                   <div className="relative min-h-[320px]">
-                  {videosLoading && (
-                    <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
-                      <div
-                        className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
-                        style={{
-                          borderTopColor: '#d4845a',
-                          borderRightColor: '#d4845a',
-                          width: '40px',
-                          height: '40px'
-                        }}
-                      />
-                    </div>
-                  )}
+                    {videosLoading && (
+                      <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
+                        <div
+                          className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
+                          style={{
+                            borderTopColor: '#d4845a',
+                            borderRightColor: '#d4845a',
+                            width: '40px',
+                            height: '40px'
+                          }}
+                        />
+                      </div>
+                    )}
 
-                  {!videosLoading && renderStudentVideosGrouped()}
+                    {!videosLoading && renderStudentVideosGrouped()}
                   </div>
                 </div>
               )}
@@ -6881,8 +6984,6 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           initialDate={overviewWeekDate}
         />
 
-        {/* Mobile Bottom Navigation */}
-        <CoachStudentBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
     </div>
   );

@@ -203,7 +203,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
 
   if (isEmpty && !loading) {
     return (
-      <div className={`${className}`}>
+      <div className={`hidden md:block ${className}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <History className="h-5 w-5 text-white/60" />
@@ -232,7 +232,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
                     <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
                   </svg>
-                  <span style={{ fontSize: '14px' }}>{getSelectedAthletesText()}</span>
+                  <span className="text-xs md:text-[14px]">{getSelectedAthletesText()}</span>
                   {selectedAthleteIds.length > 0 && (
                     <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
                       {selectedAthleteIds.length}
@@ -313,7 +313,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
   }
 
   return (
-    <div className={`${className}`}>
+    <div className={`hidden md:block ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <History className="h-5 w-5 text-white/60" />
@@ -342,7 +342,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4">
                   <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
                 </svg>
-                <span style={{ fontSize: '14px' }}>{getSelectedAthletesText()}</span>
+                <span className="text-xs md:text-[14px]">{getSelectedAthletesText()}</span>
                 {selectedAthleteIds.length > 0 && (
                   <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal">
                     {selectedAthleteIds.length}

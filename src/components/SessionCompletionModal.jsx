@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 
 const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUploading = false, uploadProgress = null, isValidating = false }) => {
   const [difficulty, setDifficulty] = useState('');
@@ -65,21 +65,34 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
+      style={{ zIndex: 110 }}
       onClick={handleBackdropClick}
     >
-      <div 
-        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative w-full h-full md:h-auto md:w-auto">
+        <div
+          className="relative mx-auto w-full overflow-hidden rounded-2xl border border-white/10 flex flex-col my-4 w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] md:my-0 md:w-full md:max-w-md md:h-auto md:max-h-[92vh]"
+          style={{ background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 1) 100%)', opacity: 1 }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
-        <div className="flex items-center justify-center px-4 text-center" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
-          <h2 className="text-[var(--kaiylo-primary-hex)] text-xl font-normal">Valider la séance</h2>
+        <div className="flex items-center justify-between px-4 shrink-0" style={{ paddingTop: '20px', paddingBottom: '15px' }}>
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isUploading || isValidating}
+            className="text-white/50 hover:text-white transition-colors p-1 -ml-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Revenir à la séance"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h2 className="text-[var(--kaiylo-primary-hex)] text-xl font-normal absolute left-1/2 -translate-x-1/2">Valider la séance</h2>
+          <div className="w-9" aria-hidden />
         </div>
 
         {/* Content */}
-        <div className="px-[25px] py-0 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-[25px] py-0 space-y-4">
           {/* Difficulty Selection */}
           <div>
             <p className="text-gray-400 text-xs font-light mb-3 text-center">Difficulté de la séance</p>
@@ -87,33 +100,30 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
               <button
                 onClick={() => setDifficulty('facile')}
                 disabled={isUploading || isValidating}
-                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
-                  difficulty === 'facile'
+                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'facile'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
                     : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
-                } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Facile
               </button>
               <button
                 onClick={() => setDifficulty('moyen')}
                 disabled={isUploading || isValidating}
-                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
-                  difficulty === 'moyen'
+                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'moyen'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
                     : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
-                } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Moyen
               </button>
               <button
                 onClick={() => setDifficulty('difficile')}
                 disabled={isUploading || isValidating}
-                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${
-                  difficulty === 'difficile'
+                className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'difficile'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
                     : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
-                } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Difficile
               </button>
@@ -133,13 +143,12 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
         </div>
 
         {/* Footer */}
-        <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px]">
+        <div className="flex flex-col gap-2 px-[25px] pt-[15px] pb-[20px] shrink-0">
           <button
             onClick={handleComplete}
             disabled={isUploading || isValidating || !difficulty}
-            className={`flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors flex items-center justify-center gap-2 ${
-              (isUploading || isValidating || !difficulty) ? 'opacity-50 cursor-not-allowed bg-[var(--surface-600)] hover:bg-[var(--surface-600)]' : ''
-            }`}
+            className={`flex-1 py-2 px-4 bg-[#d4845a] hover:bg-[#c47850] text-white rounded-lg font-normal text-[13px] transition-colors flex items-center justify-center gap-2 ${(isUploading || isValidating || !difficulty) ? 'opacity-50 cursor-not-allowed bg-[var(--surface-600)] hover:bg-[var(--surface-600)]' : ''
+              }`}
           >
             {(isUploading || isValidating) && <Loader2 className="h-4 w-4 animate-smooth-spin" />}
             {(isUploading || isValidating) ? 'Validation en cours...' : 'Terminer'}
@@ -147,12 +156,12 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
           <button
             onClick={handleClose}
             disabled={isUploading || isValidating}
-            className={`flex-1 py-2 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-light text-[13px] transition-colors ${
-              (isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`flex-1 py-2 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-light text-[13px] transition-colors ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
           >
             Annuler
           </button>
+        </div>
         </div>
       </div>
     </div>

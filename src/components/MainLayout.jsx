@@ -7,6 +7,7 @@ import PullToRefresh from './PullToRefresh';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
+import { OverlayModalProvider, useOverlayModal } from '../contexts/VideoModalContext';
 
 // Context to track if WorkoutSessionExecution is open
 const WorkoutSessionContext = createContext({
@@ -16,6 +17,13 @@ const WorkoutSessionContext = createContext({
 
 export const useWorkoutSession = () => useContext(WorkoutSessionContext);
 
+const BottomNavBarWrapper = () => {
+  const { isModalOpen } = useOverlayModal();
+  const { isWorkoutSessionOpen } = useWorkoutSession();
+  if (isWorkoutSessionOpen || isModalOpen) return null;
+  return <BottomNavBar />;
+};
+
 const MainLayout = ({ children }) => {
   const location = useLocation();
   const { user } = useAuth();
@@ -23,12 +31,14 @@ const MainLayout = ({ children }) => {
   const refresh = planningContext?.refresh ?? (() => Promise.resolve());
   const isChatPage = location.pathname.startsWith('/chat');
   const isStudentDashboard = user?.role === 'student' && location.pathname === '/student/dashboard';
+  const isExercisePage = location.pathname === '/coach/exercises' || location.pathname === '/admin/exercises';
   const [isWorkoutSessionOpen, setIsWorkoutSessionOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const isStudent = user?.role === 'student';
 
   return (
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
+      <OverlayModalProvider>
       <div className="h-screen bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: '#0a0a0a' }}>
         {/* Image de fond */}
         <div 
@@ -119,13 +129,13 @@ const MainLayout = ({ children }) => {
               {children}
             </PullToRefresh>
           ) : (
-            <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
+            <div className={`flex-1 relative z-10 overflow-x-hidden min-h-0 ${isChatPage ? 'p-0 overflow-hidden' : isExercisePage ? 'pt-0 pb-6 overflow-hidden flex flex-col w-full dashboard-scrollbar' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
               {children}
             </div>
           )}
         </main>
       </div>
-      {!isWorkoutSessionOpen && <BottomNavBar />}
+      <BottomNavBarWrapper />
       
       {/* Bouton flottant pour ouvrir le feedback — uniquement pour les coaches, masqué sur mobile (accessible via menu latéral) */}
       {!isStudent && (
@@ -146,6 +156,7 @@ const MainLayout = ({ children }) => {
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
       />
+      </OverlayModalProvider>
     </WorkoutSessionContext.Provider>
   );
 };
