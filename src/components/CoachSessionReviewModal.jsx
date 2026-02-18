@@ -883,12 +883,10 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           }
                         `}
                       >
-                        <div className="flex items-end justify-end gap-[15px] min-w-0 flex-shrink">
-                          <div className="w-[30px] h-[15px] flex items-center pb-[3px] flex-shrink-0">
-                            <span className={`text-[10px] md:text-[12px] whitespace-nowrap ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
-                              Set {setIndex + 1}
-                            </span>
-                          </div>
+                        <div className="flex items-baseline justify-end gap-[15px] min-w-0 flex-shrink">
+                          <span className={`text-[10px] md:text-[12px] whitespace-nowrap flex-shrink-0 ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
+                            Set {setIndex + 1}
+                          </span>
                           <span className={`text-xs md:text-[14px] font-light whitespace-nowrap min-w-0 truncate ${isSelected ? 'font-normal text-[#D4845A]' : 'text-white'}`}>
                             {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
                             {(() => {
