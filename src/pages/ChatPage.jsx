@@ -7,6 +7,7 @@ import ChatWindow from '../components/ChatWindow';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useHideMainHeaderInChat } from '../components/MainLayout';
 import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video, FileText } from 'lucide-react';
 
 // Custom MessageSquare Icon Component (Font Awesome)
@@ -25,6 +26,7 @@ const MessageSquareIcon = ({ className, style }) => (
 const ChatPage = () => {
   const { getAuthToken, user } = useAuth();
   const { socket, isConnected, connectionError, markMessagesAsRead } = useSocket();
+  const { setHideMainHeaderInChatThread } = useHideMainHeaderInChat();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -37,6 +39,13 @@ const ChatPage = () => {
 
   // Mobile state: show conversation list or chat window
   const [showConversationList, setShowConversationList] = useState(true);
+
+  // Hide main header when in thread view (conversation open), show it on list view
+  useEffect(() => {
+    const inThread = !!selectedConversation && !showConversationList;
+    setHideMainHeaderInChatThread(inThread);
+    return () => setHideMainHeaderInChatThread(false);
+  }, [selectedConversation, showConversationList, setHideMainHeaderInChatThread]);
 
   // Fetch user's conversations
   const fetchConversations = async () => {

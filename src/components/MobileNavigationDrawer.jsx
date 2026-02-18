@@ -63,6 +63,20 @@ const MessageSquareIcon = ({ className, style }) => (
   </svg>
 );
 
+// Custom Home Icon - same as BottomNavBar (student Accueil)
+const HomeIcon = ({ className, style }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={className} style={style} fill="currentColor">
+    <path d="M341.8 72.6C329.5 61.2 310.5 61.2 298.3 72.6L74.3 280.6C64.7 289.6 61.5 303.5 66.3 315.7C71.1 327.9 82.8 336 96 336L112 336L112 512C112 547.3 140.7 576 176 576L464 576C499.3 576 528 547.3 528 512L528 336L544 336C557.2 336 569 327.9 573.8 315.7C578.6 303.5 575.4 289.5 565.8 280.6L341.8 72.6zM304 384L336 384C362.5 384 384 405.5 384 432L384 528L256 528L256 432C256 405.5 277.5 384 304 384z" />
+  </svg>
+);
+
+// Custom History/Calendar Icon - same as BottomNavBar (student Planning)
+const HistoryIcon = ({ className, style }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} style={style} fill="currentColor">
+    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
+  </svg>
+);
+
 const NavLink = ({ to, icon: Icon, children, onClick, onLinkClick, disabled = false, badge }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
@@ -193,6 +207,14 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
         { name: 'Exercices', path: '/coach/exercises', icon: DumbbellIcon },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: VideoIcon },
         { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
+      ];
+    }
+    if (user?.role === 'student') {
+      return [
+        { name: 'Accueil', path: '/student/dashboard', icon: HomeIcon },
+        { name: 'Planning', path: '/student/history', icon: HistoryIcon },
+        { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
+        { name: 'Vidéothèque', path: '/student/videos', icon: VideoIcon },
       ];
     }
     return [];
