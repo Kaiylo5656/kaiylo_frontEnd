@@ -438,7 +438,7 @@ const StudentVideoLibrary = () => {
                                   
                                   {/* Series and Date */}
                                   <div className="text-gray-400 text-sm">
-                                    Série {video.set_number || 1}/3
+                                    Série {video.set_number || 1}/{video.total_sets || '?'}
                                   </div>
                                   <div className="text-gray-400 text-sm">
                                     {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}

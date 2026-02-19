@@ -127,7 +127,7 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
               <span className="text-[var(--kaiylo-primary-hex)] text-[20px] font-normal">{video.exercise_name || 'Exercice'}</span>
             </h3>
             <div className="flex items-center justify-center gap-2 text-white/50 text-[13px] font-light mt-1">
-              <span>№ {video.set_number || 1}/3</span>
+              <span>№ {video.set_number || 1}/{video.total_sets || '?'}</span>
               {(() => {
                 const { weight, reps } = getVideoWeightAndReps(video);
                 if (weight > 0 || reps > 0) {

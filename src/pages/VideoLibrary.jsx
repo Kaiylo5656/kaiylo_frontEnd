@@ -1233,7 +1233,7 @@ const VideoLibrary = () => {
                                 <div className="text-white/75 text-xs md:text-sm font-extralight">
                                   {(() => {
                                     const { weight, reps } = getVideoWeightAndReps(video);
-                                    const seriesText = `Série ${video.set_number || 1}/3`;
+                                    const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
                                     const repsText = reps > 0 ? `${reps} reps` : null;
                                     const weightText = weight > 0 ? `${weight}kg` : null;
 
@@ -1404,7 +1404,7 @@ const VideoLibrary = () => {
 
               {/* Set Info & Date */}
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Série {video.set_number}/3</span>
+                <span>Série {video.set_number}/{video.total_sets || '?'}</span>
                 <span>{video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}</span>
               </div>
 

@@ -739,7 +739,7 @@ const StudentVideoLibrary = () => {
                                           <span className="text-white/50 text-xs sm:text-[13px]">{format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}</span>
                                         </h3>
                                         <div className="flex items-center gap-2 text-white/50 text-xs sm:text-[13px] font-light mt-1">
-                                          <span>№ {video.set_number || 1}/3</span>
+                                          <span>№ {video.set_number || 1}/{video.total_sets || '?'}</span>
                                           {(() => {
                                             const { weight, reps } = getVideoWeightAndReps(video);
                                             if (weight > 0 || reps > 0) {
