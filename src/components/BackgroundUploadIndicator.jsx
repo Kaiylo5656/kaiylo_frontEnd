@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Check, AlertCircle, X, RotateCcw } from 'lucide-react';
+import { Upload, Check, AlertCircle, X, RotateCcw, Video } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
 
 const BackgroundUploadIndicator = () => {
@@ -40,6 +40,8 @@ const BackgroundUploadIndicator = () => {
 
   const getStatusInfo = (upload) => {
     switch (upload.status) {
+      case 'SELECTING':
+        return { text: 'Sélection de la vidéo...', color: 'text-white/60' };
       case 'PENDING':
         return { text: 'Preparation...', color: 'text-white/60' };
       case 'UPLOADING':
@@ -62,6 +64,7 @@ const BackgroundUploadIndicator = () => {
           const statusInfo = getStatusInfo(upload);
           const isComplete = upload.status === 'READY';
           const isFailed = upload.status === 'FAILED';
+          const isSelecting = upload.status === 'SELECTING';
           const isUploading = upload.status === 'UPLOADING' || upload.status === 'PENDING' || upload.status === 'UPLOADED_RAW';
 
           return (
@@ -78,6 +81,7 @@ const BackgroundUploadIndicator = () => {
                 <div className="flex-shrink-0">
                   {isComplete && <Check className="w-4 h-4 text-green-400" />}
                   {isFailed && <AlertCircle className="w-4 h-4 text-red-400" />}
+                  {isSelecting && <Video className="w-4 h-4 text-[#d4845a] animate-pulse" />}
                   {isUploading && <Upload className="w-4 h-4 text-[#d4845a] animate-pulse" />}
                 </div>
 
@@ -107,6 +111,17 @@ const BackgroundUploadIndicator = () => {
                   )}
                 </div>
               </div>
+
+              {/* Selecting indicator - pulsing bar */}
+              {isSelecting && (
+                <div className="mt-2 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+                  <motion.div
+                    className="bg-[#d4845a]/60 h-full rounded-full w-1/3"
+                    animate={{ x: ['-100%', '300%'] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                </div>
+              )}
 
               {/* Progress bar */}
               {isUploading && (

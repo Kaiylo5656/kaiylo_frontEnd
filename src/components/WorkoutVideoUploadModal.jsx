@@ -8,10 +8,10 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { startBackgroundUpload, getUploadForSet } = useBackgroundUpload();
+  const { triggerBackgroundFileSelect, getUploadForSet } = useBackgroundUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
-  const fileInputRef = useRef(null); // Keep file input alive for iOS Safari (prevents GC during video compression)
+  // File input is now managed by BackgroundUploadContext (survives modal unmount on iOS)
 
   // Check if there's an active background upload for this set
   const activeUpload = getUploadForSet(exerciseInfo?.exerciseIndex, setInfo?.setIndex);
@@ -142,66 +142,44 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
     });
   }, [videoFile, videoPreviewUrl, isOpen, existingVideo]);
 
-  // Cleanup preview URL and file input ref
+  // Cleanup preview URL
   useEffect(() => {
     return () => {
       if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(videoPreviewUrl);
       }
-      if (fileInputRef.current) {
-        fileInputRef.current.onchange = null;
-        fileInputRef.current = null;
-      }
     };
   }, [videoPreviewUrl]);
 
-  // Handle gallery selection — starts background upload and closes modal immediately
+  // Handle gallery selection — closes modal IMMEDIATELY, then file picker opens
+  // The file input and callbacks live in BackgroundUploadContext so they survive modal unmount.
   const handleGallerySelect = () => {
-    // If there's already an active upload for this set, don't start another
-    if (activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING')) {
-      logger.debug('⚠️ Upload already in progress for this set, not starting another');
+    // If there's already an active upload/selection for this set, don't start another
+    if (activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING' || activeUpload.status === 'SELECTING')) {
+      logger.debug('⚠️ Upload/selection already in progress for this set, not starting another');
       return;
     }
 
-    // Clean up previous input if any
-    if (fileInputRef.current) {
-      fileInputRef.current.onchange = null;
-    }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'video/*';
-    fileInputRef.current = input; // Keep alive for iOS
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        if (file.size > MAX_FILE_SIZE) {
-          alert(`❌ Vidéo trop volumineuse ! (Max ${MAX_FILE_SIZE / 1024 / 1024 / 1024}GB)`);
-          return;
-        }
-        logger.debug('📁 File selected, starting background upload:', { name: file.name, size: file.size, type: file.type });
-
-        // Start background upload via context
-        const tusMetadata = {
-          assigned_session_id: exerciseInfo.sessionId,
-          set_id: setInfo.setId || null,
-          exercise_id: exerciseInfo.exerciseId,
-          source: 'session_set',
-          metadata: {
-            exercise_name: exerciseInfo.exerciseName,
-            exercise_index: exerciseInfo.exerciseIndex,
-            set_number: setInfo.setNumber,
-            set_index: setInfo.setIndex,
-            weight: setInfo.weight,
-            reps: setInfo.reps,
-          }
-        };
-        startBackgroundUpload(file, tusMetadata, exerciseInfo, setInfo, onUploadSuccess);
-
-        // Close modal immediately — upload continues in background
-        onClose();
+    const tusMetadataTemplate = {
+      assigned_session_id: exerciseInfo.sessionId,
+      set_id: setInfo.setId || null,
+      exercise_id: exerciseInfo.exerciseId,
+      source: 'session_set',
+      metadata: {
+        exercise_name: exerciseInfo.exerciseName,
+        exercise_index: exerciseInfo.exerciseIndex,
+        set_number: setInfo.setNumber,
+        set_index: setInfo.setIndex,
+        weight: setInfo.weight,
+        reps: setInfo.reps,
       }
     };
-    input.click();
+
+    // Close modal IMMEDIATELY — before file picker opens
+    onClose();
+
+    // Trigger file selection via context (input + callbacks survive modal unmount)
+    triggerBackgroundFileSelect(exerciseInfo, setInfo, onUploadSuccess, tusMetadataTemplate, MAX_FILE_SIZE);
   };
 
   const handleNoVideo = () => {
@@ -262,7 +240,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
     }
 
     // If upload is already in progress or completed, just close
-    if (status === 'UPLOADING' || status === 'PENDING' || status === 'READY' || status === 'UPLOADED_RAW') {
+    if (status === 'UPLOADING' || status === 'PENDING' || status === 'READY' || status === 'UPLOADED_RAW' || status === 'SELECTING') {
       onClose();
       return;
     }

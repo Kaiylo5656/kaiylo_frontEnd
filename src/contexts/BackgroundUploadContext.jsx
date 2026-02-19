@@ -9,6 +9,8 @@ const BackgroundUploadContext = createContext(null);
 
 // Action types
 const START_UPLOAD = 'START_UPLOAD';
+const START_SELECTION = 'START_SELECTION';
+const CANCEL_SELECTION = 'CANCEL_SELECTION';
 const SET_PROGRESS = 'SET_PROGRESS';
 const SET_STATUS = 'SET_STATUS';
 const SET_VIDEO_ID = 'SET_VIDEO_ID';
@@ -17,13 +19,33 @@ const DISMISS = 'DISMISS';
 
 function uploadReducer(state, action) {
   switch (action.type) {
-    case START_UPLOAD:
+    case START_SELECTION:
       return {
         ...state,
         [action.payload.id]: {
           id: action.payload.id,
           exerciseInfo: action.payload.exerciseInfo,
           setInfo: action.payload.setInfo,
+          status: 'SELECTING',
+          progress: 0,
+          error: null,
+          videoId: null,
+        },
+      };
+    case CANCEL_SELECTION:
+      if (!state[action.payload.id] || state[action.payload.id].status !== 'SELECTING') return state;
+      {
+        const { [action.payload.id]: _, ...rest } = state;
+        return rest;
+      }
+    case START_UPLOAD:
+      return {
+        ...state,
+        [action.payload.id]: {
+          ...(state[action.payload.id] || {}),
+          id: action.payload.id,
+          exerciseInfo: action.payload.exerciseInfo || state[action.payload.id]?.exerciseInfo,
+          setInfo: action.payload.setInfo || state[action.payload.id]?.setInfo,
           status: 'PENDING',
           progress: 0,
           error: null,
@@ -81,6 +103,7 @@ export function BackgroundUploadProvider({ children }) {
   const fileRefs = useRef({}); // Map of upload id -> File object (for retry)
   const metadataRefs = useRef({}); // Map of upload id -> TUS metadata (for retry)
   const callbackRefs = useRef({}); // Map of upload id -> onSuccess callback
+  const fileInputRefs = useRef({}); // Map of upload id -> <input> element (survives modal unmount)
   const { getAuthToken } = useAuth();
 
   const startBackgroundUpload = useCallback(async (file, tusMetadata, exerciseInfo, setInfo, onSuccess) => {
@@ -182,6 +205,88 @@ export function BackgroundUploadProvider({ children }) {
     return id;
   }, [getAuthToken]);
 
+  // Start file selection: creates SELECTING entry, triggers file picker, handles cancellation
+  // This lives in the context so the <input> and callbacks survive modal unmount.
+  const triggerBackgroundFileSelect = useCallback((exerciseInfo, setInfo, onSuccess, tusMetadataTemplate, maxFileSize) => {
+    const id = `${exerciseInfo.exerciseIndex}-${setInfo.setIndex}`;
+
+    // Create SELECTING entry
+    dispatch({ type: START_SELECTION, payload: { id, exerciseInfo, setInfo } });
+    callbackRefs.current[id] = onSuccess;
+
+    // Clean up previous input if any
+    if (fileInputRefs.current[id]) {
+      fileInputRefs.current[id].onchange = null;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    fileInputRefs.current[id] = input;
+
+    let fileSelected = false;
+
+    input.onchange = (e) => {
+      fileSelected = true;
+      const file = e.target.files[0];
+      if (file) {
+        if (maxFileSize && file.size > maxFileSize) {
+          alert(`❌ Vidéo trop volumineuse ! (Max ${maxFileSize / 1024 / 1024 / 1024}GB)`);
+          dispatch({ type: CANCEL_SELECTION, payload: { id } });
+          return;
+        }
+        logger.debug('📁 File selected via context picker:', { name: file.name, size: file.size, type: file.type });
+
+        // Transition SELECTING → start upload
+        fileRefs.current[id] = file;
+        startBackgroundUpload(file, tusMetadataTemplate, exerciseInfo, setInfo, onSuccess);
+      } else {
+        // No file in the event — treat as cancellation
+        dispatch({ type: CANCEL_SELECTION, payload: { id } });
+      }
+    };
+
+    // Detect picker cancellation via visibilitychange
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // Page became visible again (picker closed). Wait a bit for onchange to fire.
+        setTimeout(() => {
+          if (!fileSelected) {
+            logger.debug('📁 File picker cancelled (no file selected)');
+            dispatch({ type: CANCEL_SELECTION, payload: { id } });
+          }
+          document.removeEventListener('visibilitychange', handleVisibility);
+        }, 500);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Also detect via focus for desktop browsers where visibilitychange may not fire
+    const handleFocus = () => {
+      setTimeout(() => {
+        if (!fileSelected) {
+          logger.debug('📁 File picker cancelled via focus (no file selected)');
+          dispatch({ type: CANCEL_SELECTION, payload: { id } });
+        }
+        window.removeEventListener('focus', handleFocus);
+      }, 500);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Trigger the file picker
+    input.click();
+
+    return id;
+  }, [startBackgroundUpload]);
+
+  const cancelSelection = useCallback((id) => {
+    dispatch({ type: CANCEL_SELECTION, payload: { id } });
+    if (fileInputRefs.current[id]) {
+      fileInputRefs.current[id].onchange = null;
+      delete fileInputRefs.current[id];
+    }
+  }, []);
+
   const getUploadForSet = useCallback((exerciseIndex, setIndex) => {
     const id = `${exerciseIndex}-${setIndex}`;
     return uploads[id] || null;
@@ -193,6 +298,10 @@ export function BackgroundUploadProvider({ children }) {
     delete fileRefs.current[id];
     delete metadataRefs.current[id];
     delete callbackRefs.current[id];
+    if (fileInputRefs.current[id]) {
+      fileInputRefs.current[id].onchange = null;
+      delete fileInputRefs.current[id];
+    }
     dispatch({ type: DISMISS, payload: { id } });
   }, []);
 
@@ -235,6 +344,8 @@ export function BackgroundUploadProvider({ children }) {
 
   const value = {
     startBackgroundUpload,
+    triggerBackgroundFileSelect,
+    cancelSelection,
     getUploadForSet,
     activeUploads,
     dismissUpload,
