@@ -35,7 +35,7 @@ const LeaveSessionWarningModal = ({ isOpen, onClose, onConfirm }) => {
       onClick={handleBackdropClick}
     >
       <div 
-        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10"
+        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

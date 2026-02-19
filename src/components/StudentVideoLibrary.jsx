@@ -602,6 +602,7 @@ const StudentVideoLibrary = () => {
         }}
         video={selectedCoachResource}
         onFeedbackUpdate={() => {}} // No feedback updates for coach resources in student view
+        studentView
       />
     </div>
   );

@@ -5,7 +5,7 @@ import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
-const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
+const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentView = false }) => {
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [isFileMissing, setIsFileMissing] = useState(false);
@@ -79,7 +79,7 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
       onClick={onClose}
     >
       <div
-        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10 flex flex-col max-h-[92vh]"
+        className={`bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[92vh] ${!studentView ? 'border border-white/10' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

@@ -70,9 +70,9 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
       style={{ zIndex: 110 }}
       onClick={handleBackdropClick}
     >
-      <div className="relative w-full h-full md:h-auto md:w-auto">
+      <div className="relative w-full h-full flex items-center justify-center md:h-auto md:w-auto">
         <div
-          className="relative mx-auto w-full overflow-hidden rounded-2xl border border-white/10 flex flex-col my-4 w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] md:my-0 md:w-full md:max-w-md md:h-auto md:max-h-[92vh]"
+          className="relative mx-auto w-full overflow-hidden rounded-2xl flex flex-col my-4 w-[calc(100vw-2rem)] max-w-[400px] max-h-[85dvh] md:my-0 md:w-full md:max-w-md md:h-auto md:max-h-[92vh]"
           style={{ background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 1) 100%)', opacity: 1 }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -102,7 +102,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
                 disabled={isUploading || isValidating}
                 className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'facile'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                    : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
+                    : 'bg-black/50 text-gray-300 hover:bg-black/60'
                   } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Facile
@@ -112,7 +112,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
                 disabled={isUploading || isValidating}
                 className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'moyen'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                    : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
+                    : 'bg-black/50 text-gray-300 hover:bg-black/60'
                   } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Moyen
@@ -122,7 +122,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
                 disabled={isUploading || isValidating}
                 className={`flex-1 py-2 px-3 rounded-lg text-[13px] font-normal transition-colors ${difficulty === 'difficile'
                     ? 'bg-[#d4845a] text-white hover:bg-[#c47850]'
-                    : 'bg-[#262626] text-gray-300 hover:bg-[#404040]'
+                    : 'bg-black/50 text-gray-300 hover:bg-black/60'
                   } ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Difficile
@@ -137,7 +137,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
               onChange={(e) => setComment(e.target.value)}
               placeholder="Ajouter un commentaire..."
               disabled={isUploading || isValidating}
-              className="w-full h-24 bg-[#262626] border border-white/10 rounded-lg p-3 text-white text-base font-normal placeholder-gray-400 resize-none focus:outline-none focus:border-[#d4845a] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-24 bg-black/50 rounded-lg p-3 text-white text-sm font-normal placeholder-gray-400 resize-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -156,7 +156,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
           <button
             onClick={handleClose}
             disabled={isUploading || isValidating}
-            className={`flex-1 py-2 px-4 bg-[#262626] hover:bg-[#404040] text-white rounded-lg font-light text-[13px] transition-colors ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
+            className={`flex-1 py-2 px-4 bg-black/50 hover:bg-black/60 text-white rounded-lg font-light text-[13px] transition-colors ${(isUploading || isValidating) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
           >
             Annuler

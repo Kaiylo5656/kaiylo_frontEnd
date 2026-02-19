@@ -115,7 +115,7 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
       onClick={onClose}
     >
       <div
-        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden border border-white/10 flex flex-col max-h-[92vh]"
+        className="bg-[#1a1a1a] rounded-[25px] w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
