@@ -236,8 +236,8 @@ const OnboardingPage = () => {
               </div>
 
               {/* Birth Date */}
-              <div 
-                onClick={() => dateInputRef.current?.showPicker()}
+              <div
+                onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
                 className="relative rounded-[10px] flex items-center cursor-pointer"
                 style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.03)',
@@ -248,7 +248,7 @@ const OnboardingPage = () => {
                 }}
               >
                 {/* Custom Display */}
-                <div className="absolute inset-0 px-5 flex items-center pointer-events-none text-xs text-[rgba(255,255,255,1)] font-light">
+                <div className="absolute inset-0 px-5 flex items-center pointer-events-none text-xs text-[rgba(255,255,255,1)] font-light z-[1]">
                   {formData.birthDate ? (
                     (() => {
                       const [year, month, day] = formData.birthDate.split('-');
@@ -258,16 +258,16 @@ const OnboardingPage = () => {
                     <span className="text-[rgba(255,255,255,0.5)]">Date de naissance</span>
                   )}
                 </div>
-                
-                {/* Native Input (Invisible but interactive via ref) */}
+
+                {/* Native Input — near-invisible but tappable (opacity:0 breaks iOS hit-testing) */}
                 <input
                   ref={dateInputRef}
                   type="date"
                   name="birthDate"
                   value={formData.birthDate}
                   onChange={handleChange}
-                  className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
-                  style={{ colorScheme: 'dark' }}
+                  className="absolute inset-0 w-full h-full z-[2]"
+                  style={{ colorScheme: 'dark', opacity: 0.02 }}
                 />
               </div>
 

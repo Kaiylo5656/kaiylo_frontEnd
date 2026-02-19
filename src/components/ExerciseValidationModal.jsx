@@ -686,7 +686,8 @@ const ExerciseValidationModal = ({
     <>
       {createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-[5px]"
+          className="fixed inset-0 z-[100] bg-black/75"
+          style={{ backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}
           onClick={handleClose}
         >
           <div
@@ -1278,7 +1279,8 @@ const ExerciseValidationModal = ({
 
         return createPortal(
           <div
-            className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-[111] p-4"
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[111] p-4"
+            style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
             onClick={handleBackdropClick}
           >
             <div

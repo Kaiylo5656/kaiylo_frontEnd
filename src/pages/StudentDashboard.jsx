@@ -436,7 +436,7 @@ const StudentDashboard = () => {
           top: '0',
           left: '0',
           width: '100vw',
-          height: '100vh',
+          height: '100dvh',
           backgroundImage: 'url(/background.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -453,7 +453,7 @@ const StudentDashboard = () => {
           top: '0',
           left: '0',
           width: '100vw',
-          height: '100vh',
+          height: '100dvh',
           backdropFilter: 'blur(50px)',
           WebkitBackdropFilter: 'blur(100px)',
           backgroundColor: 'rgba(0, 0, 0, 0.01)',
@@ -536,7 +536,7 @@ const StudentDashboard = () => {
         className="px-10 pt-4 md:pt-6 pb-20 w-full max-w-6xl mx-auto relative z-10 flex flex-col items-center"
         style={{
           scrollBehavior: 'auto',
-          minHeight: '100vh',
+          minHeight: '100dvh',
           paddingBottom: 'calc(100px + env(safe-area-inset-bottom, 0px))',
           color: 'rgba(255, 255, 255, 0)'
         }}

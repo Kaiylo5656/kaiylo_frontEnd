@@ -45,7 +45,7 @@ const MainLayout = ({ children }) => {
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
       <HideMainHeaderInChatContext.Provider value={{ setHideMainHeaderInChatThread }}>
       <OverlayModalProvider>
-      <div className="h-screen bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="h-dvh bg-background text-foreground flex overflow-hidden w-full relative" style={{ backgroundColor: '#0a0a0a' }}>
         {/* Image de fond */}
         <div 
           style={{
@@ -53,7 +53,7 @@ const MainLayout = ({ children }) => {
             top: '0',
             left: '0',
             width: '100vw',
-            height: '100vh',
+            height: '100dvh',
             backgroundImage: 'url(/background.jpg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -70,7 +70,7 @@ const MainLayout = ({ children }) => {
             top: '0',
             left: '0',
             width: '100vw',
-            height: '100vh',
+            height: '100dvh',
             backdropFilter: 'blur(50px)',
             WebkitBackdropFilter: 'blur(100px)',
             backgroundColor: 'rgba(0, 0, 0, 0.01)',
