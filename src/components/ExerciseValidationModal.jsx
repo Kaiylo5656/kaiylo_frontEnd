@@ -893,7 +893,7 @@ const ExerciseValidationModal = ({
                                   <div className="w-[17px] h-[17px]" />
                                   <div className="w-[17px] h-[17px]" />
                                 </div>
-                                <div className={`${exercise.useRir ? 'w-[45px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                <div className={`${exercise.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
                                   <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
                                     {exercise.useRir ? 'Charge' : 'RPE'}
                                   </p>
@@ -1005,7 +1005,7 @@ const ExerciseValidationModal = ({
                                         </button>
                                       </div>
                                       {/* Bouton RPE / Input Charge - Centré */}
-                                      <div className={`${exercise.useRir ? 'w-[45px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                      <div className={`${exercise.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
                                         <div className="flex justify-center items-center w-full">
                                           {exercise.useRir ? (
                                             // Si coach demande RPE : l'élève saisit une charge
@@ -1049,13 +1049,12 @@ const ExerciseValidationModal = ({
                                                   e.preventDefault();
                                                 }}
                                                 disabled={!isCompleted}
-                                                className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[32px] min-w-[32px] h-[18px] text-[10px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isCompleted
+                                                className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[45px] min-w-[45px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isCompleted
                                                   ? 'opacity-50 cursor-not-allowed text-white/50'
                                                   : 'cursor-text text-[#d4845a]'
                                                   }`}
                                                 style={{
                                                   padding: '0',
-                                                  fontSize: '10px',
                                                   lineHeight: 1
                                                 }}
                                                 placeholder=""

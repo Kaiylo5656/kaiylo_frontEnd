@@ -4,16 +4,24 @@ import logger from '../utils/logger';
 const getApiBaseUrl = () => {
   // Check if we're in development mode
   if (import.meta.env.DEV) {
-    // If we have a custom API URL set, use it
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    // If we have a custom API URL set, use it ONLY if:
+    // 1. We are on localhost
+    // 2. OR the custom URL is NOT localhost (meaning it's a specific IP or tunnel)
     if (import.meta.env.VITE_API_URL) {
-      logger.debug('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-      return import.meta.env.VITE_API_URL;
+      const isApiLocal = import.meta.env.VITE_API_URL.includes('localhost') || 
+                         import.meta.env.VITE_API_URL.includes('127.0.0.1');
+      
+      if (isLocal || !isApiLocal) {
+        logger.debug('🔧 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
+        return import.meta.env.VITE_API_URL;
+      }
     }
     
     // Check if we're accessing from a network device
-    const hostname = window.location.hostname;
-    
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    if (!isLocal) {
       // We're on a network device, use the network IP
       const networkUrl = `http://${hostname}:3001`;
       logger.debug('🔧 Using network API URL:', networkUrl);
@@ -101,14 +109,23 @@ export const getWorkingApiUrl = async () => {
 const getSocketUrl = () => {
   // Check if we're in development mode
   if (import.meta.env.DEV) {
-    // If we have a custom socket URL set, use it
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+
+    // If we have a custom socket URL set, use it ONLY if:
+    // 1. We are on localhost
+    // 2. OR the custom URL is NOT localhost
     if (import.meta.env.VITE_SOCKET_URL) {
-      return import.meta.env.VITE_SOCKET_URL;
+      const isSocketLocal = import.meta.env.VITE_SOCKET_URL.includes('localhost') || 
+                            import.meta.env.VITE_SOCKET_URL.includes('127.0.0.1');
+
+      if (isLocal || !isSocketLocal) {
+        return import.meta.env.VITE_SOCKET_URL;
+      }
     }
     
     // Check if we're accessing from a network device
-    const hostname = window.location.hostname;
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    if (!isLocal) {
       // We're on a network device, use the network IP
       return `http://${hostname}:3001`;
     }
