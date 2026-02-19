@@ -1,17 +1,24 @@
 import logger from '../utils/logger';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
-import { useVideoUpload } from '../hooks/useVideoUpload';
+import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
 
 const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVideo, exerciseInfo, setInfo, existingVideo }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { uploadVideo, progress, status, error: uploadError, videoId, retry, reset } = useVideoUpload();
+  const { startBackgroundUpload, getUploadForSet } = useBackgroundUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
   const fileInputRef = useRef(null); // Keep file input alive for iOS Safari (prevents GC during video compression)
+
+  // Check if there's an active background upload for this set
+  const activeUpload = getUploadForSet(exerciseInfo?.exerciseIndex, setInfo?.setIndex);
+  const status = activeUpload?.status || 'IDLE';
+  const progress = activeUpload?.progress || 0;
+  const uploadError = activeUpload?.error || null;
+  const videoId = activeUpload?.videoId || null;
 
   // Maximum file size: 50GB (Upgraded plan)
   const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50GB
@@ -120,11 +127,10 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       logger.debug('🔍 WorkoutVideoUploadModal - No existingVideo, resetting');
       setVideoFile(null);
       setVideoPreviewUrl(null);
-      reset(); // Reset upload hook state
       initializedRef.current = true;
       lastVideoUrlRef.current = null;
     }
-  }, [isOpen, existingVideo?.videoUrl, existingVideo?.file, existingVideo?.isFromAPI, existingVideo?.videoId, reset]); // Use specific properties instead of entire object
+  }, [isOpen, existingVideo?.videoUrl, existingVideo?.file, existingVideo?.isFromAPI, existingVideo?.videoId]); // Use specific properties instead of entire object
   
   // Debug: Log videoFile and videoPreviewUrl changes
   useEffect(() => {
@@ -149,8 +155,14 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
     };
   }, [videoPreviewUrl]);
 
-  // Handle gallery selection — input stored in ref so iOS Safari doesn't GC it during video compression
+  // Handle gallery selection — starts background upload and closes modal immediately
   const handleGallerySelect = () => {
+    // If there's already an active upload for this set, don't start another
+    if (activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING')) {
+      logger.debug('⚠️ Upload already in progress for this set, not starting another');
+      return;
+    }
+
     // Clean up previous input if any
     if (fileInputRef.current) {
       fileInputRef.current.onchange = null;
@@ -166,10 +178,27 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           alert(`❌ Vidéo trop volumineuse ! (Max ${MAX_FILE_SIZE / 1024 / 1024 / 1024}GB)`);
           return;
         }
-        logger.debug('📁 File selected on device:', { name: file.name, size: file.size, type: file.type });
-        setVideoFile(file);
-        if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-        setVideoPreviewUrl(URL.createObjectURL(file));
+        logger.debug('📁 File selected, starting background upload:', { name: file.name, size: file.size, type: file.type });
+
+        // Start background upload via context
+        const tusMetadata = {
+          assigned_session_id: exerciseInfo.sessionId,
+          set_id: setInfo.setId || null,
+          exercise_id: exerciseInfo.exerciseId,
+          source: 'session_set',
+          metadata: {
+            exercise_name: exerciseInfo.exerciseName,
+            exercise_index: exerciseInfo.exerciseIndex,
+            set_number: setInfo.setNumber,
+            set_index: setInfo.setIndex,
+            weight: setInfo.weight,
+            reps: setInfo.reps,
+          }
+        };
+        startBackgroundUpload(file, tusMetadata, exerciseInfo, setInfo, onUploadSuccess);
+
+        // Close modal immediately — upload continues in background
+        onClose();
       }
     };
     input.click();
@@ -232,63 +261,18 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
         return;
     }
 
-    // Start TUS upload
-    if (videoFile && typeof videoFile === 'object') {
-         await uploadVideo(videoFile, {
-            assigned_session_id: exerciseInfo.sessionId, // Ensure these props exist
-            set_id: setInfo.setId || null, // Assuming setInfo has ID or we might need to pass it
-            exercise_id: exerciseInfo.exerciseId,
-            source: 'session_set',
-            // Add metadata for context
-            metadata: {
-                exercise_name: exerciseInfo.exerciseName,
-                exercise_index: exerciseInfo.exerciseIndex,
-                set_number: setInfo.setNumber,
-                set_index: setInfo.setIndex,
-                weight: setInfo.weight,
-                reps: setInfo.reps,
-                // Add any available RPE/comment if passed in props (currently not passed, but prepared for)
-            }
-         });
+    // If upload is already in progress or completed, just close
+    if (status === 'UPLOADING' || status === 'PENDING' || status === 'READY' || status === 'UPLOADED_RAW') {
+      onClose();
+      return;
     }
+
+    // If a file was selected but not yet uploaded, close (shouldn't happen with auto-upload)
+    onClose();
   };
 
-  // Track if we've already called onUploadSuccess for this upload
-  const hasCalledSuccessRef = useRef(false);
-  
-  // Reset the flag when modal opens/closes or when upload starts
-  useEffect(() => {
-    if (isOpen) {
-      hasCalledSuccessRef.current = false;
-    }
-  }, [isOpen]);
-  
-  useEffect(() => {
-    if (status === 'UPLOADING' || status === 'PENDING') {
-      hasCalledSuccessRef.current = false;
-    }
-  }, [status]);
-  
-  // Watch for upload completion
-  useEffect(() => {
-    if ((status === 'READY' || status === 'UPLOADED_RAW') && !hasCalledSuccessRef.current && videoId) {
-        // Success! Only call once per upload
-        hasCalledSuccessRef.current = true;
-        onUploadSuccess({ 
-            file: 'uploaded', // Mark as uploaded instead of passing File object
-            videoId: videoId, 
-            status: status,
-            exerciseInfo: exerciseInfo,
-            setInfo: setInfo
-        });
-        // We can close or show a success message
-        // Maybe auto-close after a second?
-        const timer = setTimeout(() => {
-            onClose();
-        }, 1000);
-        return () => clearTimeout(timer);
-    }
-  }, [status, videoId, videoFile, onUploadSuccess, onClose, exerciseInfo, setInfo]);
+  // Note: Upload completion is now handled by BackgroundUploadContext
+  // which calls the onSuccess callback directly when the TUS upload finishes.
 
 
   const getExerciseSubtitle = () => {
@@ -411,7 +395,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                               onClick={handleDeleteVideo}
                               className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-full transition-colors"
                               title="Supprimer la vidéo"
-                              disabled={status === 'UPLOADING' || status === 'PENDING'}
+                              disabled={activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-[14px] h-[14px]" fill="#d4845a">
                                 <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
@@ -432,7 +416,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                             onClick={handleDeleteVideo}
                             className="flex-shrink-0 w-[28px] h-[28px] flex items-center justify-center rounded-full transition-colors"
                             title="Supprimer la vidéo"
-                            disabled={status === 'UPLOADING' || status === 'PENDING'}
+                            disabled={activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING')}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-[14px] h-[14px]" fill="#d4845a">
                               <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z"/>
@@ -461,20 +445,19 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
              <div className="px-[28px] pt-3">
                <div className="bg-red-900/20 border border-red-500/30 rounded-[5px] p-3 flex flex-col items-center">
                  <p className="text-red-400 text-[11px] font-medium">{uploadError}</p>
-                 <button onClick={retry} className="mt-2 text-[10px] text-white underline">Réessayer</button>
+                 <button onClick={() => { /* Retry is handled via the floating indicator */ onClose(); }} className="mt-2 text-[10px] text-white underline">Fermer</button>
                </div>
              </div>
           )}
 
           <div className="px-[28px] pt-[25px] pb-[22px] flex gap-[10px] items-center justify-center">
-            <button type="button" onClick={onClose} className="bg-white/2 border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white" disabled={status === 'UPLOADING' || status === 'PENDING'}>Quitter</button>
+            <button type="button" onClick={onClose} className="bg-white/2 border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white">Quitter</button>
             <button 
                 type="button" 
                 onClick={handleSubmit} 
                 className="bg-[#d4845a] border-[0.5px] border-white/10 h-[32px] flex-1 rounded-[5px] text-[12px] text-white disabled:opacity-50"
-                disabled={status === 'UPLOADING' || status === 'PENDING'}
             >
-                {status === 'UPLOADING' ? 'Envoi...' : (status === 'READY' || status === 'UPLOADED_RAW' || isSubmitted ? 'Terminé' : 'Terminer')}
+                {status === 'UPLOADING' ? 'Envoi en cours...' : (status === 'READY' || status === 'UPLOADED_RAW' || isSubmitted ? 'Terminé' : 'Terminer')}
             </button>
           </div>
         </DialogContent>

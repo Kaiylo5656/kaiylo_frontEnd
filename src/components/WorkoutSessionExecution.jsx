@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { ArrowLeft, CheckCircle, XCircle, Video, Play, VideoOff } from 'lucide-react';
 import { Button } from './ui/button';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
+import BackgroundUploadIndicator from './BackgroundUploadIndicator';
 import SessionCompletionModal from './SessionCompletionModal';
 import VideoProcessingModal from './VideoProcessingModal'; // Import the new modal
 import ExerciseValidationModal from './ExerciseValidationModal'; // Import the exercise validation modal
@@ -1942,8 +1943,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         };
       });
     }
-
-    setIsVideoModalOpen(false);
   }, [currentExerciseIndex, selectedSetForVideo]);
 
   // Handle video deletion - completely remove video from localVideos
@@ -2634,6 +2633,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           onCompleteSession={handleCompleteSession}
         />
       )}
+
+      {/* Background Upload Progress Indicator */}
+      <BackgroundUploadIndicator />
 
       {/* Leave Session Warning Modal */}
       <LeaveSessionWarningModal
