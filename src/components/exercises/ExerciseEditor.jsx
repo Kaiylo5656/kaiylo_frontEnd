@@ -331,6 +331,7 @@ const ExerciseEditor = ({
               <video
                 src={videoPreview}
                 controls
+                playsInline
                 className="w-full max-h-64 rounded-lg bg-black"
               >
                 Your browser does not support the video tag.

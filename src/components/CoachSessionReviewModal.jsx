@@ -1054,6 +1054,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         <video
                           src={currentSetVideo.video_url}
                           controls
+                          playsInline
                           className="w-full h-full object-contain"
                           poster={currentSetVideo.thumbnail_url}
                         />

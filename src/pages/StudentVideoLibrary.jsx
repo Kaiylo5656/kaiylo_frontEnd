@@ -716,9 +716,11 @@ const StudentVideoLibrary = () => {
                                   <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                     {video.video_url ? (
                                       <video
-                                        src={video.video_url}
+                                        src={video.video_url + '#t=0.1'}
                                         className="w-full h-full object-cover"
                                         preload="metadata"
+                                        playsInline
+                                        muted
                                       />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
@@ -928,9 +930,11 @@ const StudentVideoLibrary = () => {
                                   <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                     {resource.fileUrl ? (
                                       <video
-                                        src={resource.fileUrl}
+                                        src={resource.fileUrl + '#t=0.1'}
                                         className="w-full h-full object-cover"
                                         preload="metadata"
+                                        playsInline
+                                        muted
                                       />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">

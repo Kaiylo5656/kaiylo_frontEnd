@@ -16,12 +16,13 @@ const VideoPlayer = forwardRef(({ src, poster, onLoadedMetadata, onPlay, onPause
       "
     >
       <video
-        ref={(el) => { 
-          videoRef.current = el; 
+        ref={(el) => {
+          videoRef.current = el;
         }}
         src={src}
         poster={poster}
         controls
+        playsInline
         tabIndex={tabIndex}
         onKeyDown={onKeyDown}
         onLoadedMetadata={onLoadedMetadata}

@@ -1,5 +1,19 @@
 /* Kaiylo Fitness Platform Styles */
 
+/* Expand touch target to 44px on touch devices without changing visual size */
+.touch-expand {
+  position: relative;
+}
+.touch-expand::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+}
+
 /* Prevent iOS Safari auto-zoom on input focus (requires font-size >= 16px) */
 @supports (-webkit-touch-callout: none) {
   input, select, textarea {

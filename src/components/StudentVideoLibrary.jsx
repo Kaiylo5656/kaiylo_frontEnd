@@ -411,10 +411,12 @@ const StudentVideoLibrary = () => {
                                 <div className="relative w-32 h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
                                   {video.video_url ? (
                                     <>
-                                      <video 
-                                        src={video.video_url}
+                                      <video
+                                        src={video.video_url + '#t=0.1'}
                                         className="w-full h-full object-cover"
                                         preload="metadata"
+                                        playsInline
+                                        muted
                                       />
                                       <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                                         <PlayCircle size={24} className="text-white" />
@@ -525,10 +527,12 @@ const StudentVideoLibrary = () => {
                       {/* Video Thumbnail */}
                       <div className="relative w-24 h-16 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
                         {resource.fileUrl ? (
-                          <video 
-                            src={resource.fileUrl}
+                          <video
+                            src={resource.fileUrl + '#t=0.1'}
                             className="w-full h-full object-cover"
                             preload="metadata"
+                            playsInline
+                            muted
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-700 flex items-center justify-center">

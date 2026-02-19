@@ -1200,9 +1200,11 @@ const VideoLibrary = () => {
                               {video?.video_url && video.video_url.trim() !== '' ? (
                                 <>
                                   <video
-                                    src={video.video_url}
+                                    src={video.video_url + '#t=0.1'}
                                     className="w-full h-full object-cover"
                                     preload="metadata"
+                                    playsInline
+                                    muted
                                   />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                                     <PlayCircle size={24} className="text-white" />
@@ -1360,9 +1362,11 @@ const VideoLibrary = () => {
             {/* Video Thumbnail */}
             <div className="relative aspect-video bg-muted overflow-hidden">
               <video
-                src={video.video_url || undefined}
+                src={(video.video_url || '') + '#t=0.1' || undefined}
                 className="w-full h-full object-cover"
                 preload="metadata"
+                playsInline
+                muted
                 onLoadedMetadata={(e) => {
                   const duration = e.target.duration;
                   if (duration && !isNaN(duration)) {
@@ -1453,7 +1457,7 @@ const VideoLibrary = () => {
                   </div>
                 ) : (
                   <>
-                    <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
+                    <video src={(video.fileUrl || '') + '#t=0.1' || undefined} className="w-full h-full object-cover" preload="metadata" playsInline muted></video>
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
                         <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z" />

@@ -2898,9 +2898,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               {video?.video_url && video.video_url.trim() !== '' ? (
                                 <>
                                   <video
-                                    src={video.video_url}
+                                    src={video.video_url + '#t=0.1'}
                                     className="w-full h-full object-cover"
                                     preload="metadata"
+                                    playsInline
+                                    muted
                                   />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
                                     <PlayCircle size={24} className="text-white" />

@@ -969,7 +969,7 @@ const ExerciseValidationModal = ({
                                             e.stopPropagation();
                                             handleValidateSet(setIndex);
                                           }}
-                                          className={`w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isCompleted ? 'bg-[#d4845a]' : 'bg-white/15'
+                                          className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isCompleted ? 'bg-[#d4845a]' : 'bg-white/15'
                                             }`}
                                           title="Valider la série"
                                         >
@@ -989,7 +989,7 @@ const ExerciseValidationModal = ({
                                             e.stopPropagation();
                                             handleFailSet(setIndex);
                                           }}
-                                          className={`w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isFailed ? 'bg-[#d4845a]' : 'bg-white/15'
+                                          className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isFailed ? 'bg-[#d4845a]' : 'bg-white/15'
                                             }`}
                                           title="Marquer en échec"
                                         >
@@ -1074,7 +1074,7 @@ const ExerciseValidationModal = ({
                                                 }
                                               }}
                                               disabled={!isCompleted}
-                                              className={`bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${!isCompleted
+                                              className={`touch-expand bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${!isCompleted
                                                 ? 'opacity-50 cursor-not-allowed'
                                                 : 'cursor-pointer hover:bg-white/10'
                                                 }`}
@@ -1101,7 +1101,7 @@ const ExerciseValidationModal = ({
                                         }
                                       }}
                                       disabled={!videoEnabled}
-                                      className={`w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
+                                      className={`touch-expand w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
                                         // État 1: Coach ne demande pas de vidéo - visible mais disabled
                                         !videoEnabled
                                           ? 'bg-white/5 opacity-50 cursor-not-allowed'

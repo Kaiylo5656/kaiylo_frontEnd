@@ -112,6 +112,7 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
           <video
             src={message.file_url}
             controls
+            playsInline
             className="file-video"
             onError={handleVideoError}
             preload="metadata"

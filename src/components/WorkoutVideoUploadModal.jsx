@@ -11,6 +11,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
   const { uploadVideo, progress, status, error: uploadError, videoId, retry, reset } = useVideoUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
+  const fileInputRef = useRef(null); // Keep file input alive for iOS Safari (prevents GC during video compression)
 
   // Maximum file size: 50GB (Upgraded plan)
   const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50GB
@@ -135,20 +136,29 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
     });
   }, [videoFile, videoPreviewUrl, isOpen, existingVideo]);
 
-  // Cleanup preview URL (only for blob URLs, not for signed URLs from Supabase)
+  // Cleanup preview URL and file input ref
   useEffect(() => {
     return () => {
       if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(videoPreviewUrl);
       }
+      if (fileInputRef.current) {
+        fileInputRef.current.onchange = null;
+        fileInputRef.current = null;
+      }
     };
   }, [videoPreviewUrl]);
 
-  // Handle gallery selection
+  // Handle gallery selection — input stored in ref so iOS Safari doesn't GC it during video compression
   const handleGallerySelect = () => {
+    // Clean up previous input if any
+    if (fileInputRef.current) {
+      fileInputRef.current.onchange = null;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'video/*';
+    fileInputRef.current = input; // Keep alive for iOS
     input.onchange = (e) => {
       const file = e.target.files[0];
       if (file) {
@@ -156,6 +166,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           alert(`❌ Vidéo trop volumineuse ! (Max ${MAX_FILE_SIZE / 1024 / 1024 / 1024}GB)`);
           return;
         }
+        logger.debug('📁 File selected on device:', { name: file.name, size: file.size, type: file.type });
         setVideoFile(file);
         if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
         setVideoPreviewUrl(URL.createObjectURL(file));
@@ -351,10 +362,12 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                           }
                           
                           return (
-                            <video 
-                              src={videoPreviewUrl} 
-                              controls 
-                              className="w-full max-h-[200px] bg-black" 
+                            <video
+                              src={videoPreviewUrl}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              className="w-full max-h-[200px] bg-black"
                               style={{ aspectRatio: '16/9' }}
                               onError={(e) => {
                                 logger.error('❌ Video load error:', e);

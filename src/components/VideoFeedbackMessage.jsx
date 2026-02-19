@@ -120,10 +120,11 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
                    className="w-full h-full object-cover"
                  />
               ) : (
-                 <video 
-                   src={videoUrl}
+                 <video
+                   src={videoUrl + '#t=0.1'}
                    className="w-full h-full object-cover"
                    preload="metadata"
+                   playsInline
                    muted
                  />
               )}
