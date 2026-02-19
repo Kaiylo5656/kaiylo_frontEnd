@@ -17,10 +17,12 @@ import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import ModalPortal from './ui/modal/ModalPortal';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import { getTagColor } from '../utils/tagColors';
 
 const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession, onCopySession }) => {
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
   const [exercises, setExercises] = useState([]);
@@ -75,6 +77,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   // Modal management
   const { isTopMost } = useModalManager();
   const modalId = 'create-workout-session';
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   // State for tracking initial values to detect changes
   const [initialState, setInitialState] = useState(null);

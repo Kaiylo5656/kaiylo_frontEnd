@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, forwardRef, cloneElement, isValidElement } from 'react';
 import { useRegisterModal } from './ModalManager';
 import ModalPortal from './ModalPortal';
+import { useOverlayModal } from '../../../contexts/VideoModalContext';
 
 const BaseModal = forwardRef(({
   isOpen,
@@ -21,7 +22,16 @@ const BaseModal = forwardRef(({
   borderRadius
 }, ref) => {
   const { isTopMost } = useRegisterModal(modalId);
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const internalModalRef = useRef(null);
+
+  // Hide coach mobile bottom nav when this modal is open
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
   const modalRef = ref || internalModalRef;
   const backdropRef = useRef(null);
   const externalContentRef = useRef(null);

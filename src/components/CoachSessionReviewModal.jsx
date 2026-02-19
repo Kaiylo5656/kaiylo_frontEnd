@@ -6,12 +6,14 @@ import { X, Play, Volume2, Maximize, Mic } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import SessionExercisesModal from './SessionExercisesModal';
 import VoiceRecorder from './VoiceRecorder';
 import VoiceMessage from './VoiceMessage';
 
 const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, studentId }) => {
   const { getAuthToken, refreshAuthToken } = useAuth();
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [sessionVideos, setSessionVideos] = useState([]);
   const [selectedExerciseIndex, setSelectedExerciseIndex] = useState(0);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -49,6 +51,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
   const handleToggleExercises = () => {
     setShowExercises(prev => !prev);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -505,10 +514,15 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         <div
           className="absolute flex flex-col gap-2.5"
           style={isMobile ? {
-            right: '16px',
-            top: '16px',
+            right: '0px',
+            top: '0px',
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            justifyContent: 'center',
+            alignItems: 'center',
             zIndex: 101,
-            alignItems: 'flex-end'
+            pointerEvents: 'none',
           } : {
             left: '100%',
             marginLeft: '1rem',
@@ -553,6 +567,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               position={exercisesPosition}
               mainModalHeight={mainModalHeight}
               sessionVideos={sessionVideos}
+              isMobile={isMobile}
               onExerciseSelect={(exerciseIndex) => {
                 setSelectedExerciseIndex(exerciseIndex);
                 if (isMobile) setShowExercises(false);
@@ -589,26 +604,26 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         </div>
         <div
           ref={contentRef}
-          className={`relative mx-auto w-full ${isMobile ? 'max-w-none h-full max-h-none rounded-none' : 'max-w-5xl max-h-[92vh] rounded-2xl'} overflow-visible shadow-2xl flex flex-col`}
+          className={`relative mx-auto w-full ${isMobile ? 'mt-4 mb-10 w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)] rounded-2xl' : 'max-w-5xl max-h-[92vh] rounded-2xl'} overflow-visible shadow-2xl flex flex-col`}
           style={{
-            background: isMobile ? '#131416' : 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
-            opacity: isMobile ? 1 : 0.95
+            background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+            opacity: 0.95
           }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Section */}
           <div className="shrink-0 px-6 pt-6 pb-3">
             <div className="flex items-center justify-between mb-2">
-              <div className={`flex ${isMobile ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+              <div className={`flex min-w-0 flex-1 overflow-hidden ${isMobile ? 'items-center' : 'items-center gap-3'}`}>
+                <div className={`flex items-center gap-2 min-w-0 ${isMobile ? 'flex-nowrap overflow-hidden' : 'flex-wrap'}`}>
+                  <h2 className={`text-xl font-normal text-white flex items-center gap-2 min-w-0 ${isMobile ? 'overflow-hidden' : 'flex-shrink-0'}`} style={{ color: 'var(--kaiylo-primary-hex)' }}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                       <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z" />
                     </svg>
-                    {session.title || 'Séance d\'entraînement'}
+                    <span className={isMobile ? 'block min-w-0 truncate' : ''}>{session.title || 'Séance d\'entraînement'}</span>
                   </h2>
                   {!isMobile && <span className="text-xl font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}> - </span>}
-                  <p className={`${isMobile ? 'text-sm text-white/70' : 'text-xl font-extralight'}`} style={{ color: isMobile ? undefined : 'var(--kaiylo-primary-hex)' }}>
+                  <p className={`hidden md:block text-xl font-extralight`} style={{ color: 'var(--kaiylo-primary-hex)' }}>
                     {(() => {
                       const formattedDate = format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr });
                       return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
@@ -624,37 +639,45 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     )}
                   </p>
                 </div>
-
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {isMobile && (
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       handleToggleExercises();
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(212,132,90,0.1)] hover:bg-[rgba(212,132,90,0.2)] text-[#D4845A] text-sm font-medium transition-colors border border-[#D4845A]/20"
+                    aria-expanded={showExercises}
+                    aria-label={showExercises ? "Masquer les exercices" : "Voir les exercices"}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
+                    style={{
+                      backgroundColor: showExercises ? 'var(--kaiylo-primary-hex)' : undefined,
+                      minWidth: '40px',
+                      minHeight: '40px',
+                    }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="8" y1="6" x2="21" y2="6"></line>
-                      <line x1="8" y1="12" x2="21" y2="12"></line>
-                      <line x1="8" y1="18" x2="21" y2="18"></line>
-                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 512 512"
+                      className={`h-4 w-4 text-white transition-opacity duration-150 ${showExercises ? 'opacity-100' : 'opacity-50'}`}
+                      fill="currentColor"
+                    >
+                      <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z" />
                     </svg>
-                    {showExercises ? "Masquer les exercices" : "Voir les exercices"}
                   </button>
                 )}
+                <button
+                  onClick={onClose}
+                  className="text-white/50 hover:text-white transition-colors p-1"
+                  aria-label="Close modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
+                    <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="text-white/50 hover:text-white transition-colors"
-                aria-label="Close modal"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
-                  <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
-                </svg>
-              </button>
             </div>
           </div>
           <div className="border-b border-white/10 mx-6"></div>
@@ -691,9 +714,10 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         <div
                           key={level}
                           className={`
-                          h-[30px] px-[32px] py-[8px] rounded-[10px] text-[14px] leading-tight
-                          border-0 flex items-center justify-center text-center whitespace-nowrap
-                          ${isMobile ? 'flex-1 px-2' : ''}
+                          border-0 flex items-center justify-center text-center whitespace-nowrap leading-tight
+                          rounded-[8px] py-1.5 px-2 text-xs
+                          md:h-[30px] md:px-[32px] md:py-[8px] md:rounded-[10px] md:text-[14px]
+                          ${isMobile ? 'flex-1 min-w-0' : ''}
                           ${isSelected
                               ? 'bg-[#D4845A] text-white font-normal shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)]'
                               : 'bg-[rgba(0,0,0,0.25)] text-white/75 font-light shadow-none'
@@ -713,8 +737,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
             {/* Exercise Title */}
             {selectedExercise && (
-              <div className="mb-[10px]">
-                <h3 className="text-[18px] font-light text-white leading-tight flex items-center gap-[6px]">
+              <div className="mb-[10px] min-w-0">
+                <h3 className="text-sm md:text-[18px] font-light text-white leading-tight flex items-center gap-[6px] min-w-0">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-[20px] w-[20px] flex-shrink-0" style={{ color: '#D4845A' }}>
                     <path d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z" fill="currentColor" />
                   </svg>
@@ -750,14 +774,14 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                     return (
                       <>
-                        <span className="font-normal">{selectedExercise.name}</span>
+                        <span className="font-normal min-w-0 truncate" title={selectedExercise.name}>{selectedExercise.name}</span>
                         {setsCount > 0 && repsPerSet !== undefined && repsPerSet !== null && (
-                          <span className="text-white font-normal">
+                          <span className="text-white font-normal flex-shrink-0">
                             {' '}{setsCount}x{repsPerSet}
                           </span>
                         )}
                         {displayValue !== null && (
-                          <span className="text-[#D4845A] font-normal">
+                          <span className="text-[#D4845A] font-normal flex-shrink-0">
                             {displayLabel === 'kg' ? ` @${displayValue}${displayLabel}` : ` RPE ${displayValue}`}
                           </span>
                         )}
@@ -849,7 +873,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         onClick={hasVideo ? () => handleSetSelect(setIndex, selectedExercise, selectedExerciseIndex) : undefined}
                         className={`
                           h-[37.5px] px-[15px] rounded-[8px]
-                          flex items-center justify-between
+                          flex items-center justify-between gap-2 min-w-0
                           ${hasVideo ? 'cursor-pointer transition-colors' : ''}
                           ${hasVideo
                             ? isSelected
@@ -859,13 +883,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                           }
                         `}
                       >
-                        <div className="flex items-end justify-end gap-[15px]">
-                          <div className="w-[30px] h-[15px] flex items-center pb-[3px]">
-                            <span className={`text-[12px] ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
-                              Set {setIndex + 1}
-                            </span>
-                          </div>
-                          <span className={`text-[14px] ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white'}`}>
+                        <div className="flex items-baseline justify-end gap-[15px] min-w-0 flex-shrink">
+                          <span className={`text-[10px] md:text-[12px] whitespace-nowrap flex-shrink-0 ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
+                            Set {setIndex + 1}
+                          </span>
+                          <span className={`text-xs md:text-[14px] font-light whitespace-nowrap min-w-0 truncate ${isSelected ? 'font-normal text-[#D4845A]' : 'text-white'}`}>
                             {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
                             {(() => {
                               // Si useRir === true, afficher le RPE demandé au lieu de la charge
@@ -893,7 +915,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             })()}
                           </span>
                         </div>
-                        <div className="flex items-end gap-[15px] pb-[3px]">
+                        <div className="flex items-end gap-[15px] pb-[3px] flex-shrink-0">
                           {(() => {
                             // Si useRir === true, afficher la charge renseignée par l'élève au lieu du RPE
                             if (selectedExercise.useRir || selectedExercise.use_rir) {
@@ -928,8 +950,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                                 const weightValue = String(studentWeight).trim();
                                 if (weightValue) {
                                   return (
-                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
-                                      <span className="text-[12px] font-light text-white/50">Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{weightValue}kg</span></span>
+                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{weightValue}kg</span></span>
                                     </div>
                                   );
                                 }
@@ -940,8 +962,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                               // Le coach a demandé un RPE, donc set.weight contient la valeur RPE demandée
                               if (rpeValue) {
                                 return (
-                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
-                                    <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
+                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                    <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
                                   </div>
                                 );
                               }
@@ -952,8 +974,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                                 // Vérifier que c'est bien un RPE valide (1-10)
                                 if (!isNaN(parseFloat(requestedRpe)) && parseFloat(requestedRpe) >= 1 && parseFloat(requestedRpe) <= 10) {
                                   return (
-                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center">
-                                      <span className="text-[12px] font-light text-white/50">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{Math.round(parseFloat(requestedRpe))}</span></span>
+                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{Math.round(parseFloat(requestedRpe))}</span></span>
                                     </div>
                                   );
                                 }
@@ -1071,97 +1093,97 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       )}
                     </div>
 
-                  {/* Coach Comment Input - Below video box */}
-                  <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
-                    {isRecordingVoice ? (
-                      <VoiceRecorder
-                        onSend={handleVoiceMessageSend}
-                        onCancel={handleVoiceRecorderCancel}
-                        disabled={savingFeedback}
-                      />
-                    ) : (
-                      <>
-                        <textarea
-                          ref={textareaRef}
-                          value={coachComment}
-                          onChange={(e) => {
-                            setCoachComment(e.target.value);
-                            setFeedback(e.target.value);
-                            // Auto-resize on input
-                            if (textareaRef.current) {
-                              textareaRef.current.style.height = 'auto';
-                              const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
-                              textareaRef.current.style.height = `${newHeight}px`;
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
+                    {/* Coach Comment Input - Below video box */}
+                    <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
+                      {isRecordingVoice ? (
+                        <VoiceRecorder
+                          onSend={handleVoiceMessageSend}
+                          onCancel={handleVoiceRecorderCancel}
+                          disabled={savingFeedback}
+                        />
+                      ) : (
+                        <>
+                          <textarea
+                            ref={textareaRef}
+                            value={coachComment}
+                            onChange={(e) => {
+                              setCoachComment(e.target.value);
+                              setFeedback(e.target.value);
+                              // Auto-resize on input
+                              if (textareaRef.current) {
+                                textareaRef.current.style.height = 'auto';
+                                const newHeight = Math.max(24, Math.min(textareaRef.current.scrollHeight, 100));
+                                textareaRef.current.style.height = `${newHeight}px`;
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if ((coachComment.trim() || audioRecording) && currentSetVideo) {
+                                  handleSaveComment(currentSetVideo, audioRecording);
+                                }
+                              }
+                            }}
+                            placeholder="Ajouter un commentaire ..."
+                            rows={1}
+                            className="flex-1 bg-transparent text-base font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                            style={{
+                              minHeight: '24px',
+                              maxHeight: '100px',
+                              height: '24px',
+                              lineHeight: '24px',
+                              paddingTop: '0',
+                              paddingBottom: '0'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsRecordingVoice(true)}
+                            disabled={savingFeedback || !currentSetVideo}
+                            className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                            title="Enregistrer un message vocal"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 384 512"
+                              className="h-4 w-4"
+                              style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
+                            >
+                              <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
                               e.preventDefault();
+                              e.stopPropagation();
                               if ((coachComment.trim() || audioRecording) && currentSetVideo) {
                                 handleSaveComment(currentSetVideo, audioRecording);
                               }
-                            }
-                          }}
-                          placeholder="Ajouter un commentaire ..."
-                          rows={1}
-                          className="flex-1 bg-transparent text-base font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
-                          style={{ 
-                            minHeight: '24px', 
-                            maxHeight: '100px', 
-                            height: '24px',
-                            lineHeight: '24px',
-                            paddingTop: '0',
-                            paddingBottom: '0'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setIsRecordingVoice(true)}
-                          disabled={savingFeedback || !currentSetVideo}
-                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                          title="Enregistrer un message vocal"
-                        >
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            viewBox="0 0 384 512" 
-                            className="h-4 w-4" 
-                            style={{ fill: 'var(--kaiylo-primary-hex)', color: 'var(--kaiylo-primary-hex)' }}
+                            }}
+                            className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
+                            style={{ opacity: 1 }}
+                            disabled={(!coachComment.trim() && !audioRecording) || savingFeedback || !currentSetVideo}
+                            type="button"
                           >
-                            <path d="M192 0C139 0 96 43 96 96l0 128c0 53 43 96 96 96s96-43 96-96l0-128c0-53-43-96-96-96zM48 184c0-13.3-10.7-24-24-24S0 170.7 0 184l0 40c0 97.9 73.3 178.7 168 190.5l0 49.5-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-49.5c94.7-11.8 168-92.6 168-190.5l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 79.5-64.5 144-144 144S48 303.5 48 224l0-40z"/>
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if ((coachComment.trim() || audioRecording) && currentSetVideo) {
-                              handleSaveComment(currentSetVideo, audioRecording);
-                            }
-                          }}
-                          className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                          style={{ opacity: 1 }}
-                          disabled={(!coachComment.trim() && !audioRecording) || savingFeedback || !currentSetVideo}
-                          type="button"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
-                            <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z"/>
-                          </svg>
-                        </button>
-                      </>
-                    )}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" style={{ fill: 'var(--kaiylo-primary-hex)' }}>
+                              <path d="M568.4 37.7C578.2 34.2 589 36.7 596.4 44C603.8 51.3 606.2 62.2 602.7 72L424.7 568.9C419.7 582.8 406.6 592 391.9 592C377.7 592 364.9 583.4 359.6 570.3L295.4 412.3C290.9 401.3 292.9 388.7 300.6 379.7L395.1 267.3C400.2 261.2 399.8 252.3 394.2 246.7C388.6 241.1 379.6 240.7 373.6 245.8L261.2 340.1C252.1 347.7 239.6 349.7 228.6 345.3L70.1 280.8C57 275.5 48.4 262.7 48.4 248.5C48.4 233.8 57.6 220.7 71.5 215.7L568.4 37.7z" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="bg-black/50 border-none rounded-[10px] p-[17.5px] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)] h-[171px] flex flex-col">
-                  <div className="bg-black flex-1 rounded-[10px] flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-8 w-8 text-white/25">
-                      <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L447.9 414.2L447.9 192C447.9 156.7 419.2 128 383.9 128L161.8 128L73 39.1zM64 192L64 448C64 483.3 92.7 512 128 512L384 512C391.8 512 399.3 510.6 406.2 508L68 169.8C65.4 176.7 64 184.2 64 192zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" fill="currentColor"/>
-                    </svg>
+                ) : (
+                  <div className="bg-black/50 border-none rounded-[10px] p-[17.5px] shadow-[0px_5px_10px_0px_rgba(0,0,0,0.25)] h-[171px] flex flex-col">
+                    <div className="bg-black flex-1 rounded-[10px] flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-8 w-8 text-white/25">
+                        <path d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L447.9 414.2L447.9 192C447.9 156.7 419.2 128 383.9 128L161.8 128L73 39.1zM64 192L64 448C64 483.3 92.7 512 128 512L384 512C391.8 512 399.3 510.6 406.2 508L68 169.8C65.4 176.7 64 184.2 64 192zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" fill="currentColor" />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
             {/* Action Buttons */}
             <div className={`flex gap-3 pt-0 ${isMobile ? 'flex-col-reverse' : 'justify-end'}`}>

@@ -65,7 +65,7 @@ const ContainedSideSheet = ({
 
   const content = (
     <>
-      {/* Backdrop scoped to parent if contained */}
+      {/* Backdrop: appears immediately so page is blurred as soon as user clicks */}
       <div
         aria-hidden
         className={`${pos} inset-0 ${
@@ -74,7 +74,7 @@ const ContainedSideSheet = ({
         style={{ 
           zIndex: zBackdrop,
           pointerEvents: isTopMost(modalId) ? 'auto' : 'none',
-          transition: 'opacity 600ms cubic-bezier(0.32, 0.72, 0, 1)'
+          transition: 'opacity 120ms ease-out'
         }}
         onClick={preventClose ? undefined : onClose}
       >

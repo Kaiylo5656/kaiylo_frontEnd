@@ -1,12 +1,21 @@
 import logger from '../utils/logger';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { buildApiUrl } from '../config/api';
 import axios from 'axios';
 
 export default function FeedbackModal({ isOpen, onClose }) {
   const { getAuthToken } = useAuth();
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [type, setType] = useState('bug');
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('medium');

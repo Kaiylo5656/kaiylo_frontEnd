@@ -510,8 +510,118 @@ const CoachDashboard = () => {
   }
 
   return (
-    <div className="h-full text-foreground flex flex-col">
-      <div className="flex-shrink-0 pt-3 px-6 pb-0">
+    <div className="h-full text-foreground flex flex-col relative overflow-x-hidden">
+      {/* Mobile Background Elements (Hidden on Desktop) */}
+      <div className="md:hidden">
+        {/* Image de fond */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+
+        {/* Layer blur sur l'écran */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+
+        {/* Gradient conique Figma - partie droite */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite'
+          }}
+        />
+
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+          }}
+        />
+
+        {/* Top glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+            opacity: 0.35,
+            zIndex: 5
+          }}
+        />
+        {/* Warm orange glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+            opacity: 0.45,
+            zIndex: 5
+          }}
+        />
+        {/* Subtle bottom depth glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+            opacity: 0.25,
+            zIndex: 5
+          }}
+        />
+      </div>
+
+      <div className="flex-shrink-0 pt-3 px-6 pb-0 relative z-10">
         {/* Search and Filter Bar */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-3">
           {/* Mobile: Search + Action Buttons on same line */}
@@ -587,8 +697,8 @@ const CoachDashboard = () => {
                   >
                     <span
                       className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
-                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                        ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                        : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
                         }`}
                       aria-hidden
                     />
@@ -617,8 +727,8 @@ const CoachDashboard = () => {
                 >
                   <div
                     className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterPendingFeedback
-                        ? 'bg-primary/20 text-primary font-normal'
-                        : 'font-light'
+                      ? 'bg-primary/20 text-primary font-normal'
+                      : 'font-light'
                       }`}
                     style={
                       !filterPendingFeedback
@@ -648,8 +758,8 @@ const CoachDashboard = () => {
                     onClick={() => setFilterPendingFeedback(!filterPendingFeedback)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterPendingFeedback
-                        ? 'bg-[#d4845a] border-[#d4845a]'
-                        : 'bg-transparent border-white/20'
+                      ? 'bg-[#d4845a] border-[#d4845a]'
+                      : 'bg-transparent border-white/20'
                       }`}>
                       {filterPendingFeedback && (
                         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -662,8 +772,8 @@ const CoachDashboard = () => {
 
                   <div
                     className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterPendingMessages
-                        ? 'bg-primary/20 text-primary font-normal'
-                        : 'font-light'
+                      ? 'bg-primary/20 text-primary font-normal'
+                      : 'font-light'
                       }`}
                     onMouseEnter={(e) => {
                       if (!filterPendingMessages) {
@@ -688,8 +798,8 @@ const CoachDashboard = () => {
                     onClick={() => setFilterPendingMessages(!filterPendingMessages)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterPendingMessages
-                        ? 'bg-[#d4845a] border-[#d4845a]'
-                        : 'bg-transparent border-white/20'
+                      ? 'bg-[#d4845a] border-[#d4845a]'
+                      : 'bg-transparent border-white/20'
                       }`}>
                       {filterPendingMessages && (
                         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -702,8 +812,8 @@ const CoachDashboard = () => {
 
                   <div
                     className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterNoUpcomingSessions
-                        ? 'bg-primary/20 text-primary font-normal'
-                        : 'font-light'
+                      ? 'bg-primary/20 text-primary font-normal'
+                      : 'font-light'
                       }`}
                     onMouseEnter={(e) => {
                       if (!filterNoUpcomingSessions) {
@@ -728,8 +838,8 @@ const CoachDashboard = () => {
                     onClick={() => setFilterNoUpcomingSessions(!filterNoUpcomingSessions)}
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterNoUpcomingSessions
-                        ? 'bg-[#d4845a] border-[#d4845a]'
-                        : 'bg-transparent border-white/20'
+                      ? 'bg-[#d4845a] border-[#d4845a]'
+                      : 'bg-transparent border-white/20'
                       }`}>
                       {filterNoUpcomingSessions && (
                         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -784,8 +894,8 @@ const CoachDashboard = () => {
                 >
                   <span
                     className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
-                        ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                        : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                      ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                      : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
                       }`}
                     aria-hidden
                   />
@@ -815,8 +925,8 @@ const CoachDashboard = () => {
               >
                 <div
                   className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterPendingFeedback
-                      ? 'bg-primary/20 text-primary font-normal'
-                      : 'font-light'
+                    ? 'bg-primary/20 text-primary font-normal'
+                    : 'font-light'
                     }`}
                   style={
                     !filterPendingFeedback
@@ -846,8 +956,8 @@ const CoachDashboard = () => {
                   onClick={() => setFilterPendingFeedback(!filterPendingFeedback)}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterPendingFeedback
-                      ? 'bg-[#d4845a] border-[#d4845a]'
-                      : 'bg-transparent border-white/20'
+                    ? 'bg-[#d4845a] border-[#d4845a]'
+                    : 'bg-transparent border-white/20'
                     }`}>
                     {filterPendingFeedback && (
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -860,8 +970,8 @@ const CoachDashboard = () => {
 
                 <div
                   className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterPendingMessages
-                      ? 'bg-primary/20 text-primary font-normal'
-                      : 'font-light'
+                    ? 'bg-primary/20 text-primary font-normal'
+                    : 'font-light'
                     }`}
                   onMouseEnter={(e) => {
                     if (!filterPendingMessages) {
@@ -886,8 +996,8 @@ const CoachDashboard = () => {
                   onClick={() => setFilterPendingMessages(!filterPendingMessages)}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterPendingMessages
-                      ? 'bg-[#d4845a] border-[#d4845a]'
-                      : 'bg-transparent border-white/20'
+                    ? 'bg-[#d4845a] border-[#d4845a]'
+                    : 'bg-transparent border-white/20'
                     }`}>
                     {filterPendingMessages && (
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -900,8 +1010,8 @@ const CoachDashboard = () => {
 
                 <div
                   className={`px-2.5 py-2 text-left text-sm transition-colors flex items-center gap-3 cursor-pointer rounded-md ${filterNoUpcomingSessions
-                      ? 'bg-primary/20 text-primary font-normal'
-                      : 'font-light'
+                    ? 'bg-primary/20 text-primary font-normal'
+                    : 'font-light'
                     }`}
                   onMouseEnter={(e) => {
                     if (!filterNoUpcomingSessions) {
@@ -926,8 +1036,8 @@ const CoachDashboard = () => {
                   onClick={() => setFilterNoUpcomingSessions(!filterNoUpcomingSessions)}
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${filterNoUpcomingSessions
-                      ? 'bg-[#d4845a] border-[#d4845a]'
-                      : 'bg-transparent border-white/20'
+                    ? 'bg-[#d4845a] border-[#d4845a]'
+                    : 'bg-transparent border-white/20'
                     }`}>
                     {filterNoUpcomingSessions && (
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -979,7 +1089,7 @@ const CoachDashboard = () => {
       </div>
 
       {/* Client List Container - Scrollable */}
-      <div className="flex-1 min-h-0 px-6 pb-6">
+      <div className="flex-1 min-h-0 px-6 pb-6 relative z-10">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
 
           {/* Client List - Scrollable */}
@@ -1000,8 +1110,8 @@ const CoachDashboard = () => {
                     >
                       <div
                         className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors cursor-pointer ${selectedStudents.size === filteredStudents.length && filteredStudents.length > 0
-                            ? 'bg-[#d4845a] border-[#d4845a]'
-                            : 'bg-transparent border border-white/20 hover:border-white/40'
+                          ? 'bg-[#d4845a] border-[#d4845a]'
+                          : 'bg-transparent border border-white/20 hover:border-white/40'
                           }`}
                       >
                         {selectedStudents.size === filteredStudents.length && filteredStudents.length > 0 && (
@@ -1109,8 +1219,8 @@ const CoachDashboard = () => {
                   <div
                     key={student.id}
                     className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-14 2xl:gap-32 3xl:gap-56 4xl:gap-72 5xl:gap-96 cursor-pointer transition-all duration-200 ${selectedStudents.has(student.id)
-                        ? 'bg-white/10'
-                        : 'bg-white/[0.04] hover:bg-white/10'
+                      ? 'bg-white/10'
+                      : 'bg-white/[0.04] hover:bg-white/10'
                       }`}
                     onClick={() => handleStudentClick(student)}
                   >
@@ -1127,8 +1237,8 @@ const CoachDashboard = () => {
                         >
                           <div
                             className={`w-[20px] h-[20px] rounded-[4px] flex items-center justify-center transition-colors ${selectedStudents.has(student.id)
-                                ? 'bg-[#d4845a]'
-                                : 'bg-transparent border border-white/20 group-hover:border-white/40'
+                              ? 'bg-[#d4845a]'
+                              : 'bg-transparent border border-white/20 group-hover:border-white/40'
                               }`}
                           >
                             {selectedStudents.has(student.id) && (
@@ -1181,8 +1291,8 @@ const CoachDashboard = () => {
                       <div className="w-[111px] flex items-center justify-center">
                         <div
                           className={`h-[22px] min-w-[22px] px-1.5 rounded-[20px] bg-[#d4845a] flex items-center justify-center shrink-0 transition-all duration-200 ${(studentVideoCounts[student.id] || 0) === 0
-                              ? 'opacity-0 cursor-default pointer-events-none'
-                              : 'cursor-pointer hover:bg-[#d4845a]/90 hover:scale-110'
+                            ? 'opacity-0 cursor-default pointer-events-none'
+                            : 'cursor-pointer hover:bg-[#d4845a]/90 hover:scale-110'
                             }`}
                           onClick={(studentVideoCounts[student.id] || 0) > 0 ? (e) => {
                             e.stopPropagation(); // Prevent triggering the row click
@@ -1210,8 +1320,8 @@ const CoachDashboard = () => {
                             fill="none"
                             xmlns="http://www.w3.org/2000/svg"
                             className={`transition-colors duration-200 ${studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0
-                                ? 'text-white/75 group-hover/icon:text-white'
-                                : 'text-white/30 group-hover/icon:text-white/50'
+                              ? 'text-white/75 group-hover/icon:text-white'
+                              : 'text-white/30 group-hover/icon:text-white/50'
                               }`}
                           >
                             <path
@@ -1229,8 +1339,8 @@ const CoachDashboard = () => {
 
                       {/* Next Session Date */}
                       <div className={`w-[150px] whitespace-nowrap text-center ${studentNextSessions[student.id]
-                          ? 'text-[12px] font-normal text-white/75'
-                          : 'text-[14px] font-normal text-[#d4845a]'
+                        ? 'text-[12px] font-normal text-white/75'
+                        : 'text-[14px] font-normal text-[#d4845a]'
                         }`}>
                         {studentNextSessions[student.id] ? (
                           new Date(studentNextSessions[student.id]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\p{L}+)\.?\s*(\d{4})/u, '$1 .$2')

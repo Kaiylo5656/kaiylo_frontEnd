@@ -70,7 +70,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
       const width = window.innerWidth;
       if (width >= 1024) setColumns(8);
       else if (width >= 768) setColumns(6);
-      else setColumns(1); // Mobile: 1 column
+      else setColumns(3); // Mobile coach: 3 colonnes de semaines
     };
 
     updateColumns();
@@ -1339,10 +1339,10 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                       opacity: isPastWeek ? 0.4 : 1
                     }}
                   >
-                    <div className="flex items-center gap-2 flex-1">
-                      <div className="flex flex-col">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                         <span
-                          className={`${isCurrentWeek ? "font-medium text-sm" : "text-sm"} flex items-center gap-1`}
+                          className={`${isCurrentWeek ? "font-medium text-sm" : "text-sm"} flex items-center gap-1 min-w-0 truncate`}
                           style={isCurrentWeek ? { color: '#d4845a', opacity: 1, fontWeight: 500 } : {}}
                         >
                           {isCurrentWeek && (
@@ -1353,14 +1353,14 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                           Semaine {weekNumber}
                         </span>
                         <span
-                          className="text-xs flex items-center gap-1 opacity-0 group-hover/week-header:opacity-100 transition-opacity"
+                          className="text-xs flex items-center gap-1 opacity-0 group-hover/week-header:opacity-100 transition-opacity truncate min-w-0"
                           style={isCurrentWeek ? { color: '#d4845a', fontWeight: 400 } : {}}
                           title={`${format(weekDate, 'd MMM', { locale: fr })} - ${format(weekEndDate, 'd MMM', { locale: fr })}`}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-3 h-3" fill="currentColor">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-3 h-3 flex-shrink-0" fill="currentColor">
                             <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                           </svg>
-                          {format(weekDate, 'd MMM', { locale: fr })} - {format(weekEndDate, 'd MMM', { locale: fr })}
+                          <span className="truncate min-w-0">{format(weekDate, 'd MMM', { locale: fr })} - {format(weekEndDate, 'd MMM', { locale: fr })}</span>
                         </span>
                       </div>
                     </div>

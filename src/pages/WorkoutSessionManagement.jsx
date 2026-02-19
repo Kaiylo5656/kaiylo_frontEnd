@@ -27,9 +27,9 @@ const WorkoutSessionManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
+
       const token = getAuthToken();
-      
+
       // Fetch sessions
       const sessionsResponse = await fetch(`${getApiBaseUrlWithApi()}/workout-sessions`, {
         headers: {
@@ -37,7 +37,7 @@ const WorkoutSessionManagement = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       // Fetch exercises
       const exercisesResponse = await fetch(`${getApiBaseUrlWithApi()}/exercises`, {
         headers: {
@@ -45,7 +45,7 @@ const WorkoutSessionManagement = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (sessionsResponse.ok) {
         const sessionsData = await sessionsResponse.json();
         // Backend returns { sessions: [...] }, so we need to extract the sessions array
@@ -53,7 +53,7 @@ const WorkoutSessionManagement = () => {
       } else {
         setSessions([]); // Set empty array on error
       }
-      
+
       if (exercisesResponse.ok) {
         const exercisesData = await exercisesResponse.json();
         // Backend returns { exercises: [...] }, so we need to extract the exercises array
@@ -87,7 +87,7 @@ const WorkoutSessionManagement = () => {
       rpe: 7,
       notes: ''
     };
-    
+
     setFormData(prev => ({
       ...prev,
       exercises: [...prev.exercises, newExercise]
@@ -98,7 +98,7 @@ const WorkoutSessionManagement = () => {
   const updateExerciseInSession = (index, field, value) => {
     setFormData(prev => ({
       ...prev,
-      exercises: prev.exercises.map((exercise, i) => 
+      exercises: prev.exercises.map((exercise, i) =>
         i === index ? { ...exercise, [field]: value } : exercise
       )
     }));
@@ -115,19 +115,19 @@ const WorkoutSessionManagement = () => {
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
-      const url = editingSession 
+      const url = editingSession
         ? `${getApiBaseUrlWithApi()}/workout-sessions/${editingSession.id}`
         : `${getApiBaseUrlWithApi()}/workout-sessions`;
-      
+
       const method = editingSession ? 'PATCH' : 'POST';
-      
+
       const token = getAuthToken();
       logger.debug('🔍 Debug - Token being sent:', token);
       logger.debug('🔍 Debug - Token type:', typeof token);
       logger.debug('🔍 Debug - Token length:', token ? token.length : 0);
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -263,7 +263,7 @@ const WorkoutSessionManagement = () => {
             <h2 className="text-xl font-semibold mb-4">
               {editingSession ? 'Edit Workout Session' : 'Create New Workout Session'}
             </h2>
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Basic Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -327,7 +327,7 @@ const WorkoutSessionManagement = () => {
                     + Add Exercise
                   </button>
                 </div>
-                
+
                 {formData.exercises.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     No exercises added yet. Click "Add Exercise" to get started.
@@ -361,13 +361,13 @@ const WorkoutSessionManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Sets
                             </label>
-                                                         <input
-                               type="number"
-                               min="1"
-                               value={exercise.sets || ''}
-                               onChange={(e) => updateExerciseInSession(index, 'sets', parseInt(e.target.value) || 0)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             />
+                            <input
+                              type="number"
+                              min="1"
+                              value={exercise.sets || ''}
+                              onChange={(e) => updateExerciseInSession(index, 'sets', parseInt(e.target.value) || 0)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                           </div>
 
                           {/* Reps */}
@@ -375,13 +375,13 @@ const WorkoutSessionManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Reps
                             </label>
-                                                         <input
-                               type="number"
-                               min="1"
-                               value={exercise.reps || ''}
-                               onChange={(e) => updateExerciseInSession(index, 'reps', parseInt(e.target.value) || 0)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             />
+                            <input
+                              type="number"
+                              min="1"
+                              value={exercise.reps || ''}
+                              onChange={(e) => updateExerciseInSession(index, 'reps', parseInt(e.target.value) || 0)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                           </div>
 
                           {/* Rest */}
@@ -389,13 +389,13 @@ const WorkoutSessionManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Rest (sec)
                             </label>
-                                                         <input
-                               type="number"
-                               min="0"
-                               value={exercise.rest || ''}
-                               onChange={(e) => updateExerciseInSession(index, 'rest', parseInt(e.target.value) || 0)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             />
+                            <input
+                              type="number"
+                              min="0"
+                              value={exercise.rest || ''}
+                              onChange={(e) => updateExerciseInSession(index, 'rest', parseInt(e.target.value) || 0)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                           </div>
 
                           {/* RPE */}
@@ -403,14 +403,14 @@ const WorkoutSessionManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               RPE
                             </label>
-                                                         <input
-                               type="number"
-                               min="1"
-                               max="10"
-                               value={exercise.rpe || ''}
-                               onChange={(e) => updateExerciseInSession(index, 'rpe', parseInt(e.target.value) || 0)}
-                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             />
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={exercise.rpe || ''}
+                              onChange={(e) => updateExerciseInSession(index, 'rpe', parseInt(e.target.value) || 0)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                           </div>
                         </div>
 
@@ -471,7 +471,7 @@ const WorkoutSessionManagement = () => {
               Workout Sessions ({sessions.length})
             </h3>
           </div>
-          
+
           <div className="divide-y divide-gray-200">
             {sessions.length === 0 ? (
               <div className="px-6 py-8 text-center text-gray-500">
@@ -486,11 +486,10 @@ const WorkoutSessionManagement = () => {
                         <h4 className="text-lg font-medium text-gray-900">
                           {session.title}
                         </h4>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          session.status === 'published' 
-                            ? 'bg-green-100 text-green-800' 
+                        <span className={`px-2 py-1 rounded-full text-xs ${session.status === 'published'
+                            ? 'bg-green-100 text-green-800'
                             : 'bg-yellow-100 text-yellow-800'
-                        }`}>
+                          }`}>
                           {session.status}
                         </span>
                       </div>
@@ -511,7 +510,7 @@ const WorkoutSessionManagement = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="flex space-x-2">
                       {session.status === 'draft' && (
                         <button

@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale';
 import axios from 'axios';
 import { buildApiUrl, getApiBaseUrlWithApi } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useVideoModal } from '../contexts/VideoModalContext';
 import ReactPlayer from 'react-player';
 import VideoPlayer from './VideoPlayer';
 import VoiceRecorder from './VoiceRecorder';
@@ -34,6 +35,14 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const videoRef = useRef(null);
   const textareaRef = useRef(null);
   const { getAuthToken } = useAuth();
+  const { registerVideoModalOpen, registerVideoModalClose } = useVideoModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerVideoModalOpen();
+      return () => registerVideoModalClose();
+    }
+  }, [isOpen, registerVideoModalOpen, registerVideoModalClose]);
 
   useEffect(() => {
     if (video) {
@@ -446,7 +455,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       style={{ zIndex: 100 }}
     >
       <div 
-        className="relative mx-auto w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col md:flex-row"
+        className="relative mx-auto w-full max-w-6xl max-h-[92vh] md:max-h-[92vh] min-h-0 overflow-y-auto rounded-2xl shadow-2xl flex flex-col md:flex-row dashboard-scrollbar"
         style={{
           background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
           opacity: 0.95
@@ -496,7 +505,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             <span className="text-white font-light text-sm">
               {studentName}
               {studentWeight && (
-                <span className="ml-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                <span className="ml-2 font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                   @{studentWeight}kg
                 </span>
               )}
@@ -716,21 +725,13 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
         {/* Right Column - Sidebar */}
         <div 
-          className="w-full md:w-96 flex-1 md:flex-shrink-0 flex flex-col overflow-hidden border-t md:border-t-0 order-3 md:order-2 min-h-0"
+          className="w-full md:w-96 flex-1 md:flex-shrink-0 flex flex-col overflow-visible border-t md:border-t-0 order-3 md:order-2 min-h-0"
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
             boxShadow: '0px 8px 24px 0px rgba(0, 0, 0, 0.4), 0px 4px 8px 0px rgba(0, 0, 0, 0.2)'
           }}
         >
-          <div 
-            className="flex flex-col overflow-y-auto flex-1 min-h-0"
-            onWheel={(e) => {
-              e.stopPropagation();
-            }}
-            onTouchMove={(e) => {
-              e.stopPropagation();
-            }}
-          >
+          <div className="flex flex-col flex-1 min-h-0">
             {/* Header - Desktop only */}
             <div className="hidden md:flex shrink-0 px-6 pt-6 pb-3 items-center justify-between">
               <div className="flex items-center justify-end gap-3">
@@ -774,7 +775,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                 <span className="text-white font-light text-sm md:text-base">
                   {studentName}
                   {studentWeight && (
-                    <span className="ml-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    <span className="ml-2 font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                       @{studentWeight}kg
                     </span>
                   )}

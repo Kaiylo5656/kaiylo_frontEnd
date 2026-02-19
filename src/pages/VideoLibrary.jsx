@@ -97,27 +97,27 @@ const VideoLibrary = () => {
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   const { isTopMost } = useModalManager();
-  
+
   // Detect screen size for responsive behavior
   const [isMobile, setIsMobile] = useState(false);
-  
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 640); // sm breakpoint
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
   // Count processing resources for auto-refresh dependency
   const processingResourcesCount = useMemo(() => {
-    return coachResources.filter(r => 
+    return coachResources.filter(r =>
       r.status === 'PROCESSING' || r.status === 'processing'
     ).length;
   }, [coachResources]);
-  
+
   // Status and sort filters with URL persistence
   const { status: statusFilter, setStatus, isInitialized } = useVideoFilters();
 
@@ -139,7 +139,7 @@ const VideoLibrary = () => {
     const calculateButtonWidth = () => {
       // Possible text values: 'Tous les statuts', 'À feedback', 'Complété'
       const possibleTexts = ['Tous les statuts', 'À feedback', 'Complété'];
-      
+
       // Create a temporary span to measure text width
       const tempSpan = document.createElement('span');
       tempSpan.style.position = 'absolute';
@@ -148,18 +148,18 @@ const VideoLibrary = () => {
       tempSpan.style.fontSize = '14px';
       tempSpan.style.fontWeight = '400';
       tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      
+
       document.body.appendChild(tempSpan);
-      
+
       // Find the widest text
       let maxWidth = 0;
       possibleTexts.forEach(text => {
         tempSpan.textContent = text;
         maxWidth = Math.max(maxWidth, tempSpan.offsetWidth);
       });
-      
+
       document.body.removeChild(tempSpan);
-      
+
       // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
       const buttonPadding = 30; // 15px * 2
       const gap = 8; // gap-2
@@ -176,7 +176,7 @@ const VideoLibrary = () => {
     const calculateExerciseButtonWidth = () => {
       // Use "Exercice" as base width to keep button size consistent
       const text = 'Exercice';
-      
+
       // Create a temporary span to measure text width
       const tempSpan = document.createElement('span');
       tempSpan.style.position = 'absolute';
@@ -186,11 +186,11 @@ const VideoLibrary = () => {
       tempSpan.style.fontWeight = '400';
       tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       tempSpan.textContent = text;
-      
+
       document.body.appendChild(tempSpan);
       const width = tempSpan.offsetWidth;
       document.body.removeChild(tempSpan);
-      
+
       // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
       const buttonPadding = 30; // 15px * 2
       const gap = 8; // gap-2
@@ -206,7 +206,7 @@ const VideoLibrary = () => {
     const calculateDateButtonWidth = () => {
       // Text is always "Date"
       const text = 'Date';
-      
+
       // Create a temporary span to measure text width
       const tempSpan = document.createElement('span');
       tempSpan.style.position = 'absolute';
@@ -216,11 +216,11 @@ const VideoLibrary = () => {
       tempSpan.style.fontWeight = '400';
       tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       tempSpan.textContent = text;
-      
+
       document.body.appendChild(tempSpan);
       const width = tempSpan.offsetWidth;
       document.body.removeChild(tempSpan);
-      
+
       // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
       const buttonPadding = 30; // 15px * 2
       const gap = 8; // gap-2
@@ -250,10 +250,10 @@ const VideoLibrary = () => {
       created_at: resource.createdAt,
       status: resource.status // Include status for modal
     };
-    
+
     logger.debug('🎬 Coach resource clicked:', resource);
     logger.debug('🎬 Mapped resource:', mappedResource);
-    
+
     setSelectedCoachResource(mappedResource);
     setIsCoachResourceModalOpen(true);
   };
@@ -274,15 +274,15 @@ const VideoLibrary = () => {
     } else {
       if (updateType === 'student') {
         // Update video feedback in the student videos list
-        setStudentVideos(prev => prev.map(v => 
-          v.id === videoId 
+        setStudentVideos(prev => prev.map(v =>
+          v.id === videoId
             ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
             : v
         ));
       } else if (updateType === 'coach') {
         // Update description in the coach resources list
-        setCoachResources(prev => prev.map(v => 
-          v.id === videoId 
+        setCoachResources(prev => prev.map(v =>
+          v.id === videoId
             ? { ...v, description: feedback }
             : v
         ));
@@ -297,7 +297,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
         setError('Non authentifié. Veuillez vous reconnecter.');
@@ -306,9 +306,9 @@ const VideoLibrary = () => {
         return;
       }
       const headers = { Authorization: `Bearer ${token}` };
-      
+
       const response = await axios.get(buildApiUrl('/workout-sessions/videos'), { headers });
-      
+
       if (response.data.success) {
         setStudentVideos(response.data.data);
       } else {
@@ -327,7 +327,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
         setError('Non authentifié. Veuillez vous reconnecter.');
@@ -337,7 +337,7 @@ const VideoLibrary = () => {
         return;
       }
       const headers = { Authorization: `Bearer ${token}` };
-      
+
       const [resourcesResponse, foldersResponse] = await Promise.all([
         axios.get(buildApiUrl('/resources/coach'), { headers }),
         axios.get(buildApiUrl('/resources/folders'), { headers })
@@ -377,7 +377,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
         setError('Non authentifié. Veuillez vous reconnecter.');
@@ -387,7 +387,7 @@ const VideoLibrary = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(buildApiUrl(`/resources/coach/${videoToDelete.id}`), { headers });
-      
+
       // Remove video from list
       setCoachResources(prev => prev.filter(v => v.id !== videoToDelete.id));
       setIsDeleteVideoModalOpen(false);
@@ -417,7 +417,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
         setError('Non authentifié. Veuillez vous reconnecter.');
@@ -430,14 +430,14 @@ const VideoLibrary = () => {
         { title: editVideoTitle.trim() },
         { headers }
       );
-      
+
       // Update video in list
-      setCoachResources(prev => prev.map(v => 
-        v.id === videoToEdit.id 
+      setCoachResources(prev => prev.map(v =>
+        v.id === videoToEdit.id
           ? { ...v, title: editVideoTitle.trim() }
           : v
       ));
-      
+
       setIsEditVideoModalOpen(false);
       setVideoToEdit(null);
       setEditVideoTitle('');
@@ -481,7 +481,7 @@ const VideoLibrary = () => {
     // Listen to scroll events on window and all scrollable containers
     window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scroll events
     document.addEventListener('scroll', handleScroll, true);
-    
+
     // Also listen to scroll events on all scrollable containers
     const scrollableContainers = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
     scrollableContainers.forEach(container => {
@@ -503,7 +503,7 @@ const VideoLibrary = () => {
 
     const calculateFolderWidths = () => {
       const widths = {};
-      
+
       // Create a temporary div to measure the exact button width with font-weight 400
       const tempDiv = document.createElement('div');
       tempDiv.style.position = 'absolute';
@@ -517,36 +517,36 @@ const VideoLibrary = () => {
       tempDiv.style.fontSize = '14px'; // text-sm
       tempDiv.style.fontWeight = '400'; // font-normal
       tempDiv.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      
+
       // Create SVG icon for folder (h-4 w-4 = 16px)
       const tempSvg = document.createElement('div');
       tempSvg.style.width = '16px';
       tempSvg.style.height = '16px';
       tempSvg.style.flexShrink = '0';
-      
+
       // Create span for text
       const tempSpan = document.createElement('span');
       tempSpan.style.fontSize = '14px';
       tempSpan.style.fontWeight = '400';
       tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      
+
       // Create button element for delete button (14px width)
       const tempButton = document.createElement('button');
       tempButton.style.width = '14px';
       tempButton.style.height = '14px';
       tempButton.style.flexShrink = '0';
-      
+
       tempDiv.appendChild(tempSvg);
       tempDiv.appendChild(tempSpan);
       tempDiv.appendChild(tempButton);
       document.body.appendChild(tempDiv);
-      
+
       folders.forEach(folder => {
         tempSpan.textContent = folder.name;
         const buttonWidth = tempDiv.offsetWidth;
         widths[folder.id] = buttonWidth;
       });
-      
+
       document.body.removeChild(tempDiv);
       setFolderMinWidths(widths);
     };
@@ -564,11 +564,11 @@ const VideoLibrary = () => {
   // Auto-refresh coach resources if there are videos in processing
   useEffect(() => {
     if (activeTab !== 'coach') return;
-    
+
     if (processingResourcesCount === 0) return;
 
     logger.debug(`🔄 Auto-refreshing coach resources (${processingResourcesCount} in processing)...`);
-    
+
     // Refresh every 3 seconds if there are processing videos
     const interval = setInterval(() => {
       fetchCoachResources();
@@ -587,10 +587,10 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) return;
-      const response = await axios.post(buildApiUrl('/resources/folders'), 
+      const response = await axios.post(buildApiUrl('/resources/folders'),
         { name: newFolderName },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -624,7 +624,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) return;
       await axios.delete(buildApiUrl(`/resources/${resourceId}`), {
@@ -640,10 +640,10 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) return;
-      await axios.patch(buildApiUrl(`/resources/${resourceId}`), 
+      await axios.patch(buildApiUrl(`/resources/${resourceId}`),
         { folderId: folderId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -667,7 +667,7 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) {
         setIsDeletingFolder(false);
@@ -676,11 +676,11 @@ const VideoLibrary = () => {
       await axios.delete(buildApiUrl(`/resources/folders/${folderToDelete.id}`), {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       // Remove folder from state
       const updatedFolders = folders.filter(f => f.id !== folderToDelete.id);
       setFolders(updatedFolders);
-      
+
       // If this was the selected folder, select the first remaining folder
       if (selectedFolder === folderToDelete.id) {
         if (updatedFolders.length > 0) {
@@ -689,10 +689,10 @@ const VideoLibrary = () => {
           setSelectedFolder(null);
         }
       }
-      
+
       // Refresh resources to update folder assignments
       fetchCoachResources();
-      
+
       // Close modal
       setIsDeleteFolderModalOpen(false);
       setFolderToDelete(null);
@@ -712,10 +712,10 @@ const VideoLibrary = () => {
     try {
       let token = await getAuthToken();
       if (!token) {
-        try { token = await refreshAuthToken(); } catch {}
+        try { token = await refreshAuthToken(); } catch { }
       }
       if (!token) return;
-      await axios.patch(buildApiUrl(`/workout-sessions/videos/${videoId}/feedback`), 
+      await axios.patch(buildApiUrl(`/workout-sessions/videos/${videoId}/feedback`),
         { feedback, rating },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -731,7 +731,7 @@ const VideoLibrary = () => {
     if (pendingVideos.length === 0) return;
     let token = await getAuthToken();
     if (!token) {
-      try { token = await refreshAuthToken(); } catch {}
+      try { token = await refreshAuthToken(); } catch { }
     }
     if (!token) {
       setError('Non authentifié.');
@@ -766,7 +766,7 @@ const VideoLibrary = () => {
     if (pendingInSession.length === 0) return;
     let token = await getAuthToken();
     if (!token) {
-      try { token = await refreshAuthToken(); } catch {}
+      try { token = await refreshAuthToken(); } catch { }
     }
     if (!token) {
       setError('Non authentifié.');
@@ -799,7 +799,7 @@ const VideoLibrary = () => {
     if (!video || video.status !== 'pending') return;
     let token = await getAuthToken();
     if (!token) {
-      try { token = await refreshAuthToken(); } catch {}
+      try { token = await refreshAuthToken(); } catch { }
     }
     if (!token) {
       setError('Non authentifié.');
@@ -828,25 +828,25 @@ const VideoLibrary = () => {
     studentVideos.forEach(video => {
       const email = video.student?.email || 'Unknown';
       if (!map.has(email)) {
-        const name = video.student?.raw_user_meta_data?.full_name || 
-                     video.student?.raw_user_meta_data?.name || 
-                     email;
+        const name = video.student?.raw_user_meta_data?.full_name ||
+          video.student?.raw_user_meta_data?.name ||
+          email;
         map.set(email, name);
       }
     });
     return map;
   }, [studentVideos]);
-  
+
   const uniqueStudents = [...new Set(studentVideos.map(video => video.student?.email || 'Unknown'))];
   const uniqueExercises = [...new Set(studentVideos.map(video => video.exercise_name))];
-  
+
   // Get filtered exercises based on search term
   const filteredExercises = useMemo(() => {
     if (!exerciseSearchTerm.trim()) {
       return uniqueExercises;
     }
     const searchLower = exerciseSearchTerm.toLowerCase().trim();
-    return uniqueExercises.filter(exercise => 
+    return uniqueExercises.filter(exercise =>
       exercise.toLowerCase().includes(searchLower)
     );
   }, [uniqueExercises, exerciseSearchTerm]);
@@ -854,14 +854,14 @@ const VideoLibrary = () => {
   // Filter and sort videos with useMemo for performance
   const filteredVideos = useMemo(() => {
     if (!isInitialized) return [];
-    
+
     // Apply all filters
     let filtered = studentVideos.filter(video => {
       // Exclude videos without a video_url (Pas de vidéo entries)
       if (!video.video_url || (typeof video.video_url === 'string' && video.video_url.trim() === '')) {
         return false;
       }
-      
+
       // Status filter
       let matchesStatus = true;
       if (statusFilter === 'pending') {
@@ -870,15 +870,15 @@ const VideoLibrary = () => {
         matchesStatus = video.status === 'completed' || video.status === 'reviewed';
       }
       // statusFilter === 'all' matches everything
-      
+
       // Other filters
       const matchesStudent = !selectedStudent || (video.student?.email || 'Unknown') === selectedStudent;
       const matchesExercise = !selectedExercise || video.exercise_name === selectedExercise;
       const matchesDate = !selectedDate || format(new Date(video.created_at), 'yyyy-MM-dd') === selectedDate;
-      
+
       return matchesStatus && matchesStudent && matchesExercise && matchesDate;
     });
-    
+
     // Sort by upload time (uploaded_at or created_at) DESC - newest first (latest to oldest)
     filtered.sort((a, b) => {
       // Use uploaded_at if available (actual student upload time), otherwise fall back to created_at
@@ -886,7 +886,7 @@ const VideoLibrary = () => {
       const dateB = (b.uploaded_at ? new Date(b.uploaded_at) : (b.created_at ? new Date(b.created_at) : new Date(0))).getTime();
       return dateB - dateA; // DESC: newest first (latest to oldest)
     });
-    
+
     return filtered;
   }, [studentVideos, statusFilter, selectedStudent, selectedExercise, selectedDate, isInitialized]);
 
@@ -896,31 +896,31 @@ const VideoLibrary = () => {
   // Group videos by workout session
   const groupedVideosBySession = useMemo(() => {
     const groups = {};
-    
+
     filteredVideos.forEach(video => {
       const sessionId = video.workout_session_id || video.assignment_id || 'unknown';
-      
+
       if (!groups[sessionId]) {
         // Extract session name from the nested assignment data
-        const sessionName = video.assignment?.workout_session?.title || 
-                           video.session_name || 
-                           'Séance';
-        
+        const sessionName = video.assignment?.workout_session?.title ||
+          video.session_name ||
+          'Séance';
+
         groups[sessionId] = {
           sessionId,
           sessionDate: video.created_at || video.uploaded_at,
           sessionName: sessionName,
           videos: [],
-          studentName: video.student?.raw_user_meta_data?.full_name || 
-                       video.student?.raw_user_meta_data?.name || 
-                       video.student?.email || 
-                       'Client inconnu'
+          studentName: video.student?.raw_user_meta_data?.full_name ||
+            video.student?.raw_user_meta_data?.name ||
+            video.student?.email ||
+            'Client inconnu'
         };
       }
-      
+
       groups[sessionId].videos.push(video);
     });
-    
+
     // Convert to array and sort by date (newest first)
     return Object.values(groups).sort((a, b) => {
       const dateA = new Date(a.sessionDate).getTime();
@@ -942,12 +942,12 @@ const VideoLibrary = () => {
     // Try direct properties first
     let weight = video.weight || video.target_weight || video.requested_weight;
     let reps = video.reps || video.target_reps || video.requested_reps;
-    
+
     // If not found, try to get from assignment workout session
     if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
       const exerciseName = video.exercise_name;
       const setNumber = video.set_number || 1;
-      
+
       for (const exercise of video.assignment.workout_session.exercises) {
         if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
           const set = exercise.sets[setNumber - 1];
@@ -957,7 +957,7 @@ const VideoLibrary = () => {
         }
       }
     }
-    
+
     return { weight: weight || 0, reps: reps || 0 };
   };
 
@@ -1011,14 +1011,14 @@ const VideoLibrary = () => {
           const sessionDate = format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr });
           // Si le toggle est ouvert ou si la souris est sur l'icône valider, ne pas éclaircir le background
           const backgroundColor = (isHovered && !isOpen && !isHoveringValidateButton)
-            ? 'rgba(255, 255, 255, 0.16)' 
+            ? 'rgba(255, 255, 255, 0.16)'
             : 'rgba(255, 255, 255, 0.05)';
-          
+
           return (
-            <div 
+            <div
               key={session.sessionId}
               className="px-4 md:px-5 py-3 md:py-[14px] transition-colors cursor-pointer rounded-2xl"
-              style={{ 
+              style={{
                 backgroundColor: backgroundColor,
                 borderWidth: '0px',
                 borderColor: 'rgba(0, 0, 0, 0)',
@@ -1032,38 +1032,43 @@ const VideoLibrary = () => {
               {/* Session Header */}
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 384 512" 
-                    className={`text-white/50 transition-transform flex-shrink-0 ${
-                      isOpen ? '' : '-rotate-90'
-                    }`}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 384 512"
+                    className={`text-white/50 transition-transform flex-shrink-0 ${isOpen ? '' : '-rotate-90'
+                      }`}
                     style={{ width: '16px', height: '16px' }}
                     fill="currentColor"
                     aria-hidden="true"
                   >
-                    <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
+                    <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
                   </svg>
                   <div className="min-w-0 flex-1 flex flex-row items-center justify-between gap-3 md:justify-start">
-                    <h3 className="text-white font-light text-sm md:text-base flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
-                      <span className="flex items-center gap-2">
-                        {sessionName}
-                        <span className="text-xs md:text-sm flex items-center gap-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    <h3 className="text-white font-light text-sm md:text-base flex flex-col md:flex-row md:items-center gap-1 md:gap-2 min-w-0">
+                      <span className="flex flex-wrap items-center gap-2 min-w-0">
+                        <span className="min-w-0 break-words">{sessionName}</span>
+                        <span className="text-xs md:text-sm flex items-center gap-1 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                            <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
+                            <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
                           </svg>
                           <span style={{ fontWeight: '400' }}>x{session.videos.length}</span>
                         </span>
+                        <span className="text-xs md:text-base flex items-center gap-1.5 flex-shrink-0 md:hidden" style={{ opacity: 0.5 }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ opacity: 0.5 }}>
+                            <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z" />
+                          </svg>
+                          {session.studentName}
+                        </span>
                       </span>
-<span className="text-xs md:text-base flex items-center gap-1.5" style={{ opacity: 0.5 }}>
+                      <span className="text-xs md:text-base hidden md:flex items-center gap-1.5" style={{ opacity: 0.5 }}>
                         <span className="hidden md:inline">- {sessionDate} - </span>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-4 md:w-4" fill="currentColor" style={{ opacity: 0.5 }}>
-                          <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z"/>
+                          <path d="M224 248a120 120 0 1 0 0-240 120 120 0 1 0 0 240zm-29.7 56C95.8 304 16 383.8 16 482.3 16 498.7 29.3 512 45.7 512l356.6 0c16.4 0 29.7-13.3 29.7-29.7 0-98.5-79.8-178.3-178.3-178.3l-59.4 0z" />
                         </svg>
                         {session.studentName}
                       </span>
                     </h3>
-                    
+
                     {/* Status indicator + Mark session completed - Mobile */}
                     <div className="flex items-center gap-2 flex-shrink-0 md:hidden">
                       {session.videos.some(v => v.status === 'pending') && (
@@ -1112,7 +1117,7 @@ const VideoLibrary = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Status indicator + Mark session completed - Desktop */}
                 <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                   {session.videos.some(v => v.status === 'pending') && (
@@ -1160,7 +1165,7 @@ const VideoLibrary = () => {
                   )}
                 </div>
               </div>
-              
+
               {/* Session Videos (Collapsible) */}
               {isOpen && (
                 <div className="mt-2 pt-2 pl-4 md:pl-6">
@@ -1172,166 +1177,166 @@ const VideoLibrary = () => {
                         ? 'rgba(255, 255, 255, 0.14)'
                         : 'rgba(255, 255, 255, 0.07)';
                       return (
-                      <div 
-                        key={video.id} 
-                        className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
-                        style={{ 
-                          backgroundColor: videoRowBg,
-                          borderWidth: '0px',
-                          borderColor: 'rgba(0, 0, 0, 0)',
-                          borderStyle: 'none',
-                          borderImage: 'none'
-                        }}
-                        onMouseEnter={() => setHoveredVideoId(video.id)}
-                        onMouseLeave={() => setHoveredVideoId(null)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVideoClick(video);
-                        }}
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-                          {/* Video Thumbnail */}
-                          <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                            {video?.video_url && video.video_url.trim() !== '' ? (
-                              <>
-                                <video 
-                                  src={video.video_url}
-                                  className="w-full h-full object-cover"
-                                  preload="metadata"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                  <PlayCircle size={24} className="text-white" />
-                                </div>
-                              </>
-                            ) : (
-                              <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                                <Video size={24} className="text-gray-500" />
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Video Info */}
-                          <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
-                            <div className="flex-1 min-w-0">
-                              {/* Exercise Tag and Date */}
-                              <div className="flex flex-col md:flex-row md:items-center gap-1 mb-2 md:mb-0">
-                                <span className="text-white font-light text-sm md:text-base">
-                                  {video.exercise_name}
-                                </span>
-                                <span className="hidden md:inline text-white/50">-</span>
-                                <span className="text-white/50 text-xs md:text-sm font-extralight">
-                                  {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
-                                </span>
-                              </div>
-                              
-                              {/* Series */}
-                              <div className="text-white/75 text-xs md:text-sm font-extralight">
-                                {(() => {
-                                  const { weight, reps } = getVideoWeightAndReps(video);
-                                  const seriesText = `Série ${video.set_number || 1}/3`;
-                                  const repsText = reps > 0 ? `${reps} reps` : null;
-                                  const weightText = weight > 0 ? `${weight}kg` : null;
-                                  
-                                  if (repsText && weightText) {
-                                    return (
-                                      <>
-                                        {seriesText} • {repsText}{' '}
-                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                      </>
-                                    );
-                                  } else if (repsText) {
-                                    return `${seriesText} • ${repsText}`;
-                                  } else if (weightText) {
-                                    return (
-                                      <>
-                                        {seriesText} •{' '}
-                                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                      </>
-                                    );
-                                  }
-                                  return seriesText;
-                                })()}
-                              </div>
-                              
-                              {/* Coach Feedback */}
-                              {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                                <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
-                                  {video.coach_feedback_audio_url && (
-                                    <div className="text-xs">
-                                      <VoiceMessage 
-                                        message={{
-                                          file_url: video.coach_feedback_audio_url,
-                                          message_type: 'audio',
-                                          file_type: 'audio/webm'
-                                        }} 
-                                        isOwnMessage={false}
-                                      />
-                                    </div>
-                                  )}
-                                  {video.coach_feedback && (
-                                    <div className="flex items-start gap-2">
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                                        <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
-                                      </svg>
-                                      <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                        {video.coach_feedback}
-                                      </div>
-                                    </div>
-                                  )}
+                        <div
+                          key={video.id}
+                          className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
+                          style={{
+                            backgroundColor: videoRowBg,
+                            borderWidth: '0px',
+                            borderColor: 'rgba(0, 0, 0, 0)',
+                            borderStyle: 'none',
+                            borderImage: 'none'
+                          }}
+                          onMouseEnter={() => setHoveredVideoId(video.id)}
+                          onMouseLeave={() => setHoveredVideoId(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVideoClick(video);
+                          }}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+                            {/* Video Thumbnail */}
+                            <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                              {video?.video_url && video.video_url.trim() !== '' ? (
+                                <>
+                                  <video
+                                    src={video.video_url}
+                                    className="w-full h-full object-cover"
+                                    preload="metadata"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                    <PlayCircle size={24} className="text-white" />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                                  <Video size={24} className="text-gray-500" />
                                 </div>
                               )}
                             </div>
-                            
-                            {/* Status Badge + Validate button */}
-                            <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
-                              {video.status === 'pending' && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
-                                    disabled={markingVideoId === video.id}
-                                    title="Marquer cet exercice en complété"
-                                    className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                                    style={{
-                                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                      color: 'rgba(250, 250, 250, 0.5)',
-                                      fontWeight: '400'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      setHoveringValidateVideoId(video.id);
-                                      if (markingVideoId === video.id) return;
-                                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                                      e.currentTarget.style.color = '#D48459';
-                                      e.currentTarget.style.fontWeight = '400';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      setHoveringValidateVideoId(null);
-                                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                                      e.currentTarget.style.fontWeight = '400';
-                                    }}
-                                  >
-                                    {markingVideoId === video.id ? (
-                                      <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                    ) : (
-                                      <CircleCheckIcon className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                    À feedback
+
+                            {/* Video Info */}
+                            <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
+                              <div className="flex-1 min-w-0">
+                                {/* Exercise Tag and Date */}
+                                <div className="flex flex-col md:flex-row md:items-center gap-1 mb-2 md:mb-0">
+                                  <span className="text-white font-light text-sm md:text-base">
+                                    {video.exercise_name}
                                   </span>
-                                </>
-                              )}
-                              {(video.status === 'completed' || video.status === 'reviewed') && (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                                  Complété
-                                </span>
-                              )}
+                                  <span className="hidden md:inline text-white/50">-</span>
+                                  <span className="text-white/50 text-xs md:text-sm font-extralight">
+                                    {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                                  </span>
+                                </div>
+
+                                {/* Series */}
+                                <div className="text-white/75 text-xs md:text-sm font-extralight">
+                                  {(() => {
+                                    const { weight, reps } = getVideoWeightAndReps(video);
+                                    const seriesText = `Série ${video.set_number || 1}/3`;
+                                    const repsText = reps > 0 ? `${reps} reps` : null;
+                                    const weightText = weight > 0 ? `${weight}kg` : null;
+
+                                    if (repsText && weightText) {
+                                      return (
+                                        <>
+                                          {seriesText} • {repsText}{' '}
+                                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                        </>
+                                      );
+                                    } else if (repsText) {
+                                      return `${seriesText} • ${repsText}`;
+                                    } else if (weightText) {
+                                      return (
+                                        <>
+                                          {seriesText} •{' '}
+                                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                        </>
+                                      );
+                                    }
+                                    return seriesText;
+                                  })()}
+                                </div>
+
+                                {/* Coach Feedback */}
+                                {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                                  <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
+                                    {video.coach_feedback_audio_url && (
+                                      <div className="text-xs">
+                                        <VoiceMessage
+                                          message={{
+                                            file_url: video.coach_feedback_audio_url,
+                                            message_type: 'audio',
+                                            file_type: 'audio/webm'
+                                          }}
+                                          isOwnMessage={false}
+                                        />
+                                      </div>
+                                    )}
+                                    {video.coach_feedback && (
+                                      <div className="flex items-start gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                          <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
+                                        </svg>
+                                        <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                          {video.coach_feedback}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Status Badge + Validate button */}
+                              <div className="flex items-center gap-2 flex-shrink-0 md:self-auto self-start">
+                                {video.status === 'pending' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                      disabled={markingVideoId === video.id}
+                                      title="Marquer cet exercice en complété"
+                                      className="w-7 h-7 min-w-7 min-h-7 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                      style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        color: 'rgba(250, 250, 250, 0.5)',
+                                        fontWeight: '400'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        setHoveringValidateVideoId(video.id);
+                                        if (markingVideoId === video.id) return;
+                                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                        e.currentTarget.style.color = '#D48459';
+                                        e.currentTarget.style.fontWeight = '400';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        setHoveringValidateVideoId(null);
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                        e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                        e.currentTarget.style.fontWeight = '400';
+                                      }}
+                                    >
+                                      {markingVideoId === video.id ? (
+                                        <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                      ) : (
+                                        <CircleCheckIcon className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                      À feedback
+                                    </span>
+                                  </>
+                                )}
+                                {(video.status === 'completed' || video.status === 'reviewed') && (
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                    Complété
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
+                      );
                     })}
                   </div>
                 </div>
@@ -1347,15 +1352,15 @@ const VideoLibrary = () => {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredVideos.map((video) => (
-            <div 
-              key={video.id} 
-              className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:shadow-lg transition-all duration-200"
-              onClick={() => handleVideoClick(video)}
-            >
+          <div
+            key={video.id}
+            className="bg-card border border-border/20 rounded-xl overflow-hidden group cursor-pointer hover:shadow-lg transition-all duration-200"
+            onClick={() => handleVideoClick(video)}
+          >
             {/* Video Thumbnail */}
             <div className="relative aspect-video bg-muted overflow-hidden">
-              <video 
-                src={video.video_url || undefined} 
+              <video
+                src={video.video_url || undefined}
                 className="w-full h-full object-cover"
                 preload="metadata"
                 onLoadedMetadata={(e) => {
@@ -1375,34 +1380,34 @@ const VideoLibrary = () => {
               {/* Play Icon Overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
-                  <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z"/>
+                  <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z" />
                 </svg>
               </div>
             </div>
-            
+
             {/* Card Content */}
             <div className="p-4 space-y-3">
               {/* Student Name */}
               <div className="text-sm font-medium text-foreground truncate">
-                {video.student?.raw_user_meta_data?.full_name || 
-                 video.student?.raw_user_meta_data?.name || 
-                 video.student?.email || 
-                 'Unknown Student'}
+                {video.student?.raw_user_meta_data?.full_name ||
+                  video.student?.raw_user_meta_data?.name ||
+                  video.student?.email ||
+                  'Unknown Student'}
               </div>
-              
+
               {/* Exercise Tag */}
               <div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-normal bg-primary/15 text-primary border border-primary/30">
                   {video.exercise_name}
                 </span>
               </div>
-              
+
               {/* Set Info & Date */}
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Série {video.set_number}/3</span>
                 <span>{video.created_at ? format(new Date(video.created_at), 'd MMM yyyy', { locale: fr }) : 'N/A'}</span>
               </div>
-              
+
               {/* Status Badge */}
               <div className="flex justify-end pt-1">
                 {video.status === 'pending' ? (
@@ -1418,140 +1423,140 @@ const VideoLibrary = () => {
             </div>
           </div>
         ))}
-    </div>
-  );
+      </div>
+    );
   };
 
   const renderCoachResources = () => {
     // Filter resources based on selected folder
     // Exclude FAILED resources from display (they can't be played)
-    const filteredResources = (selectedFolder 
+    const filteredResources = (selectedFolder
       ? coachResources.filter(video => video.folderId === selectedFolder)
       : coachResources
     ).filter(video => video.status !== 'FAILED' && video.status !== 'failed');
 
     return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredResources.map(video => {
           const isProcessing = video.status === 'PROCESSING' || video.status === 'processing';
-          
+
           return (
-          <div key={video.id} className={`bg-card border border-border/20 rounded-xl overflow-hidden group transition-all duration-200 ${isProcessing ? 'opacity-80' : 'cursor-pointer hover:shadow-lg'}`}>
-            <div 
-              onClick={() => !isProcessing && handleCoachResourceClick(video)}
-              className="block aspect-video bg-muted relative overflow-hidden"
-            >
-              {isProcessing ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
-                  <span className="text-white text-xs font-medium">Traitement en cours...</span>
-                </div>
-              ) : (
-                <>
-                  <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
-                      <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z"/>
-                    </svg>
+            <div key={video.id} className={`bg-card border border-border/20 rounded-xl overflow-hidden group transition-all duration-200 ${isProcessing ? 'opacity-80' : 'cursor-pointer hover:shadow-lg'}`}>
+              <div
+                onClick={() => !isProcessing && handleCoachResourceClick(video)}
+                className="block aspect-video bg-muted relative overflow-hidden"
+              >
+                {isProcessing ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 z-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                    <span className="text-white text-xs font-medium">Traitement en cours...</span>
                   </div>
-                </>
-              )}
-            </div>
-            <div className="p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h3 
-                  className={`font-normal text-base truncate transition-colors flex-1 ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
-                  style={{ color: 'var(--kaiylo-primary-hex)' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isProcessing) handleCoachResourceClick(video);
-                  }}
-                >
-                  {video.title || video.fileName}
-                </h3>
-                <div className="relative video-menu-container">
-                  <button
+                ) : (
+                  <>
+                    <video src={video.fileUrl || undefined} className="w-full h-full object-cover" preload="metadata"></video>
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
+                        <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z" />
+                      </svg>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h3
+                    className={`font-normal text-base truncate transition-colors flex-1 ${!isProcessing ? 'hover:text-primary cursor-pointer' : ''}`}
+                    style={{ color: 'var(--kaiylo-primary-hex)' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (openVideoMenuId === video.id) {
-                        setOpenVideoMenuId(null);
-                        setVideoMenuPosition(null);
-                      } else {
-                        setOpenVideoMenuId(video.id);
-                        const button = e.currentTarget;
-                        const rect = button.getBoundingClientRect();
-                        // Position the menu below and aligned to the right of the button, shifted 14px to the right
-                        setVideoMenuPosition({
-                          top: rect.bottom + 4,
-                          right: window.innerWidth - rect.right - 14
-                        });
-                      }
+                      if (!isProcessing) handleCoachResourceClick(video);
                     }}
-                    className={`transition-colors flex items-center justify-center ${
-                      openVideoMenuId === video.id 
-                        ? 'text-[var(--kaiylo-primary-hex)]' 
-                        : 'text-white/50 hover:text-white'
-                    }`}
-                    title="Options de la vidéo"
                   >
-                    <MoreHorizontal className="h-[14px] w-[14px]" />
-                  </button>
-
-                  {openVideoMenuId === video.id && (
-                    <div
-                      className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
-                      style={{
-                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                        backdropFilter: 'blur(10px)',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        top: videoMenuPosition?.top || 0,
-                        right: videoMenuPosition?.right || 0
-                      }}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
+                    {video.title || video.fileName}
+                  </h3>
+                  <div className="relative video-menu-container">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (openVideoMenuId === video.id) {
                           setOpenVideoMenuId(null);
                           setVideoMenuPosition(null);
-                          handleEditVideoClick(video);
+                        } else {
+                          setOpenVideoMenuId(video.id);
+                          const button = e.currentTarget;
+                          const rect = button.getBoundingClientRect();
+                          // Position the menu below and aligned to the right of the button, shifted 14px to the right
+                          setVideoMenuPosition({
+                            top: rect.bottom + 4,
+                            right: window.innerWidth - rect.right - 14
+                          });
+                        }
+                      }}
+                      className={`transition-colors flex items-center justify-center ${openVideoMenuId === video.id
+                          ? 'text-[var(--kaiylo-primary-hex)]'
+                          : 'text-white/50 hover:text-white'
+                        }`}
+                      title="Options de la vidéo"
+                    >
+                      <MoreHorizontal className="h-[14px] w-[14px]" />
+                    </button>
+
+                    {openVideoMenuId === video.id && (
+                      <div
+                        className="fixed rounded-lg shadow-2xl z-[9999] w-[220px]"
+                        style={{
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(10px)',
+                          borderColor: 'rgba(255, 255, 255, 0.1)',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                          top: videoMenuPosition?.top || 0,
+                          right: videoMenuPosition?.right || 0
                         }}
-                        className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
-                          <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z"/>
-                        </svg>
-                        Modifier
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCoachResourceClick(video);
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
-                          <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
-                        </svg>
-                        Supprimer
-                      </button>
-                    </div>
-                  )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenVideoMenuId(null);
+                            setVideoMenuPosition(null);
+                            handleEditVideoClick(video);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-t-lg"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
+                            <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z" />
+                          </svg>
+                          Modifier
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCoachResourceClick(video);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-b-lg"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                            <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z" />
+                          </svg>
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 200 }}>
+                  {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
+                </p>
+                <div className="flex justify-end items-center gap-2">
+                  <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
+                  {isProcessing && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Traitement</span>}
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 200 }}>
-                {folders.find(f => f.id === video.folderId)?.name || 'Non classé'}
-              </p>
-              <div className="flex justify-end items-center gap-2">
-                <p className="text-xs text-muted-foreground/60">{video.createdAt ? format(new Date(video.createdAt), 'd MMM yyyy', { locale: fr }) : 'N/A'}</p>
-                {isProcessing && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Traitement</span>}
-              </div>
             </div>
-          </div>
-        )})}
-    </div>
-  );
+          )
+        })}
+      </div>
+    );
   };
 
   // Show student view if user is a student
@@ -1560,19 +1565,129 @@ const VideoLibrary = () => {
   }
 
   return (
-    <div 
-      className="min-h-screen text-foreground"
+    <div
+      className="min-h-screen text-foreground relative"
       style={{ background: 'unset', backgroundColor: 'unset' }}
     >
+      {/* Mobile Background Elements (Hidden on Desktop) */}
+      <div className="md:hidden">
+        {/* Image de fond */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backgroundImage: 'url(/background.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: 1,
+            backgroundColor: '#0a0a0a'
+          }}
+        />
+
+        {/* Layer blur sur l'écran */}
+        <div
+          style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh',
+            backdropFilter: 'blur(50px)',
+            WebkitBackdropFilter: 'blur(100px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.01)',
+            zIndex: 6,
+            pointerEvents: 'none',
+            opacity: 1
+          }}
+        />
+
+        {/* Gradient conique Figma - partie droite */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '0',
+            transform: 'translateY(-50%)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite'
+          }}
+        />
+
+        {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '50vw',
+            transform: 'translateY(-50%) scaleX(-1)',
+            width: '50vw',
+            height: '900px',
+            borderRadius: '0',
+            background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+            backdropFilter: 'blur(75px)',
+            boxShadow: 'none',
+            filter: 'brightness(1.5)',
+            zIndex: 5,
+            pointerEvents: 'none',
+            opacity: 1.0,
+            animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+          }}
+        />
+
+        {/* Top glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+          style={{
+            background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+            opacity: 0.35,
+            zIndex: 5
+          }}
+        />
+        {/* Warm orange glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+            opacity: 0.45,
+            zIndex: 5
+          }}
+        />
+        {/* Subtle bottom depth glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+          style={{
+            background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+            opacity: 0.25,
+            zIndex: 5
+          }}
+        />
+      </div>
+
       {/* Main Content */}
-      <div className="px-4 md:px-[50px] pt-3 pb-20 w-full">
+      <div className="px-4 md:px-[50px] pt-3 pb-20 w-full relative z-10">
         {/* Header */}
         <div className="mb-8">
-          
+
           {/* Tabs */}
-          <div 
-            className="flex gap-4 md:gap-6 mt-1 overflow-x-auto" 
-            style={{ 
+          <div
+            className="flex gap-4 md:gap-6 mt-1 overflow-x-auto"
+            style={{
               paddingLeft: '0px',
               borderTopWidth: '0px',
               borderTopColor: 'rgba(0, 0, 0, 0)',
@@ -1588,7 +1703,7 @@ const VideoLibrary = () => {
               borderLeftStyle: 'none'
             }}
           >
-            <button 
+            <button
               className={`tab-button-fixed-width pt-3 pb-2 text-xs md:text-sm border-b-2 whitespace-nowrap ${activeTab === 'clients' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
               data-text="Vidéos clients"
               style={activeTab !== 'clients' ? { fontWeight: 200 } : {}}
@@ -1596,7 +1711,7 @@ const VideoLibrary = () => {
             >
               Vidéos clients
             </button>
-            <button 
+            <button
               className={`tab-button-fixed-width pt-3 pb-2 text-xs md:text-sm border-b-2 whitespace-nowrap ${activeTab === 'coach' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
               data-text="Ressources coach"
               style={activeTab !== 'coach' ? { fontWeight: 200 } : {}}
@@ -1622,510 +1737,78 @@ const VideoLibrary = () => {
               />
             </div>
           )}
-        {activeTab === 'clients' && (
-          <>
-            {/* Filters Row */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[14px] mb-6">
-              {/* Status Filter */}
-              <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    ref={statusFilterButtonRef}
-                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
-                    style={{
-                      color: isStatusFilterOpen || statusFilter !== 'all' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
-                      fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : '200',
-                      ...(!isMobile && {
-                        width: `${statusFilterMinWidth}px`,
-                        minWidth: `${statusFilterMinWidth}px`
-                      })
-                    }}
-                  >
-                    <span
-                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                        isStatusFilterOpen || statusFilter !== 'all'
-                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                      }`}
-                      aria-hidden
-                    />
-                    <span ref={statusFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{getStatusFilterLabel(statusFilter)}</span>
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform relative z-10"
-                      style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                    </svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="bottom"
-                  align="start"
-                  sideOffset={8}
-                  disablePortal={true}
-                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  <DropdownMenuRadioGroup
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                      setStatus(value);
-                      setIsStatusFilterOpen(false);
-                    }}
-                    className="flex flex-col gap-0.5 p-0"
-                  >
-                    <DropdownMenuRadioItem
-                      value="all"
-                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                        statusFilter === 'all' 
-                          ? 'bg-primary/20 text-primary font-normal' 
-                          : 'text-foreground font-light'
-                      }`}
-                      style={
-                        statusFilter === 'all'
-                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                          : {}
-                      }
-                      onMouseEnter={(e) => {
-                        if (statusFilter !== 'all') {
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '#D48459';
-                            span.style.fontWeight = '400';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (statusFilter !== 'all') {
-                          e.currentTarget.style.backgroundColor = '';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '';
-                            span.style.fontWeight = '';
-                          }
-                        }
+          {activeTab === 'clients' && (
+            <>
+              {/* Filters Row */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[14px] mb-6">
+                {/* Status Filter */}
+                <DropdownMenu open={isStatusFilterOpen} onOpenChange={setIsStatusFilterOpen} modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      ref={statusFilterButtonRef}
+                      className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
+                      style={{
+                        color: isStatusFilterOpen || statusFilter !== 'all' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                        fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : '200',
+                        ...(!isMobile && {
+                          width: `${statusFilterMinWidth}px`,
+                          minWidth: `${statusFilterMinWidth}px`
+                        })
                       }}
                     >
-                      <span>Tous les statuts</span>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 448 512" 
-                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                          statusFilter === 'all' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                        }`}
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                      </svg>
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="pending"
-                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                        statusFilter === 'pending' 
-                          ? 'bg-primary/20 text-primary font-normal' 
-                          : 'text-foreground font-light'
-                      }`}
-                      style={
-                        statusFilter === 'pending'
-                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                          : {}
-                      }
-                      onMouseEnter={(e) => {
-                        if (statusFilter !== 'pending') {
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '#D48459';
-                            span.style.fontWeight = '400';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (statusFilter !== 'pending') {
-                          e.currentTarget.style.backgroundColor = '';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '';
-                            span.style.fontWeight = '';
-                          }
-                        }
-                      }}
-                    >
-                      <span>À feedback</span>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 448 512" 
-                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                          statusFilter === 'pending' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                        }`}
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                      </svg>
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="completed"
-                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                        statusFilter === 'completed' 
-                          ? 'bg-primary/20 text-primary font-normal' 
-                          : 'text-foreground font-light'
-                      }`}
-                      style={
-                        statusFilter === 'completed'
-                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                          : {}
-                      }
-                      onMouseEnter={(e) => {
-                        if (statusFilter !== 'completed') {
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '#D48459';
-                            span.style.fontWeight = '400';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (statusFilter !== 'completed') {
-                          e.currentTarget.style.backgroundColor = '';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '';
-                            span.style.fontWeight = '';
-                          }
-                        }
-                      }}
-                    >
-                      <span>Complété</span>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 448 512" 
-                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                          statusFilter === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                        }`}
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                      </svg>
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              
-              {/* Student Filter */}
-              <DropdownMenu open={isStudentFilterOpen} onOpenChange={setIsStudentFilterOpen} modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    ref={studentFilterButtonRef}
-                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
-                    style={{
-                      color: isStudentFilterOpen || selectedStudent !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
-                      fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : '200',
-                      ...(!isMobile && {
-                        width: `${studentFilterMinWidth}px`,
-                        minWidth: `${studentFilterMinWidth}px`
-                      })
-                    }}
-                  >
-                    <span
-                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                        isStudentFilterOpen || selectedStudent !== ''
-                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                      }`}
-                      aria-hidden
-                    />
-                    <span ref={studentFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedStudent ? (studentMap.get(selectedStudent) || selectedStudent) : 'Client'}</span>
-                    <svg 
-xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform relative z-10"
-                      style={{ transform: isStudentFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                    </svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="bottom"
-                  align="start"
-                  sideOffset={8}
-                  disablePortal={true}
-                  className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  <DropdownMenuRadioGroup
-                    value={selectedStudent}
-                    onValueChange={(value) => {
-                      setSelectedStudent(value);
-                      setIsStudentFilterOpen(false);
-                    }}
-                    className="flex flex-col gap-0.5 p-0"
-                  >
-                    <DropdownMenuRadioItem
-                      value=""
-                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                        selectedStudent === '' 
-                          ? 'bg-primary/20 text-primary font-normal' 
-                          : 'text-foreground font-light'
-                      }`}
-                      style={
-                        selectedStudent === ''
-                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                          : {}
-                      }
-                      onMouseEnter={(e) => {
-                        if (selectedStudent !== '') {
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '#D48459';
-                            span.style.fontWeight = '400';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedStudent !== '') {
-                          e.currentTarget.style.backgroundColor = '';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '';
-                            span.style.fontWeight = '';
-                          }
-                        }
-                      }}
-                    >
-                      <span>Client</span>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 448 512"
-                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                          selectedStudent === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                        }`}
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                      </svg>
-                    </DropdownMenuRadioItem>
-                    {uniqueStudents.map(studentEmail => (
-                      <DropdownMenuRadioItem
-                        key={studentEmail}
-                        value={studentEmail}
-                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                          selectedStudent === studentEmail 
-                            ? 'bg-primary/20 text-primary font-normal' 
-                            : 'text-foreground font-light'
-                        }`}
-                        style={
-                          selectedStudent === studentEmail
-                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                            : {}
-                        }
-                        onMouseEnter={(e) => {
-                          if (selectedStudent !== studentEmail) {
-                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                            const span = e.currentTarget.querySelector('span');
-                            if (span) {
-                              span.style.color = '#D48459';
-                              span.style.fontWeight = '400';
-                            }
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedStudent !== studentEmail) {
-                            e.currentTarget.style.backgroundColor = '';
-                            const span = e.currentTarget.querySelector('span');
-                            if (span) {
-                              span.style.color = '';
-                              span.style.fontWeight = '';
-                            }
-                          }
-                        }}
-                      >
-                        <span>{studentMap.get(studentEmail) || studentEmail}</span>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 448 512" 
-                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                            selectedStudent === studentEmail ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                      <span
+                        className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isStatusFilterOpen || statusFilter !== 'all'
+                            ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                            : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
                           }`}
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                        </svg>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Exercise Filter */}
-              <DropdownMenu 
-                open={isExerciseFilterOpen} 
-                onOpenChange={(open) => {
-                  setIsExerciseFilterOpen(open);
-                  if (!open) {
-                    setExerciseSearchTerm('');
-                  }
-                }} 
-                modal={false}
-              >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    ref={exerciseFilterButtonRef}
-                    className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
-                    style={{
-                      color: isExerciseFilterOpen || selectedExercise !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
-                      fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : '200',
-                      ...(!isMobile && {
-                        width: `${exerciseFilterMinWidth}px`,
-                        minWidth: `${exerciseFilterMinWidth}px`
-                      })
-                    }}
-                  >
-                    <span
-                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                        isExerciseFilterOpen || selectedExercise !== ''
-                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                      }`}
-                      aria-hidden
-                    />
-                    <span ref={exerciseFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedExercise || 'Exercice'}</span>
-                    <svg 
-xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 384 512"
-                      className="h-4 w-4 transition-transform relative z-10"
-                      style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
-                    </svg>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="bottom"
-                  align="start"
-                  sideOffset={8}
-                  disablePortal={true}
-                  className="w-56 rounded-xl p-0 [&_span.absolute.left-2]:hidden flex flex-col"
-                  style={{
-                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                >
-                  {/* Search bar */}
-                  <div className="pt-3 px-3 pb-2 border-border">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Rechercher un exercice..."
-                        value={exerciseSearchTerm}
-                        onChange={(e) => setExerciseSearchTerm(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring"
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          borderColor: 'rgba(255, 255, 255, 0.1)'
-                        }}
+                        aria-hidden
                       />
-                    </div>
-                  </div>
-                  {/* Exercise list */}
-                  <div className="overflow-y-auto max-h-48 exercise-dropdown-scrollbar">
-                    <DropdownMenuRadioGroup 
-                      value={selectedExercise} 
-                      onValueChange={(value) => {
-                        setSelectedExercise(value);
-                        setIsExerciseFilterOpen(false);
-                        setExerciseSearchTerm('');
-                      }}
-                    >
-                    <DropdownMenuRadioItem
-                      value=""
-                      className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                        selectedExercise === '' 
-                          ? 'bg-primary/20 text-primary font-normal' 
-                          : 'text-foreground font-light'
-                      }`}
-                      style={
-                        selectedExercise === ''
-                          ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
-                          : {}
-                      }
-                      onMouseEnter={(e) => {
-                        if (selectedExercise !== '') {
-                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '#D48459';
-                            span.style.fontWeight = '400';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedExercise !== '') {
-                          e.currentTarget.style.backgroundColor = '';
-                          const span = e.currentTarget.querySelector('span');
-                          if (span) {
-                            span.style.color = '';
-                            span.style.fontWeight = '';
-                          }
-                        }
-                      }}
-                    >
-                      <span>Exercice</span>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        viewBox="0 0 448 512" 
-                        className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                          selectedExercise === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                        }`}
+                      <span ref={statusFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap' }}>{getStatusFilterLabel(statusFilter)}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 384 512"
+                        className="h-4 w-4 transition-transform relative z-10"
+                        style={{ transform: isStatusFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
                         fill="currentColor"
                         aria-hidden="true"
                       >
-                        <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                        <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
                       </svg>
-                    </DropdownMenuRadioItem>
-                    {filteredExercises.length > 0 ? (
-                      filteredExercises.map(exercise => (
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="start"
+                    sideOffset={8}
+                    disablePortal={true}
+                    className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
+                    style={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                      backdropFilter: 'blur(10px)',
+                      borderColor: 'rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    <DropdownMenuRadioGroup
+                      value={statusFilter}
+                      onValueChange={(value) => {
+                        setStatus(value);
+                        setIsStatusFilterOpen(false);
+                      }}
+                      className="flex flex-col gap-0.5 p-0"
+                    >
                       <DropdownMenuRadioItem
-                        key={exercise}
-                        value={exercise}
-                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                          selectedExercise === exercise 
-                            ? 'bg-primary/20 text-primary font-normal' 
+                        value="all"
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${statusFilter === 'all'
+                            ? 'bg-primary/20 text-primary font-normal'
                             : 'text-foreground font-light'
-                        }`}
+                          }`}
                         style={
-                          selectedExercise === exercise
+                          statusFilter === 'all'
                             ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
                             : {}
                         }
                         onMouseEnter={(e) => {
-                          if (selectedExercise !== exercise) {
+                          if (statusFilter !== 'all') {
                             e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
                             const span = e.currentTarget.querySelector('span');
                             if (span) {
@@ -2135,7 +1818,7 @@ xmlns="http://www.w3.org/2000/svg"
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (selectedExercise !== exercise) {
+                          if (statusFilter !== 'all') {
                             e.currentTarget.style.backgroundColor = '';
                             const span = e.currentTarget.querySelector('span');
                             if (span) {
@@ -2145,264 +1828,677 @@ xmlns="http://www.w3.org/2000/svg"
                           }
                         }}
                       >
-                        <span>{exercise}</span>
-                        <svg 
-                          xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 448 512" 
-                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                            selectedExercise === exercise ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                          }`}
+                        <span>Tous les statuts</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 448 512"
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${statusFilter === 'all' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                            }`}
                           fill="currentColor"
                           aria-hidden="true"
                         >
-                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
                         </svg>
                       </DropdownMenuRadioItem>
-                      ))
-                    ) : (
-                      <div className="px-5 py-2 text-sm text-white/25 text-center font-extralight">
-                        Aucun exercice trouvé
-                      </div>
-                    )}
-                  </DropdownMenuRadioGroup>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <DropdownMenuRadioItem
+                        value="pending"
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${statusFilter === 'pending'
+                            ? 'bg-primary/20 text-primary font-normal'
+                            : 'text-foreground font-light'
+                          }`}
+                        style={
+                          statusFilter === 'pending'
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (statusFilter !== 'pending') {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (statusFilter !== 'pending') {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>À feedback</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 448 512"
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${statusFilter === 'pending' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                            }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                        </svg>
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem
+                        value="completed"
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${statusFilter === 'completed'
+                            ? 'bg-primary/20 text-primary font-normal'
+                            : 'text-foreground font-light'
+                          }`}
+                        style={
+                          statusFilter === 'completed'
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (statusFilter !== 'completed') {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (statusFilter !== 'completed') {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>Complété</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 448 512"
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${statusFilter === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                            }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                        </svg>
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              {/* Date Filter */}
-              <div className="hidden sm:block relative w-full sm:w-auto">
-                <div 
-                  ref={dateFilterButtonRef}
-                  onClick={() => dateInputRef.current?.showPicker()}
-                  className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 w-full sm:w-auto overflow-hidden"
-                  style={{
-                    color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
-                    fontWeight: selectedDate ? '400' : '200',
-                    ...(!isMobile && {
-                      width: `${dateFilterMinWidth}px`,
-                      minWidth: `${dateFilterMinWidth}px`
-                    })
-                  }}
-                >
-                  <span
-                    className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
-                      selectedDate
-                        ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
-                        : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
-                    }`}
-                    aria-hidden
-                  />
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 448 512" 
-                    className="h-4 w-4 pointer-events-none flex-shrink-0 relative z-10"
-                    style={{ color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
-                    fill="currentColor"
-                  >
-                    <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z"/>
-                  </svg>
-                  {/* Custom Display */}
-                  <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap relative z-10" style={{ 
-                    fontSize: '14px',
-                    fontWeight: selectedDate ? '400' : 'inherit',
-                    flex: '1'
-                  }}>
-                    Date
-                  </span>
-                  
-                  {/* Native Input */}
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
-                    style={{ colorScheme: 'dark' }}
-                  />
-                </div>
-              </div>
-
-              {/* Video Count + Mark all completed button */}
-              <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
-                <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
-                  {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
-                </span>
-                {videosNeedingFeedback > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleMarkAllPendingAsCompleted}
-                    disabled={isMarkingAllCompleted}
-                    className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-xs md:text-sm disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                {/* Student Filter */}
+                <DropdownMenu open={isStudentFilterOpen} onOpenChange={setIsStudentFilterOpen} modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      ref={studentFilterButtonRef}
+                      className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
+                      style={{
+                        color: isStudentFilterOpen || selectedStudent !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                        fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : '200',
+                        ...(!isMobile && {
+                          width: `${studentFilterMinWidth}px`,
+                          minWidth: `${studentFilterMinWidth}px`
+                        })
+                      }}
+                    >
+                      <span
+                        className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isStudentFilterOpen || selectedStudent !== ''
+                            ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                            : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                          }`}
+                        aria-hidden
+                      />
+                      <span ref={studentFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isStudentFilterOpen || selectedStudent !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedStudent ? (studentMap.get(selectedStudent) || selectedStudent) : 'Client'}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 384 512"
+                        className="h-4 w-4 transition-transform relative z-10"
+                        style={{ transform: isStudentFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                      </svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="start"
+                    sideOffset={8}
+                    disablePortal={true}
+                    className="w-56 rounded-xl p-1 [&_span.absolute.left-2]:hidden"
                     style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                      color: 'rgba(250, 250, 250, 0.5)',
-                      fontWeight: '400'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isMarkingAllCompleted) return;
-                      e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                      e.currentTarget.style.color = '#D48459';
-                      e.currentTarget.style.fontWeight = '400';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                      e.currentTarget.style.fontWeight = '400';
+                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                      backdropFilter: 'blur(10px)',
+                      borderColor: 'rgba(255, 255, 255, 0.1)'
                     }}
                   >
-                    {isMarkingAllCompleted ? (
-                      <>
-                        <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
-                        En cours...
-                      </>
-                    ) : (
-                      <>
-                        <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
-                        Tout marquer complété ({videosNeedingFeedback})
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
+                    <DropdownMenuRadioGroup
+                      value={selectedStudent}
+                      onValueChange={(value) => {
+                        setSelectedStudent(value);
+                        setIsStudentFilterOpen(false);
+                      }}
+                      className="flex flex-col gap-0.5 p-0"
+                    >
+                      <DropdownMenuRadioItem
+                        value=""
+                        className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${selectedStudent === ''
+                            ? 'bg-primary/20 text-primary font-normal'
+                            : 'text-foreground font-light'
+                          }`}
+                        style={
+                          selectedStudent === ''
+                            ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                            : {}
+                        }
+                        onMouseEnter={(e) => {
+                          if (selectedStudent !== '') {
+                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '#D48459';
+                              span.style.fontWeight = '400';
+                            }
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedStudent !== '') {
+                            e.currentTarget.style.backgroundColor = '';
+                            const span = e.currentTarget.querySelector('span');
+                            if (span) {
+                              span.style.color = '';
+                              span.style.fontWeight = '';
+                            }
+                          }
+                        }}
+                      >
+                        <span>Client</span>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 448 512"
+                          className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${selectedStudent === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                            }`}
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                        </svg>
+                      </DropdownMenuRadioItem>
+                      {uniqueStudents.map(studentEmail => (
+                        <DropdownMenuRadioItem
+                          key={studentEmail}
+                          value={studentEmail}
+                          className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${selectedStudent === studentEmail
+                              ? 'bg-primary/20 text-primary font-normal'
+                              : 'text-foreground font-light'
+                            }`}
+                          style={
+                            selectedStudent === studentEmail
+                              ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                              : {}
+                          }
+                          onMouseEnter={(e) => {
+                            if (selectedStudent !== studentEmail) {
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                              const span = e.currentTarget.querySelector('span');
+                              if (span) {
+                                span.style.color = '#D48459';
+                                span.style.fontWeight = '400';
+                              }
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedStudent !== studentEmail) {
+                              e.currentTarget.style.backgroundColor = '';
+                              const span = e.currentTarget.querySelector('span');
+                              if (span) {
+                                span.style.color = '';
+                                span.style.fontWeight = '';
+                              }
+                            }
+                          }}
+                        >
+                          <span>{studentMap.get(studentEmail) || studentEmail}</span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 448 512"
+                            className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${selectedStudent === studentEmail ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                              }`}
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                          </svg>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            {error && (
-              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6">
-                <div className="text-destructive">Erreur: {error}</div>
-              </div>
-            )}
+                {/* Exercise Filter */}
+                <DropdownMenu
+                  open={isExerciseFilterOpen}
+                  onOpenChange={(open) => {
+                    setIsExerciseFilterOpen(open);
+                    if (!open) {
+                      setExerciseSearchTerm('');
+                    }
+                  }}
+                  modal={false}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      ref={exerciseFilterButtonRef}
+                      className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground text-sm w-full sm:w-auto focus:outline-none focus-visible:outline-none overflow-hidden"
+                      style={{
+                        color: isExerciseFilterOpen || selectedExercise !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                        fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : '200',
+                        ...(!isMobile && {
+                          width: `${exerciseFilterMinWidth}px`,
+                          minWidth: `${exerciseFilterMinWidth}px`
+                        })
+                      }}
+                    >
+                      <span
+                        className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isExerciseFilterOpen || selectedExercise !== ''
+                            ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                            : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                          }`}
+                        aria-hidden
+                      />
+                      <span ref={exerciseFilterTextRef} className="relative z-10" style={{ fontSize: '14px', fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : 'inherit', flex: '1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedExercise || 'Exercice'}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 384 512"
+                        className="h-4 w-4 transition-transform relative z-10"
+                        style={{ transform: isExerciseFilterOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                      </svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="start"
+                    sideOffset={8}
+                    disablePortal={true}
+                    className="w-56 rounded-xl p-0 [&_span.absolute.left-2]:hidden flex flex-col"
+                    style={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                      backdropFilter: 'blur(10px)',
+                      borderColor: 'rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    {/* Search bar */}
+                    <div className="pt-3 px-3 pb-2 border-border">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Rechercher un exercice..."
+                          value={exerciseSearchTerm}
+                          onChange={(e) => setExerciseSearchTerm(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-input border border-border rounded-[10px] text-xs font-light text-foreground placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-ring"
+                          style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {/* Exercise list */}
+                    <div className="overflow-y-auto max-h-48 exercise-dropdown-scrollbar">
+                      <DropdownMenuRadioGroup
+                        value={selectedExercise}
+                        onValueChange={(value) => {
+                          setSelectedExercise(value);
+                          setIsExerciseFilterOpen(false);
+                          setExerciseSearchTerm('');
+                        }}
+                      >
+                        <DropdownMenuRadioItem
+                          value=""
+                          className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${selectedExercise === ''
+                              ? 'bg-primary/20 text-primary font-normal'
+                              : 'text-foreground font-light'
+                            }`}
+                          style={
+                            selectedExercise === ''
+                              ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                              : {}
+                          }
+                          onMouseEnter={(e) => {
+                            if (selectedExercise !== '') {
+                              e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                              const span = e.currentTarget.querySelector('span');
+                              if (span) {
+                                span.style.color = '#D48459';
+                                span.style.fontWeight = '400';
+                              }
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedExercise !== '') {
+                              e.currentTarget.style.backgroundColor = '';
+                              const span = e.currentTarget.querySelector('span');
+                              if (span) {
+                                span.style.color = '';
+                                span.style.fontWeight = '';
+                              }
+                            }
+                          }}
+                        >
+                          <span>Exercice</span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 448 512"
+                            className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${selectedExercise === '' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                              }`}
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                          </svg>
+                        </DropdownMenuRadioItem>
+                        {filteredExercises.length > 0 ? (
+                          filteredExercises.map(exercise => (
+                            <DropdownMenuRadioItem
+                              key={exercise}
+                              value={exercise}
+                              className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${selectedExercise === exercise
+                                  ? 'bg-primary/20 text-primary font-normal'
+                                  : 'text-foreground font-light'
+                                }`}
+                              style={
+                                selectedExercise === exercise
+                                  ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' }
+                                  : {}
+                              }
+                              onMouseEnter={(e) => {
+                                if (selectedExercise !== exercise) {
+                                  e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.2)';
+                                  const span = e.currentTarget.querySelector('span');
+                                  if (span) {
+                                    span.style.color = '#D48459';
+                                    span.style.fontWeight = '400';
+                                  }
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedExercise !== exercise) {
+                                  e.currentTarget.style.backgroundColor = '';
+                                  const span = e.currentTarget.querySelector('span');
+                                  if (span) {
+                                    span.style.color = '';
+                                    span.style.fontWeight = '';
+                                  }
+                                }
+                              }}
+                            >
+                              <span>{exercise}</span>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 448 512"
+                                className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${selectedExercise === exercise ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+                                  }`}
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                          ))
+                        ) : (
+                          <div className="px-5 py-2 text-sm text-white/25 text-center font-extralight">
+                            Aucun exercice trouvé
+                          </div>
+                        )}
+                      </DropdownMenuRadioGroup>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            {!loading && !error && (
-              filteredVideos.length > 0 ? (
-                renderStudentVideosGrouped()
-              ) : (
-                <div className="flex items-center justify-center min-h-[320px] py-8">
-                  <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                    <span>
-                      {statusFilter === 'pending' ? (
+                {/* Date Filter */}
+                <div className="hidden sm:block relative w-full sm:w-auto">
+                  <div
+                    ref={dateFilterButtonRef}
+                    onClick={() => dateInputRef.current?.showPicker()}
+                    className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 w-full sm:w-auto overflow-hidden"
+                    style={{
+                      color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
+                      fontWeight: selectedDate ? '400' : '200',
+                      ...(!isMobile && {
+                        width: `${dateFilterMinWidth}px`,
+                        minWidth: `${dateFilterMinWidth}px`
+                      })
+                    }}
+                  >
+                    <span
+                      className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${selectedDate
+                          ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                          : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                        }`}
+                      aria-hidden
+                    />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 448 512"
+                      className="h-4 w-4 pointer-events-none flex-shrink-0 relative z-10"
+                      style={{ color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(255, 255, 255, 0.5)' }}
+                      fill="currentColor"
+                    >
+                      <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
+                    </svg>
+                    {/* Custom Display */}
+                    <span ref={dateFilterTextRef} className="text-sm whitespace-nowrap relative z-10" style={{
+                      fontSize: '14px',
+                      fontWeight: selectedDate ? '400' : 'inherit',
+                      flex: '1'
+                    }}>
+                      Date
+                    </span>
+
+                    {/* Native Input */}
+                    <input
+                      ref={dateInputRef}
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Video Count + Mark all completed button */}
+                <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
+                  <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
+                    {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                  </span>
+                  {videosNeedingFeedback > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllPendingAsCompleted}
+                      disabled={isMarkingAllCompleted}
+                      className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground text-xs md:text-sm disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: 'rgba(250, 250, 250, 0.5)',
+                        fontWeight: '400'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isMarkingAllCompleted) return;
+                        e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                        e.currentTarget.style.color = '#D48459';
+                        e.currentTarget.style.fontWeight = '400';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                        e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                        e.currentTarget.style.fontWeight = '400';
+                      }}
+                    >
+                      {isMarkingAllCompleted ? (
                         <>
-                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo à traiter</span>
-                          <br />
-                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Toutes les vidéos ont reçu un feedback</span>
-                        </>
-                      ) : statusFilter === 'completed' ? (
-                        <>
-                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo complétée</span>
-                          <br />
-                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Les vidéos avec feedback apparaîtront ici</span>
+                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+                          En cours...
                         </>
                       ) : (
                         <>
-                          <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
-                          <br />
-                          <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Aucune vidéo ne correspond aux filtres sélectionnés.</span>
+                          <CircleCheckIcon className="w-4 h-4 flex-shrink-0" />
+                          Tout marquer complété ({videosNeedingFeedback})
                         </>
                       )}
-                    </span>
-                    <button 
-                      onClick={() => {
-                        setStatus('all');
-                        setSelectedStudent('');
-                        setSelectedExercise('');
-                        setSelectedDate('');
-                      }}
-                      className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
-                      style={{
-                        backgroundColor: 'var(--kaiylo-primary-hex)',
-                        color: 'var(--tw-ring-offset-color)'
-                      }}
-                    >
-                      Effacer les filtres
                     </button>
-                  </div>
+                  )}
                 </div>
-              )
-            )}
-          </>
-        )}
+              </div>
 
-        {activeTab === 'coach' && (
-          <>
-            {/* Filters and Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-6 gap-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                {folders.map(folder => (
-                  <div
-                    key={folder.id}
-                    className={`relative group inline-flex items-center gap-1.5 rounded-full pl-[12px] pr-3 py-[7px] hover:bg-muted cursor-pointer ${
-                      selectedFolder === folder.id 
-                        ? 'bg-primary/15 text-primary font-normal' 
-                        : 'bg-white/5 text-white/75 font-extralight'
-                    }`}
-                    style={folderMinWidths[folder.id] ? { width: `${folderMinWidths[folder.id]}px` } : {}}
-                    onClick={() => handleFolderSelect(folder.id)}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 flex-shrink-0" fill="currentColor">
-                      <path d="M64 448l384 0c35.3 0 64-28.7 64-64l0-240c0-35.3-28.7-64-64-64L298.7 80c-6.9 0-13.7-2.2-19.2-6.4L241.1 44.8C230 36.5 216.5 32 202.7 32L64 32C28.7 32 0 60.7 0 96L0 384c0 35.3 28.7 64 64 64z"/>
-                    </svg>
-                    <span className="text-xs sm:text-sm whitespace-nowrap">{folder.name}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFolder(folder.id);
-                      }}
-                      className="text-muted-foreground hover:text-[#d4845a] transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center"
-                      title="Supprimer le dossier"
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6">
+                  <div className="text-destructive">Erreur: {error}</div>
+                </div>
+              )}
+
+              {!loading && !error && (
+                filteredVideos.length > 0 ? (
+                  renderStudentVideosGrouped()
+                ) : (
+                  <div className="flex items-center justify-center min-h-[320px] py-8">
+                    <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                      <span>
+                        {statusFilter === 'pending' ? (
+                          <>
+                            <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo à traiter</span>
+                            <br />
+                            <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Toutes les vidéos ont reçu un feedback</span>
+                          </>
+                        ) : statusFilter === 'completed' ? (
+                          <>
+                            <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo complétée</span>
+                            <br />
+                            <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Les vidéos avec feedback apparaîtront ici</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
+                            <br />
+                            <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Aucune vidéo ne correspond aux filtres sélectionnés.</span>
+                          </>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setStatus('all');
+                          setSelectedStudent('');
+                          setSelectedExercise('');
+                          setSelectedDate('');
+                        }}
+                        className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
+                        style={{
+                          backgroundColor: 'var(--kaiylo-primary-hex)',
+                          color: 'var(--tw-ring-offset-color)'
+                        }}
+                      >
+                        Effacer les filtres
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+            </>
+          )}
+
+          {activeTab === 'coach' && (
+            <>
+              {/* Filters and Actions */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {folders.map(folder => (
+                    <div
+                      key={folder.id}
+                      className={`relative group inline-flex items-center gap-1.5 rounded-full pl-[12px] pr-3 py-[7px] hover:bg-muted cursor-pointer ${selectedFolder === folder.id
+                          ? 'bg-primary/15 text-primary font-normal'
+                          : 'bg-white/5 text-white/75 font-extralight'
+                        }`}
+                      style={folderMinWidths[folder.id] ? { width: `${folderMinWidths[folder.id]}px` } : {}}
+                      onClick={() => handleFolderSelect(folder.id)}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="14" height="14" fill="currentColor">
-                        <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"/>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 flex-shrink-0" fill="currentColor">
+                        <path d="M64 448l384 0c35.3 0 64-28.7 64-64l0-240c0-35.3-28.7-64-64-64L298.7 80c-6.9 0-13.7-2.2-19.2-6.4L241.1 44.8C230 36.5 216.5 32 202.7 32L64 32C28.7 32 0 60.7 0 96L0 384c0 35.3 28.7 64 64 64z" />
                       </svg>
-                    </button>
-                  </div>
-                ))}
-                <Button 
-                  variant="ghost" 
-                  className="rounded-full bg-white/5 text-white/50 font-extralight hover:text-foreground gap-1 text-xs sm:text-sm" 
-                  onClick={() => setIsFolderModalOpen(true)}
-                  style={{ background: 'unset', backgroundColor: 'unset' }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 mr-2" fill="currentColor">
-                    <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"/>
-                  </svg>
-                  nouveau dossier
-                </Button>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button 
-                  onClick={() => setIsUploadModalOpen(true)} 
-                  className="group bg-primary hover:bg-primary/90 text-primary-foreground pt-[7px] pb-[7px] pl-5 pr-5 rounded-[8px] w-full sm:w-auto text-xs sm:text-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45 mr-2">
-                    <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z"/>
-                  </svg>
-                  Ajouter une vidéo
-                </Button>
-              </div>
-            </div>
-
-            {error && <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6"><p className="text-destructive">Erreur: {error}</p></div>}
-            {!loading && !error && (
-              (selectedFolder 
-                ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
-                : coachResources.length > 0
-              ) ? renderCoachResources() : (
-                <div className="flex items-center justify-center min-h-[320px] py-8">
-                  <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                    <span>
-                      <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
-                      <br />
-                      <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Vos ressources téléchargées apparaîtront ici.</span>
-                    </span>
-                  </div>
+                      <span className="text-xs sm:text-sm whitespace-nowrap">{folder.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFolder(folder.id);
+                        }}
+                        className="text-muted-foreground hover:text-[#d4845a] transition-colors opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                        title="Supprimer le dossier"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="14" height="14" fill="currentColor">
+                          <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    className="rounded-full bg-white/5 text-white/50 font-extralight hover:text-foreground gap-1 text-xs sm:text-sm"
+                    onClick={() => setIsFolderModalOpen(true)}
+                    style={{ background: 'unset', backgroundColor: 'unset' }}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 mr-2" fill="currentColor">
+                      <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z" />
+                    </svg>
+                    nouveau dossier
+                  </Button>
                 </div>
-              )
-            )}
-          </>
-        )}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="group bg-primary hover:bg-primary/90 text-primary-foreground pt-[7px] pb-[7px] pl-5 pr-5 rounded-[8px] w-full sm:w-auto text-xs sm:text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45 mr-2">
+                      <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z" />
+                    </svg>
+                    Ajouter une vidéo
+                  </Button>
+                </div>
+              </div>
+
+              {error && <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6"><p className="text-destructive">Erreur: {error}</p></div>}
+              {!loading && !error && (
+                (selectedFolder
+                  ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
+                  : coachResources.length > 0
+                ) ? renderCoachResources() : (
+                  <div className="flex items-center justify-center min-h-[320px] py-8">
+                    <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                      <span>
+                        <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>Aucune vidéo trouvée</span>
+                        <br />
+                        <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>Vos ressources téléchargées apparaîtront ici.</span>
+                      </span>
+                    </div>
+                  </div>
+                )
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      <UploadVideoModal 
+      <UploadVideoModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={handleUploadSuccess}
@@ -2410,7 +2506,7 @@ xmlns="http://www.w3.org/2000/svg"
       />
 
       {isFolderModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
           style={{ zIndex: 100 }}
           onClick={(e) => {
@@ -2420,7 +2516,7 @@ xmlns="http://www.w3.org/2000/svg"
             }
           }}
         >
-          <div 
+          <div
             className="relative mx-auto w-full max-w-md max-h-[92vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col"
             style={{
               background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
@@ -2432,7 +2528,7 @@ xmlns="http://www.w3.org/2000/svg"
             <div className="shrink-0 px-6 pt-6 pb-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                  <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"/>
+                  <path d="M512 384c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4L448 80c35.3 0 64 28.7 64 64l0 240zM256 160c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z" />
                 </svg>
                 <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                   Créer un nouveau dossier
@@ -2447,7 +2543,7 @@ xmlns="http://www.w3.org/2000/svg"
                 aria-label="Close modal"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
-                  <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/>
+                  <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
                 </svg>
               </button>
             </div>
@@ -2496,7 +2592,7 @@ xmlns="http://www.w3.org/2000/svg"
       )}
 
       {/* Video Detail Modal */}
-      <VideoDetailModal 
+      <VideoDetailModal
         isOpen={isVideoDetailModalOpen}
         onClose={() => {
           setIsVideoDetailModalOpen(false);
@@ -2509,7 +2605,7 @@ xmlns="http://www.w3.org/2000/svg"
       />
 
       {/* Coach Resource Modal */}
-      <CoachResourceModal 
+      <CoachResourceModal
         isOpen={isCoachResourceModalOpen}
         onClose={() => {
           setIsCoachResourceModalOpen(false);
@@ -2535,7 +2631,7 @@ xmlns="http://www.w3.org/2000/svg"
         title={
           <>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" fill="currentColor">
-              <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z"/>
+              <path d="M471.6 21.7c-21.9-21.9-57.3-21.9-79.2 0L362.3 51.7l97.9 97.9 30.1-30.1c21.9-21.9 21.9-57.3 0-79.2L471.6 21.7zm-299.2 220c-6.1 6.1-10.8 13.6-13.5 21.9l-29.6 88.8c-2.9 8.6-.6 18.1 5.8 24.6s15.9 8.7 24.6 5.8l88.8-29.6c8.2-2.7 15.7-7.4 21.9-13.5L437.7 172.3 339.7 74.3 172.4 241.7zM96 64C43 64 0 107 0 160L0 416c0 53 43 96 96 96l256 0c53 0 96-43 96-96l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 96c0 17.7-14.3 32-32 32L96 448c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 64z" />
             </svg>
             Modifier le titre
           </>

@@ -1,15 +1,24 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { X, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
 const PendingInvitationsModal = ({ isOpen, onClose }) => {
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendingId, setResendingId] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   useEffect(() => {
     if (isOpen) {

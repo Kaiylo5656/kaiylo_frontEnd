@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronUp, ChevronDown, ArrowLeft } from 'lucide-react';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import OneRmHistoryModal from './OneRmHistoryModal';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -148,6 +149,7 @@ const OneRmModal = ({
   onSaveAndClose,
   onViewEvolution,
 }) => {
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const lifts = useMemo(() => (data.length ? data : DEFAULT_ONE_RM_DATA), [data]);
   const [selectedLiftId, setSelectedLiftId] = useState(lifts[0]?.id ?? null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(true);
@@ -162,6 +164,13 @@ const OneRmModal = ({
   const containerRef = useRef(null);
   const [mainModalHeight, setMainModalHeight] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);

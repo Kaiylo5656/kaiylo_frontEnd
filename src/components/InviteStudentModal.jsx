@@ -1,15 +1,24 @@
 import logger from '../utils/logger';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 
 const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   const { user } = useAuth();
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
   const [error, setError] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [sentEmail, setSentEmail] = useState('');

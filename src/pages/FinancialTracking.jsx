@@ -2,7 +2,7 @@ import React from 'react';
 import { Search, SlidersHorizontal, AlertCircle, TrendingUp, Users, Euro, Calendar, Clock, BarChart2, PieChart } from 'lucide-react';
 
 const FinancialTracking = () => {
-  
+
   const clients = [
     { name: 'Théo Chomat', plan: 'Mensuel', remaining: 0, status: 'En retard', amount: '130 €', lastPayment: '3 avr. 2025' },
     { name: 'Jean Roy', plan: 'Mensuel', remaining: 0, status: 'En retard', amount: '130 €', lastPayment: '3 avr. 2025' },
@@ -30,7 +30,7 @@ const FinancialTracking = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col gap-6">
         <h1 className="text-3xl font-bold">Suivi Financier</h1>
-        
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 p-6 rounded-lg">
@@ -46,19 +46,19 @@ const FinancialTracking = () => {
             <p className="text-4xl font-bold mt-2">2</p>
           </div>
           <div className="bg-card p-6 rounded-lg space-y-2">
-             <p className="text-sm text-muted-foreground">Indicateurs</p>
-             <div className="flex justify-between items-center text-sm">
-                 <span>Moyenne / clients</span>
-                 <span className="font-bold">300 €</span>
-             </div>
-             <div className="flex justify-between items-center text-sm">
-                 <span>Durée moyenne d'engagement</span>
-                 <span className="font-bold">3,5 mois</span>
-             </div>
-             <div className="flex justify-between items-center text-sm">
-                 <span>Prochaine échéance de paiement</span>
-                 <span className="font-bold">J-10</span>
-             </div>
+            <p className="text-sm text-muted-foreground">Indicateurs</p>
+            <div className="flex justify-between items-center text-sm">
+              <span>Moyenne / clients</span>
+              <span className="font-bold">300 €</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span>Durée moyenne d'engagement</span>
+              <span className="font-bold">3,5 mois</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span>Prochaine échéance de paiement</span>
+              <span className="font-bold">J-10</span>
+            </div>
           </div>
         </div>
 

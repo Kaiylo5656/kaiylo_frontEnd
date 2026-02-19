@@ -2,9 +2,11 @@ import logger from '../utils/logger';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 
 const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
+  const { registerModalOpen, registerModalClose } = useOverlayModal();
   const dateInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [isDisciplineDropdownOpen, setIsDisciplineDropdownOpen] = useState(false);
@@ -17,6 +19,13 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
   });
 
   const disciplines = ['Street Lifting', 'Powerlifting', 'Bodybuilding', 'Calisthenics'];
+
+  useEffect(() => {
+    if (isOpen) {
+      registerModalOpen();
+      return () => registerModalClose();
+    }
+  }, [isOpen, registerModalOpen, registerModalClose]);
 
   // Initialize form data when modal opens or studentData changes
   useEffect(() => {
