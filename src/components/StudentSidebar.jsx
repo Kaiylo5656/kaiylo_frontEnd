@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { sortStudents } from '../utils/studentSorting';
 import {
@@ -26,10 +26,25 @@ const StudentSidebar = ({
   const [filterPendingMessages, setFilterPendingMessages] = useState(false);
   const [filterNoUpcomingSessions, setFilterNoUpcomingSessions] = useState(false);
 
+  // Clé qui détermine quand on doit recalculer l'ordre (pas quand seuls les compteurs changent)
+  const orderKey = useMemo(
+    () => JSON.stringify({
+      ids: students.map(s => s.id),
+      sort,
+      dir,
+      searchTerm,
+      filterPendingFeedback,
+      filterPendingMessages,
+      filterNoUpcomingSessions,
+    }),
+    [students, sort, dir, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions]
+  );
+
+  const stableOrderRef = useRef({ key: null, list: [] });
+
   const filteredStudents = useMemo(() => {
     let filtered = students;
-    
-    // Apply search filter
+
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = students.filter(student => {
@@ -38,53 +53,42 @@ const StudentSidebar = ({
         return name.includes(term) || email.includes(term);
       });
     }
-    
-    // Apply pending feedback filter
+
     if (filterPendingFeedback) {
-      filtered = filtered.filter(student => 
+      filtered = filtered.filter(student =>
         studentVideoCounts[student.id] && Number(studentVideoCounts[student.id]) > 0
       );
     }
-    
-    // Apply pending messages filter
+
     if (filterPendingMessages) {
-      filtered = filtered.filter(student => 
+      filtered = filtered.filter(student =>
         studentMessageCounts[student.id] && Number(studentMessageCounts[student.id]) > 0
       );
     }
-    
-    // Apply no upcoming sessions filter
+
     if (filterNoUpcomingSessions) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
       filtered = filtered.filter(student => {
         const nextSessionDate = studentNextSessions[student.id];
-        if (!nextSessionDate) {
-          // No session date means no upcoming session
-          return true;
-        }
-        
-        // Check if the session date is still in the future
-        // Handle both ISO string dates and Date objects
+        if (!nextSessionDate) return true;
         const sessionDate = new Date(nextSessionDate);
-        if (isNaN(sessionDate.getTime())) {
-          // Invalid date, treat as no upcoming session
-          return true;
-        }
+        if (isNaN(sessionDate.getTime())) return true;
         sessionDate.setHours(0, 0, 0, 0);
-        
-        // Only show students with no upcoming sessions (date is in the past, not today or future)
-        // If sessionDate >= today, it's an upcoming session, so exclude the student
-        // We use < instead of <= because a session today is still "upcoming"
-        const hasNoUpcomingSession = sessionDate < today;
-        return hasNoUpcomingSession;
+        return sessionDate < today;
       });
     }
-    
-    // Tri identique à la page d'accueil (priorité feedback, puis séances à venir, puis critère choisi)
-    return sortStudents(filtered, sort, dir, studentVideoCounts, studentNextSessions);
-  }, [students, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions, sort, dir]);
+
+    const sorted = sortStudents(filtered, sort, dir, studentVideoCounts, studentNextSessions);
+
+    // Ne mettre à jour l'ordre affiché que si la clé a changé (liste/tri/filtres), pas quand seuls les compteurs arrivent
+    if (stableOrderRef.current.key !== orderKey) {
+      stableOrderRef.current = { key: orderKey, list: sorted };
+      return sorted;
+    }
+    // Garder l'ordre déjà affiché ; les badges se mettent à jour via les props
+    return stableOrderRef.current.list;
+  }, [orderKey, students, searchTerm, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, sort, dir, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
   return (
     <div 

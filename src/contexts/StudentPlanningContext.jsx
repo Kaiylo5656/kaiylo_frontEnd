@@ -68,10 +68,9 @@ export const StudentPlanningProvider = ({ children }) => {
     fetchPlanningBlocks();
   }, [user?.role, user?.id, fetchAssignments, fetchPlanningBlocks]);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (user?.role === 'student' && user?.id) {
-      fetchAssignments();
-      fetchPlanningBlocks();
+      await Promise.all([fetchAssignments(), fetchPlanningBlocks()]);
     }
   }, [user?.role, user?.id, fetchAssignments, fetchPlanningBlocks]);
 

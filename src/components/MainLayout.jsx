@@ -3,8 +3,10 @@ import Navigation from './Navigation';
 import Header from './Header';
 import BottomNavBar from './BottomNavBar';
 import FeedbackModal from './FeedbackModal';
-import { useLocation } from 'react-router-dom'; // Import useLocation
+import PullToRefresh from './PullToRefresh';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useStudentPlanning } from '../contexts/StudentPlanningContext';
 
 // Context to track if WorkoutSessionExecution is open
 const WorkoutSessionContext = createContext({
@@ -17,7 +19,10 @@ export const useWorkoutSession = () => useContext(WorkoutSessionContext);
 const MainLayout = ({ children }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const planningContext = useStudentPlanning();
+  const refresh = planningContext?.refresh ?? (() => Promise.resolve());
   const isChatPage = location.pathname.startsWith('/chat');
+  const isStudentDashboard = user?.role === 'student' && location.pathname === '/student/dashboard';
   const [isWorkoutSessionOpen, setIsWorkoutSessionOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const isStudent = user?.role === 'student';
@@ -103,19 +108,30 @@ const MainLayout = ({ children }) => {
         
         <Navigation />
         <main className="flex-1 flex flex-col overflow-hidden w-full relative z-10" style={{ gap: 0 }}>
-          {!isWorkoutSessionOpen && <Header />}
-          <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
-            {children}
-          </div>
+          {!isWorkoutSessionOpen && <Header onOpenFeedback={!isStudent ? () => setIsFeedbackModalOpen(true) : undefined} />}
+          {isStudentDashboard ? (
+            <PullToRefresh
+              onRefresh={refresh}
+              disabled={isWorkoutSessionOpen}
+              className="flex-1 relative z-10 pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full"
+              style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}
+            >
+              {children}
+            </PullToRefresh>
+          ) : (
+            <div className={`flex-1 relative z-10 ${isChatPage ? 'p-0 overflow-hidden' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
+              {children}
+            </div>
+          )}
         </main>
       </div>
       {!isWorkoutSessionOpen && <BottomNavBar />}
       
-      {/* Bouton flottant pour ouvrir le feedback - uniquement pour les coaches */}
+      {/* Bouton flottant pour ouvrir le feedback — uniquement pour les coaches, masqué sur mobile (accessible via menu latéral) */}
       {!isStudent && (
         <button
           onClick={() => setIsFeedbackModalOpen(true)}
-          className="fixed bottom-6 right-6 bg-[#d4845a] hover:bg-[#c47850] text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all z-40 flex items-center justify-center hover:scale-110"
+          className="hidden md:flex fixed bottom-6 right-6 bg-[#d4845a] hover:bg-[#c47850] text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all z-40 items-center justify-center hover:scale-110"
           title="Signaler un problème ou envoyer un feedback"
           style={{ zIndex: 9999, backgroundColor: 'rgba(196, 120, 80, 0.25)', border: 'none' }}
         >

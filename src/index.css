@@ -73,6 +73,8 @@
       rgba(0, 0, 0, 1) 100%
     );
     min-height: 100vh;
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
     position: relative;
     overflow-x: hidden;
   }
@@ -988,6 +990,34 @@ input:autofill {
   100% {
     filter: brightness(1.25);
     opacity: 0.75;
+  }
+}
+
+/* Animation organique plus brillante pour l'interface étudiant */
+@keyframes organicGradientBright {
+  0% {
+    filter: brightness(1.5);
+    opacity: 1;
+  }
+  20% {
+    filter: brightness(1.55);
+    opacity: 1;
+  }
+  40% {
+    filter: brightness(1.45);
+    opacity: 1;
+  }
+  60% {
+    filter: brightness(1.53);
+    opacity: 1;
+  }
+  80% {
+    filter: brightness(1.47);
+    opacity: 1;
+  }
+  100% {
+    filter: brightness(1.5);
+    opacity: 1;
   }
 }
 

@@ -252,7 +252,7 @@ const LoginPage = () => {
       <main className="flex-grow flex items-center justify-center p-4 relative overflow-y-auto" style={{ zIndex: 20, position: 'relative' }}>
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center px-4" style={{ position: 'relative', zIndex: 21 }}>
           <div className="w-full" style={{ position: 'relative', zIndex: 22 }}>
-            <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: 'clamp(28px, 5vw, 35px)', marginBottom: 'clamp(30px, 8vw, 50px)' }}>
+            <h1 className="text-3xl font-extralight text-foreground" style={{ fontSize: 'clamp(28px, 5vw, 35px)', marginBottom: 'clamp(30px, 8vw, 50px)' }}>
               Connexion
             </h1>
 

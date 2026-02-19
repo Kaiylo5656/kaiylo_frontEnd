@@ -716,14 +716,14 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
         {/* Right Column - Sidebar */}
         <div 
-          className="w-full md:w-96 flex-shrink-0 flex flex-col overflow-hidden border-t md:border-t-0 order-3 md:order-2"
+          className="w-full md:w-96 flex-1 md:flex-shrink-0 flex flex-col overflow-hidden border-t md:border-t-0 order-3 md:order-2 min-h-0"
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
             boxShadow: '0px 8px 24px 0px rgba(0, 0, 0, 0.4), 0px 4px 8px 0px rgba(0, 0, 0, 0.2)'
           }}
         >
           <div 
-            className="flex flex-col overflow-y-auto flex-1"
+            className="flex flex-col overflow-y-auto flex-1 min-h-0"
             onWheel={(e) => {
               e.stopPropagation();
             }}
@@ -846,7 +846,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             </div>
 
             {/* Comment Section */}
-            <div className="px-4 md:px-6 py-2 md:py-4 flex-1 flex flex-col">
+            <div className="px-4 md:px-6 py-4 md:py-4 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-2 md:mb-3">
                 <h3 className="text-xs md:text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>Commentaire coach</h3>
                 {videoType === 'coach' && (

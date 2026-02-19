@@ -226,7 +226,13 @@ const ChatList = ({
   // Format last message preview
   const formatLastMessage = (message) => {
     if (!message) return 'Aucun message';
-    return message.content;
+    const content = message.content || '';
+    const isVoiceMessage =
+      message.message_type === 'audio' ||
+      /voice-message|\.webm|\.ogg|\.mp3|\.m4a/i.test(content) ||
+      content.trim().startsWith('🎤');
+    if (isVoiceMessage) return 'Message vocal';
+    return content;
   };
 
   // Format timestamp

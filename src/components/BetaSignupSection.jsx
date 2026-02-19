@@ -74,7 +74,7 @@ const BetaSignupSection = () => {
               <button 
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full h-12 px-6 flex items-center justify-center bg-[#d4845a] hover:bg-[#bf7348] rounded-full transition-all cursor-pointer group relative overflow-hidden group/btn opacity-80 hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 px-6 flex items-center justify-center bg-[#d4845a] hover:bg-[#bf7348] rounded-full transition-all cursor-pointer group relative overflow-hidden group/btn opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                  <span className="text-sm text-white font-['Inter'] font-normal relative z-10">
                    {status === 'loading' ? 'Inscription...' : 'Réserver mon accès'}
