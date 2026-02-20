@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Check, AlertCircle, X, RotateCcw, Video } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
@@ -57,8 +58,8 @@ const BackgroundUploadIndicator = () => {
     }
   };
 
-  return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 w-[calc(100%-32px)] max-w-[360px] pointer-events-none">
+  return createPortal(
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[101] flex flex-col gap-2 w-[calc(100%-32px)] max-w-[360px] pointer-events-none">
       <AnimatePresence mode="popLayout">
         {activeUploads.map((upload) => {
           const statusInfo = getStatusInfo(upload);
@@ -138,7 +139,8 @@ const BackgroundUploadIndicator = () => {
           );
         })}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body
   );
 };
 
