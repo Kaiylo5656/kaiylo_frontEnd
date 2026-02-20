@@ -83,28 +83,35 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
     }
   }, [isOpen, onClose]);
 
-  // Get weight and reps from video data
+  // Get weight, reps and RPE from video data
   const getVideoWeightAndReps = (video) => {
-    // Try direct properties first
     let weight = video.weight || video.target_weight || video.requested_weight;
     let reps = video.reps || video.target_reps || video.requested_reps;
-    
-    // If not found, try to get from assignment workout session
-    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+    let rpe = 0;
+
+    // Check assignment data for useRir flag and fill in missing data
+    if (video.assignment?.workout_session?.exercises) {
       const exerciseName = video.exercise_name;
       const setNumber = video.set_number || 1;
-      
+
       for (const exercise of video.assignment.workout_session.exercises) {
-        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
-          const set = exercise.sets[setNumber - 1];
-          weight = weight || set.weight || set.target_weight;
-          reps = reps || set.reps || set.target_reps;
+        if (exercise.name === exerciseName) {
+          const set = exercise.sets?.[setNumber - 1];
+          if (exercise.useRir) {
+            // RPE mode: coach's RPE target is in set.weight, ignore video.weight for display
+            rpe = set?.weight || set?.target_weight || 0;
+            weight = 0;
+          } else {
+            // Charge mode: fill in weight from assignment if missing
+            if (!weight && set) weight = set.weight || set.target_weight;
+          }
+          if (set) reps = reps || set.reps || set.target_reps;
           break;
         }
       }
     }
-    
-    return { weight: weight || 0, reps: reps || 0 };
+
+    return { weight: weight || 0, reps: reps || 0, rpe };
   };
 
   if (!isOpen || !video) return null;
@@ -129,14 +136,15 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
             <div className="flex items-center justify-center gap-2 text-white/50 text-[13px] font-light mt-1">
               <span>№ {video.set_number || 1}/{video.total_sets || '?'}</span>
               {(() => {
-                const { weight, reps } = getVideoWeightAndReps(video);
-                if (weight > 0 || reps > 0) {
+                const { weight, reps, rpe } = getVideoWeightAndReps(video);
+                if (weight > 0 || reps > 0 || rpe > 0) {
                   return (
                     <>
                       <span>•</span>
                       {weight > 0 && <span>{weight} kg</span>}
-                      {weight > 0 && reps > 0 && <span>•</span>}
+                      {weight > 0 && (reps > 0 || rpe > 0) && <span>•</span>}
                       {reps > 0 && <span>{reps} reps</span>}
+                      {rpe > 0 && <span style={{ color: 'var(--kaiylo-primary-hex)' }}> RPE {rpe}</span>}
                     </>
                   );
                 }

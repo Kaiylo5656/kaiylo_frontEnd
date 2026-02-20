@@ -47,29 +47,31 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
     const seriesText = `Série ${setNumber || 1}${totalSets ? `/${totalSets}` : ''}`;
     const repsText = reps > 0 ? `${reps} reps` : null;
     const weightText = weight > 0 ? `${weight}kg` : null;
-    
-    if (repsText && weightText) {
+    const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
+
+    const parts = [seriesText];
+    if (repsText) parts.push(repsText);
+
+    if (weightText || rpeText) {
       return (
         <>
-          {seriesText} • {repsText}{' '}
-          <span style={{ color: 'var(--kaiylo-primary-hex, #D4845A)', fontWeight: 400 }}>@{weightText}</span>
-        </>
-      );
-    } else if (repsText) {
-      return (
-        <>
-          {seriesText} • {repsText}
-        </>
-      );
-    } else if (weightText) {
-      return (
-        <>
-          {seriesText} •{' '}
-          <span style={{ color: 'var(--kaiylo-primary-hex, #D4845A)', fontWeight: 400 }}>@{weightText}</span>
+          {parts.join(' • ')}
+          {weightText && (
+            <>
+              {' '}
+              <span style={{ color: 'var(--kaiylo-primary-hex, #D4845A)', fontWeight: 400 }}>@{weightText}</span>
+            </>
+          )}
+          {rpeText && (
+            <>
+              {' '}
+              <span style={{ color: 'var(--kaiylo-primary-hex, #D4845A)', fontWeight: 400 }}>{rpeText}</span>
+            </>
+          )}
         </>
       );
     }
-    return seriesText;
+    return parts.join(' • ');
   };
 
   return (

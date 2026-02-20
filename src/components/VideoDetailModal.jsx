@@ -417,28 +417,35 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     }
   };
 
-  // Get weight and reps from video data
+  // Get weight, reps and RPE from video data
   const getVideoWeightAndReps = (video) => {
-    // Try direct properties first
     let weight = video.weight || video.target_weight || video.requested_weight;
     let reps = video.reps || video.target_reps || video.requested_reps;
-    
-    // If not found, try to get from assignment workout session
-    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+    let rpe = 0;
+
+    // Check assignment data for useRir flag and fill in missing data
+    if (video.assignment?.workout_session?.exercises) {
       const exerciseName = video.exercise_name;
       const setNumber = video.set_number || 1;
-      
+
       for (const exercise of video.assignment.workout_session.exercises) {
-        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
-          const set = exercise.sets[setNumber - 1];
-          weight = weight || set.weight || set.target_weight;
-          reps = reps || set.reps || set.target_reps;
+        if (exercise.name === exerciseName) {
+          const set = exercise.sets?.[setNumber - 1];
+          if (exercise.useRir) {
+            // RPE mode: coach's RPE target is in set.weight, ignore video.weight for display
+            rpe = set?.weight || set?.target_weight || 0;
+            weight = 0;
+          } else {
+            // Charge mode: fill in weight from assignment if missing
+            if (!weight && set) weight = set.weight || set.target_weight;
+          }
+          if (set) reps = reps || set.reps || set.target_reps;
           break;
         }
       }
     }
-    
-    return { weight: weight || 0, reps: reps || 0 };
+
+    return { weight: weight || 0, reps: reps || 0, rpe };
   };
 
   if (!isOpen || !video) return null;
@@ -525,37 +532,42 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             <span className="text-white/75 text-sm font-extralight">•</span>
             <span className="text-white/75 text-sm font-extralight">
               {(() => {
-                const { weight, reps } = getVideoWeightAndReps(video);
+                const { weight, reps, rpe } = getVideoWeightAndReps(video);
                 const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
                 const repsText = reps > 0 ? `${reps} reps` : null;
                 const weightText = weight > 0 ? `${weight}kg` : null;
-                
-                if (repsText && weightText) {
+                const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
+
+                const parts = [seriesText];
+                if (repsText) parts.push(repsText);
+
+                if (weightText || rpeText) {
                   return (
                     <>
-                      {seriesText} • {repsText}{' '}
-                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                      {parts.join(' • ')}
+                      {weightText && (
+                        <>
+                          {' '}
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                        </>
+                      )}
+                      {rpeText && (
+                        <>
+                          {' '}
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
+                        </>
+                      )}
                     </>
                   );
-                } else if (repsText) {
-                  return `${seriesText} • ${repsText}`;
-                } else if (weightText) {
-                  return (
-                    <>
-                      {seriesText} •{' '}
-                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                    </>
-                  );
-                } else {
-                  return seriesText;
                 }
+                return parts.join(' • ');
               })()}
             </span>
           </div>
           {videoType === 'student' && (
             <div className="flex items-center gap-2 flex-shrink-0">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 256 512" 
                 className="h-4 w-4"
                 style={{ color: 'var(--kaiylo-primary-hex)' }}
@@ -795,29 +807,35 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                 <span className="text-white/75 text-sm md:text-base font-extralight">•</span>
                 <span className="text-white/75 text-sm md:text-base font-extralight">
                   {(() => {
-                    const { weight, reps } = getVideoWeightAndReps(video);
+                    const { weight, reps, rpe } = getVideoWeightAndReps(video);
                     const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
                     const repsText = reps > 0 ? `${reps} reps` : null;
                     const weightText = weight > 0 ? `${weight}kg` : null;
-                    
-                    if (repsText && weightText) {
+                    const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
+
+                    const parts = [seriesText];
+                    if (repsText) parts.push(repsText);
+
+                    if (weightText || rpeText) {
                       return (
                         <>
-                          {seriesText} • {repsText}{' '}
-                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                        </>
-                      );
-                    } else if (repsText) {
-                      return `${seriesText} • ${repsText}`;
-                    } else if (weightText) {
-                      return (
-                        <>
-                          {seriesText} •{' '}
-                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                          {parts.join(' • ')}
+                          {weightText && (
+                            <>
+                              {' '}
+                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                            </>
+                          )}
+                          {rpeText && (
+                            <>
+                              {' '}
+                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
+                            </>
+                          )}
                         </>
                       );
                     } else {
-                      return seriesText;
+                      return parts.join(' • ');
                     }
                   })()}
                 </span>

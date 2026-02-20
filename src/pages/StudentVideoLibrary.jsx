@@ -278,28 +278,35 @@ const StudentVideoLibrary = () => {
     setIsCoachResourceModalOpen(true);
   };
 
-  // Get weight and reps from video data
+  // Get weight, reps and RPE from video data
   const getVideoWeightAndReps = (video) => {
-    // Try direct properties first
     let weight = video.weight || video.target_weight || video.requested_weight;
     let reps = video.reps || video.target_reps || video.requested_reps;
+    let rpe = 0;
 
-    // If not found, try to get from assignment workout session
-    if ((!weight || !reps) && video.assignment?.workout_session?.exercises) {
+    // Check assignment data for useRir flag and fill in missing data
+    if (video.assignment?.workout_session?.exercises) {
       const exerciseName = video.exercise_name;
       const setNumber = video.set_number || 1;
 
       for (const exercise of video.assignment.workout_session.exercises) {
-        if (exercise.name === exerciseName && exercise.sets && exercise.sets[setNumber - 1]) {
-          const set = exercise.sets[setNumber - 1];
-          weight = weight || set.weight || set.target_weight;
-          reps = reps || set.reps || set.target_reps;
+        if (exercise.name === exerciseName) {
+          const set = exercise.sets?.[setNumber - 1];
+          if (exercise.useRir) {
+            // RPE mode: coach's RPE target is in set.weight, ignore video.weight for display
+            rpe = set?.weight || set?.target_weight || 0;
+            weight = 0;
+          } else {
+            // Charge mode: fill in weight from assignment if missing
+            if (!weight && set) weight = set.weight || set.target_weight;
+          }
+          if (set) reps = reps || set.reps || set.target_reps;
           break;
         }
       }
     }
 
-    return { weight: weight || 0, reps: reps || 0 };
+    return { weight: weight || 0, reps: reps || 0, rpe };
   };
 
   // Get status badge for videos
@@ -743,8 +750,8 @@ const StudentVideoLibrary = () => {
                                         <div className="flex items-center gap-2 text-white/50 text-xs sm:text-[13px] font-light mt-1">
                                           <span>№ {video.set_number || 1}/{video.total_sets || '?'}</span>
                                           {(() => {
-                                            const { weight, reps } = getVideoWeightAndReps(video);
-                                            if (weight > 0 || reps > 0) {
+                                            const { weight, reps, rpe } = getVideoWeightAndReps(video);
+                                            if (weight > 0 || reps > 0 || rpe > 0) {
                                               return (
                                                 <>
                                                   <span>•</span>
@@ -752,7 +759,12 @@ const StudentVideoLibrary = () => {
                                                     {reps > 0 && <span>{reps} reps </span>}
                                                     {weight > 0 && (
                                                       <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: '400' }}>
-                                                        @{weight}kg
+                                                        @{weight}kg{' '}
+                                                      </span>
+                                                    )}
+                                                    {rpe > 0 && (
+                                                      <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: '400' }}>
+                                                        RPE {rpe}
                                                       </span>
                                                     )}
                                                   </span>

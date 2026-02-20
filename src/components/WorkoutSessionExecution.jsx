@@ -263,12 +263,29 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               coachId: session?.coach_id,
               assignmentId: session?.assignment_id || session?.id
             },
-            setInfo: {
-              setIndex: metadata.setIndex,
-              setNumber: metadata.setIndex + 1,
-              weight: exercises[metadata.exerciseIndex]?.sets?.[metadata.setIndex]?.weight || 0,
-              reps: exercises[metadata.exerciseIndex]?.sets?.[metadata.setIndex]?.reps || 0
-            },
+            setInfo: (() => {
+              const ex = exercises[metadata.exerciseIndex];
+              const set = ex?.sets?.[metadata.setIndex];
+              const setWeight = set?.weight || 0;
+              const setReps = set?.reps || 0;
+              if (ex?.useRir) {
+                const key = `${metadata.exerciseIndex}-${metadata.setIndex}`;
+                const setData = savedProgress.completedSets?.[key];
+                return {
+                  setIndex: metadata.setIndex,
+                  setNumber: metadata.setIndex + 1,
+                  weight: (setData && typeof setData === 'object' && setData.studentWeight) || 0,
+                  reps: setReps,
+                  rpe: setWeight
+                };
+              }
+              return {
+                setIndex: metadata.setIndex,
+                setNumber: metadata.setIndex + 1,
+                weight: setWeight,
+                reps: setReps
+              };
+            })(),
             timestamp: new Date().toISOString()
           }));
           setLocalVideos(restoredVideos);
@@ -1461,12 +1478,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   sessionId: session?.id,
                   assignmentId: session?.assignment_id || session?.id
                 };
-                const setInfo = {
-                  setNumber: setNumber,
-                  setIndex: setIndex,
-                  weight: set.weight || 0,
-                  reps: set.reps || 0
-                };
+                const setInfo = (() => {
+                  if (exercise.useRir) {
+                    return {
+                      setNumber: setNumber,
+                      setIndex: setIndex,
+                      weight: (setData && typeof setData === 'object' && setData.studentWeight) || 0,
+                      reps: set.reps || 0,
+                      rpe: set.weight || 0
+                    };
+                  }
+                  return {
+                    setNumber: setNumber,
+                    setIndex: setIndex,
+                    weight: set.weight || 0,
+                    reps: set.reps || 0
+                  };
+                })();
 
                 const formData = new FormData();
                 formData.append('noVideo', 'true'); // Pas de vidéo
@@ -1604,12 +1632,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   sessionId: session?.id,
                   assignmentId: session?.assignment_id || session?.id
                 };
-                const setInfo = {
-                  setNumber: setNumber,
-                  setIndex: setIndex,
-                  weight: set.weight || 0,
-                  reps: set.reps || 0
-                };
+                const setInfo = (() => {
+                  if (exercise.useRir) {
+                    return {
+                      setNumber: setNumber,
+                      setIndex: setIndex,
+                      weight: (setData && typeof setData === 'object' && setData.studentWeight) || 0,
+                      reps: set.reps || 0,
+                      rpe: set.weight || 0
+                    };
+                  }
+                  return {
+                    setNumber: setNumber,
+                    setIndex: setIndex,
+                    weight: set.weight || 0,
+                    reps: set.reps || 0
+                  };
+                })();
 
                 const formData = new FormData();
                 formData.append('noVideo', 'true');
@@ -1729,12 +1768,23 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   sessionId: session?.id,
                   assignmentId: session?.assignment_id || session?.id
                 };
-                const setInfo = {
-                  setNumber: setNumber,
-                  setIndex: setIndex,
-                  weight: set.weight || 0,
-                  reps: set.reps || 0
-                };
+                const setInfo = (() => {
+                  if (exercise.useRir) {
+                    return {
+                      setNumber: setNumber,
+                      setIndex: setIndex,
+                      weight: (setData && typeof setData === 'object' && setData.studentWeight) || 0,
+                      reps: set.reps || 0,
+                      rpe: set.weight || 0
+                    };
+                  }
+                  return {
+                    setNumber: setNumber,
+                    setIndex: setIndex,
+                    weight: set.weight || 0,
+                    reps: set.reps || 0
+                  };
+                })();
 
                 const formData = new FormData();
                 formData.append('noVideo', 'true'); // Pas de vidéo
@@ -2555,8 +2605,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             setInfo={{
               setIndex: activeSetIndex,
               setNumber: activeSetIndex + 1,
-              weight: activeSet?.weight || 0,
-              reps: activeSet?.reps || 0
+              weight: activeExercise?.useRir
+                ? (completedSets[`${activeExerciseIndex}-${activeSetIndex}`]?.studentWeight || 0)
+                : (activeSet?.weight || 0),
+              reps: activeSet?.reps || 0,
+              ...(activeExercise?.useRir ? { rpe: activeSet?.weight || 0 } : {})
             }}
             existingVideo={existingVideoForSet}
           />
