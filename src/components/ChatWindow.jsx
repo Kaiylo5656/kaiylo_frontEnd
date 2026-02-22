@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileMessage from './FileMessage';
@@ -9,7 +9,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
+import { Paperclip, ChevronLeft, ChevronDown, ChevronRight, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 import VideoDetailModal from './VideoDetailModal';
@@ -68,6 +68,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [openVideoGroups, setOpenVideoGroups] = useState({});
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
@@ -955,6 +956,46 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setIsVideoModalOpen(true);
   };
 
+  // Group consecutive video_upload messages by assignmentId
+  const groupedMessages = useMemo(() => {
+    const result = [];
+    let currentGroup = null;
+
+    for (const msg of messages) {
+      if (msg.message_type === 'video_upload' && msg.metadata?.assignmentId) {
+        if (currentGroup && currentGroup.assignmentId === msg.metadata.assignmentId) {
+          currentGroup.messages.push(msg);
+        } else {
+          // Flush previous group
+          if (currentGroup) result.push(currentGroup);
+          currentGroup = {
+            type: 'video_group',
+            groupId: `vg_${msg.metadata.assignmentId}_${msg.id}`,
+            assignmentId: msg.metadata.assignmentId,
+            sessionName: msg.metadata.sessionName || msg.metadata.exerciseName || 'Séance',
+            date: msg.created_at,
+            messages: [msg]
+          };
+        }
+      } else {
+        // Flush any pending group
+        if (currentGroup) {
+          result.push(currentGroup);
+          currentGroup = null;
+        }
+        result.push({ type: 'message', message: msg });
+      }
+    }
+    // Flush last group
+    if (currentGroup) result.push(currentGroup);
+
+    return result;
+  }, [messages]);
+
+  const toggleVideoGroup = useCallback((groupId) => {
+    setOpenVideoGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  }, []);
+
   if (!conversation) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
@@ -1110,29 +1151,97 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             <div className="text-xs mt-1 font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}>Démarrez la conversation !</div>
           </div>
         ) : (
-          messages.map((message, index) => {
+          groupedMessages.map((item, itemIndex) => {
+            if (item.type === 'video_group') {
+              const isOpen = openVideoGroups[item.groupId] || false;
+              const videoCount = item.messages.length;
+              const groupDate = new Date(item.date);
+              const formattedDate = groupDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+              return (
+                <div key={item.groupId} className="flex w-full justify-start">
+                  <div
+                    className="max-w-[85vw] sm:max-w-lg lg:max-w-2xl w-full"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: '16px',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Collapsible header */}
+                    <button
+                      onClick={() => toggleVideoGroup(item.groupId)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+                      style={{ border: 'none', background: 'none' }}
+                    >
+                      {isOpen ? (
+                        <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                      )}
+                      <span className="text-xs font-medium text-white truncate flex-1">
+                        {item.sessionName}
+                      </span>
+                      <span
+                        className="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full"
+                        style={{
+                          color: 'var(--kaiylo-primary-hex)',
+                          backgroundColor: 'rgba(212, 132, 90, 0.15)'
+                        }}
+                      >
+                        🎥 x{videoCount}
+                      </span>
+                      <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.4)' }}>
+                        {formattedDate}
+                      </span>
+                    </button>
+
+                    {/* Expanded video messages */}
+                    {isOpen && (
+                      <div className="px-2 pb-2 space-y-1.5">
+                        {item.messages.map((message) => {
+                          const isOwnMessage = message.sender_id === currentUser?.id;
+                          return (
+                            <div
+                              key={message.id}
+                              data-message-id={message.id}
+                              ref={(el) => { if (el) messageRefs.current[message.id] = el; }}
+                              className={`flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <VideoFeedbackMessage
+                                message={message}
+                                isOwnMessage={isOwnMessage}
+                                onVideoClick={handleVideoClick}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            // Regular message rendering
+            const message = item.message;
             // Debug logging for message rendering
             if (message.id?.startsWith('temp_')) {
-              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', index);
+              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', itemIndex);
             }
-            
-            // Log all message IDs being rendered for debugging
-            if (index === messages.length - 1 || index === messages.length - 2) {
-              logger.debug('🔍 Rendering message at index:', index, 'ID:', message.id, 'Content:', message.content?.substring(0, 20), 'Sender:', message.sender_id, 'IsOwn:', message.sender_id === currentUser?.id);
-            }
-            
+
             // CRITICAL DEBUG: Check if message is valid before rendering
             if (!message || !message.id || !message.content) {
-              logger.error('❌ Invalid message at index:', index, message);
+              logger.error('❌ Invalid message at index:', itemIndex, message);
               return null;
             }
-            
+
             // Determine if this is the current user's message - all user messages are aligned to the right
             const isOwnMessage = message.sender_id === currentUser?.id;
-            
+
             // Determine message status (sent/read) for own messages
             const isSent = isOwnMessage && !message.id?.startsWith('temp_');
-            
+
             // Check if message is read based on timestamp
             let isRead = false;
             if (isSent) {
@@ -1140,7 +1249,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 isRead = true;
               }
             }
-            
+
             return (
             <div
               key={message.id}
@@ -1148,16 +1257,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               ref={(el) => {
                 if (el) {
                   messageRefs.current[message.id] = el;
-                  // Debug: Log when message element is actually in DOM
-                  if (index === messages.length - 1) {
-                    logger.debug('🔍 Last message element mounted in DOM:', {
-                      messageId: message.id,
-                      content: message.content?.substring(0, 20),
-                      isVisible: el.offsetParent !== null,
-                      offsetHeight: el.offsetHeight,
-                      offsetTop: el.offsetTop
-                    });
-                  }
                 }
               }}
               className={`message-container flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'} ${
@@ -1167,26 +1266,26 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               <div className={`relative group flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
                 {/* Reply indicator - au-dessus du message */}
                 {message.replyTo && (
-                  <div className="mb-1.5" style={{ 
+                  <div className="mb-1.5" style={{
                     maxWidth: '75vw',
                     width: 'fit-content'
                   }}>
-                    <ReplyMessage 
-                      replyTo={message.replyTo} 
+                    <ReplyMessage
+                      replyTo={message.replyTo}
                       isOwnMessage={isOwnMessage}
                       onReplyClick={handleReplyClick}
                     />
                   </div>
                 )}
-                
+
                 {/* Message container avec bouton reply */}
                 <div className={`flex items-center gap-2 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
                   {/* Timestamp - visible au hover, à gauche pour nos messages, à droite pour les autres */}
-                  <div 
+                  <div
                     className={`opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 flex items-center gap-1 pointer-events-none ${
                       isOwnMessage ? 'order-2' : 'order-3'
                     }`}
-                    style={{ 
+                    style={{
                       fontSize: "11px",
                       color: 'rgba(255, 255, 255, 0.5)',
                       whiteSpace: 'nowrap'
@@ -1194,17 +1293,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   >
                     <span>{formatMessageTime(message.created_at)}</span>
                   </div>
-                  
+
                   <div className="relative">
                     {message.message_type === 'video_feedback' || message.message_type === 'video_upload' ? (
-                      <VideoFeedbackMessage 
-                        message={message} 
-                        isOwnMessage={isOwnMessage} 
+                      <VideoFeedbackMessage
+                        message={message}
+                        isOwnMessage={isOwnMessage}
                         onVideoClick={handleVideoClick}
                       />
                     ) : message.message_type === 'file' || message.message_type === 'audio' ? (
-                      <FileMessage 
-                        message={message} 
+                      <FileMessage
+                        message={message}
                         isOwnMessage={isOwnMessage}
                       />
                     ) : (
@@ -1214,7 +1313,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                             ? 'bg-primary text-primary-foreground border-primary rounded-[25px] pl-1 pr-1'
                             : 'bg-white/15 text-card-foreground border-0 rounded-[25px] pl-1 pr-1'
                         }`}
-                        style={{ 
+                        style={{
                           overflowWrap: 'break-word',
                           wordBreak: 'break-word',
                           overflow: 'hidden'
@@ -1222,9 +1321,9 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                       >
                         <CardContent className="p-3" style={{ padding: "10px", minWidth: 0 }}>
                           <div className="flex items-end gap-1.5" style={{ minWidth: 0 }}>
-                            <div 
-                              className="text-xs font-normal break-words whitespace-pre-wrap flex-1" 
-                              style={{ 
+                            <div
+                              className="text-xs font-normal break-words whitespace-pre-wrap flex-1"
+                              style={{
                                 overflowWrap: 'break-word',
                                 wordBreak: 'break-word',
                                 overflow: 'hidden',
@@ -1247,14 +1346,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                       </Card>
                     )}
                   </div>
-                  
+
                   {/* Delete button - only show for own messages, appears on hover */}
                   {isOwnMessage && (
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
                       onClick={() => handleDeleteMessage(message.id)}
                       title="Supprimer le message"
-                      style={{ 
+                      style={{
                         color: 'rgba(255, 255, 255, 0.5)',
                         backgroundColor: 'transparent'
                       }}
@@ -1270,14 +1369,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                       </svg>
                     </button>
                   )}
-                  
+
                   {/* Reply button - only show for other users' messages, appears on hover on the right side */}
                   {!isOwnMessage && (
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
                       onClick={() => handleReplyToMessage(message)}
                       title="Reply to this message"
-                      style={{ 
+                      style={{
                         color: 'rgba(255, 255, 255, 0.5)',
                         backgroundColor: 'transparent'
                       }}
