@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
+import { isDesktopViewport } from '../utils/device';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -93,6 +94,21 @@ const AuthCallback = () => {
             // Get user profile to check onboarding completion
             const userRole = session.user.user_metadata?.role || 'student';
             let targetPath;
+
+            if (userRole === 'student' && isDesktopViewport()) {
+              // Compte élève : autorisé uniquement sur mobile
+              await supabase.auth.signOut();
+              try {
+                if (typeof localStorage !== 'undefined') {
+                  localStorage.removeItem('authToken');
+                  localStorage.removeItem('supabaseRefreshToken');
+                  localStorage.removeItem('sb-auth-token');
+                }
+              } catch (e) { /* ignore */ }
+              const msg = encodeURIComponent('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+              navigate(`/login?error=${msg}`, { replace: true });
+              return;
+            }
             
             if (userRole === 'student') {
               // Fetch user profile to check onboarding completion

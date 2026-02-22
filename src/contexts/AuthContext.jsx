@@ -4,6 +4,7 @@ import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import { supabase } from '../lib/supabase';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '../utils/storage';
+import { isDesktopViewport } from '../utils/device';
 import logger from '../utils/logger';
 
 // Expose axios globally for testing purposes (development only)
@@ -444,8 +445,20 @@ export const AuthProvider = ({ children }) => {
           timeout: 5000,
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        setUser(response.data.user);
+        const userData = response.data.user;
+        setUser(userData);
         lastAuthCheckTimeRef.current = Date.now();
+        // Compte élève : autorisé uniquement sur mobile
+        if (userData?.role === 'student' && isDesktopViewport()) {
+          safeRemoveItem('authToken');
+          safeRemoveItem('supabaseRefreshToken');
+          safeRemoveItem('sb-auth-token');
+          delete axios.defaults.headers.common['Authorization'];
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setError('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+          return;
+        }
         logger.debug('✅ Auth check successful');
       } catch (error) {
         if (error.response?.status === 401) {
@@ -461,12 +474,23 @@ export const AuthProvider = ({ children }) => {
           logger.warn('⚠️ Backend unreachable, using Supabase session as fallback');
           const { data: { session: currentSession } } = await supabase.auth.getSession();
           if (currentSession?.user) {
-            setUser({
-              id: currentSession.user.id,
-              email: currentSession.user.email,
-              name: currentSession.user.user_metadata?.name || currentSession.user.user_metadata?.full_name || 'User',
-              role: currentSession.user.user_metadata?.role || 'coach'
-            });
+            const fallbackRole = currentSession.user.user_metadata?.role || 'coach';
+            if (fallbackRole === 'student' && isDesktopViewport()) {
+              safeRemoveItem('authToken');
+              safeRemoveItem('supabaseRefreshToken');
+              safeRemoveItem('sb-auth-token');
+              delete axios.defaults.headers.common['Authorization'];
+              await supabase.auth.signOut().catch(() => {});
+              setUser(null);
+              setError('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+            } else {
+              setUser({
+                id: currentSession.user.id,
+                email: currentSession.user.email,
+                name: currentSession.user.user_metadata?.name || currentSession.user.user_metadata?.full_name || 'User',
+                role: fallbackRole
+              });
+            }
           } else {
             setUser(null);
           }
@@ -684,6 +708,15 @@ export const AuthProvider = ({ children }) => {
 
       logger.debug('🔐 Login response received:', response.status);
       const { token, refreshToken, user } = response.data;
+
+      // Compte élève : autorisé uniquement sur mobile
+      if (user?.role === 'student' && isDesktopViewport()) {
+        const msg = 'L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.';
+        setError(msg);
+        clearTimeout(loadingTimeout);
+        setLoading(false);
+        return { success: false, error: msg };
+      }
       
       // Synchroniser avec Supabase pour bénéficier de la gestion automatique
       let session = null;
