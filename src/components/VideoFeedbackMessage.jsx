@@ -1,7 +1,7 @@
 import logger from '../utils/logger';
 import React from 'react';
 import VoiceMessage from './VoiceMessage';
-import { PlayCircle, FileVideo } from 'lucide-react';
+import { PlayCircle, FileVideo, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -75,12 +75,12 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
   return (
     <>
       {/* Label - Outside the main card */}
-      {(feedback || audioUrl || message.message_type === 'video_upload' || metadata.source === 'student_upload') && (
+      {(feedback || audioUrl || message.message_type === 'video_upload' || message.message_type === 'video_feedback' || metadata.source === 'student_upload') && (
         <div className="flex items-center gap-1.5 md:gap-2 mb-1.5 md:mb-2">
           {message.message_type === 'video_upload' || metadata.source === 'student_upload' ? (
             <>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                <path d="M0 128C0 92.7 28.7 64 64 64H448c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128zM559.1 99.8c10.4 5.6 16.9 16.4 16.9 28.2V384c0 11.8-6.5 22.6-16.9 28.2s-23 5-32.9-1.6l-96-64L416 337.1V174.9l14.2-9.5 96-64c9.9-6.6 22.6-7.1 32.9-1.6z"/>
+                <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z"/>
               </svg>
               <span className="text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 Vidéo élève
@@ -170,7 +170,7 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
       </div>
       
       {/* Coach Feedback Section */}
-      {(feedback || audioUrl) && (
+      {(feedback || audioUrl || (message.message_type === 'video_feedback' && !feedback && !audioUrl)) && (
         <div className="mt-2 pt-2 md:mt-3 md:pt-3 flex flex-col gap-1.5 md:gap-2 border-t border-white/10">
           {audioUrl && (
             <div className="text-xs">
@@ -184,7 +184,7 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
               />
             </div>
           )}
-          {feedback && (
+          {feedback ? (
             <div className="flex items-start gap-1.5 md:gap-2" style={{ paddingLeft: '2px', paddingRight: '2px' }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                 <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
@@ -193,7 +193,14 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
                 {feedback}
               </div>
             </div>
-          )}
+          ) : message.message_type === 'video_feedback' && !audioUrl ? (
+            <div className="flex items-center gap-1.5 md:gap-2" style={{ paddingLeft: '2px', paddingRight: '2px' }}>
+              <Check className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} />
+              <span className="text-[11px] md:text-xs font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                Validé
+              </span>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
