@@ -450,10 +450,18 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
   if (!isOpen || !video) return null;
 
-  const studentName = video.student?.raw_user_meta_data?.full_name || 
-                     video.student?.raw_user_meta_data?.name || 
-                     video.student?.email || 
+  const studentName = video.student?.raw_user_meta_data?.full_name ||
+                     video.student?.raw_user_meta_data?.name ||
+                     video.student?.email ||
                      'Coach Resource';
+
+  // Extract exercise-level details (tempo, coach notes) from assignment data
+  const matchedExercise = video.assignment?.workout_session?.exercises?.find(
+    (ex) => ex.name === video.exercise_name
+  );
+  const exerciseTempo = matchedExercise?.tempo || null;
+  const exerciseNotes = matchedExercise?.notes || null;
+  const studentComment = video.comment || matchedExercise?.comment || matchedExercise?.studentComment || matchedExercise?.student_comment || null;
 
   return (
     <div 
@@ -557,10 +565,12 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                           <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
                         </>
                       )}
+                      {exerciseTempo && <> • Tempo {exerciseTempo}</>}
                     </>
                   );
                 }
-                return parts.join(' • ');
+                const result = parts.join(' • ');
+                return exerciseTempo ? <>{result} • Tempo {exerciseTempo}</> : result;
               })()}
             </span>
           </div>
@@ -584,6 +594,42 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   Complété
                 </span>
               )}
+            </div>
+          )}
+          {/* Student comment - mobile */}
+          {studentComment && (
+            <div className="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 512"
+                className="h-4 w-4 mt-0.5 flex-shrink-0"
+                style={{ color: 'var(--kaiylo-primary-hex)' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              <div>
+                <span className="text-white/50 text-xs">Commentaire élève</span>
+                <p className="text-white font-light text-sm">{studentComment}</p>
+              </div>
+            </div>
+          )}
+          {/* Coach session notes - mobile */}
+          {exerciseNotes && (
+            <div className="flex items-start gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 512"
+                className="h-4 w-4 mt-0.5 flex-shrink-0"
+                style={{ color: 'var(--kaiylo-primary-hex)' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              <div>
+                <span className="text-white/50 text-xs">Notes de séance</span>
+                <p className="text-white font-light text-sm">{exerciseNotes}</p>
+              </div>
             </div>
           )}
         </div>
@@ -832,14 +878,52 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                               <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
                             </>
                           )}
+                          {exerciseTempo && <> • Tempo {exerciseTempo}</>}
                         </>
                       );
                     } else {
-                      return parts.join(' • ');
+                      const result = parts.join(' • ');
+                      return exerciseTempo ? <>{result} • Tempo {exerciseTempo}</> : result;
                     }
                   })()}
                 </span>
               </div>
+              {/* Student comment - desktop only */}
+              {studentComment && (
+                <div className="flex items-start gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 256 512"
+                    className="h-4 w-4 mt-0.5 flex-shrink-0"
+                    style={{ color: 'var(--kaiylo-primary-hex)' }}
+                    fill="currentColor"
+                  >
+                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                  </svg>
+                  <div>
+                    <span className="text-white/50 text-xs">Commentaire élève</span>
+                    <p className="text-white font-light text-sm md:text-base">{studentComment}</p>
+                  </div>
+                </div>
+              )}
+              {/* Coach session notes - desktop only */}
+              {exerciseNotes && (
+                <div className="flex items-start gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 256 512"
+                    className="h-4 w-4 mt-0.5 flex-shrink-0"
+                    style={{ color: 'var(--kaiylo-primary-hex)' }}
+                    fill="currentColor"
+                  >
+                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                  </svg>
+                  <div>
+                    <span className="text-white/50 text-xs">Notes de séance</span>
+                    <p className="text-white font-light text-sm md:text-base">{exerciseNotes}</p>
+                  </div>
+                </div>
+              )}
               {videoType === 'student' && (
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <svg 
