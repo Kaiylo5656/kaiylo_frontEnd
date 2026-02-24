@@ -1176,8 +1176,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         if (Array.isArray(session.exercises)) {
           exercisesToCopy = session.exercises.map(ex => ({
             ...ex,
-            // Supprimer les commentaires de l'étudiant au niveau de l'exercice lors de la copie
-            student_comment: undefined,
+            // Preserve student comment at exercise level for coach reference (read-only display)
+            student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
             comment: undefined,
             studentComment: undefined,
             sets: Array.isArray(ex.sets) ? (session.status === 'completed' ? ex.sets.map(set => ({
@@ -1448,8 +1448,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       if (Array.isArray(copiedSession.session.exercises)) {
         exercisesToCopy = copiedSession.session.exercises.map(ex => ({
           ...ex,
-          // Supprimer les commentaires de l'étudiant au niveau de l'exercice lors de la copie
-          student_comment: undefined,
+          // Preserve student comment at exercise level for coach reference (read-only display)
+          student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
           comment: undefined,
           studentComment: undefined,
           sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({

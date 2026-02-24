@@ -169,7 +169,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           isExpanded: true,
           tempo: ex.tempo || '',
           per_side: ex.per_side || false,
-          useRir: ex.useRir || false
+          useRir: ex.useRir || false,
+          studentComment: ex.comment || ex.student_comment || ex.studentComment || ''
         };
       }) || [];
 
@@ -2584,6 +2585,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             e.target.style.borderColor = 'transparent';
                           }}
                         />
+
+                        {/* Student Comment (read-only, from completed session) */}
+                        {exercise.studentComment && (
+                          <div className="mt-3">
+                            <div className="text-[14px] font-extralight text-white/50 mb-[8px]">Commentaire élève sur l'exercice :</div>
+                            <div className="text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
+                              {exercise.studentComment.charAt(0).toUpperCase() + exercise.studentComment.slice(1)}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
