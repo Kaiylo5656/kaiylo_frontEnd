@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileMessage from './FileMessage';
@@ -9,7 +9,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { Paperclip, ChevronLeft, ChevronDown, ChevronRight, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
+import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 import VideoDetailModal from './VideoDetailModal';
@@ -68,7 +68,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [openVideoGroups, setOpenVideoGroups] = useState({});
   const messageEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
@@ -956,46 +955,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setIsVideoModalOpen(true);
   };
 
-  // Group consecutive video_upload messages by assignmentId
-  const groupedMessages = useMemo(() => {
-    const result = [];
-    let currentGroup = null;
-
-    for (const msg of messages) {
-      if (msg.message_type === 'video_upload' && msg.metadata?.assignmentId) {
-        if (currentGroup && currentGroup.assignmentId === msg.metadata.assignmentId) {
-          currentGroup.messages.push(msg);
-        } else {
-          // Flush previous group
-          if (currentGroup) result.push(currentGroup);
-          currentGroup = {
-            type: 'video_group',
-            groupId: `vg_${msg.metadata.assignmentId}_${msg.id}`,
-            assignmentId: msg.metadata.assignmentId,
-            sessionName: msg.metadata.sessionName || msg.metadata.exerciseName || 'Séance',
-            date: msg.created_at,
-            messages: [msg]
-          };
-        }
-      } else {
-        // Flush any pending group
-        if (currentGroup) {
-          result.push(currentGroup);
-          currentGroup = null;
-        }
-        result.push({ type: 'message', message: msg });
-      }
-    }
-    // Flush last group
-    if (currentGroup) result.push(currentGroup);
-
-    return result;
-  }, [messages]);
-
-  const toggleVideoGroup = useCallback((groupId) => {
-    setOpenVideoGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
-  }, []);
-
   if (!conversation) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
@@ -1151,88 +1110,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
             <div className="text-xs mt-1 font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}>Démarrez la conversation !</div>
           </div>
         ) : (
-          groupedMessages.map((item, itemIndex) => {
-            if (item.type === 'video_group') {
-              const isOpen = openVideoGroups[item.groupId] || false;
-              const videoCount = item.messages.length;
-              const groupDate = new Date(item.date);
-              const formattedDate = groupDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-
-              return (
-                <div key={item.groupId} className="flex w-full justify-start">
-                  <div
-                    className="max-w-[85vw] sm:max-w-lg lg:max-w-2xl w-full"
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                      borderRadius: '16px',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {/* Collapsible header */}
-                    <button
-                      onClick={() => toggleVideoGroup(item.groupId)}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
-                      style={{ border: 'none', background: 'none' }}
-                    >
-                      {isOpen ? (
-                        <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
-                      )}
-                      <span className="text-xs font-medium text-white truncate flex-1">
-                        {item.sessionName}
-                      </span>
-                      <span
-                        className="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full"
-                        style={{
-                          color: 'var(--kaiylo-primary-hex)',
-                          backgroundColor: 'rgba(212, 132, 90, 0.15)'
-                        }}
-                      >
-                        🎥 x{videoCount}
-                      </span>
-                      <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255, 255, 255, 0.4)' }}>
-                        {formattedDate}
-                      </span>
-                    </button>
-
-                    {/* Expanded video messages */}
-                    {isOpen && (
-                      <div className="px-2 pb-2 space-y-1.5">
-                        {item.messages.map((message) => {
-                          const isOwnMessage = message.sender_id === currentUser?.id;
-                          return (
-                            <div
-                              key={message.id}
-                              data-message-id={message.id}
-                              ref={(el) => { if (el) messageRefs.current[message.id] = el; }}
-                              className={`flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-                            >
-                              <VideoFeedbackMessage
-                                message={message}
-                                isOwnMessage={isOwnMessage}
-                                onVideoClick={handleVideoClick}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-
-            // Regular message rendering
-            const message = item.message;
+          messages.filter(m => m.message_type !== 'video_upload').map((message, index) => {
             // Debug logging for message rendering
             if (message.id?.startsWith('temp_')) {
-              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', itemIndex);
+              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', index);
             }
 
             // CRITICAL DEBUG: Check if message is valid before rendering
-            if (!message || !message.id || !message.content) {
-              logger.error('❌ Invalid message at index:', itemIndex, message);
+            if (!message || !message.id || (!message.content && message.message_type !== 'video_feedback')) {
+              logger.error('❌ Invalid message at index:', index, message);
               return null;
             }
 

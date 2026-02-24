@@ -411,7 +411,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         const updatedVideoFromApi = responseData.data.find(v => v.id === video.id);
         if (updatedVideoFromApi) {
           const updatedVideo = {
-            ...v,
+            ...video,
             coach_feedback: updatedVideoFromApi.coach_feedback || video.coach_feedback,
             coach_feedback_audio_url: updatedVideoFromApi.coach_feedback_audio_url || video.coach_feedback_audio_url,
             coach_rating: updatedVideoFromApi.coach_rating || video.coach_rating,
