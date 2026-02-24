@@ -1029,7 +1029,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {/* Student Comment for this Exercise - Display at bottom of sets list */}
                 {selectedExercise && (
                   <div className="mt-[12px] pt-[12px] border-t border-white/10">
-                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Commentaire sur l'exercice :</div>
+                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Commentaire élève sur l'exercice :</div>
                     <div className={`text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words h-[102px] overflow-y-auto ${selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment
                       ? 'text-white'
                       : 'text-white/25'
@@ -1038,6 +1038,16 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         const exerciseComment = selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || '';
                         return exerciseComment ? (exerciseComment.charAt(0).toUpperCase() + exerciseComment.slice(1)) : 'Aucun commentaire de l\'élève';
                       })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Coach Notes for this Exercise */}
+                {selectedExercise?.notes && (
+                  <div className="mt-[12px] pt-[12px] border-t border-white/10">
+                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Notes de séance par coach :</div>
+                    <div className="text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
+                      {selectedExercise.notes}
                     </div>
                   </div>
                 )}
