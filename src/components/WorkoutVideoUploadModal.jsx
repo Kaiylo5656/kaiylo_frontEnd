@@ -3,11 +3,15 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
+import VideoTrimEditor from './VideoTrimEditor';
 
 const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVideo, exerciseInfo, setInfo, existingVideo }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showTrimEditor, setShowTrimEditor] = useState(false);
+  const [rawSelectedFile, setRawSelectedFile] = useState(null); // Original file before trim
+  const [trimMetadata, setTrimMetadata] = useState(null); // { startTime, endTime }
   const { startBackgroundUpload, getUploadForSet } = useBackgroundUpload();
   const initializedRef = useRef(false); // Track if we've already initialized from existingVideo
   const lastVideoUrlRef = useRef(null); // Track the last video URL we initialized to avoid re-initialization
@@ -30,6 +34,9 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       setIsSubmitted(false);
       initializedRef.current = false;
       lastVideoUrlRef.current = null;
+      setShowTrimEditor(false);
+      setRawSelectedFile(null);
+      setTrimMetadata(null);
       return;
     }
     
@@ -179,13 +186,43 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           return;
         }
         logger.debug('📁 File selected:', { name: file.name, size: file.size, type: file.type });
-        // Store file locally — upload starts when user clicks "Terminer"
-        setVideoFile(file);
-        const url = URL.createObjectURL(file);
-        setVideoPreviewUrl(url);
+        // Show trim editor instead of immediately setting video
+        setRawSelectedFile(file);
+        // Create blob URL for trim editor preview — useEffect cleanup handles old URL revocation
+        setVideoPreviewUrl(URL.createObjectURL(file));
+        setShowTrimEditor(true);
+        setTrimMetadata(null);
       }
     };
     input.click();
+  };
+
+  // Called when user confirms trim (or skips to full video)
+  // File may be client-trimmed (Mediabunny) or original (fallback)
+  const handleTrimConfirm = (resultFile, startTime, endTime) => {
+    setShowTrimEditor(false);
+    setVideoFile(resultFile);
+    // Update blob URL if file changed (client trim produced a new file)
+    if (resultFile !== rawSelectedFile) {
+      if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+      setVideoPreviewUrl(URL.createObjectURL(resultFile));
+    }
+    // Trim metadata always saved — server uses as backup/precise re-trim
+    setTrimMetadata(startTime != null ? { startTime, endTime } : null);
+    setRawSelectedFile(null);
+  };
+
+  // Called when user skips trim (uses full video)
+  const handleSkipTrim = () => {
+    setShowTrimEditor(false);
+    if (rawSelectedFile) {
+      setVideoFile(rawSelectedFile);
+      // Keep existing videoPreviewUrl — already valid
+    }
+    setTrimMetadata(null);
+    setRawSelectedFile(null);
   };
 
   const handleNoVideo = () => {
@@ -205,6 +242,12 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
   };
 
   const handleSubmit = async () => {
+    // If trim editor is open, auto-select full video instead of closing
+    if (showTrimEditor && rawSelectedFile) {
+      handleSkipTrim();
+      return;
+    }
+
     // Allow closing even without video selection
     if (videoFile === null || videoFile === undefined) {
       onClose();
@@ -265,6 +308,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           set_index: setInfo.setIndex,
           weight: setInfo.weight,
           reps: setInfo.reps,
+          trim_start_time: trimMetadata?.startTime ?? null,
+          trim_end_time: trimMetadata?.endTime ?? null,
         }
       };
       startBackgroundUpload(videoFile, tusMetadata, exerciseInfo, setInfo, onUploadSuccess);
@@ -318,8 +363,20 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
             </button>
           </div>
 
+          {/* Trim Editor */}
+          {showTrimEditor && rawSelectedFile && (
+            <div className="px-[28px] pt-[12px]">
+              <VideoTrimEditor
+                file={rawSelectedFile}
+                previewUrl={videoPreviewUrl}
+                onConfirm={handleTrimConfirm}
+                onSkip={handleSkipTrim}
+              />
+            </div>
+          )}
+
           {(() => {
-            const shouldShowVideo = videoFile && videoFile !== 'no-video' && (typeof videoFile === 'object' || typeof videoFile === 'string');
+            const shouldShowVideo = !showTrimEditor && videoFile && videoFile !== 'no-video' && (typeof videoFile === 'object' || typeof videoFile === 'string');
             const hasPreviewUrl = !!videoPreviewUrl;
             
             logger.debug('🔍 Render check:', {

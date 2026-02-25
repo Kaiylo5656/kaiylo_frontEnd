@@ -5,7 +5,7 @@ import { Upload, Check, AlertCircle, X, RotateCcw, Video } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
 
 const BackgroundUploadIndicator = () => {
-  const { activeUploads, dismissUpload, retryUpload } = useBackgroundUpload();
+  const { activeUploads, dismissUpload, retryUpload, abortUpload } = useBackgroundUpload();
   const autoDismissTimers = useRef({});
 
   // Auto-dismiss completed uploads after 3 seconds
@@ -100,6 +100,14 @@ const BackgroundUploadIndicator = () => {
                       className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-white/60" />
+                    </button>
+                  )}
+                  {isUploading && (
+                    <button
+                      onClick={() => abortUpload(upload.id)}
+                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5 text-white/40" />
                     </button>
                   )}
                   {(isComplete || isFailed) && (

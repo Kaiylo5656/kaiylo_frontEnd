@@ -292,7 +292,28 @@ export function BackgroundUploadProvider({ children }) {
     return uploads[id] || null;
   }, [uploads]);
 
+  const abortUpload = useCallback((id) => {
+    // Abort the TUS upload if active
+    if (tusInstancesRef.current[id]) {
+      tusInstancesRef.current[id].abort();
+    }
+    // Clean up all refs
+    delete tusInstancesRef.current[id];
+    delete fileRefs.current[id];
+    delete metadataRefs.current[id];
+    delete callbackRefs.current[id];
+    if (fileInputRefs.current[id]) {
+      fileInputRefs.current[id].onchange = null;
+      delete fileInputRefs.current[id];
+    }
+    dispatch({ type: DISMISS, payload: { id } });
+  }, []);
+
   const dismissUpload = useCallback((id) => {
+    // Abort any active TUS upload before cleanup
+    if (tusInstancesRef.current[id]) {
+      tusInstancesRef.current[id].abort();
+    }
     // Cleanup refs
     delete tusInstancesRef.current[id];
     delete fileRefs.current[id];
@@ -350,6 +371,7 @@ export function BackgroundUploadProvider({ children }) {
     activeUploads,
     dismissUpload,
     retryUpload,
+    abortUpload,
   };
 
   return (
