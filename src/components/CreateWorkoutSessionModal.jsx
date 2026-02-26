@@ -170,7 +170,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           tempo: ex.tempo || '',
           per_side: ex.per_side || false,
           useRir: ex.useRir || false,
-          studentComment: ex.comment || ex.student_comment || ex.studentComment || ''
+          studentComment: ex.comment || ex.student_comment || ex.studentComment || ex.previous_student_comment || ''
         };
       }) || [];
 

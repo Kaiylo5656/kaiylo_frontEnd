@@ -1177,7 +1177,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           exercisesToCopy = session.exercises.map(ex => ({
             ...ex,
             // Preserve student comment at exercise level for coach reference (read-only display)
-            student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
+            // Use previous_student_comment so it doesn't pre-fill the editable field
+            previous_student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
+            student_comment: undefined,
             comment: undefined,
             studentComment: undefined,
             sets: Array.isArray(ex.sets) ? (session.status === 'completed' ? ex.sets.map(set => ({
@@ -1449,7 +1451,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         exercisesToCopy = copiedSession.session.exercises.map(ex => ({
           ...ex,
           // Preserve student comment at exercise level for coach reference (read-only display)
-          student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
+          // Use previous_student_comment so it doesn't pre-fill the editable field
+          previous_student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
+          student_comment: undefined,
           comment: undefined,
           studentComment: undefined,
           sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({

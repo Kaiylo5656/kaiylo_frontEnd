@@ -24,7 +24,7 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
 
   // Helper function to check if exercise has a comment
   const hasComment = (exercise) => {
-    const comment = exercise.comment || exercise.studentComment || exercise.student_comment;
+    const comment = exercise.comment || exercise.studentComment || exercise.student_comment || exercise.previous_student_comment;
     return comment && comment.trim() !== '';
   };
 

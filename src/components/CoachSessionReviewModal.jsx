@@ -1030,12 +1030,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {selectedExercise && (
                   <div className="mt-[12px] pt-[12px] border-t border-white/10">
                     <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Commentaire élève sur l'exercice :</div>
-                    <div className={`text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words h-[102px] overflow-y-auto ${selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment
+                    <div className={`text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words h-[102px] overflow-y-auto ${selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || selectedExercise.previous_student_comment
                       ? 'text-white'
                       : 'text-white/25'
                       }`}>
                       {(() => {
-                        const exerciseComment = selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || '';
+                        const exerciseComment = selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || selectedExercise.previous_student_comment || '';
                         return exerciseComment ? (exerciseComment.charAt(0).toUpperCase() + exerciseComment.slice(1)) : 'Aucun commentaire de l\'élève';
                       })()}
                     </div>

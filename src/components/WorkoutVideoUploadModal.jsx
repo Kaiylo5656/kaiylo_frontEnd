@@ -254,7 +254,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
       return;
     }
 
-    // If 'no-video', update state but don't close modal automatically
+    // If 'no-video', update state and close modal
     if (videoFile === 'no-video') {
         if (onUploadSuccess) {
           onUploadSuccess({
@@ -265,8 +265,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
             setInfo: setInfo
           });
         }
-        setIsSubmitted(true);
-        // Don't close automatically - user can close manually with "Quitter" button
+        onClose();
         return;
     }
 

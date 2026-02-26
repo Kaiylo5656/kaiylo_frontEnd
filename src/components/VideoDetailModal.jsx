@@ -461,7 +461,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   );
   const exerciseTempo = matchedExercise?.tempo || null;
   const exerciseNotes = matchedExercise?.notes || null;
-  const studentComment = video.comment || matchedExercise?.comment || matchedExercise?.studentComment || matchedExercise?.student_comment || null;
+  const studentComment = video.comment || matchedExercise?.comment || matchedExercise?.studentComment || matchedExercise?.student_comment || matchedExercise?.previous_student_comment || null;
 
   return (
     <div 
