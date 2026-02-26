@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useSearchParams } from 'react-router-dom';
 import ChatList from '../components/ChatList';
@@ -267,7 +267,7 @@ const ChatPage = () => {
   };
 
   // Handle new message
-  const handleNewMessage = (conversationId, message) => {
+  const handleNewMessage = useCallback((conversationId, message) => {
     setConversations(prev =>
       prev.map(conv =>
         conv.id === conversationId
@@ -275,10 +275,10 @@ const ChatPage = () => {
           : conv
       )
     );
-  };
+  }, []);
 
   // Handle message sent
-  const handleMessageSent = (conversationId, message) => {
+  const handleMessageSent = useCallback((conversationId, message) => {
     setConversations(prev =>
       prev.map(conv =>
         conv.id === conversationId
@@ -286,7 +286,7 @@ const ChatPage = () => {
           : conv
       )
     );
-  };
+  }, []);
 
   // Handle conversation deletion
   const handleDeleteConversation = async (conversationId) => {

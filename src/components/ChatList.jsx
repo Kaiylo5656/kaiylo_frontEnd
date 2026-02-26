@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import { Button } from './ui/button';
@@ -103,11 +103,37 @@ const ChatList = ({
       }));
     };
 
+    // Handle lightweight notification for users not viewing the conversation
+    const handleNewMessageNotification = (data) => {
+      const conversationId = data.conversationId;
+      const lastMessage = data.last_message;
+      if (!conversationId || !lastMessage) return;
+
+      setLocalConversations(prev => {
+        const exists = prev.some(c => c.id === conversationId);
+        if (!exists) return prev;
+
+        return prev.map(conv => {
+          if (conv.id === conversationId) {
+            return {
+              ...conv,
+              last_message: lastMessage,
+              last_message_at: lastMessage.created_at,
+              unread_count: (conv.unread_count || 0) + 1
+            };
+          }
+          return conv;
+        });
+      });
+    };
+
     socket.on('new_message', handleNewMessage);
+    socket.on('new_message_notification', handleNewMessageNotification);
     socket.on('messages_read', handleMessagesRead);
 
     return () => {
       socket.off('new_message', handleNewMessage);
+      socket.off('new_message_notification', handleNewMessageNotification);
       socket.off('messages_read', handleMessagesRead);
     };
   }, [socket, isConnected, currentUser]);
@@ -261,17 +287,23 @@ const ChatList = ({
     }
   };
 
-  // Fetch user names for conversations
+  // Memoize participant IDs to avoid re-fetching names on every message update
+  const participantIdsKey = useMemo(
+    () => localConversations.map(c => c.other_participant_id).filter(Boolean).sort().join(','),
+    [localConversations]
+  );
+
+  // Fetch user names for conversations — only when participant IDs change
   useEffect(() => {
     const fetchUserNames = async () => {
-      if (!localConversations.length || !currentUser) return;
-      
+      if (!participantIdsKey || !currentUser) return;
+
       try {
         const token = await getAuthToken();
-        const endpoint = currentUser?.role === 'coach' 
-          ? '/api/coach/students' 
+        const endpoint = currentUser?.role === 'coach'
+          ? '/api/coach/students'
           : '/api/coach';
-        
+
         const response = await fetch(buildApiUrl(endpoint), {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -282,7 +314,7 @@ const ChatList = ({
         if (response.ok) {
           const data = await response.json();
           const users = data.data || [];
-          
+
           // Create a map of user IDs to names
           const namesMap = {};
           users.forEach(user => {
@@ -290,7 +322,7 @@ const ChatList = ({
               namesMap[user.id] = user.name;
             }
           });
-          
+
           setUserNamesMap(namesMap);
         }
       } catch (error) {
@@ -299,7 +331,7 @@ const ChatList = ({
     };
 
     fetchUserNames();
-  }, [localConversations, currentUser]);
+  }, [participantIdsKey, currentUser]);
 
   // Get user name for display
   const getUserDisplayName = (conversation) => {
@@ -439,37 +471,31 @@ const ChatList = ({
     };
   }, [showDeleteModal, deleting]);
 
-  // Filter and sort conversations - unread messages first, then by last_message_at
-  const filteredConversations = localConversations
-    .filter(conv => {
-      // Exclude conversations without any messages
-      if (!conv.last_message) {
-        return false;
-      }
-      const displayName = getUserDisplayName(conv);
-      return displayName.toLowerCase().includes(searchTerm.toLowerCase());
-    })
-    .sort((a, b) => {
-      const aUnreadCount = getUnreadCount(a);
-      const bUnreadCount = getUnreadCount(b);
-      
-      // Conversations with unread messages come first
-      if (aUnreadCount > 0 && bUnreadCount === 0) return -1;
-      if (aUnreadCount === 0 && bUnreadCount > 0) return 1;
-      
-      // If both have unread or both don't, sort by last_message_at (most recent first)
-      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-      
-      // If both have unread, prioritize by unread count (more unread = higher priority)
-      if (aUnreadCount > 0 && bUnreadCount > 0) {
-        if (aUnreadCount !== bUnreadCount) {
-          return bUnreadCount - aUnreadCount; // More unread messages first
+  // Filter and sort conversations - memoized to avoid recalculation on unrelated re-renders
+  const filteredConversations = useMemo(() => {
+    return localConversations
+      .filter(conv => {
+        if (!conv.last_message) return false;
+        const displayName = getUserDisplayName(conv);
+        return displayName.toLowerCase().includes(searchTerm.toLowerCase());
+      })
+      .sort((a, b) => {
+        const aUnreadCount = getUnreadCount(a);
+        const bUnreadCount = getUnreadCount(b);
+
+        if (aUnreadCount > 0 && bUnreadCount === 0) return -1;
+        if (aUnreadCount === 0 && bUnreadCount > 0) return 1;
+
+        const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+        const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+
+        if (aUnreadCount > 0 && bUnreadCount > 0 && aUnreadCount !== bUnreadCount) {
+          return bUnreadCount - aUnreadCount;
         }
-      }
-      
-      return bTime - aTime; // Most recent first
-    });
+
+        return bTime - aTime;
+      });
+  }, [localConversations, searchTerm, userNamesMap]);
 
   return (
     <div className="h-full flex flex-col">

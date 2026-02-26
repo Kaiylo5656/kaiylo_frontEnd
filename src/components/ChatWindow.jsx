@@ -1,5 +1,6 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import FileMessage from './FileMessage';
@@ -68,13 +69,17 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const messageEndRef = useRef(null);
+  const virtuosoRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const messageRefs = useRef({});
-  const messagesContainerRef = useRef(null);
   const processedMessageIdsRef = useRef(new Set()); // Persist processed message IDs across renders
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
+  // Refs for stable socket listener callbacks (prevent useEffect re-runs)
+  const onNewMessageRef = useRef(onNewMessage);
+  const markMessagesAsReadRef = useRef(markMessagesAsRead);
+  onNewMessageRef.current = onNewMessage;
+  markMessagesAsReadRef.current = markMessagesAsRead;
 
 
   const fetchMessages = useCallback(async (cursor = null) => {
@@ -157,21 +162,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
   }, [loadingMore, hasMoreMessages, nextCursor, fetchMessages]);
 
-  // Handle scroll events for infinite loading
-  const handleScroll = useCallback((e) => {
-    const container = e.target;
-    let { scrollTop, scrollHeight, clientHeight } = container;
-    
-    // In a normal flex column layout:
-    // - scrollTop = 0 shows oldest messages (top)
-    // - scrollTop = max shows newest messages (bottom)
-    // We load more when the user scrolls near scrollTop = 0 (top, oldest messages)
-    const isAtTop = scrollTop < 100; // Near scrollTop = 0 means at top (oldest messages)
-
-    if (isAtTop && hasMoreMessages && !loadingMore) {
+  // Virtuoso's startReached callback for loading older messages
+  const handleStartReached = useCallback(() => {
+    if (!loadingMore && hasMoreMessages && nextCursor) {
       loadMoreMessages();
     }
-  }, [hasMoreMessages, loadingMore, loadMoreMessages]);
+  }, [loadingMore, hasMoreMessages, nextCursor, loadMoreMessages]);
 
   const handleFileUpload = useCallback(async (file) => {
     if (!conversation?.id || uploadingFile) return;
@@ -376,10 +372,10 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       if (isConnected && socket) {
         logger.debug('📡 Using WebSocket to send message');
-        sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
-        
+
+        const tempId = `temp_${Date.now()}`;
         const optimisticMessage = {
-          id: `temp_${Date.now()}`,
+          id: tempId,
           content: messageContent,
           sender_id: currentUser.id,
           message_type: 'text',
@@ -389,11 +385,24 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           sender: { id: currentUser.id, email: currentUser.email },
           replyTo: replyingTo ? { ...replyingTo } : null
         };
-        
-        // Messages are in normal flex column - newest at bottom
-        // So we add optimistic message to END of array so it appears at bottom (newest position)
+
+        // Add optimistic message
         setMessages(prev => [...prev, optimisticMessage]);
-        
+
+        // Set a timeout to roll back if no server confirmation arrives
+        const rollbackTimeout = setTimeout(() => {
+          setMessages(prev => {
+            const stillTemp = prev.find(m => m.id === tempId);
+            if (stillTemp) {
+              logger.warn('⚠️ Rolling back unconfirmed optimistic message:', tempId);
+              return prev.filter(m => m.id !== tempId);
+            }
+            return prev;
+          });
+        }, 10000); // 10 second timeout
+
+        sendSocketMessage(conversation.id, messageContent, 'text', replyToMessageId);
+
         if (onMessageSent) {
           onMessageSent(conversation.id, optimisticMessage);
         }
@@ -438,6 +447,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       }
     } catch (error) {
       logger.error('❌ Error sending message:', error);
+      // Roll back any optimistic message on failure
+      setMessages(prev => prev.filter(m => !m.id?.startsWith('temp_') || m.content !== messageContent));
       alert(`Failed to send message: ${error.message}. Please try again.`);
       setNewMessage(messageContent);
     } finally {
@@ -455,21 +466,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setMessages([]);
       setNextCursor(null);
       setHasMoreMessages(true);
-      setIsInitialLoad(true); // Reset initial load flag for the new conversation
-      
+      setIsInitialLoad(true);
+
       // Clear processed message IDs when switching conversations
       processedMessageIdsRef.current.clear();
-      
-      // Reset scroll position to top before loading new messages
-      const container = messagesContainerRef.current;
-      if (container) {
-        container.scrollTop = 0;
-      }
-      
+
       fetchMessages(); // Initial load (no cursor)
-      markMessagesAsRead(conversation.id);
+      markMessagesAsReadRef.current(conversation.id);
       joinConversation(conversation.id);
-      
+
       logger.debug('✅ Joined conversation room:', conversation.id);
     }
 
@@ -478,8 +483,60 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         leaveConversation(conversation.id);
         logger.debug('✅ Left conversation room:', conversation.id);
       }
-    }; // Only re-run this effect if the conversation, socket, or connection status changes
+    };
   }, [conversation?.id, socket, isConnected]);
+
+  // Sync missed messages on socket reconnect
+  useEffect(() => {
+    if (!socket || !conversation?.id) return;
+
+    const handleReconnect = async () => {
+      logger.debug('🔄 Socket reconnected — syncing missed messages');
+      // Find the most recent message timestamp we have
+      const lastMsg = messages[messages.length - 1];
+      if (!lastMsg?.created_at) {
+        // No messages loaded yet, do a full fetch
+        fetchMessages();
+        return;
+      }
+
+      try {
+        const token = await getAuthToken();
+        const params = new URLSearchParams({ limit: '100' });
+        // Fetch only messages newer than our last known message
+        // Use cursor-based fetch but with gt instead of lt — the API returns newest-first so
+        // we'll just do a regular fetch and merge
+        const response = await fetch(
+          buildApiUrl(`/api/chat/conversations/${conversation.id}/messages?${params}`),
+          { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+        );
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const freshMessages = (data.data?.messages || []).reverse(); // oldest-first
+
+        if (freshMessages.length > 0) {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newOnes = freshMessages.filter(m => !existingIds.has(m.id));
+            if (newOnes.length === 0) return prev;
+            return [...prev, ...newOnes];
+          });
+        }
+      } catch (err) {
+        logger.error('Error syncing messages on reconnect:', err);
+      }
+
+      // Re-join the conversation room after reconnect
+      joinConversation(conversation.id);
+      markMessagesAsReadRef.current(conversation.id);
+    };
+
+    socket.io.on('reconnect', handleReconnect);
+    return () => {
+      socket.io.off('reconnect', handleReconnect);
+    };
+  }, [socket, conversation?.id]);
 
   // Fetch participant information (name and email)
   useEffect(() => {
@@ -540,256 +597,108 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }, [conversation?.other_participant_id, conversation?.other_participant_name, currentUser, getAuthToken]);
 
   useEffect(() => {
-    if (socket) {
-      const handleNewMessage = (messageData) => {
-        const receiveTime = Date.now();
-        logger.debug('🔌 [WS IN] new_message received:', messageData);
-        logger.debug('🔌 Message details:', {
-          id: messageData.id,
-          content: messageData.content,
-          conversationId: messageData.conversationId || messageData.conversation_id,
-          senderId: messageData.sender_id,
-          currentConversationId: conversation?.id
-        });
-        
-        // CRITICAL FIX: Only process messages for the current conversation
-        // This ensures real-time messages only appear in the correct chat window
-        const receivedConversationId = messageData.conversationId || messageData.conversation_id;
-        if (!conversation?.id || receivedConversationId !== conversation.id) {
-          logger.debug('🔌 Ignoring message - not for current conversation:', {
-            receivedConversationId,
-            currentConversationId: conversation?.id,
-            messageId: messageData.id
-          });
-          return; // Exit early - message is for a different conversation
-        }
-        
-        // CRITICAL FIX: Prevent race conditions from multiple WebSocket events
-        // Use ref to persist across renders
-        if (processedMessageIdsRef.current.has(messageData.id)) {
-          logger.debug('🔌 Message already being processed, skipping duplicate event:', messageData.id);
-          return;
-        }
-        processedMessageIdsRef.current.add(messageData.id);
-        
-        // Clean up processed IDs after 5 seconds to prevent memory leaks
-        setTimeout(() => {
+    if (!socket || !conversation?.id) return;
+
+    const handleNewMessage = (messageData) => {
+      // Only process messages for the current conversation
+      const receivedConversationId = messageData.conversationId || messageData.conversation_id;
+      if (receivedConversationId !== conversation.id) return;
+
+      // Prevent duplicate processing
+      if (processedMessageIdsRef.current.has(messageData.id)) return;
+      processedMessageIdsRef.current.add(messageData.id);
+      setTimeout(() => processedMessageIdsRef.current.delete(messageData.id), 5000);
+
+      setMessages(prev => {
+        // Check for exact ID match
+        if (prev.some(msg => msg.id === messageData.id)) {
           processedMessageIdsRef.current.delete(messageData.id);
-        }, 5000);
-        
-        logger.debug('✅ Message is for current conversation, processing...');
-        
-        // CRITICAL: Use functional update to get the latest state
-        // This ensures we always work with the most recent messages array
-        setMessages(prev => {
-          // Create a new array reference to ensure React detects the change
-          const currentMessages = [...prev];
-          const prevLength = currentMessages.length;
-          logger.debug('🔌 Current messages array length:', prevLength);
-          logger.debug('🔌 Checking for existing message with ID:', messageData.id);
-          
-          // Check for exact ID match first
-          const exactMatch = currentMessages.findIndex(msg => msg.id === messageData.id);
-          if (exactMatch !== -1) {
-            logger.debug('🔌 Message with exact ID already exists at index:', exactMatch, 'skipping duplicate');
-            // Remove from processed set since we didn't actually process it
-            processedMessageIdsRef.current.delete(messageData.id);
-            // Return the same array reference for duplicates to prevent unnecessary re-renders
-            return prev; // Return prev to prevent unnecessary re-render
-          }
-          
-          // Check for temporary message that should be replaced
-          // Temp messages are at the END of array (newest position)
-          const tempMessageIndex = currentMessages.findIndex(msg => 
-            msg.id?.startsWith('temp_') && 
-            msg.content === messageData.content && 
-            msg.sender_id === messageData.sender_id &&
-            (msg.conversationId === conversation.id || msg.conversation_id === conversation.id)
-          );
-          
-          if (tempMessageIndex !== -1) {
-            logger.debug('🔌 Found temp message to replace at index:', tempMessageIndex);
-            
-            // Create a new array with the replacement
-            const newMessages = [...currentMessages];
-            newMessages[tempMessageIndex] = {
-              ...messageData,
-              conversationId: messageData.conversationId || messageData.conversation_id || conversation.id
-            };
-            
-            logger.debug('✅ Message replaced successfully, new message ID:', messageData.id);
-            
-            return newMessages;
-          }
-          
-          // Add new message to the END of the array (so it appears at bottom)
-          logger.debug('🔌 No temp message found, adding new message to end of array');
-          
-          // Create a properly structured message object
-          const newMessageObj = {
+          return prev;
+        }
+
+        // Check for temp message to replace
+        const tempIdx = prev.findIndex(msg =>
+          msg.id?.startsWith('temp_') &&
+          msg.content === messageData.content &&
+          msg.sender_id === messageData.sender_id
+        );
+
+        if (tempIdx !== -1) {
+          const newMessages = [...prev];
+          newMessages[tempIdx] = {
             ...messageData,
-            conversationId: messageData.conversationId || messageData.conversation_id || conversation.id,
-            id: messageData.id,
-            content: messageData.content,
-            sender_id: messageData.sender_id,
-            message_type: messageData.message_type || 'text',
-            created_at: messageData.created_at || new Date().toISOString(),
-            sender: messageData.sender || { id: messageData.sender_id }
+            conversationId: receivedConversationId
           };
-          
-          const newMessages = [...currentMessages, newMessageObj];
-          logger.debug('✅ New message added, total messages:', newMessages.length);
-          
           return newMessages;
+        }
+
+        // Add new message to end
+        return [...prev, {
+          ...messageData,
+          conversationId: receivedConversationId,
+          message_type: messageData.message_type || 'text',
+          created_at: messageData.created_at || new Date().toISOString(),
+          sender: messageData.sender || { id: messageData.sender_id }
+        }];
+      });
+
+      // Scroll to bottom via Virtuoso
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+      });
+
+      // Notify parent and mark as read
+      onNewMessageRef.current?.(conversation.id, messageData);
+      markMessagesAsReadRef.current(conversation.id);
+    };
+
+    const handleUserTyping = (data) => {
+      if (data.userId !== currentUser?.id) {
+        setTypingUsers(prev => {
+          if (data.isTyping) {
+            return [...prev.filter(u => u.userId !== data.userId), data];
+          }
+          return prev.filter(u => u.userId !== data.userId);
         });
-        
-        // CRITICAL: Scroll to newest message after state update
-        // Use multiple requestAnimationFrame calls to ensure DOM is updated after React re-render
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // First try to scroll to the message element directly
-            const messageElement = messageRefs.current[messageData.id];
-            if (messageElement) {
-              messageElement.scrollIntoView({ behavior: 'auto', block: 'end' });
-              logger.debug('✅ Scrolled to message element using scrollIntoView');
-            } else {
-              // Fallback: scroll container to bottom (scrollTop = max shows newest messages)
-              const container = messagesContainerRef.current;
-              if (container) {
-                container.scrollTop = container.scrollHeight;
-                logger.debug('✅ Scrolled container to bottom (scrollTop=max)');
-              }
-            }
-          });
-        });
-        
-        // Notify parent component
-        if (onNewMessage) {
-          onNewMessage(conversation.id, messageData);
-        }
-        
-        // Mark messages as read if this is the current conversation
-        markMessagesAsRead(conversation.id);
-        
-        // Log processing time
-        const processingTime = Date.now() - receiveTime;
-        logger.debug(`⚡ Message processed in ${processingTime}ms`);
-      };
+      }
+    };
 
-      const handleUserTyping = (data) => {
-        if (data.userId !== currentUser?.id) {
-          setTypingUsers(prev => {
-            if (data.isTyping) {
-              return [...prev.filter(u => u.userId !== data.userId), data];
-            } else {
-              return prev.filter(u => u.userId !== data.userId);
-            }
-          });
-        }
-      };
+    const handleMessagesRead = (data) => {
+      if (data.userId !== currentUser?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
+        setOtherParticipantReadAt(data.readAt || data.last_read_at);
+      }
+    };
 
-      // Listen for user join/leave events
-      const handleUserJoined = (data) => {
-        logger.debug('🔌 User joined conversation:', data);
-      };
+    const handleMessageDeleted = (data) => {
+      if (data.conversationId === conversation.id || data.conversation_id === conversation.id) {
+        setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+      }
+    };
 
-      const handleUserLeft = (data) => {
-        logger.debug('🔌 User left conversation:', data);
-      };
+    socket.on('new_message', handleNewMessage);
+    socket.on('user_typing', handleUserTyping);
+    socket.on('user_joined', () => {});
+    socket.on('user_left', () => {});
+    socket.on('messages_read', handleMessagesRead);
+    socket.on('message_deleted', handleMessageDeleted);
 
-      // Listen for messages read events
-      const handleMessagesRead = (data) => {
-        logger.debug('🔌 Messages marked as read by:', data);
-        if (data.userId !== currentUser?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
-          setOtherParticipantReadAt(data.readAt || data.last_read_at);
-        }
-      };
-
-      // Listen for message deleted events
-      const handleMessageDeleted = (data) => {
-        logger.debug('🔌 Message deleted:', data);
-        if (conversation?.id && (data.conversationId === conversation.id || data.conversation_id === conversation.id)) {
-          setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
-        }
-      };
-
-      // Register event listeners - ensure we only register once
-      // Remove any existing listeners first to prevent duplicates
+    return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleUserTyping);
-      socket.off('user_joined', handleUserJoined);
-      socket.off('user_left', handleUserLeft);
+      socket.off('user_joined');
+      socket.off('user_left');
       socket.off('messages_read', handleMessagesRead);
       socket.off('message_deleted', handleMessageDeleted);
-      
-      // Now register the listeners
-      socket.on('new_message', handleNewMessage);
-      socket.on('user_typing', handleUserTyping);
-      socket.on('user_joined', handleUserJoined);
-      socket.on('user_left', handleUserLeft);
-      socket.on('messages_read', handleMessagesRead);
-      socket.on('message_deleted', handleMessageDeleted);
+    };
+  }, [socket, conversation?.id]);
 
-      return () => {
-        socket.off('new_message', handleNewMessage);
-        socket.off('user_typing', handleUserTyping);
-        socket.off('user_joined', handleUserJoined);
-        socket.off('user_left', handleUserLeft);
-        socket.off('messages_read', handleMessagesRead);
-        socket.off('message_deleted', handleMessageDeleted);
-      };
-    }
-  }, [socket, conversation?.id, currentUser?.id, onNewMessage, markMessagesAsRead]);
+  // Virtuoso handles scroll-to-bottom via followOutput and initialTopMostItemIndex
 
-  // Scroll to bottom after initial load completes
-  useEffect(() => {
-    if (!isInitialLoad && !loading && messages.length > 0) {
-      // Use multiple requestAnimationFrame calls + setTimeout to ensure DOM is fully rendered
-      const scrollToBottom = () => {
-        const container = messagesContainerRef.current;
-        if (container) {
-          // Force scroll to bottom
-          container.scrollTop = container.scrollHeight;
-          logger.debug('✅ Scrolled to bottom after initial load complete', {
-            scrollTop: container.scrollTop,
-            scrollHeight: container.scrollHeight,
-            clientHeight: container.clientHeight
-          });
-          
-          // Double check after a short delay to ensure we're at the bottom
-          setTimeout(() => {
-            if (container.scrollTop < container.scrollHeight - container.clientHeight - 10) {
-              container.scrollTop = container.scrollHeight;
-              logger.debug('✅ Re-scrolled to bottom (second attempt)');
-            }
-          }, 200);
-        }
-      };
-      
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setTimeout(scrollToBottom, 100); // Small delay to ensure layout is complete
-        });
-      });
-    }
-  }, [isInitialLoad, loading, messages.length]);
-
-  // Scroll to bottom when new messages arrive (not when loading more or on initial load)
-  // NOTE: This only handles length changes. Real-time messages handle their own scrolling in handleNewMessage
-  useEffect(() => {
-    if (!isInitialLoad && !loadingMore && !loading && messages.length > 0) {
-      requestAnimationFrame(() => {
-        const container = messagesContainerRef.current;
-        if (container) {
-          // Only scroll if user is near bottom (within 100px) to avoid interrupting scroll up
-          const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-          if (isNearBottom) {
-            container.scrollTop = container.scrollHeight;
-          }
-        }
-      });
-    }
-  }, [messages.length, isInitialLoad, loadingMore, loading]);
+  // Memoize filtered messages list (excludes video_upload type)
+  const filteredMessages = useMemo(
+    () => messages.filter(m => m.message_type !== 'video_upload'),
+    [messages]
+  );
 
 
   // Handle typing indicators
@@ -891,32 +800,24 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   };
 
   // Handle clicking on a reply to navigate to the original message
-  const handleReplyClick = (messageId) => {
-    const messageElement = messageRefs.current[messageId];
-    if (messageElement) {
-      // Scroll to the message
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-      });
-      
-      // Highlight the message temporarily
+  const handleReplyClick = useCallback((messageId) => {
+    // Find message index in the filtered list
+    const filteredMessages = messages.filter(m => m.message_type !== 'video_upload');
+    const index = filteredMessages.findIndex(m => m.id === messageId);
+    if (index !== -1 && virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({ index, align: 'center', behavior: 'smooth' });
       setHighlightedMessageId(messageId);
-      
-      // Remove highlight after 3 seconds
-      setTimeout(() => {
-        setHighlightedMessageId(null);
-      }, 3000);
+      setTimeout(() => setHighlightedMessageId(null), 3000);
     } else {
-      logger.warn(`Message with ID ${messageId} not found in current view`);
-      // If message is not in current view, we might need to load more messages
-      // For now, just show a notification
-      logger.debug('Message not found in current view. Try scrolling up to load more messages.');
-      
-      // You could implement a toast notification here instead of console.log
-      // For now, we'll just log it to avoid interrupting the user experience
+      // Try DOM ref fallback
+      const messageElement = messageRefs.current[messageId];
+      if (messageElement) {
+        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedMessageId(messageId);
+        setTimeout(() => setHighlightedMessageId(null), 3000);
+      }
     }
-  };
+  }, [messages]);
 
   const handleVideoClick = (videoData) => {
     // Construct video object for the modal
@@ -1023,264 +924,207 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div 
-        ref={messagesContainerRef}
-        className="chat-scrollbar flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-2 min-h-0"
-        onScroll={handleScroll}
-        style={{ 
-          scrollBehavior: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'unset',
-          backgroundColor: 'unset',
-          minHeight: 0
-        }}
-      >
-        {/* Load more messages indicator/button at the TOP (where older messages load) */}
-        {loadingMore && (
-          <div className="text-center text-muted-foreground py-4 flex flex-col items-center gap-2">
-            <div 
-              className="rounded-full border-2 border-transparent animate-spin"
-              style={{
-                borderTopColor: '#d4845a',
-                borderRightColor: '#d4845a',
-                width: '24px',
-                height: '24px'
-              }}
-            />
-            <div className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
-          </div>
-        )}
-        
-        {!loadingMore && hasMoreMessages && messages.length > 0 && (
-          <div className="text-center py-2">
-            <button
-              onClick={loadMoreMessages}
-              className="text-sm text-primary hover:text-primary/80 underline"
-            >
-              Load older messages
-            </button>
-          </div>
-        )}
-
-        {/* The ref is at the top for loading more messages when scrolling up */}
-        <div ref={messageEndRef} />
-
-        {/* Typing Indicators */}
-        {typingUsers.length > 0 && (
-          <div className="flex justify-start">
-            <Card className="max-w-xs">
-              <CardContent className="p-3">
-                <div className="text-sm text-muted-foreground">
-                  {typingUsers.length === 1 
-                    ? `${typingUsers[0].userEmail} is typing...`
-                    : `${typingUsers.length} people are typing...`
-                  }
-                </div>
-                <div className="flex space-x-1 mt-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-        
+      {/* Messages Area — Virtuoso */}
+      <div className="flex-1 min-h-0" style={{ background: 'unset', backgroundColor: 'unset' }}>
         {loading ? (
-          <div className="text-center text-muted-foreground flex flex-col items-center gap-3 py-8">
-            <div 
-              className="rounded-full border-2 border-transparent animate-spin"
-              style={{
-                borderTopColor: '#d4845a',
-                borderRightColor: '#d4845a',
-                width: '32px',
-                height: '32px'
-              }}
-            />
-            <div className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="text-center text-muted-foreground">
-            <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-              <MessageSquareIcon className="w-8 h-8" style={{ color: 'rgba(255, 255, 255, 0.25)' }} />
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center text-muted-foreground flex flex-col items-center gap-3 py-8">
+              <div
+                className="rounded-full border-2 border-transparent animate-spin"
+                style={{
+                  borderTopColor: '#d4845a',
+                  borderRightColor: '#d4845a',
+                  width: '32px',
+                  height: '32px'
+                }}
+              />
+              <div className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
             </div>
-            <div className="text-sm font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Aucun message pour le moment</div>
-            <div className="text-xs mt-1 font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}>Démarrez la conversation !</div>
+          </div>
+        ) : filteredMessages.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <div className="w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                <MessageSquareIcon className="w-8 h-8" style={{ color: 'rgba(255, 255, 255, 0.25)' }} />
+              </div>
+              <div className="text-sm font-extralight" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Aucun message pour le moment</div>
+              <div className="text-xs mt-1 font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}>Démarrez la conversation !</div>
+            </div>
           </div>
         ) : (
-          messages.filter(m => m.message_type !== 'video_upload').map((message, index) => {
-            // Debug logging for message rendering
-            if (message.id?.startsWith('temp_')) {
-              logger.debug('🔍 Rendering temp message:', message.id, 'at index:', index);
-            }
-
-            // CRITICAL DEBUG: Check if message is valid before rendering
-            if (!message || !message.id || (!message.content && message.message_type !== 'video_feedback')) {
-              logger.error('❌ Invalid message at index:', index, message);
-              return null;
-            }
-
-            // Determine if this is the current user's message - all user messages are aligned to the right
-            const isOwnMessage = message.sender_id === currentUser?.id;
-
-            // Determine message status (sent/read) for own messages
-            const isSent = isOwnMessage && !message.id?.startsWith('temp_');
-
-            // Check if message is read based on timestamp
-            let isRead = false;
-            if (isSent) {
-              if (otherParticipantReadAt && new Date(message.created_at) <= new Date(otherParticipantReadAt)) {
-                isRead = true;
-              }
-            }
-
-            return (
-            <div
-              key={message.id}
-              data-message-id={message.id}
-              ref={(el) => {
-                if (el) {
-                  messageRefs.current[message.id] = el;
-                }
-              }}
-              className={`message-container flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'} ${
-                highlightedMessageId === message.id ? 'message-highlighted' : ''
-              }`}
-            >
-              <div className={`relative group flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-                {/* Reply indicator - au-dessus du message */}
-                {message.replyTo && (
-                  <div className="mb-1.5" style={{
-                    maxWidth: '75vw',
-                    width: 'fit-content'
-                  }}>
-                    <ReplyMessage
-                      replyTo={message.replyTo}
-                      isOwnMessage={isOwnMessage}
-                      onReplyClick={handleReplyClick}
-                    />
-                  </div>
-                )}
-
-                {/* Message container avec bouton reply */}
-                <div className={`flex items-center gap-2 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
-                  {/* Timestamp - visible au hover, à gauche pour nos messages, à droite pour les autres */}
-                  <div
-                    className={`opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 flex items-center gap-1 pointer-events-none ${
-                      isOwnMessage ? 'order-2' : 'order-3'
-                    }`}
-                    style={{
-                      fontSize: "11px",
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <span>{formatMessageTime(message.created_at)}</span>
-                  </div>
-
-                  <div className="relative">
-                    {message.message_type === 'video_feedback' || message.message_type === 'video_upload' ? (
-                      <VideoFeedbackMessage
-                        message={message}
-                        isOwnMessage={isOwnMessage}
-                        onVideoClick={handleVideoClick}
-                      />
-                    ) : message.message_type === 'file' || message.message_type === 'audio' ? (
-                      <FileMessage
-                        message={message}
-                        isOwnMessage={isOwnMessage}
-                      />
-                    ) : (
-                      <Card
-                        className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
-                          isOwnMessage
-                            ? 'bg-primary text-primary-foreground border-primary rounded-[25px] pl-1 pr-1'
-                            : 'bg-white/15 text-card-foreground border-0 rounded-[25px] pl-1 pr-1'
-                        }`}
+          <Virtuoso
+            ref={virtuosoRef}
+            data={filteredMessages}
+            initialTopMostItemIndex={filteredMessages.length - 1}
+            followOutput="smooth"
+            startReached={handleStartReached}
+            overscan={200}
+            className="chat-scrollbar"
+            style={{ height: '100%' }}
+            components={{
+              Header: () => (
+                <>
+                  {loadingMore && (
+                    <div className="text-center text-muted-foreground py-4 flex flex-col items-center gap-2">
+                      <div
+                        className="rounded-full border-2 border-transparent animate-spin"
                         style={{
-                          overflowWrap: 'break-word',
-                          wordBreak: 'break-word',
-                          overflow: 'hidden'
+                          borderTopColor: '#d4845a',
+                          borderRightColor: '#d4845a',
+                          width: '24px',
+                          height: '24px'
                         }}
+                      />
+                      <div className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Chargement des messages...</div>
+                    </div>
+                  )}
+                  {!loadingMore && hasMoreMessages && filteredMessages.length > 0 && (
+                    <div className="text-center py-2">
+                      <button
+                        onClick={loadMoreMessages}
+                        className="text-sm text-primary hover:text-primary/80 underline"
                       >
-                        <CardContent className="p-3" style={{ padding: "10px", minWidth: 0 }}>
-                          <div className="flex items-end gap-1.5" style={{ minWidth: 0 }}>
-                            <div
-                              className="text-xs font-normal break-words whitespace-pre-wrap flex-1"
-                              style={{
-                                overflowWrap: 'break-word',
-                                wordBreak: 'break-word',
-                                overflow: 'hidden',
-                                minWidth: 0
-                              }}
-                            >
-                              {message.content}
-                            </div>
-                            {isOwnMessage && isSent && (
-                              <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
-                                {isRead ? (
-                                  <CheckCheck className="w-3 h-3" style={{ color: '#34b7f1' }} />
-                                ) : (
-                                  <Check className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                                )}
-                              </span>
-                            )}
+                        Load older messages
+                      </button>
+                    </div>
+                  )}
+                </>
+              ),
+              Footer: () => (
+                <>
+                  {typingUsers.length > 0 && (
+                    <div className="flex justify-start p-2">
+                      <Card className="max-w-xs">
+                        <CardContent className="p-3">
+                          <div className="text-sm text-muted-foreground">
+                            {typingUsers.length === 1
+                              ? `${typingUsers[0].userEmail} is typing...`
+                              : `${typingUsers.length} people are typing...`
+                            }
+                          </div>
+                          <div className="flex space-x-1 mt-1">
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                           </div>
                         </CardContent>
                       </Card>
+                    </div>
+                  )}
+                </>
+              )
+            }}
+            itemContent={(index, message) => {
+              if (!message || !message.id || (!message.content && message.message_type !== 'video_feedback')) {
+                return null;
+              }
+
+              const isOwnMessage = message.sender_id === currentUser?.id;
+              const isSent = isOwnMessage && !message.id?.startsWith('temp_');
+              let isRead = false;
+              if (isSent && otherParticipantReadAt && new Date(message.created_at) <= new Date(otherParticipantReadAt)) {
+                isRead = true;
+              }
+
+              return (
+                <div
+                  data-message-id={message.id}
+                  ref={(el) => { if (el) messageRefs.current[message.id] = el; }}
+                  className={`message-container flex w-full px-2 md:px-4 py-1 ${isOwnMessage ? 'justify-end' : 'justify-start'} ${
+                    highlightedMessageId === message.id ? 'message-highlighted' : ''
+                  }`}
+                >
+                  <div className={`relative group flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                    {message.replyTo && (
+                      <div className="mb-1.5" style={{ maxWidth: '75vw', width: 'fit-content' }}>
+                        <ReplyMessage
+                          replyTo={message.replyTo}
+                          isOwnMessage={isOwnMessage}
+                          onReplyClick={handleReplyClick}
+                        />
+                      </div>
                     )}
+
+                    <div className={`flex items-center gap-2 ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
+                      <div
+                        className={`opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 flex items-center gap-1 pointer-events-none ${
+                          isOwnMessage ? 'order-2' : 'order-3'
+                        }`}
+                        style={{ fontSize: "11px", color: 'rgba(255, 255, 255, 0.5)', whiteSpace: 'nowrap' }}
+                      >
+                        <span>{formatMessageTime(message.created_at)}</span>
+                      </div>
+
+                      <div className="relative">
+                        {message.message_type === 'video_feedback' || message.message_type === 'video_upload' ? (
+                          <VideoFeedbackMessage message={message} isOwnMessage={isOwnMessage} onVideoClick={handleVideoClick} />
+                        ) : message.message_type === 'file' || message.message_type === 'audio' ? (
+                          <FileMessage message={message} isOwnMessage={isOwnMessage} />
+                        ) : (
+                          <Card
+                            className={`max-w-[75vw] sm:max-w-lg lg:max-w-2xl ${
+                              isOwnMessage
+                                ? 'bg-primary text-primary-foreground border-primary rounded-[25px] pl-1 pr-1'
+                                : 'bg-white/15 text-card-foreground border-0 rounded-[25px] pl-1 pr-1'
+                            }`}
+                            style={{ overflowWrap: 'break-word', wordBreak: 'break-word', overflow: 'hidden' }}
+                          >
+                            <CardContent className="p-3" style={{ padding: "10px", minWidth: 0 }}>
+                              <div className="flex items-end gap-1.5" style={{ minWidth: 0 }}>
+                                <div
+                                  className="text-xs font-normal break-words whitespace-pre-wrap flex-1"
+                                  style={{ overflowWrap: 'break-word', wordBreak: 'break-word', overflow: 'hidden', minWidth: 0 }}
+                                >
+                                  {message.content}
+                                </div>
+                                {isOwnMessage && isSent && (
+                                  <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
+                                    {isRead ? (
+                                      <CheckCheck className="w-3 h-3" style={{ color: '#34b7f1' }} />
+                                    ) : (
+                                      <Check className="w-3 h-3" style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+
+                      {isOwnMessage && (
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                          onClick={() => handleDeleteMessage(message.id)}
+                          title="Supprimer le message"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'transparent' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
+                            <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                          </svg>
+                        </button>
+                      )}
+
+                      {!isOwnMessage && (
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                          onClick={() => handleReplyToMessage(message)}
+                          title="Reply to this message"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'transparent' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
+                        >
+                          <ReplyIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Delete button - only show for own messages, appears on hover */}
-                  {isOwnMessage && (
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
-                      onClick={() => handleDeleteMessage(message.id)}
-                      title="Supprimer le message"
-                      style={{
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        backgroundColor: 'transparent'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
-                        <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
-                      </svg>
-                    </button>
-                  )}
-
-                  {/* Reply button - only show for other users' messages, appears on hover on the right side */}
-                  {!isOwnMessage && (
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
-                      onClick={() => handleReplyToMessage(message)}
-                      title="Reply to this message"
-                      style={{
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        backgroundColor: 'transparent'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = 'var(--kaiylo-primary-hex)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
-                      }}
-                    >
-                      <ReplyIcon className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
-              </div>
-            </div>
-            );
-          })
+              );
+            }}
+          />
         )}
       </div>
 
