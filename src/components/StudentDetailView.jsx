@@ -1537,8 +1537,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   // Fetch videos for the specific student
-  const fetchStudentVideos = async () => {
-    setVideosLoading(true);
+  // silent: if true, no loading state (évite l'effet "rechargement" après mise à jour feedback)
+  const fetchStudentVideos = async (silent = false) => {
+    if (!silent) setVideosLoading(true);
     try {
       const token = localStorage.getItem('authToken');
       const response = await axios.get(
@@ -1568,7 +1569,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } catch (error) {
       logger.error('Error fetching student videos:', error);
     } finally {
-      setVideosLoading(false);
+      if (!silent) setVideosLoading(false);
     }
   };
 
@@ -1584,6 +1585,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     if (pendingVideos.length === 0) return;
     const token = localStorage.getItem('authToken');
     if (!token) return;
+    const pendingIds = new Set(pendingVideos.map((v) => v.id));
     setIsMarkingAllCompleted(true);
     try {
       await Promise.all(
@@ -1595,7 +1597,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           )
         )
       );
-      await fetchStudentVideos();
+      // Mise à jour locale pour éviter un rechargement complet de la page
+      setStudentVideos((prev) =>
+        prev.map((v) => (pendingIds.has(v.id) ? { ...v, status: 'completed' } : v))
+      );
     } catch (err) {
       logger.error('Error marking all as completed:', err);
     } finally {
@@ -1605,6 +1610,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Mark all pending videos of one session as completed - analyse tab
   const handleMarkSessionAsCompleted = async (e, sessionId) => {
+    e.preventDefault();
     e.stopPropagation();
     const pendingInSession = studentVideos.filter(
       (v) => (v.workout_session_id === sessionId || v.assignment_id === sessionId) && v.status === 'pending'
@@ -1612,6 +1618,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     if (pendingInSession.length === 0) return;
     const token = localStorage.getItem('authToken');
     if (!token) return;
+    const pendingIds = new Set(pendingInSession.map((v) => v.id));
     setMarkingSessionId(sessionId);
     try {
       await Promise.all(
@@ -1623,7 +1630,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           )
         )
       );
-      await fetchStudentVideos();
+      // Mise à jour locale pour éviter un rechargement complet de la page
+      setStudentVideos((prev) =>
+        prev.map((v) => (pendingIds.has(v.id) ? { ...v, status: 'completed' } : v))
+      );
     } catch (err) {
       logger.error('Error marking session as completed:', err);
     } finally {
@@ -1633,6 +1643,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Mark a single video as completed (no comment) - analyse tab
   const handleMarkVideoAsCompleted = async (e, videoId) => {
+    e.preventDefault();
     e.stopPropagation();
     const video = studentVideos.find((v) => v.id === videoId);
     if (!video || video.status !== 'pending') return;
@@ -1645,7 +1656,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         { feedback: '', rating: null, status: 'completed' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      await fetchStudentVideos();
+      // Mise à jour locale pour éviter un rechargement complet de la page
+      setStudentVideos((prev) =>
+        prev.map((v) => (v.id === videoId ? { ...v, status: 'completed' } : v))
+      );
     } catch (err) {
       logger.error('Error marking video as completed:', err);
     } finally {
@@ -1700,11 +1714,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         logger.debug(`📊 Video count after local update: ${updated.length}`);
         return updated;
       });
-      // Refresh the full list from server to ensure consistency
-      // This ensures the count is accurate and includes any other changes
+      // Rafraîchissement silencieux (pas de loading) pour ne pas donner l'impression de rechargement de page
       setTimeout(() => {
-        logger.debug('🔄 Refreshing videos list from server after feedback update');
-        fetchStudentVideos();
+        logger.debug('🔄 Refreshing videos list from server after feedback update (silent)');
+        fetchStudentVideos(true);
       }, 500); // Small delay to allow backend to process the update
     }
   };
@@ -2419,10 +2432,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const handleVideoUploaded = (data) => {
       logger.debug('📡 WebSocket: video_uploaded received', data);
       logger.debug(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
-      // Refresh videos list if it's for this student
+      // Refresh videos list if it's for this student (silent pour éviter effet rechargement)
       if (data.studentId === student.id) {
-        logger.debug('✅ Refreshing videos list after video upload');
-        fetchStudentVideos();
+        logger.debug('✅ Refreshing videos list after video upload (silent)');
+        fetchStudentVideos(true);
       } else {
         logger.debug('⏭️ Skipping refresh - different student');
       }
@@ -2431,10 +2444,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     const handleVideoFeedbackUpdated = (data) => {
       logger.debug('📡 WebSocket: video_feedback_updated received', data);
       logger.debug(`📡 Comparing studentId: ${data.studentId} === ${student.id}?`, data.studentId === student.id);
-      // Refresh videos list if it's for this student
+      // Refresh videos list if it's for this student (silent = pas de loading, évite effet rechargement)
       if (data.studentId === student.id) {
-        logger.debug('✅ Refreshing videos list after feedback update');
-        fetchStudentVideos();
+        logger.debug('✅ Refreshing videos list after feedback update (silent)');
+        fetchStudentVideos(true);
       } else {
         logger.debug('⏭️ Skipping refresh - different student');
       }
@@ -2879,7 +2892,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               {isOpen && (
                 <div className="mt-2 pt-2 pl-4 md:pl-6">
                   <div className="flex flex-col gap-[7px]">
-                    {session.videos.map((video) => {
+                    {[...session.videos]
+                      .sort((a, b) => {
+                        const exercises = a.assignment?.workout_session?.exercises ?? b.assignment?.workout_session?.exercises;
+                        const orderA = exercises?.findIndex(ex => ex.name === (a.exercise_name ?? '')) ?? 999;
+                        const orderB = exercises?.findIndex(ex => ex.name === (b.exercise_name ?? '')) ?? 999;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return (a.set_number ?? 0) - (b.set_number ?? 0);
+                      })
+                      .map((video) => {
                       const isVideoRowHovered = hoveredVideoId === video.id;
                       const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
                       const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
