@@ -915,7 +915,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             })()}
                           </span>
                         </div>
-                        <div className="flex items-end gap-[15px] pb-[3px] flex-shrink-0">
+                        <div className="flex items-center gap-[15px] flex-shrink-0">
                           {(() => {
                             // Si useRir === true, afficher la charge renseignée par l'élève au lieu du RPE
                             if (selectedExercise.useRir || selectedExercise.use_rir) {
@@ -1029,9 +1029,9 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {/* Student Comment for this Exercise - Display at bottom of sets list */}
                 {selectedExercise && (
                   <div className="mt-[12px] pt-[12px] border-t border-white/10">
-                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Commentaire élève sur l'exercice :</div>
-                    <div className={`text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words h-[102px] overflow-y-auto ${selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || selectedExercise.previous_student_comment
-                      ? 'text-white'
+                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Commentaire élève :</div>
+                    <div className={`text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words h-[102px] overflow-y-auto ${selectedExercise.comment || selectedExercise.studentComment || selectedExercise.student_comment || selectedExercise.previous_student_comment
+                      ? 'text-[#d4845a]'
                       : 'text-white/25'
                       }`}>
                       {(() => {
@@ -1045,8 +1045,8 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {/* Coach Notes for this Exercise */}
                 {selectedExercise?.notes && (
                   <div className="mt-[12px] pt-[12px] border-t border-white/10">
-                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Notes de séance par coach :</div>
-                    <div className="text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
+                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Notes de séance :</div>
+                    <div className="text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
                       {selectedExercise.notes}
                     </div>
                   </div>
@@ -1098,7 +1098,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                       {/* No feedback message */}
                       {!currentSetVideo?.coach_feedback && !currentSetVideo?.coach_feedback_audio_url && (
-                        <div className={`text-[14px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] ${isMobile ? 'w-full' : 'w-[272px]'} h-[45px]`}>
+                        <div className={`text-[13px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] ${isMobile ? 'w-full' : 'w-[272px]'} h-[45px]`}>
                           Aucun commentaire
                         </div>
                       )}
@@ -1137,7 +1137,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             }}
                             placeholder="Ajouter un commentaire ..."
                             rows={1}
-                            className="flex-1 bg-transparent text-base font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                            className="flex-1 bg-transparent text-sm font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
                             style={{
                               minHeight: '24px',
                               maxHeight: '100px',

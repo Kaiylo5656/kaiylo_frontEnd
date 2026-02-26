@@ -178,6 +178,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       setDescription(desc);
       setSessionDate(date);
       setExercises(formExercises);
+      setShowExerciseSelector(false);
 
       // Store initial state for comparison
       setInitialState({
@@ -193,6 +194,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       setDescription('');
       setSessionDate(defaultDate);
       setExercises([]);
+      // Ouvrir par défaut le sélecteur d'exercices pour ajouter le premier exercice
+      setShowExerciseSelector(true);
 
       // Store initial state (empty)
       setInitialState({
@@ -2573,7 +2576,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             setExercises(updatedExercises);
                           }}
                           placeholder="Ajouter une note pour cet exercice"
-                          className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
+                          className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
                           onFocus={(e) => {
                             e.target.style.borderStyle = 'none';
                             e.target.style.borderWidth = '0px';
@@ -2589,8 +2592,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         {/* Student Comment (read-only, from completed session) */}
                         {exercise.studentComment && (
                           <div className="mt-3">
-                            <div className="text-[14px] font-extralight text-white/50 mb-[8px]">Commentaire élève sur l'exercice :</div>
-                            <div className="text-[14px] font-light bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
+                            <div className="text-[14px] font-extralight text-white/50 mb-[8px]">Commentaire élève :</div>
+                            <div className="text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-[#d4845a]">
                               {exercise.studentComment.charAt(0).toUpperCase() + exercise.studentComment.slice(1)}
                             </div>
                           </div>

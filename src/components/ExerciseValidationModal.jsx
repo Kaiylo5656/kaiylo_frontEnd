@@ -856,7 +856,7 @@ const ExerciseValidationModal = ({
                               Commentaire coach :
                             </p>
                             {coachFeedback ? (
-                              <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap w-full">
+                              <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full">
                                 {coachFeedback}
                               </p>
                             ) : (

@@ -10,6 +10,7 @@ import ReactPlayer from 'react-player';
 import VideoPlayer from './VideoPlayer';
 import VoiceRecorder from './VoiceRecorder';
 import VoiceMessage from './VoiceMessage';
+import DeleteVideoModal from './DeleteVideoModal';
 import logger from '../utils/logger';
 
 const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
@@ -30,6 +31,9 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [audioRecording, setAudioRecording] = useState(null);
   const [isMarkingCompletedNoFeedback, setIsMarkingCompletedNoFeedback] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [localSubmittedFeedback, setLocalSubmittedFeedback] = useState(null);
 
   
   const videoRef = useRef(null);
@@ -67,6 +71,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         setVideoStatus('pending');
         logger.debug('Setting status to pending - no coach feedback and not marked completed');
       }
+      
+      setLocalSubmittedFeedback(null);
       
       // Initialize feedback based on video type
       if (videoType === 'coach') {
@@ -319,10 +325,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           );
         }
         
-        // Update local status immediately for student videos
+        // Update local status and show feedback in modal without closing
         setVideoStatus('completed');
-        // Close the modal after successful submission for student videos
-        onClose();
+        setLocalSubmittedFeedback(feedback.trim());
+        setFeedback('');
       }
       
       if (onFeedbackUpdate) {
@@ -368,28 +374,25 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   };
 
   const handleDelete = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
-      return;
-    }
-
     try {
-      // Use axios directly without manually passing token - interceptor handles it
       await axios.delete(buildApiUrl(`/workout-sessions/videos/${video.id}`));
-      
-      // Refresh the parent component BEFORE closing modal to prevent race conditions
       if (onFeedbackUpdate) {
-        onFeedbackUpdate(video.id, null, null, true); // true indicates deletion
+        onFeedbackUpdate(video.id, null, null, true);
       }
-      
-      // Show success message
+      setIsDeleteConfirmOpen(false);
       alert('✅ Vidéo supprimée avec succès');
-      
-      // Close modal after parent state is updated
       onClose();
     } catch (error) {
       logger.error('Error deleting video:', error);
       alert('❌ Erreur lors de la suppression de la vidéo');
+    } finally {
+      setIsDeletingVideo(false);
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setIsDeletingVideo(true);
+    await handleDelete();
   };
 
   // Mark video as completed without writing feedback (student video, coach view only)
@@ -596,48 +599,49 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
               )}
             </div>
           )}
-          {/* Student comment - mobile */}
-          {studentComment && (
-            <div className="flex items-start gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 256 512"
-                className="h-4 w-4 mt-0.5 flex-shrink-0"
-                style={{ color: 'var(--kaiylo-primary-hex)' }}
-                fill="currentColor"
-              >
-                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-              </svg>
-              <div>
-                <span className="text-white/50 text-xs">Commentaire élève</span>
-                <p className="text-white font-light text-sm">{studentComment}</p>
-              </div>
-            </div>
-          )}
           {/* Coach session notes - mobile */}
           {exerciseNotes && (
-            <div className="flex items-start gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 256 512"
-                className="h-4 w-4 mt-0.5 flex-shrink-0"
-                style={{ color: 'var(--kaiylo-primary-hex)' }}
-                fill="currentColor"
-              >
-                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-              </svg>
-              <div>
+            <div>
+              <div className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 512"
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  fill="currentColor"
+                >
+                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                </svg>
                 <span className="text-white/50 text-xs">Notes de séance</span>
-                <p className="text-white font-light text-sm">{exerciseNotes}</p>
               </div>
+              <p className="text-white font-light text-sm mt-1 pl-6 break-words">{exerciseNotes}</p>
+            </div>
+          )}
+          {/* Student comment - mobile */}
+          {studentComment && (
+            <div>
+              <div className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 512"
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: 'var(--kaiylo-primary-hex)' }}
+                  fill="currentColor"
+                >
+                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                </svg>
+                <span className="text-white/50 text-xs">Commentaire élève</span>
+              </div>
+              <p className="text-[#D4845A] font-normal text-sm mt-1 pl-6 break-words">{studentComment}</p>
             </div>
           )}
         </div>
 
         {/* Left Column - Video */}
         <div className="flex-1 flex flex-col min-w-0 w-full md:w-auto order-2 md:order-1">
-          {/* Video Container */}
+          {/* Video Container - hauteur fixe = taille finale pour éviter tout redimensionnement au chargement de la vidéo */}
           <div className="flex-shrink-0 px-3 md:px-6 pt-4 md:pt-6 pb-3 md:pb-4 relative">
+          <div className="relative h-[30vh] md:h-[70vh] min-h-[180px] flex items-center justify-center bg-black/20 rounded-xl md:rounded-2xl overflow-hidden">
           {video?.video_url && video.video_url.trim() !== '' ? (
             <>
             <VideoPlayer
@@ -752,10 +756,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-64 text-white/50 bg-black/20 rounded-2xl border border-white/10">
+            <div className="flex items-center justify-center h-full min-h-0 text-white/50 bg-black/20 rounded-xl md:rounded-2xl border border-white/10">
               <p className="font-light">Aucune vidéo disponible</p>
             </div>
           )}
+          </div>
           </div>
 
           {/* Footer Actions */}
@@ -770,7 +775,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             <span className="hidden sm:inline">Télécharger</span>
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => setIsDeleteConfirmOpen(true)}
             className="px-3 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors flex items-center justify-center gap-1.5 md:gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="14" height="14" fill="currentColor">
@@ -888,40 +893,40 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   })()}
                 </span>
               </div>
-              {/* Student comment - desktop only */}
-              {studentComment && (
-                <div className="flex items-start gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 512"
-                    className="h-4 w-4 mt-0.5 flex-shrink-0"
-                    style={{ color: 'var(--kaiylo-primary-hex)' }}
-                    fill="currentColor"
-                  >
-                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                  </svg>
-                  <div>
-                    <span className="text-white/50 text-xs">Commentaire élève</span>
-                    <p className="text-white font-light text-sm md:text-base">{studentComment}</p>
-                  </div>
-                </div>
-              )}
               {/* Coach session notes - desktop only */}
               {exerciseNotes && (
-                <div className="flex items-start gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 512"
-                    className="h-4 w-4 mt-0.5 flex-shrink-0"
-                    style={{ color: 'var(--kaiylo-primary-hex)' }}
-                    fill="currentColor"
-                  >
-                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                  </svg>
-                  <div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 512"
+                      className="h-4 w-4 flex-shrink-0"
+                      style={{ color: 'var(--kaiylo-primary-hex)' }}
+                      fill="currentColor"
+                    >
+                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                    </svg>
                     <span className="text-white/50 text-xs">Notes de séance</span>
-                    <p className="text-white font-light text-sm md:text-base">{exerciseNotes}</p>
                   </div>
+                  <p className="text-white font-light text-sm mt-1 pl-6 break-words">{exerciseNotes}</p>
+                </div>
+              )}
+              {/* Student comment - desktop only */}
+              {studentComment && (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 512"
+                      className="h-4 w-4 flex-shrink-0"
+                      style={{ color: 'var(--kaiylo-primary-hex)' }}
+                      fill="currentColor"
+                    >
+                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                    </svg>
+                    <span className="text-white/50 text-xs">Commentaire élève</span>
+                  </div>
+                  <p className="text-[#D4845A] font-normal text-sm mt-1 pl-6 break-words">{studentComment}</p>
                 </div>
               )}
               {videoType === 'student' && (
@@ -949,7 +954,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             </div>
 
             {/* Comment Section */}
-            <div className="px-4 md:px-6 py-4 md:py-4 flex-1 flex flex-col">
+            <div className="px-4 md:px-6 py-4 md:py-4 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between mb-2 md:mb-3">
                 <h3 className="text-xs md:text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>Commentaire coach</h3>
                 {videoType === 'coach' && (
@@ -1021,14 +1026,13 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                       </div>
                     )
                   ) : (
-                    // Student video - coach view only (feedback input)
-                    <div className="flex-1 flex flex-col space-y-3">
-                      {/* Display existing comment if feedback exists (text or audio) */}
-                      {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                        <div className="flex flex-col gap-[8px] flex-shrink-0 mb-3">
-                          {/* Audio feedback display */}
+                    // Student video - coach view only (feedback input): zone scrollable + input fixe en bas
+                    <div className="flex-1 flex flex-col min-h-0">
+                      {/* Zone scrollable : commentaires affichés (toujours visible, vide ou avec contenu) */}
+                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
+                        <div className="flex flex-col gap-[8px] mb-3 flex-1 min-h-0">
                           {video.coach_feedback_audio_url && (
-                            <div className="mb-2">
+                            <div className="mb-2 flex-shrink-0">
                               <VoiceMessage 
                                 message={{
                                   file_url: video.coach_feedback_audio_url,
@@ -1039,18 +1043,15 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                               />
                             </div>
                           )}
-                          
-                          {/* Text feedback display */}
-                          {video.coach_feedback && (
-                            <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px]">
-                              {video.coach_feedback}
-                            </div>
-                          )}
+                          <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px] flex-1">
+                            {video.coach_feedback || localSubmittedFeedback || null}
+                          </div>
                         </div>
-                      )}
+                      </div>
                       
-                      {/* Comment input section */}
-                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3 flex-shrink-0 mt-auto">
+                      {/* Bloc fixe en bas : input + bouton */}
+                      <div className="flex flex-col flex-shrink-0 gap-0 pt-3">
+                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3">
                         {isRecordingVoice ? (
                           <VoiceRecorder
                             onSend={handleVoiceMessageSend}
@@ -1065,7 +1066,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                               onChange={(e) => setFeedback(e.target.value)}
                               placeholder="Ajouter un commentaire ..."
                               rows={1}
-                              className="flex-1 bg-transparent text-base font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
+                              className="flex-1 bg-transparent text-sm font-normal text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
                               style={{ paddingTop: '1px', paddingBottom: '1px', lineHeight: '1.5' }}
                             />
                             <button
@@ -1098,38 +1099,37 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                           </>
                         )}
                       </div>
-                      {/* Marquer en complété sans commentaire - only when no feedback yet */}
-                      {videoStatus === 'pending' && (
-                        <button
-                          type="button"
-                          onClick={handleMarkAsCompletedNoFeedback}
-                          disabled={isMarkingCompletedNoFeedback}
-                          className="mt-3 w-full py-2 px-4 rounded-[50px] text-xs md:text-sm font-normal transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                          style={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: 'rgba(250, 250, 250, 0.5)',
-                            fontWeight: '400'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (isMarkingCompletedNoFeedback) return;
-                            e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                            e.currentTarget.style.color = '#D48459';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                            e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                          }}
-                        >
-                          {isMarkingCompletedNoFeedback ? (
-                            <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 flex-shrink-0" fill="currentColor">
-                              <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
-                            </svg>
-                          )}
-                          {isMarkingCompletedNoFeedback ? 'En cours...' : 'Marquer en complété sans commentaire'}
-                        </button>
-                      )}
+                      {/* Marquer en complété sans commentaire - toujours affiché, désactivé quand déjà complété */}
+                      <button
+                        type="button"
+                        onClick={handleMarkAsCompletedNoFeedback}
+                        disabled={videoStatus !== 'pending' || isMarkingCompletedNoFeedback}
+                        className="mt-3 w-full py-2 px-4 rounded-[50px] text-xs md:text-sm font-normal transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'rgba(250, 250, 250, 0.5)',
+                          fontWeight: '400'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (videoStatus !== 'pending' || isMarkingCompletedNoFeedback) return;
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                          e.currentTarget.style.color = '#D48459';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                        }}
+                      >
+                        {isMarkingCompletedNoFeedback ? (
+                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 flex-shrink-0" fill="currentColor">
+                            <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                          </svg>
+                        )}
+                        {isMarkingCompletedNoFeedback ? 'En cours...' : 'Marquer en complété sans commentaire'}
+                      </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1138,6 +1138,15 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           </div>
         </div>
       </div>
+
+      {/* Delete video confirmation modal - zIndex above video modal (100) */}
+      <DeleteVideoModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        loading={isDeletingVideo}
+        zIndex={110}
+      />
     </div>
   );
 };
