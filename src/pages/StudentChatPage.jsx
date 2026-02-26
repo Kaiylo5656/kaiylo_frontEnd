@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import ChatWindow from '../components/ChatWindow';
@@ -8,6 +8,7 @@ import Header from '../components/Header';
 import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { getCachedConversations, setCachedConversations, getCacheTimestamp, mergeSyncedConversations } from '../utils/chatCache';
 import { ChevronLeft, Search } from 'lucide-react';
 
 /**
@@ -19,9 +20,12 @@ const StudentChatPage = () => {
   const { isConnected, connectionError, markMessagesAsRead, socket } = useSocket();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState([]);
+
+  // Read cache synchronously during state initialization — no async delay
+  const initialCache = user?.id ? getCachedConversations(user.id) : null;
+  const [conversations, setConversations] = useState(() => initialCache?.data || []);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialCache?.data?.length);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showConversationList, setShowConversationList] = useState(true);
@@ -30,11 +34,63 @@ const StudentChatPage = () => {
   // Get studentId from URL parameters (for coaches linking to chat)
   const studentId = searchParams.get('studentId');
 
-  // Fetch user's conversations
-  const fetchConversations = async () => {
+  // Track whether we've loaded cache
+  const cacheLoadedRef = useRef(!!initialCache?.data?.length);
+
+  // Sort helper
+  const sortConversations = (convs) => convs.sort((a, b) => {
+    if (!a.last_message_at && !b.last_message_at) {
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    if (!a.last_message_at) return 1;
+    if (!b.last_message_at) return -1;
+    return new Date(b.last_message_at) - new Date(a.created_at);
+  });
+
+  // Fetch user's conversations (cache-first: show cached data, then refresh in background)
+  const fetchConversations = useCallback(async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      // On first call when user wasn't available during init, try cache now
+      if (!cacheLoadedRef.current && user?.id) {
+        cacheLoadedRef.current = true;
+        const cached = getCachedConversations(user.id);
+        if (cached?.data?.length) {
+          setConversations(cached.data);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } else if (!isBackgroundRefresh && !cacheLoadedRef.current) {
+        setLoading(true);
+      }
+
       const token = await getAuthToken();
+
+      // Delta sync: if background refresh and we have a cache timestamp, use sync endpoint
+      const sinceTs = isBackgroundRefresh && user?.id ? getCacheTimestamp(user.id) : null;
+      if (sinceTs) {
+        try {
+          const syncRes = await fetch(buildApiUrl(`/api/chat/conversations/sync?since=${encodeURIComponent(sinceTs)}`), {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            if (syncData.data?.length) {
+              const merged = mergeSyncedConversations(user.id, syncData.data);
+              if (merged) {
+                setConversations(sortConversations([...merged]));
+              }
+            }
+            setCachedConversations(user.id, conversations.length ? conversations : (getCachedConversations(user.id)?.data || []));
+            setError(null);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fall through to full fetch
+        }
+      }
+
       const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -47,28 +103,24 @@ const StudentChatPage = () => {
       }
 
       const data = await response.json();
-      const conversations = data.data || [];
-
-      // Sort conversations by last_message_at (most recent first)
-      const sortedConversations = conversations.sort((a, b) => {
-        if (!a.last_message_at && !b.last_message_at) {
-          return new Date(b.created_at) - new Date(a.created_at);
-        }
-        if (!a.last_message_at) return 1;
-        if (!b.last_message_at) return -1;
-
-        return new Date(b.last_message_at) - new Date(a.created_at);
-      });
+      const convs = data.data || [];
+      const sortedConversations = sortConversations(convs);
 
       setConversations(sortedConversations);
       setError(null);
+
+      if (user?.id) {
+        setCachedConversations(user.id, sortedConversations);
+      }
     } catch (err) {
       logger.error('Error fetching conversations:', err);
-      setError(err.message);
+      if (!conversations.length) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthToken, user?.id]);
 
   // Fetch coach info (runs in parallel with conversations - no dependency on conversations)
   const fetchCoachInfo = async () => {
@@ -94,7 +146,16 @@ const StudentChatPage = () => {
   useEffect(() => {
     if (!user) return;
     Promise.all([fetchConversations(), fetchCoachInfo()]);
-  }, [user?.id]);
+
+    // Refresh conversations when page becomes visible again (background refresh)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchConversations(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user?.id, fetchConversations]);
 
   // Listen for socket events (new_message, messages_read)
   useEffect(() => {
@@ -269,26 +330,30 @@ const StudentChatPage = () => {
   };
 
   // Handle new message
-  const handleNewMessage = (conversationId, message) => {
-    setConversations(prev =>
-      prev.map(conv =>
+  const handleNewMessage = useCallback((conversationId, message) => {
+    setConversations(prev => {
+      const updated = prev.map(conv =>
         conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      )
-    );
-  };
+      );
+      if (user?.id) setCachedConversations(user.id, updated);
+      return updated;
+    });
+  }, [user?.id]);
 
   // Handle message sent
-  const handleMessageSent = (conversationId, message) => {
-    setConversations(prev =>
-      prev.map(conv =>
+  const handleMessageSent = useCallback((conversationId, message) => {
+    setConversations(prev => {
+      const updated = prev.map(conv =>
         conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      )
-    );
-  };
+      );
+      if (user?.id) setCachedConversations(user.id, updated);
+      return updated;
+    });
+  }, [user?.id]);
 
   // Extract potential first name from email (e.g., "tchomarat2001@gmail.com" -> "Tchomarat")
   const extractNameFromEmail = (email) => {

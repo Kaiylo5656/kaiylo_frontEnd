@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
 import { Button } from './ui/button';
@@ -13,14 +13,15 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
-const ChatList = ({ 
-  conversations, 
-  selectedConversation, 
-  onSelectConversation, 
-  onCreateConversation, 
+const ChatList = ({
+  conversations,
+  selectedConversation,
+  onSelectConversation,
+  onCreateConversation,
   currentUser,
   onDeleteConversation,
-  conversationsLoading = false
+  conversationsLoading = false,
+  onConversationsUpdate
 }) => {
   const { getAuthToken } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -39,6 +40,16 @@ const ChatList = ({
   useEffect(() => {
     setLocalConversations(conversations);
   }, [conversations]);
+
+  // Persist socket-driven changes to cache via parent callback
+  const prevConversationsRef = useRef(conversations);
+  useEffect(() => {
+    // Only persist if localConversations diverged from props (i.e. socket updated them)
+    if (onConversationsUpdate && localConversations !== prevConversationsRef.current && localConversations.length > 0) {
+      onConversationsUpdate(localConversations);
+    }
+    prevConversationsRef.current = localConversations;
+  }, [localConversations, onConversationsUpdate]);
 
   // Socket listeners for real-time updates
   useEffect(() => {

@@ -10,6 +10,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
+import { getCachedMessages, setCachedMessages, appendCachedMessage } from '../utils/chatCache';
 import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
@@ -82,23 +83,40 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   markMessagesAsReadRef.current = markMessagesAsRead;
 
 
+  // Track whether we've checked the cache for this conversation
+  const messageCacheCheckedRef = useRef(null);
+
   const fetchMessages = useCallback(async (cursor = null) => {
     if (!conversation?.id) return;
 
     try {
-      if (cursor) {
+      // On initial load (no cursor), try cache first
+      if (!cursor && messageCacheCheckedRef.current !== conversation.id) {
+        messageCacheCheckedRef.current = conversation.id;
+        const cached = getCachedMessages(conversation.id);
+        if (cached?.messages?.length) {
+          setMessages(cached.messages);
+          setNextCursor(cached.nextCursor);
+          setHasMoreMessages(!!cached.nextCursor);
+          setIsInitialLoad(false);
+          // Don't show spinner — we have cached messages
+          // Continue to fetch fresh data in background below
+        } else {
+          setLoading(true); // No cache — show spinner
+        }
+      } else if (cursor) {
         setLoadingMore(true);
       } else {
         setLoading(true);
       }
 
       const token = await getAuthToken();
-      
+
       // Build query parameters for pagination
       const params = new URLSearchParams({
         limit: '50' // Load 50 messages at a time
       });
-      
+
       if (cursor) {
         params.append('cursor', cursor);
       }
@@ -116,7 +134,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       const data = await response.json();
       const { messages: newMessages, nextCursor: newNextCursor, other_participant_last_read_at } = data.data || { messages: [], nextCursor: null };
-      
+
       // Update other participant's read time from API
       if (other_participant_last_read_at) {
         setOtherParticipantReadAt(other_participant_last_read_at);
@@ -124,7 +142,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         // Fallback to conversation prop on initial load
         setOtherParticipantReadAt(conversation.other_participant_last_read_at);
       }
-      
+
       if (cursor) {
         // When loading more, prepend older messages to the beginning of the array
         // API returns messages in newest-to-oldest order (descending)
@@ -138,13 +156,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         const reversedMessages = [...newMessages].reverse();
         setMessages(reversedMessages);
         setIsInitialLoad(false); // Mark initial load as complete
-        
-        // Scroll will be handled by the dedicated useEffect after state update
+
+        // Cache the latest page of messages
+        setCachedMessages(conversation.id, reversedMessages, newNextCursor);
       }
-      
+
       setNextCursor(newNextCursor);
       setHasMoreMessages(!!newNextCursor);
-      
+
       // Clear old message refs when fetching new messages
       messageRefs.current = {};
     } catch (error) {
@@ -467,6 +486,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setNextCursor(null);
       setHasMoreMessages(true);
       setIsInitialLoad(true);
+      messageCacheCheckedRef.current = null; // Allow cache check for new conversation
 
       // Clear processed message IDs when switching conversations
       processedMessageIdsRef.current.clear();
@@ -640,6 +660,15 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           created_at: messageData.created_at || new Date().toISOString(),
           sender: messageData.sender || { id: messageData.sender_id }
         }];
+      });
+
+      // Persist new message to cache
+      appendCachedMessage(conversation.id, {
+        ...messageData,
+        conversationId: receivedConversationId,
+        message_type: messageData.message_type || 'text',
+        created_at: messageData.created_at || new Date().toISOString(),
+        sender: messageData.sender || { id: messageData.sender_id }
       });
 
       // Scroll to bottom via Virtuoso

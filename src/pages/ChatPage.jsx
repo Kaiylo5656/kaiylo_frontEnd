@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useSearchParams } from 'react-router-dom';
 import ChatList from '../components/ChatList';
@@ -8,6 +8,7 @@ import useSocket from '../hooks/useSocket';
 import { buildApiUrl } from '../config/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useHideMainHeaderInChat } from '../components/MainLayout';
+import { getCachedConversations, setCachedConversations, getCacheTimestamp, mergeSyncedConversations } from '../utils/chatCache';
 import { Search, MoreVertical, ChevronLeft, ChevronRight, Users, Dumbbell, Video, FileText } from 'lucide-react';
 
 // Custom MessageSquare Icon Component (Font Awesome)
@@ -28,9 +29,12 @@ const ChatPage = () => {
   const { socket, isConnected, connectionError, markMessagesAsRead } = useSocket();
   const { setHideMainHeaderInChatThread } = useHideMainHeaderInChat();
   const [searchParams] = useSearchParams();
-  const [conversations, setConversations] = useState([]);
+
+  // Read cache synchronously during state initialization — no async delay
+  const initialCache = user?.id ? getCachedConversations(user.id) : null;
+  const [conversations, setConversations] = useState(() => initialCache?.data || []);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialCache?.data?.length);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -47,11 +51,68 @@ const ChatPage = () => {
     return () => setHideMainHeaderInChatThread(false);
   }, [selectedConversation, showConversationList, setHideMainHeaderInChatThread]);
 
-  // Fetch user's conversations
-  const fetchConversations = async () => {
+  // Track whether we've loaded cache (to avoid re-reading on re-renders)
+  const cacheLoadedRef = useRef(!!initialCache?.data?.length);
+
+  // Sort helper
+  const sortConversations = (convs) => convs.sort((a, b) => {
+    if (!a.last_message_at && !b.last_message_at) {
+      return new Date(b.created_at) - new Date(a.created_at);
+    }
+    if (!a.last_message_at) return 1;
+    if (!b.last_message_at) return -1;
+    return new Date(b.last_message_at) - new Date(a.created_at);
+  });
+
+  // Fetch user's conversations (cache-first: show cached data, then refresh in background)
+  const fetchConversations = useCallback(async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      // On first call when user wasn't available during init, try cache now
+      if (!cacheLoadedRef.current && user?.id) {
+        cacheLoadedRef.current = true;
+        const cached = getCachedConversations(user.id);
+        if (cached?.data?.length) {
+          setConversations(cached.data);
+          setLoading(false);
+          // Continue to background refresh below (don't return)
+        } else {
+          setLoading(true);
+        }
+      } else if (!isBackgroundRefresh && !cacheLoadedRef.current) {
+        // No user yet and not a background refresh — show loading
+        setLoading(true);
+      }
+      // If cache was already loaded, background refresh keeps current data visible (no loading state)
+
       const token = await getAuthToken();
+
+      // Delta sync: if this is a background refresh and we have a cache timestamp, use sync endpoint
+      const sinceTs = isBackgroundRefresh && user?.id ? getCacheTimestamp(user.id) : null;
+      if (sinceTs) {
+        try {
+          const syncRes = await fetch(buildApiUrl(`/api/chat/conversations/sync?since=${encodeURIComponent(sinceTs)}`), {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            if (syncData.data?.length) {
+              const merged = mergeSyncedConversations(user.id, syncData.data);
+              if (merged) {
+                setConversations(sortConversations([...merged]));
+              }
+            }
+            // Even if no changes, update cache timestamp
+            setCachedConversations(user.id, conversations.length ? conversations : (getCachedConversations(user.id)?.data || []));
+            setError(null);
+            setLoading(false);
+            return;
+          }
+          // If sync endpoint fails (e.g. 404), fall through to full fetch
+        } catch {
+          // Fall through to full fetch
+        }
+      }
+
       const response = await fetch(buildApiUrl('/api/chat/conversations'), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -64,36 +125,33 @@ const ChatPage = () => {
       }
 
       const data = await response.json();
-      const conversations = data.data || [];
-
-      // Sort conversations by last_message_at (most recent first)
-      const sortedConversations = conversations.sort((a, b) => {
-        if (!a.last_message_at && !b.last_message_at) {
-          return new Date(b.created_at) - new Date(a.created_at);
-        }
-        if (!a.last_message_at) return 1;
-        if (!b.last_message_at) return -1;
-
-        return new Date(b.last_message_at) - new Date(a.created_at);
-      });
+      const fetchedConversations = data.data || [];
+      const sortedConversations = sortConversations(fetchedConversations);
 
       setConversations(sortedConversations);
       setError(null);
+
+      // Persist to cache
+      if (user?.id) {
+        setCachedConversations(user.id, sortedConversations);
+      }
     } catch (err) {
       logger.error('Error fetching conversations:', err);
-      setError(err.message);
+      if (!conversations.length) {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthToken, user?.id]);
 
   useEffect(() => {
     fetchConversations();
 
-    // Refresh conversations when page becomes visible again
+    // Refresh conversations when page becomes visible again (background refresh)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchConversations();
+        fetchConversations(true);
       }
     };
 
@@ -102,7 +160,7 @@ const ChatPage = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [fetchConversations]);
 
   // Listen for messages_read events to update last_read_at
   useEffect(() => {
@@ -138,7 +196,7 @@ const ChatPage = () => {
         // Refresh conversations after a delay to ensure server has persisted the update
         // This ensures that when the page is refreshed, the badge won't reappear
         setTimeout(() => {
-          fetchConversations();
+          fetchConversations(true);
         }, 1000);
       }
     };
@@ -266,27 +324,38 @@ const ChatPage = () => {
     }
   };
 
+  // Helper to persist current conversations to cache after state update
+  const persistConversationsToCache = useCallback((updatedConversations) => {
+    if (user?.id) {
+      setCachedConversations(user.id, updatedConversations);
+    }
+  }, [user?.id]);
+
   // Handle new message
   const handleNewMessage = useCallback((conversationId, message) => {
-    setConversations(prev =>
-      prev.map(conv =>
+    setConversations(prev => {
+      const updated = prev.map(conv =>
         conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      )
-    );
-  }, []);
+      );
+      persistConversationsToCache(updated);
+      return updated;
+    });
+  }, [persistConversationsToCache]);
 
   // Handle message sent
   const handleMessageSent = useCallback((conversationId, message) => {
-    setConversations(prev =>
-      prev.map(conv =>
+    setConversations(prev => {
+      const updated = prev.map(conv =>
         conv.id === conversationId
           ? { ...conv, last_message: message, last_message_at: message.created_at }
           : conv
-      )
-    );
-  }, []);
+      );
+      persistConversationsToCache(updated);
+      return updated;
+    });
+  }, [persistConversationsToCache]);
 
   // Handle conversation deletion
   const handleDeleteConversation = async (conversationId) => {
@@ -453,6 +522,7 @@ const ChatPage = () => {
             currentUser={user}
             onDeleteConversation={handleDeleteConversation}
             conversationsLoading={loading}
+            onConversationsUpdate={persistConversationsToCache}
           />
         </div>
 

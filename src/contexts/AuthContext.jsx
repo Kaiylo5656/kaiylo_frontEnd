@@ -5,6 +5,7 @@ import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import { supabase } from '../lib/supabase';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '../utils/storage';
 import { isDesktopViewport } from '../utils/device';
+import { clearAllChatCache } from '../utils/chatCache';
 import logger from '../utils/logger';
 
 // Expose axios globally for testing purposes (development only)
@@ -130,7 +131,10 @@ export const AuthProvider = ({ children }) => {
         // Ignore localStorage errors
       }
     }
-    
+
+    // Clear chat cache to prevent stale data when switching accounts
+    clearAllChatCache();
+
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     setError(null);
