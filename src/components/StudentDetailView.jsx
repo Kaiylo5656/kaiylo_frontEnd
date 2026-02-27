@@ -505,23 +505,32 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       return; // Nothing to do if the session is dropped on the same day
     }
 
-    try {
-      if (isRescheduling) return;
-      setIsRescheduling(true);
+    if (isRescheduling) return;
+    setIsRescheduling(true);
 
+    // Mise à jour optimiste : déplacer la séance tout de suite dans l'UI
+    const sessionId = session.assignmentId ?? session.workoutSessionId ?? session.id;
+    const matchSession = s => (s.assignmentId ?? s.workoutSessionId ?? s.id) === sessionId;
+    setWorkoutSessions(prev => {
+      const next = { ...prev };
+      const fromList = (next[fromKey] || []).filter(s => !matchSession(s));
+      const movedSession = { ...session, scheduled_date: toKey };
+      next[fromKey] = fromList;
+      next[toKey] = [...(next[toKey] || []), movedSession];
+      return next;
+    });
+
+    try {
       const token = localStorage.getItem('authToken');
       const headers = { Authorization: `Bearer ${token}` };
       const payloadDate = toKey;
 
       if (session.assignmentId) {
-        // Published session: update assignment due date
         await axios.patch(
           `${getApiBaseUrlWithApi()}/assignments/${session.assignmentId}`,
           { dueDate: payloadDate },
           { headers }
         );
-
-        // Keep workout session metadata (scheduled_date) in sync for student views
         if (session.workoutSessionId) {
           await axios.patch(
             `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
@@ -530,14 +539,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           );
         }
       } else if (session.status === 'draft' && session.workoutSessionId) {
-        // Draft session: update scheduled_date directly on workout session
         await axios.patch(
           `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
           { scheduled_date: payloadDate },
           { headers }
         );
       } else if (session.workoutSessionId) {
-        // Fallback: try updating the workout session date if available
         await axios.patch(
           `${getApiBaseUrlWithApi()}/workout-sessions/${session.workoutSessionId}`,
           { scheduled_date: payloadDate },
@@ -545,12 +552,23 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         );
       } else {
         logger.warn('Unable to reschedule session – missing identifiers:', session);
+        setIsRescheduling(false);
         return;
       }
 
-      await fetchWorkoutSessions();
+      // Sync en arrière-plan sans bloquer l'UI
+      fetchWorkoutSessions();
     } catch (error) {
       logger.error('Error moving session:', error);
+      // Rollback: remettre la séance sur la date d'origine
+      setWorkoutSessions(prev => {
+        const next = { ...prev };
+        const toList = (next[toKey] || []).filter(s => !matchSession(s));
+        const restoredSession = { ...session, scheduled_date: fromKey };
+        next[toKey] = toList;
+        next[fromKey] = [...(next[fromKey] || []), restoredSession];
+        return next;
+      });
       alert('Impossible de déplacer la séance. Vérifie ta connexion et réessaie.');
     } finally {
       setIsRescheduling(false);
@@ -1093,8 +1111,49 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         logger.debug('✅ New session created successfully');
       }
 
+      // Mise à jour optimiste : afficher tout de suite les modifs (ex. 3 exo) avant de fermer la modale
+      // 'published' => 'assigned' pour l'affichage du badge (évite le flash "Pas commencé")
+      const displayStatus = sessionData.status === 'published' ? 'assigned' : (sessionData.status || 'assigned');
+      const dateKey = format(parseISO(sessionData.scheduled_date), 'yyyy-MM-dd');
+      setWorkoutSessions(prev => {
+        const next = { ...prev };
+        const list = next[dateKey] ? [...next[dateKey]] : [];
+        if (sessionData.isEdit && sessionData.existingSessionId) {
+          const idx = list.findIndex(
+            s => s.workoutSessionId === sessionData.existingSessionId || s.assignmentId === sessionData.assignmentId
+          );
+          if (idx !== -1) {
+            list[idx] = {
+              ...list[idx],
+              title: sessionData.title,
+              exercises: sessionData.exercises,
+              status: displayStatus
+            };
+          }
+        } else {
+          list.push({
+            id: 'pending',
+            assignmentId: 'pending',
+            workoutSessionId: 'pending',
+            title: sessionData.title,
+            exercises: sessionData.exercises,
+            status: displayStatus,
+            scheduled_date: sessionData.scheduled_date
+          });
+        }
+        next[dateKey] = list;
+        return next;
+      });
+      setSelectedSession(prev => {
+        if (!prev || !sessionData.isEdit) return prev;
+        if (prev.workoutSessionId === sessionData.existingSessionId || prev.assignmentId === sessionData.assignmentId) {
+          return { ...prev, title: sessionData.title, exercises: sessionData.exercises, status: displayStatus };
+        }
+        return prev;
+      });
+
       setIsCreateModalOpen(false);
-      // Refresh workout sessions
+      // Refresh pour récupérer les vrais ids côté serveur (sans latence visible)
       await fetchWorkoutSessions();
     } catch (error) {
       logger.error('❌ Error creating/updating workout session and assignment:', error);

@@ -1016,8 +1016,9 @@ const ExerciseValidationModal = ({
                                                 inputMode="decimal"
                                                 value={getStudentWeightForSet(setIndex) || ''}
                                                 onChange={(e) => {
-                                                  let raw = e.target.value.replace(',', '.').replace(/[^\d.]/g, '');
-                                                  // One decimal separator only, keep as comma for display
+                                                  let raw = e.target.value.replace(',', '.');
+                                                  const isNeg = raw.startsWith('-');
+                                                  raw = raw.replace(/[^\d.]/g, '');
                                                   const parts = raw.split('.');
                                                   if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
                                                   if (parts.length >= 2) {
@@ -1025,24 +1026,32 @@ const ExerciseValidationModal = ({
                                                   } else {
                                                     raw = raw.slice(0, 3);
                                                   }
+                                                  // Garder le "-" seul pour permettre de taper "-" puis les chiffres
+                                                  if (isNeg) raw = (raw === '' ? '-' : '-' + raw);
                                                   const displayValue = raw.replace('.', ',');
                                                   handleWeightUpdate(setIndex, displayValue || '');
                                                 }}
                                                 onKeyDown={(e) => {
                                                   const v = e.target.value;
                                                   const hasComma = /,/.test(v);
+                                                  // Allow minus only at start (for negative charge)
+                                                  if (e.key === '-') {
+                                                    if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
+                                                    return;
+                                                  }
                                                   // Allow digits
                                                   if (/^\d$/.test(e.key)) {
                                                     if (hasComma) {
                                                       const afterComma = v.split(',')[1] || '';
                                                       if (afterComma.length >= 1) e.preventDefault();
                                                     } else {
-                                                      if (v.replace(/\D/g, '').length >= 3) e.preventDefault();
+                                                      const digitsOnly = v.replace(/\D/g, '');
+                                                      if (digitsOnly.length >= 3) e.preventDefault();
                                                     }
                                                     return;
                                                   }
                                                   if (e.key === ',' || e.key === '.') {
-                                                    if (hasComma || v.length === 0) e.preventDefault();
+                                                    if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
                                                     return;
                                                   }
                                                   const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
@@ -1050,7 +1059,7 @@ const ExerciseValidationModal = ({
                                                   e.preventDefault();
                                                 }}
                                                 disabled={!isCompleted}
-                                                className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[45px] min-w-[45px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isCompleted
+                                                className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isCompleted
                                                   ? 'opacity-50 cursor-not-allowed text-white/50'
                                                   : 'cursor-text text-[#d4845a]'
                                                   }`}
@@ -1059,8 +1068,8 @@ const ExerciseValidationModal = ({
                                                   lineHeight: 1
                                                 }}
                                                 placeholder=""
-                                                maxLength={5}
-                                                title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 chiffres, virgule pour décimales (ex. 21,5)"}
+                                                maxLength={3}
+                                                title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 caractères max (le - compte). Virgule pour décimales, négatif possible (ex. -15 ou 21)"}
                                               />
                                               <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
                                             </div>

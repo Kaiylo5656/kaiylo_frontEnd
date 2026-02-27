@@ -2,7 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft } from 'lucide-react';
+import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -43,6 +43,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [isAddExerciseModalOpen, setIsAddExerciseModalOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState(null);
   const [replacingExerciseIndex, setReplacingExerciseIndex] = useState(null);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Exercise Arrangement Modal State
   const [arrangementPosition, setArrangementPosition] = useState({
@@ -817,10 +818,17 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     });
 
     try {
-      onSessionCreated(sessionData);
+      if (status === 'published') {
+        setIsPublishing(true);
+      }
+      await Promise.resolve(onSessionCreated(sessionData));
       handleClose(true); // Force close after successful save
     } catch (error) {
       logger.error('Error creating/updating workout session:', error);
+    } finally {
+      if (status === 'published') {
+        setIsPublishing(false);
+      }
     }
   };
 
@@ -2717,10 +2725,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 <button
                   type="button"
                   onClick={handlePublish}
-                  className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors order-1 sm:order-3"
+                  disabled={isPublishing}
+                  className="px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors order-1 sm:order-3 disabled:opacity-70 disabled:pointer-events-none flex items-center justify-center gap-2 min-w-[86px]"
                   style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
                 >
-                  Publier
+                  {isPublishing ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" aria-hidden />
+                      <span>Publication...</span>
+                    </>
+                  ) : (
+                    'Publier'
+                  )}
                 </button>
               </div>
             </div>

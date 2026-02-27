@@ -1173,11 +1173,19 @@ const VideoLibrary = () => {
                 </div>
               </div>
 
-              {/* Session Videos (Collapsible) */}
+              {/* Session Videos (Collapsible) - same order as Analyse vidéo (by exercise order then set_number) */}
               {isOpen && (
                 <div className="mt-2 pt-2 pl-4 md:pl-6">
                   <div className="flex flex-col gap-[7px]">
-                    {session.videos.map((video) => {
+                    {[...session.videos]
+                      .sort((a, b) => {
+                        const exercises = a.assignment?.workout_session?.exercises ?? b.assignment?.workout_session?.exercises;
+                        const orderA = exercises?.findIndex(ex => ex.name === (a.exercise_name ?? '')) ?? 999;
+                        const orderB = exercises?.findIndex(ex => ex.name === (b.exercise_name ?? '')) ?? 999;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return (a.set_number ?? 0) - (b.set_number ?? 0);
+                      })
+                      .map((video) => {
                       const isVideoRowHovered = hoveredVideoId === video.id;
                       const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
                       const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
