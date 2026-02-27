@@ -44,7 +44,7 @@ const StudentChatPage = () => {
     }
     if (!a.last_message_at) return 1;
     if (!b.last_message_at) return -1;
-    return new Date(b.last_message_at) - new Date(a.created_at);
+    return new Date(b.last_message_at) - new Date(a.last_message_at);
   });
 
   // Fetch user's conversations (cache-first: show cached data, then refresh in background)

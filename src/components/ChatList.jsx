@@ -5,6 +5,7 @@ import useSocket from '../hooks/useSocket';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
+import { getCachedMessages, setCachedMessages } from '../utils/chatCache';
 import { Search, MoreHorizontal, Check, CheckCheck } from 'lucide-react';
 import {
   DropdownMenu,
@@ -507,6 +508,49 @@ const ChatList = ({
         return bTime - aTime;
       });
   }, [localConversations, searchTerm, userNamesMap]);
+
+  // Preload messages for top 3 conversations in background
+  const preloadedRef = useRef(new Set());
+  useEffect(() => {
+    if (conversationsLoading || filteredConversations.length === 0) return;
+
+    const top3 = filteredConversations.slice(0, 3);
+    const toPreload = top3.filter(c => !preloadedRef.current.has(c.id) && !getCachedMessages(c.id));
+    if (toPreload.length === 0) return;
+
+    const preload = async () => {
+      try {
+        const token = await getAuthToken();
+        for (const conv of toPreload) {
+          if (preloadedRef.current.has(conv.id)) continue;
+          preloadedRef.current.add(conv.id);
+          try {
+            const res = await fetch(buildApiUrl(`/api/chat/conversations/${conv.id}/messages?limit=50`), {
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            if (!res.ok) continue;
+            const data = await res.json();
+            const { messages, nextCursor } = data.data || {};
+            if (messages?.length) {
+              setCachedMessages(conv.id, messages, nextCursor || null);
+            }
+          } catch {
+            // Silently skip — preload is best-effort
+          }
+        }
+      } catch {
+        // Token error — skip preloading
+      }
+    };
+
+    // Use requestIdleCallback to avoid blocking the UI, fallback to setTimeout
+    const schedule = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const id = schedule(preload);
+    return () => {
+      const cancel = window.cancelIdleCallback || clearTimeout;
+      cancel(id);
+    };
+  }, [filteredConversations, conversationsLoading, getAuthToken]);
 
   return (
     <div className="h-full flex flex-col">
