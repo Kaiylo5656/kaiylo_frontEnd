@@ -434,7 +434,7 @@ const VideoLibrary = () => {
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.delete(buildApiUrl(`/resources/coach/${videoToDelete.id}`), { headers });
+      await axios.delete(buildApiUrl(`/resources/${videoToDelete.id}`), { headers });
 
       // Remove video from list
       setCoachResources(prev => prev.filter(v => v.id !== videoToDelete.id));
@@ -474,7 +474,7 @@ const VideoLibrary = () => {
 
       const headers = { Authorization: `Bearer ${token}` };
       await axios.patch(
-        buildApiUrl(`/resources/coach/${videoToEdit.id}`),
+        buildApiUrl(`/resources/${videoToEdit.id}`),
         { title: editVideoTitle.trim() },
         { headers }
       );
