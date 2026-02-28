@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlayCircle, ChevronRight, Video, Upload, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -24,7 +24,14 @@ const StudentVideoLibrary = () => {
   const [exerciseFilter, setExerciseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
-  
+
+  // Pagination states
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalVideos, setTotalVideos] = useState(0);
+  const PAGE_SIZE = 30;
+  const loadMoreRef = useRef(null);
+
   // Modal states
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
@@ -41,8 +48,31 @@ const StudentVideoLibrary = () => {
     }
   }, [activeTab]);
 
-  const fetchMyVideos = async () => {
-    setLoading(true);
+  // Re-fetch when server-side filters change (reset pagination)
+  useEffect(() => {
+    if (activeTab !== 'mes-videos') return;
+    fetchMyVideos(false);
+  }, [statusFilter, exerciseFilter]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMoreVideos();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading]);
+
+  const fetchMyVideos = async (append = false) => {
+    if (!append) {
+      setLoading(true);
+    }
     setError(null);
     try {
       let token = await getAuthToken();
@@ -54,13 +84,31 @@ const StudentVideoLibrary = () => {
         setMyVideos([]);
         return;
       }
+
+      const currentOffset = append ? myVideos.length : 0;
+      const params = new URLSearchParams();
+      params.set('limit', PAGE_SIZE);
+      params.set('offset', currentOffset);
+      if (statusFilter === 'En attente') params.set('status', 'pending');
+      if (statusFilter === 'Feedback reçu') params.set('status', 'completed');
+      if (exerciseFilter) params.set('exerciseName', exerciseFilter);
+
       const response = await axios.get(
-        buildApiUrl('/workout-sessions/student-videos'),
+        buildApiUrl(`/workout-sessions/student-videos?${params.toString()}`),
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       if (response.data.success) {
-        setMyVideos(response.data.data);
+        const newData = response.data.data;
+        const total = response.data.total || 0;
+        setTotalVideos(total);
+
+        if (append) {
+          setMyVideos(prev => [...prev, ...newData]);
+        } else {
+          setMyVideos(newData);
+        }
+        setHasMore(currentOffset + newData.length < total);
       } else {
         throw new Error(response.data.message || 'Failed to fetch videos');
       }
@@ -70,6 +118,14 @@ const StudentVideoLibrary = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load more videos (infinite scroll)
+  const loadMoreVideos = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await fetchMyVideos(true);
+    setLoadingMore(false);
   };
 
   const fetchCoachResources = async () => {
@@ -299,7 +355,7 @@ const StudentVideoLibrary = () => {
 
         {/* Results Count */}
         <div className="mt-3 text-xs text-[#D4845A]/90 font-normal">
-          {getFilteredVideos().length} vidéo{getFilteredVideos().length > 1 ? 's' : ''} trouvée{getFilteredVideos().length > 1 ? 's' : ''}
+          {getFilteredVideos().length} vidéo{getFilteredVideos().length > 1 ? 's' : ''}{totalVideos > getFilteredVideos().length ? ` sur ${totalVideos}` : ''} trouvée{getFilteredVideos().length > 1 ? 's' : ''}
         </div>
       </div>
 
@@ -352,12 +408,13 @@ const StudentVideoLibrary = () => {
         ) : activeTab === 'mes-videos' && (
           <div className="space-y-4">
             {groupedVideosBySession.length > 0 ? (
-              groupedVideosBySession.map((session) => {
+              <>
+              {groupedVideosBySession.map((session) => {
                 const isOpen = openSessions[session.sessionId];
                 const sessionTitle = `${session.sessionName} - ${format(new Date(session.sessionDate), 'd MMMM yyyy', { locale: fr })}`;
-                
+
                 return (
-                  <div 
+                  <div
                     key={session.sessionId}
                     className="border border-white/10 rounded-[20px] overflow-hidden bg-white/5"
                   >
@@ -414,7 +471,7 @@ const StudentVideoLibrary = () => {
                                       <video
                                         src={video.video_url + '#t=0.1'}
                                         className="w-full h-full object-cover"
-                                        preload="metadata"
+                                        preload="none"
                                         playsInline
                                         muted
                                       />
@@ -467,7 +524,23 @@ const StudentVideoLibrary = () => {
                     )}
                   </div>
                 );
-              })
+              })}
+              {/* Infinite scroll sentinel */}
+              <div ref={loadMoreRef} className="h-4" />
+              {loadingMore && (
+                <div className="flex justify-center py-4">
+                  <div
+                    className="rounded-full border-2 border-transparent animate-spin"
+                    style={{ borderTopColor: '#d4845a', borderRightColor: '#d4845a', width: '28px', height: '28px' }}
+                  />
+                </div>
+              )}
+              {!hasMore && myVideos.length > 0 && (
+                <div className="text-center py-3 text-xs text-gray-500">
+                  Toutes les vidéos ont été chargées
+                </div>
+              )}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center text-center text-gray-400 h-80">
                 <Video size={48} className="mb-4 opacity-30" />
@@ -530,7 +603,7 @@ const StudentVideoLibrary = () => {
                           <video
                             src={resource.fileUrl + '#t=0.1'}
                             className="w-full h-full object-cover"
-                            preload="metadata"
+                            preload="none"
                             playsInline
                             muted
                           />

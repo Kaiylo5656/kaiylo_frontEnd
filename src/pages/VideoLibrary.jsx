@@ -58,6 +58,14 @@ const VideoLibrary = () => {
   const [markingSessionId, setMarkingSessionId] = useState(null);
   const [markingVideoId, setMarkingVideoId] = useState(null);
 
+  // Pagination states
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalVideos, setTotalVideos] = useState(0);
+  const PAGE_SIZE = 30;
+  const loadMoreRef = useRef(null);
+  const studentEmailToIdRef = useRef(new Map()); // Persists across re-fetches
+
   // Filter states
   const [selectedStudent, setSelectedStudent] = useState('');
   const [selectedExercise, setSelectedExercise] = useState('');
@@ -290,9 +298,11 @@ const VideoLibrary = () => {
     }
   };
 
-  // Fetch student workout videos
-  const fetchStudentVideos = async () => {
-    setLoading(true);
+  // Fetch student workout videos with pagination
+  const fetchStudentVideos = async (append = false) => {
+    if (!append) {
+      setLoading(true);
+    }
     setError(null);
     try {
       let token = await getAuthToken();
@@ -307,10 +317,40 @@ const VideoLibrary = () => {
       }
       const headers = { Authorization: `Bearer ${token}` };
 
-      const response = await axios.get(buildApiUrl('/workout-sessions/videos'), { headers });
+      const currentOffset = append ? studentVideos.length : 0;
+      const params = new URLSearchParams();
+      params.set('limit', PAGE_SIZE);
+      params.set('offset', currentOffset);
+      if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
+      if (selectedStudent) {
+        const studentId = studentEmailToIdRef.current.get(selectedStudent);
+        if (studentId) params.set('studentId', studentId);
+      }
+      if (selectedExercise) params.set('exerciseName', selectedExercise);
+
+      const response = await axios.get(
+        buildApiUrl(`/workout-sessions/videos?${params.toString()}`),
+        { headers }
+      );
 
       if (response.data.success) {
-        setStudentVideos(response.data.data);
+        const newData = response.data.data;
+        const total = response.data.total || 0;
+        setTotalVideos(total);
+
+        // Build email→id mapping for student filter
+        newData.forEach(v => {
+          if (v.student?.email && v.student_id) {
+            studentEmailToIdRef.current.set(v.student.email, v.student_id);
+          }
+        });
+
+        if (append) {
+          setStudentVideos(prev => [...prev, ...newData]);
+        } else {
+          setStudentVideos(newData);
+        }
+        setHasMore(currentOffset + newData.length < total);
       } else {
         throw new Error(response.data.message || 'Failed to fetch student videos');
       }
@@ -319,6 +359,14 @@ const VideoLibrary = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load more videos (infinite scroll)
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await fetchStudentVideos(true);
+    setLoadingMore(false);
   };
 
   const fetchCoachResources = async () => {
@@ -454,6 +502,27 @@ const VideoLibrary = () => {
     }
   }, [activeTab]);
 
+  // Re-fetch when server-side filters change (reset pagination)
+  useEffect(() => {
+    if (!isInitialized || activeTab !== 'clients') return;
+    fetchStudentVideos(false);
+  }, [statusFilter, selectedStudent, selectedExercise]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -569,10 +638,10 @@ const VideoLibrary = () => {
 
     logger.debug(`🔄 Auto-refreshing coach resources (${processingResourcesCount} in processing)...`);
 
-    // Refresh every 3 seconds if there are processing videos
+    // Refresh every 10 seconds if there are processing videos
     const interval = setInterval(() => {
       fetchCoachResources();
-    }, 3000); // Reduced to 3 seconds for faster updates
+    }, 10000);
 
     return () => {
       clearInterval(interval);
@@ -1367,6 +1436,21 @@ const VideoLibrary = () => {
             </div>
           );
         })}
+        {/* Infinite scroll sentinel */}
+        <div ref={loadMoreRef} className="h-4" />
+        {loadingMore && (
+          <div className="flex justify-center py-4">
+            <div
+              className="rounded-full border-2 border-transparent animate-spin"
+              style={{ borderTopColor: '#d4845a', borderRightColor: '#d4845a', width: '28px', height: '28px' }}
+            />
+          </div>
+        )}
+        {!hasMore && studentVideos.length > 0 && (
+          <div className="text-center py-3 text-xs" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+            Toutes les vidéos ont été chargées
+          </div>
+        )}
       </div>
     );
   };
@@ -2347,7 +2431,7 @@ const VideoLibrary = () => {
                 {/* Video Count + Mark all completed button */}
                 <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
                   <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
-                    {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                    {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''}{totalVideos > filteredVideos.length ? ` sur ${totalVideos}` : ''} {statusFilter === 'pending' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
                   </span>
                   {videosNeedingFeedback > 0 && (
                     <button

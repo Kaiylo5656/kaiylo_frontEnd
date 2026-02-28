@@ -96,6 +96,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
   const [videosLoading, setVideosLoading] = useState(false);
 
+  // Video pagination states
+  const [hasMoreVideos, setHasMoreVideos] = useState(true);
+  const [loadingMoreVideos, setLoadingMoreVideos] = useState(false);
+  const [totalVideosCount, setTotalVideosCount] = useState(0);
+  const VIDEO_PAGE_SIZE = 30;
+  const loadMoreVideosRef = useRef(null);
+
   // Video filters
   const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
   const [exerciseFilter, setExerciseFilter] = useState('');
@@ -1597,39 +1604,58 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Fetch videos for the specific student
   // silent: if true, no loading state (évite l'effet "rechargement" après mise à jour feedback)
-  const fetchStudentVideos = async (silent = false) => {
-    if (!silent) setVideosLoading(true);
+  // append: if true, add to existing list (infinite scroll)
+  const fetchStudentVideos = async (silent = false, append = false) => {
+    if (!silent && !append) setVideosLoading(true);
     try {
       const token = localStorage.getItem('authToken');
+      const currentOffset = append ? studentVideos.length : 0;
+
+      const params = {
+        studentId: student.id,
+        limit: VIDEO_PAGE_SIZE,
+        offset: currentOffset
+      };
+      // Pass server-side filters
+      if (statusFilter === 'A feedback') params.status = 'pending';
+      if (statusFilter === 'Complété') params.status = 'completed';
+      if (exerciseFilter) params.exerciseName = exerciseFilter;
+
       const response = await axios.get(
         `${getApiBaseUrlWithApi()}/workout-sessions/videos`,
         {
           headers: { Authorization: `Bearer ${token}` },
-          params: {
-            studentId: student.id, // Filter by student ID
-            limit: 1000, // Increase limit to get all videos (default is 50)
-            offset: 0
-            // Note: We don't pass 'status' here because we want all videos
-            // The backend now filters by coach_feedback IS NULL by default for new videos
-            // The frontend will filter by statusFilter after receiving all videos
-          }
+          params
         }
       );
 
       if (response.data.success) {
-        logger.debug(`📹 Fetched ${response.data.data.length} videos for student ${student.id}`);
-        logger.debug(`📹 Video status breakdown:`, {
-          pending: response.data.data.filter(v => v.status === 'pending').length,
-          completed: response.data.data.filter(v => v.status === 'completed' || v.status === 'reviewed').length,
-          total: response.data.data.length
-        });
-        setStudentVideos(response.data.data);
+        const newData = response.data.data;
+        const total = response.data.total || 0;
+        setTotalVideosCount(total);
+
+        logger.debug(`📹 Fetched ${newData.length} videos for student ${student.id} (offset=${currentOffset}, total=${total})`);
+
+        if (append) {
+          setStudentVideos(prev => [...prev, ...newData]);
+        } else {
+          setStudentVideos(newData);
+        }
+        setHasMoreVideos(currentOffset + newData.length < total);
       }
     } catch (error) {
       logger.error('Error fetching student videos:', error);
     } finally {
-      if (!silent) setVideosLoading(false);
+      if (!silent && !append) setVideosLoading(false);
     }
+  };
+
+  // Load more videos (infinite scroll)
+  const loadMoreStudentVideos = async () => {
+    if (loadingMoreVideos || !hasMoreVideos) return;
+    setLoadingMoreVideos(true);
+    await fetchStudentVideos(true, true);
+    setLoadingMoreVideos(false);
   };
 
   // Handle video click
@@ -2457,6 +2483,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   }, [activeTab, student.id]);
 
+  // Re-fetch when server-side filters change (reset pagination)
+  useEffect(() => {
+    if (activeTab !== 'analyse') return;
+    // Skip initial render (handled by the effect above)
+    if (studentVideos.length === 0 && !videosLoading) return;
+    fetchStudentVideos();
+  }, [statusFilter, exerciseFilter]);
+
+  // IntersectionObserver for infinite scroll (video analysis)
+  useEffect(() => {
+    if (!loadMoreVideosRef.current || activeTab !== 'analyse') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreVideos && !loadingMoreVideos && !videosLoading) {
+          loadMoreStudentVideos();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(loadMoreVideosRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreVideos, loadingMoreVideos, videosLoading, activeTab]);
+
 
   // Listen for WebSocket events to refresh videos
   useEffect(() => {
@@ -3148,6 +3197,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             </div>
           );
         })}
+        {/* Infinite scroll sentinel */}
+        <div ref={loadMoreVideosRef} className="h-4" />
+        {loadingMoreVideos && (
+          <div className="flex justify-center py-4">
+            <div
+              className="rounded-full border-2 border-transparent animate-spin"
+              style={{ borderTopColor: '#d4845a', borderRightColor: '#d4845a', width: '28px', height: '28px' }}
+            />
+          </div>
+        )}
+        {!hasMoreVideos && studentVideos.length > 0 && (
+          <div className="text-center py-3 text-xs" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+            Toutes les vidéos ont été chargées
+          </div>
+        )}
       </div>
     );
   };
@@ -6593,7 +6657,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                     {/* Video Count + Mark all completed button - same as VideoLibrary on mobile */}
                     <div className="sm:ml-auto flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4">
                       <span className="text-xs sm:text-sm font-normal text-center sm:text-left" style={{ color: '#d4845a' }}>
-                        {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
+                        {filteredVideos.length} vidéo{filteredVideos.length > 1 ? 's' : ''}{totalVideosCount > filteredVideos.length ? ` sur ${totalVideosCount}` : ''} {statusFilter === 'A feedback' ? 'à feedback' : 'trouvée' + (filteredVideos.length > 1 ? 's' : '')}
                       </span>
                       {videosNeedingFeedback > 0 && (
                         <button
