@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import logger from './utils/logger';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -5,33 +6,35 @@ import { BackgroundUploadProvider } from './contexts/BackgroundUploadContext';
 import { StudentPlanningProvider } from './contexts/StudentPlanningContext';
 import PWAProvider from './components/PWAProvider';
 import { ModalManagerProvider } from './components/ui/modal/ModalManager';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import StudentRegisterPage from './pages/StudentRegisterPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import StudentInvitationPage from './pages/StudentInvitationPage';
-import ConfirmEmailPage from './pages/ConfirmEmailPage';
-import AuthCallback from './pages/AuthCallback';
-import RegistrationSuccessPage from './pages/RegistrationSuccessPage';
-import OnboardingPage from './pages/OnboardingPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import Dashboard from './pages/Dashboard';
-import CoachDashboard from './pages/CoachDashboard';
-import StudentDashboard from './pages/StudentDashboard';
-import StudentMonthlyView from './pages/StudentMonthlyView';
-import StudentHistoryPage from './pages/StudentHistoryPage';
-import ExerciseManagement from './pages/ExerciseManagement';
-import WorkoutSessionManagement from './pages/WorkoutSessionManagement';
-import MainLayout from './components/MainLayout'; // Import the new layout
+import MainLayout from './components/MainLayout';
 import LoadingSpinner from './components/LoadingSpinner';
-import WorkoutAssignmentManagement from './pages/WorkoutAssignmentManagement';
-import CoachProgressDashboard from './pages/CoachProgressDashboard';
-import ChatPage from './pages/ChatPage';
-import StudentChatPage from './pages/StudentChatPage';
-import VideoLibrary from './pages/VideoLibrary';
-import StudentVideoLibrary from './pages/StudentVideoLibrary';
-import FinancialTracking from './pages/FinancialTracking';
-import LandingPage from './pages/LandingPage';
+
+// Lazy-loaded pages (code splitting)
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const StudentRegisterPage = lazy(() => import('./pages/StudentRegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const StudentInvitationPage = lazy(() => import('./pages/StudentInvitationPage'));
+const ConfirmEmailPage = lazy(() => import('./pages/ConfirmEmailPage'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const RegistrationSuccessPage = lazy(() => import('./pages/RegistrationSuccessPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const CoachDashboard = lazy(() => import('./pages/CoachDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+const StudentMonthlyView = lazy(() => import('./pages/StudentMonthlyView'));
+const StudentHistoryPage = lazy(() => import('./pages/StudentHistoryPage'));
+const ExerciseManagement = lazy(() => import('./pages/ExerciseManagement'));
+const WorkoutSessionManagement = lazy(() => import('./pages/WorkoutSessionManagement'));
+const WorkoutAssignmentManagement = lazy(() => import('./pages/WorkoutAssignmentManagement'));
+const CoachProgressDashboard = lazy(() => import('./pages/CoachProgressDashboard'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const StudentChatPage = lazy(() => import('./pages/StudentChatPage'));
+const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
+const StudentVideoLibrary = lazy(() => import('./pages/StudentVideoLibrary'));
+const FinancialTracking = lazy(() => import('./pages/FinancialTracking'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 import './App.css';
 
@@ -134,6 +137,7 @@ function App() {
           <ModalManagerProvider>
             <>
               <div className="App">
+                <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
                   {/* Public Routes - root is login; landing/waitlist at /waitlist */}
                   <Route path="/" element={<LoginPage />} />
@@ -294,6 +298,7 @@ function App() {
                   {/* Default redirect */}
                   <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
+                </Suspense>
               </div>
             </>
           </ModalManagerProvider>

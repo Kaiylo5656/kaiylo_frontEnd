@@ -61,8 +61,12 @@ const CoachDashboard = () => {
   // Effect for polling and WebSocket updates (initial fetch is done in fetchCoachData)
   useEffect(() => {
     if (students.length > 0) {
-      // Set up polling every 30 seconds as a fallback
-      const intervalId = setInterval(fetchDashboardCounts, 30000);
+      // Set up polling every 30 seconds as a fallback (only when tab is visible)
+      const intervalId = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          fetchDashboardCounts();
+        }
+      }, 30000);
 
       // Set up WebSocket listeners for real-time updates
       if (socket) {
@@ -251,7 +255,7 @@ const CoachDashboard = () => {
         if (transformedStudents.length > 0) {
           await Promise.all([
             fetchDashboardCounts(),
-            fetchNextSessions(transformedStudents)
+            fetchNextSessions()
           ]);
         }
       } else {
@@ -309,53 +313,16 @@ const CoachDashboard = () => {
     }
   };
 
-  const fetchNextSessions = async (studentsList) => {
+  const fetchNextSessions = async () => {
     try {
-      const nextSessions = {};
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      // Fetch next sessions for each student
-      await Promise.all(
-        studentsList.map(async (student) => {
-          try {
-            const response = await axios.get(
-              `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
-              {
-                params: {
-                  startDate: new Date().toISOString().split('T')[0],
-                  endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year ahead
-                  limit: 100
-                }
-              }
-            );
-
-            if (response.data && response.data.data) {
-              // Find the last scheduled session (furthest date in the future)
-              const allScheduledSessions = response.data.data
-                .map(assignment => {
-                  const sessionDate = assignment.scheduled_date || assignment.due_date;
-                  if (!sessionDate) return null;
-                  const date = new Date(sessionDate);
-                  date.setHours(0, 0, 0, 0);
-                  return { assignment, date };
-                })
-                .filter(item => item !== null && item.date >= today)
-                .sort((a, b) => b.date - a.date); // Sort descending (latest first)
-
-              if (allScheduledSessions.length > 0) {
-                // Get the last scheduled session (furthest date)
-                const lastScheduledSession = allScheduledSessions[0];
-                nextSessions[student.id] = lastScheduledSession.assignment.scheduled_date || lastScheduledSession.assignment.due_date;
-              }
-            }
-          } catch (error) {
-            logger.error(`Error fetching sessions for student ${student.id}:`, error);
-          }
-        })
+      // Batch endpoint: one request for all students instead of N individual calls
+      const response = await axios.get(
+        `${getApiBaseUrlWithApi()}/coach/dashboard-summary`
       );
 
-      setStudentNextSessions(nextSessions);
+      if (response.data.success && response.data.data.nextSessions) {
+        setStudentNextSessions(response.data.data.nextSessions);
+      }
     } catch (error) {
       logger.error('Error fetching next sessions:', error);
     }

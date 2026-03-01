@@ -39,6 +39,16 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'ui-vendor': ['framer-motion', 'lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
+            'media-vendor': ['react-player'],
+            'socket-vendor': ['socket.io-client'],
+          },
+        },
+      },
     },
     plugins: [
     react(),
