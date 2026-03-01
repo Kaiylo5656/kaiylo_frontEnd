@@ -107,8 +107,10 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
 
     // Video files
     if (message.file_type?.startsWith('video/') && !videoError) {
+      const isProcessing = message.metadata?.video_status === 'processing';
+
       return (
-        <div className="file-video-container">
+        <div className="file-video-container relative">
           <video
             src={message.file_url}
             controls
@@ -119,6 +121,15 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
           >
             Your browser does not support the video tag.
           </video>
+          {isProcessing && (
+            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1.5">
+              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Compression...
+            </div>
+          )}
           <div className="file-overlay">
             <button
               className="file-download-btn"
@@ -151,10 +162,27 @@ const FileMessage = ({ message, isOwnMessage = false }) => {
     );
   };
 
+  const isUploading = typeof message.uploadProgress === 'number' && message.uploadProgress < 100;
+
   return (
     <div className={`file-message ${isOwnMessage ? 'own-message' : 'other-message'} max-w-[85%] sm:max-w-lg lg:max-w-2xl`}>
-      {renderFileContent()}
-      
+      <div className="relative">
+        {renderFileContent()}
+        {isUploading && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center" style={{ borderRadius: 'inherit' }}>
+            <div className="text-center">
+              <div className="text-white text-sm font-medium">{message.uploadProgress}%</div>
+              <div className="w-28 h-1 bg-white/30 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${message.uploadProgress}%`, backgroundColor: '#d4845a' }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Message content (caption) */}
       {message.content && message.content !== `📎 ${message.file_name}` && (
         <div className="file-message-caption text-xs md:text-sm">

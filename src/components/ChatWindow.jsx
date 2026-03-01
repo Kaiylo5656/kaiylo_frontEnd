@@ -193,56 +193,118 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
     setUploadingFile(true);
 
+    // Create optimistic message with local blob URL for instant display
+    const blobUrl = URL.createObjectURL(file);
+    const tempId = `temp_file_${Date.now()}`;
+    const isAudioFile = file.type.startsWith('audio/');
+    const isVideoFile = file.type.startsWith('video/');
+    const defaultContent = isAudioFile ? `🎤 ${file.name}` : `📎 ${file.name}`;
+
+    const optimisticMessage = {
+      id: tempId,
+      content: defaultContent,
+      sender_id: currentUser.id,
+      message_type: isAudioFile ? 'audio' : 'file',
+      file_name: file.name,
+      file_size: file.size,
+      file_type: file.type,
+      file_url: blobUrl,
+      created_at: new Date().toISOString(),
+      conversationId: conversation.id,
+      uploadProgress: 0,
+      _blobUrl: blobUrl,
+      ...(isVideoFile && { metadata: { video_status: 'uploading' } })
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    // Scroll to bottom to show the new message
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'auto' });
+    });
+
     try {
-      logger.debug('📤 Uploading file:', { 
-        name: file.name, 
-        type: file.type, 
+      logger.debug('📤 Uploading file:', {
+        name: file.name,
+        type: file.type,
         size: file.size,
-        conversationId: conversation.id 
+        conversationId: conversation.id
       });
 
+      const token = await getAuthToken();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('conversationId', conversation.id);
       formData.append('content', '');
 
-      const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/chat/messages'), {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      if (!response.ok) {
-        // Try to get error message from response
-        const errorData = await response.json().catch(() => ({}));
-        logger.error('❌ Upload error response:', errorData);
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-      
-      const responseData = await response.json();
-      logger.debug('✅ File uploaded successfully:', responseData);
-      
-      // Add the file message to the messages list if returned
-      // Check for duplicates before adding (message might also arrive via WebSocket)
-      if (responseData.data) {
-        setMessages(prev => {
-          // Check if message already exists (might have arrived via WebSocket first)
-          const existingIndex = prev.findIndex(msg => msg.id === responseData.data.id);
-          if (existingIndex !== -1) {
-            logger.debug('⚠️ Message already exists in list, skipping duplicate:', responseData.data.id);
-            return prev; // Return unchanged array to prevent duplicate
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setMessages(prev => prev.map(msg =>
+              msg.id === tempId ? { ...msg, uploadProgress: progress } : msg
+            ));
           }
-          return [...prev, responseData.data];
-        });
-      }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const responseData = JSON.parse(xhr.responseText);
+              logger.debug('✅ File uploaded successfully:', responseData);
+
+              // Mark upload complete — WebSocket new_message will replace the temp message
+              setMessages(prev => {
+                // If WebSocket already replaced it, skip
+                if (!prev.some(msg => msg.id === tempId)) return prev;
+
+                // If server message already arrived via WS, just remove temp
+                if (responseData.data && prev.some(msg => msg.id === responseData.data.id)) {
+                  return prev.filter(msg => msg.id !== tempId);
+                }
+
+                // Otherwise update temp with server data
+                return prev.map(msg =>
+                  msg.id === tempId
+                    ? { ...responseData.data, uploadProgress: 100, _blobUrl: blobUrl }
+                    : msg
+                );
+              });
+
+              resolve(responseData);
+            } catch (e) {
+              reject(new Error('Invalid server response'));
+            }
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.message || `HTTP error! status: ${xhr.status}`));
+            } catch {
+              reject(new Error(`HTTP error! status: ${xhr.status}`));
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Upload timeout'));
+
+        xhr.open('POST', buildApiUrl('/api/chat/messages'));
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.timeout = 300000; // 5 min timeout for large files
+        xhr.send(formData);
+      });
     } catch (error) {
       logger.error('❌ File upload failed:', error);
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      URL.revokeObjectURL(blobUrl);
       alert(error.message || 'Échec de l\'envoi du fichier. Veuillez réessayer.');
     } finally {
       setUploadingFile(false);
     }
-  }, [conversation?.id, uploadingFile, getAuthToken]);
+  }, [conversation?.id, uploadingFile, getAuthToken, currentUser?.id]);
 
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -636,14 +698,21 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           return prev;
         }
 
-        // Check for temp message to replace
+        // Check for temp message to replace (text by content, files by file_name)
         const tempIdx = prev.findIndex(msg =>
           msg.id?.startsWith('temp_') &&
-          msg.content === messageData.content &&
-          msg.sender_id === messageData.sender_id
+          msg.sender_id === messageData.sender_id &&
+          (
+            msg.content === messageData.content ||
+            (msg.file_name && msg.file_name === messageData.file_name)
+          )
         );
 
         if (tempIdx !== -1) {
+          // Cleanup blob URL from optimistic file message
+          if (prev[tempIdx]._blobUrl) {
+            URL.revokeObjectURL(prev[tempIdx]._blobUrl);
+          }
           const newMessages = [...prev];
           newMessages[tempIdx] = {
             ...messageData,
@@ -704,12 +773,20 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       }
     };
 
+    const handleMessageUpdated = (data) => {
+      if (data.conversationId !== conversation.id) return;
+      setMessages(prev => prev.map(msg =>
+        msg.id === data.messageId ? { ...msg, ...data.updates } : msg
+      ));
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleUserTyping);
     socket.on('user_joined', () => {});
     socket.on('user_left', () => {});
     socket.on('messages_read', handleMessagesRead);
     socket.on('message_deleted', handleMessageDeleted);
+    socket.on('message_updated', handleMessageUpdated);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -718,6 +795,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       socket.off('user_left');
       socket.off('messages_read', handleMessagesRead);
       socket.off('message_deleted', handleMessageDeleted);
+      socket.off('message_updated', handleMessageUpdated);
     };
   }, [socket, conversation?.id]);
 
