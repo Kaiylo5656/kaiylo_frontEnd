@@ -17,6 +17,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [duplicateNameError, setDuplicateNameError] = useState(false);
 
@@ -190,9 +191,14 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       });
 
       const uploadResponse = await axios.post(buildApiUrl('/resources'), uploadFormData, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+          }
         }
       });
 
@@ -212,6 +218,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       return null;
     } finally {
       setUploadingVideo(false);
+      setUploadProgress(0);
     }
   };
 
@@ -276,6 +283,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setVideoFile(null);
     setVideoPreview(null);
     setVideoError('');
+    setUploadProgress(0);
     onClose();
   };
 
@@ -422,6 +430,22 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               <p className="text-sm font-extralight text-red-400 mt-2">{videoError}</p>
             )}
           </div>
+
+          {/* Upload Progress Bar */}
+          {uploadingVideo && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extralight text-white/60">Téléchargement en cours...</span>
+                <span className="text-xs font-normal" style={{ color: '#d4845a' }}>{uploadProgress}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%`, backgroundColor: '#d4845a' }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Form Actions */}
           <div className="flex flex-col-reverse md:flex-row justify-end gap-3 pt-0">

@@ -8,9 +8,11 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [videoFile, setVideoFile] = useState(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [selectedFolder, setSelectedFolder] = useState(''); // Can be folder ID or 'new_folder'
   const [newFolderName, setNewFolderName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState(null);
   const { getAuthToken } = useAuth();
 
@@ -50,7 +52,9 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     
     // File is valid
     setError(null);
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setVideoFile(file);
+    setVideoPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e) => {
@@ -61,18 +65,19 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
     setError(null);
 
     const formData = new FormData();
     formData.append('title', title);
     formData.append('description', description);
     formData.append('video', videoFile);
-    
+
     // Append folderId if a folder is selected
     if (selectedFolder && selectedFolder !== 'new_folder') {
       formData.append('folderId', selectedFolder);
     }
-    
+
     // Note: Creating a new folder and then uploading would require a two-step process.
     // For simplicity, this modal will only assign to existing folders.
     // The main page handles new folder creation.
@@ -82,36 +87,44 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
       if (!token) {
         throw new Error('Vous n\'êtes pas authentifié. Veuillez vous reconnecter.');
       }
-      
-      const response = await fetch(buildApiUrl('/resources'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('Réponse serveur invalide.'));
+            }
+          } else {
+            let errorMessage = 'Échec du téléchargement de la vidéo.';
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              errorMessage = errData.message || errData.error || errorMessage;
+            } catch {
+              // keep default
+            }
+            reject(new Error(errorMessage));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Erreur réseau.'));
+        xhr.ontimeout = () => reject(new Error('Le téléchargement a expiré.'));
+
+        xhr.open('POST', buildApiUrl('/resources'));
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.timeout = 600000; // 10 min timeout for large videos
+        xhr.send(formData);
       });
 
-      if (!response.ok) {
-        let errorMessage = 'Échec du téléchargement de la vidéo.';
-        try {
-          const errData = await response.json();
-          errorMessage = errData.message || errData.error || errorMessage;
-        } catch (e) {
-          // If response is not JSON, try to get text
-          const errorText = await response.text();
-          if (errorText) {
-            try {
-              const parsed = JSON.parse(errorText);
-              errorMessage = parsed.message || parsed.error || errorMessage;
-            } catch {
-              errorMessage = errorText || errorMessage;
-            }
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
       onUploadSuccess(result.data);
       handleClose();
 
@@ -119,17 +132,21 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
       setError(err.message);
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
   const handleClose = () => {
     setTitle('');
     setDescription('');
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setVideoFile(null);
+    setVideoPreviewUrl(null);
     setSelectedFolder('');
     setNewFolderName('');
     setError(null);
     setIsUploading(false);
+    setUploadProgress(0);
     onClose();
   };
 
@@ -229,18 +246,17 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
           <label htmlFor="videoFile" className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
             Fichier vidéo *
           </label>
-          <div className="border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] p-6 text-center hover:border-[rgba(255,255,255,0.1)] transition-colors bg-[rgba(0,0,0,0.5)]">
-            <input
-              id="videoFile"
-              type="file"
-              accept="video/mp4,video/mov,video/quicktime"
-              onChange={handleFileChange}
-              required
-              className="hidden"
-            />
+          <input
+            id="videoFile"
+            type="file"
+            accept="video/mp4,video/mov,video/quicktime"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          {!videoFile ? (
             <label
               htmlFor="videoFile"
-              className="cursor-pointer flex flex-col items-center space-y-2"
+              className="border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[10px] p-6 text-center hover:border-[rgba(255,255,255,0.1)] transition-colors bg-[rgba(0,0,0,0.5)] cursor-pointer flex flex-col items-center space-y-2"
             >
               <span className="text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 Sélectionner un fichier vidéo
@@ -249,18 +265,46 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
                 (formats: mp4, mov - max 50 GB)
               </span>
             </label>
-          </div>
-          {videoFile && (
-            <div className="mt-2 space-y-1">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-extralight text-white/60">
-                  Taille : {formatFileSize(videoFile.size)}
-                </p>
-                {videoFile.size > MAX_FILE_SIZE * 0.8 && (
-                  <span className="text-xs font-extralight text-yellow-500">
-                    (Fichier volumineux, temps de téléchargement plus long)
-                  </span>
-                )}
+          ) : (
+            <div className="border-[0.5px] border-[rgba(255,255,255,0.08)] rounded-[10px] overflow-hidden bg-[rgba(0,0,0,0.5)]">
+              {/* Video preview */}
+              <video
+                src={videoPreviewUrl}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full max-h-[220px] object-contain bg-black"
+              />
+              {/* File info bar */}
+              <div className="px-4 py-2.5 flex items-center gap-3 border-t border-white/5">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="w-3.5 h-3.5" fill="#d4845a">
+                    <path d="M0 128C0 92.7 28.7 64 64 64l256 0c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 128zM559.1 99.8c10.4 5.6 16.9 16.4 16.9 28.2l0 256c0 11.8-6.5 22.6-16.9 28.2s-23 5-32.9-1.6l-96-64L430.2 346.6l0-181.2 0 0 96-64c9.8-6.5 22.4-7.2 32.9-1.6z"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-normal text-white truncate">{videoFile.name}</p>
+                  <p className="text-xs font-extralight text-white/50">{formatFileSize(videoFile.size)}</p>
+                </div>
+                <label
+                  htmlFor="videoFile"
+                  className="flex-shrink-0 text-xs font-normal cursor-pointer px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 transition-colors"
+                  style={{ color: '#d4845a' }}
+                  title="Changer de fichier"
+                >
+                  Changer
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); setVideoFile(null); setVideoPreviewUrl(null); }}
+                  className="flex-shrink-0 p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                  title="Retirer le fichier"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
               </div>
             </div>
           )}
@@ -270,6 +314,22 @@ const UploadVideoModal = ({ isOpen, onClose, onUploadSuccess, folders }) => {
         {error && (
           <div className="bg-red-500/20 border border-red-500/30 rounded-[10px] p-3">
             <p className="text-sm font-extralight text-red-400 whitespace-pre-line">{error}</p>
+          </div>
+        )}
+
+        {/* Upload Progress Bar */}
+        {isUploading && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extralight text-white/60">Téléchargement en cours...</span>
+              <span className="text-xs font-normal" style={{ color: '#d4845a' }}>{uploadProgress}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%`, backgroundColor: '#d4845a' }}
+              />
+            </div>
           </div>
         )}
 

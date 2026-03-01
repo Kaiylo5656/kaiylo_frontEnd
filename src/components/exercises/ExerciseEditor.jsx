@@ -22,6 +22,7 @@ const ExerciseEditor = ({
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [tagInput, setTagInput] = useState('');
 
@@ -140,9 +141,14 @@ const ExerciseEditor = ({
       uploadFormData.append('folderId', exerciseFolder.id);
 
       const uploadResponse = await axios.post(buildApiUrl('/resources'), uploadFormData, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+          }
         }
       });
 
@@ -158,6 +164,7 @@ const ExerciseEditor = ({
       return null;
     } finally {
       setUploadingVideo(false);
+      setUploadProgress(0);
     }
   };
 
@@ -343,6 +350,22 @@ const ExerciseEditor = ({
           )}
         </div>
       </div>
+
+      {/* Upload Progress Bar */}
+      {uploadingVideo && (
+        <div className="shrink-0 px-4 pb-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extralight text-white/60">Téléchargement en cours...</span>
+            <span className="text-xs font-normal" style={{ color: '#d4845a' }}>{uploadProgress}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%`, backgroundColor: '#d4845a' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="shrink-0 border-t border-white/10 p-4">
