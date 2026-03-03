@@ -90,13 +90,28 @@ const AuthCallback = () => {
             // Set axios header
             const axios = (await import('axios')).default;
             axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-            
-            // Get user profile to check onboarding completion
-            const userRole = session.user.user_metadata?.role || 'student';
-            let targetPath;
 
+            // Rôle fiable depuis le backend (évite de bloquer les coachs à l'inscription Google où user_metadata.role peut être absent)
+            let userRole = session.user.user_metadata?.role;
+            let onboardingCompleted = true;
+            try {
+              const profileResponse = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                timeout: 5000
+              });
+              const backendUser = profileResponse.data?.user;
+              if (backendUser?.role) userRole = backendUser.role;
+              if (backendUser?.onboardingCompleted === false) onboardingCompleted = false;
+            } catch (profileError) {
+              logger.debug('Auth/me not available (e.g. new user), using metadata:', profileError?.response?.status);
+              // Nouveau compte ou backend pas encore à jour : ne pas supposer "élève", ne pas bloquer sur desktop
+              if (userRole == null) userRole = 'coach';
+            }
+            if (!userRole) userRole = 'coach';
+
+            let targetPath;
+            // Bloquer uniquement si le backend a explicitement retourné role === 'student' (pas si rôle inconnu / nouveau compte)
             if (userRole === 'student' && isDesktopViewport()) {
-              // Compte élève : autorisé uniquement sur mobile
               await supabase.auth.signOut();
               try {
                 if (typeof localStorage !== 'undefined') {
@@ -109,26 +124,11 @@ const AuthCallback = () => {
               navigate(`/login?error=${msg}`, { replace: true });
               return;
             }
-            
+
             if (userRole === 'student') {
-              // Fetch user profile to check onboarding completion
-              try {
-                const { getApiBaseUrlWithApi } = await import('../config/api');
-                const profileResponse = await axios.get(`${getApiBaseUrlWithApi()}/auth/me`, {
-                  headers: { 'Authorization': `Bearer ${accessToken}` },
-                  timeout: 5000
-                });
-                
-                const onboardingCompleted = profileResponse.data.user?.onboardingCompleted !== false;
-                targetPath = onboardingCompleted ? '/student/dashboard' : '/onboarding';
-              } catch (profileError) {
-                logger.error('❌ Error fetching profile:', profileError);
-                // Default to onboarding if error (safer for new users)
-                targetPath = '/onboarding';
-              }
+              targetPath = onboardingCompleted ? '/student/dashboard' : '/onboarding';
             } else {
-              // For coaches and admins, use standard paths
-              targetPath = userRole === 'admin' ? '/admin/dashboard' 
+              targetPath = userRole === 'admin' ? '/admin/dashboard'
                 : userRole === 'coach' ? '/coach/dashboard'
                 : '/dashboard';
             }
