@@ -9,19 +9,7 @@ const Dashboard = () => {
 
   // Role-specific content
   const getRoleContent = () => {
-    if (isAdmin()) {
-      return {
-        title: 'Admin Dashboard',
-        description: 'Manage your fitness platform',
-        features: [
-          'View all users and their roles',
-          'Manage platform settings',
-          'Monitor system performance',
-          'Access analytics and reports'
-        ],
-        color: 'bg-red-500'
-      };
-    } else if (isCoach()) {
+    if (isAdmin() || isCoach()) {
       return {
         title: 'Coach Dashboard',
         description: 'Create and manage workout programs',

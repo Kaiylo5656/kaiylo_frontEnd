@@ -55,7 +55,6 @@ const ProtectedRoute = ({ children, allowedRoles = [], excludeLayout = false }) 
       // Redirect to appropriate dashboard based on user role
       switch (user.role) {
         case 'admin':
-          return <Navigate to="/admin/dashboard" replace />;
         case 'coach':
           return <Navigate to="/coach/dashboard" replace />;
         case 'student':
@@ -260,31 +259,7 @@ function App() {
                     }
                   />
 
-                  {/* Admin Routes */}
-                  <Route
-                    path="/admin/dashboard"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/admin/exercises"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <ExerciseManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/admin/sessions"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <WorkoutSessionManagement />
-                      </ProtectedRoute>
-                    }
-                  />
+                  {/* Admin routes removed — admins are redirected to /coach/dashboard */}
 
                   {/* Chat Route - Conditionally renders StudentChatPage for students, ChatPage for coaches */}
                   <Route

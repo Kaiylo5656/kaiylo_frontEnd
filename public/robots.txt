@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /auth/
+Disallow: /coach/
+Disallow: /student/
+Disallow: /admin/
+Disallow: /api/
+
+Sitemap: https://kaiylo.fr/sitemap.xml

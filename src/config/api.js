@@ -49,10 +49,10 @@ const detectApiUrl = async () => {
   return `http://${hostname}:3001`;
 };
 
-// Test API connectivity
+// Test API connectivity (uses /api/health which is publicly accessible)
 const testApiConnectivity = async (url) => {
   try {
-    const response = await fetch(`${url}/api/test-connection`, {
+    const response = await fetch(`${url}/api/health`, {
       method: 'GET',
       timeout: 3000
     });
