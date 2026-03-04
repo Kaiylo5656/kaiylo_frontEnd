@@ -31,7 +31,7 @@ const LoginPage = () => {
       case 'admin':
         return '/admin/dashboard';
       default:
-        return '/dashboard';
+        return '/coach/dashboard';
     }
   };
 

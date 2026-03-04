@@ -128,9 +128,7 @@ const AuthCallback = () => {
               }
             } else {
               // For coaches and admins, use standard paths
-              targetPath = userRole === 'admin' ? '/admin/dashboard' 
-                : userRole === 'coach' ? '/coach/dashboard'
-                : '/dashboard';
+              targetPath = '/coach/dashboard';
             }
             
             logger.debug('✅ Navigating to:', targetPath);

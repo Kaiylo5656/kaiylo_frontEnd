@@ -20,7 +20,6 @@ const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const RegistrationSuccessPage = lazy(() => import('./pages/RegistrationSuccessPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
 const CoachDashboard = lazy(() => import('./pages/CoachDashboard'));
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 const StudentMonthlyView = lazy(() => import('./pages/StudentMonthlyView'));
@@ -60,7 +59,7 @@ const ProtectedRoute = ({ children, allowedRoles = [], excludeLayout = false }) 
         case 'student':
           return <Navigate to="/student/dashboard" replace />;
         default:
-          return <Navigate to="/dashboard" replace />;
+          return <Navigate to="/coach/dashboard" replace />;
       }
     }
 
@@ -156,16 +155,6 @@ function App() {
                       <OnboardingPage />
                     </ProtectedRoute>
                   } />
-
-                  {/* Protected Routes */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
 
                   {/* Coach Routes */}
                   <Route

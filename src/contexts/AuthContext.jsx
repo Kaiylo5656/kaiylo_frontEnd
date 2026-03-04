@@ -737,8 +737,7 @@ export const AuthProvider = ({ children }) => {
           const onboardingCompleted = user.onboardingCompleted !== false; // Default to true if not specified
           targetPath = onboardingCompleted ? '/student/dashboard' : '/onboarding';
         } else {
-          targetPath = (user.role === 'admin' || user.role === 'coach') ? '/coach/dashboard'
-          : '/dashboard';
+          targetPath = '/coach/dashboard';
         }
       }
       
@@ -845,7 +844,7 @@ export const AuthProvider = ({ children }) => {
             navigate('/onboarding');
             break;
           default:
-            navigate('/dashboard');
+            navigate('/coach/dashboard');
         }
 
         return { success: true };

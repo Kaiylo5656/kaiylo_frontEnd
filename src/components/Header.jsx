@@ -257,7 +257,7 @@ const Header = ({ onOpenFeedback }) => {
     if (location.pathname.includes('/chat')) {
       return 'Messages';
     }
-    if (location.pathname.includes('/coach/dashboard') || location.pathname === '/dashboard') {
+    if (location.pathname.includes('/coach/dashboard')) {
       return 'Clients';
     }
     // Add more route-based titles as needed
