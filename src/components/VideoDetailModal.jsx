@@ -13,7 +13,19 @@ import VoiceMessage from './VoiceMessage';
 import DeleteVideoModal from './DeleteVideoModal';
 import logger from '../utils/logger';
 
+// Même fond que les autres modales (BaseModal) sur mobile uniquement ; desktop inchangé
+const MODAL_BG_MOBILE = {
+  background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
+  opacity: 0.95
+};
+
 const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -472,16 +484,16 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       onClick={onClose}
       style={{ zIndex: 100 }}
     >
-      <div 
+<div
         className="relative mx-auto w-full max-w-6xl max-h-[92vh] md:max-h-[92vh] min-h-0 overflow-y-auto rounded-2xl shadow-2xl flex flex-col md:flex-row dashboard-scrollbar"
-        style={{
+        style={isMobile ? MODAL_BG_MOBILE : {
           background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
           opacity: 0.95
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Mobile: First, Desktop: Inside sidebar */}
-        <div className="md:hidden shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-white/10" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+        <div className="md:hidden shrink-0 px-4 pt-4 pb-3 flex items-center justify-between border-b border-white/10" style={isMobile ? undefined : { backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
           <div className="flex items-center justify-end gap-3">
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -509,7 +521,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         </div>
 
         {/* Video Information - Mobile: Below header, Desktop: Inside sidebar */}
-        <div className="md:hidden shrink-0 px-4 pt-3 pb-4 space-y-3 border-b border-white/10" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+        <div className="md:hidden shrink-0 px-4 pt-3 pb-4 space-y-3 border-b border-white/10" style={isMobile ? undefined : { backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
           <div className="flex items-center gap-2">
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -639,9 +651,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
         {/* Left Column - Video */}
         <div className="flex-1 flex flex-col min-w-0 w-full md:w-auto order-2 md:order-1">
-          {/* Video Container - hauteur fixe = taille finale pour éviter tout redimensionnement au chargement de la vidéo */}
+          {/* Video Container */}
           <div className="flex-shrink-0 px-3 md:px-6 pt-4 md:pt-6 pb-3 md:pb-4 relative">
-          <div className="relative h-[30vh] md:h-[70vh] min-h-[180px] flex items-center justify-center bg-black/20 rounded-xl md:rounded-2xl overflow-hidden">
           {video?.video_url && video.video_url.trim() !== '' ? (
             <>
             <VideoPlayer
@@ -756,11 +767,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
           )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-full min-h-0 text-white/50 bg-black/20 rounded-xl md:rounded-2xl border border-white/10">
+            <div className="flex items-center justify-center h-64 text-white/50 bg-black/20 rounded-2xl border border-white/10">
               <p className="font-light">Aucune vidéo disponible</p>
             </div>
           )}
-          </div>
           </div>
 
           {/* Footer Actions */}
@@ -790,8 +800,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         <div 
           className="w-full md:w-96 flex-1 md:flex-shrink-0 flex flex-col overflow-visible border-t md:border-t-0 order-3 md:order-2 min-h-0"
           style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            boxShadow: '0px 8px 24px 0px rgba(0, 0, 0, 0.4), 0px 4px 8px 0px rgba(0, 0, 0, 0.2)'
+            ...(isMobile ? {} : { backgroundColor: 'rgba(0, 0, 0, 0.5)' }),
+            boxShadow: isMobile ? undefined : '0px 8px 24px 0px rgba(0, 0, 0, 0.4), 0px 4px 8px 0px rgba(0, 0, 0, 0.2)'
           }}
         >
           <div className="flex flex-col flex-1 min-h-0">
@@ -1028,30 +1038,34 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                   ) : (
                     // Student video - coach view only (feedback input): zone scrollable + input fixe en bas
                     <div className="flex-1 flex flex-col min-h-0">
-                      {/* Zone scrollable : commentaires affichés (toujours visible, vide ou avec contenu) */}
+                      {/* Zone scrollable : commentaires affichés */}
                       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
-                        <div className="flex flex-col gap-[8px] mb-3 flex-1 min-h-0">
-                          {video.coach_feedback_audio_url && (
-                            <div className="mb-2 flex-shrink-0">
-                              <VoiceMessage 
-                                message={{
-                                  file_url: video.coach_feedback_audio_url,
-                                  message_type: 'audio',
-                                  file_type: 'audio/webm'
-                                }} 
-                                isOwnMessage={true}
-                              />
-                            </div>
-                          )}
-                          <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px] flex-1">
-                            {video.coach_feedback || localSubmittedFeedback || null}
+                        {(video.coach_feedback || video.coach_feedback_audio_url || localSubmittedFeedback) && (
+                          <div className="flex flex-col gap-[8px] mb-3 flex-1 min-h-0">
+                            {video.coach_feedback_audio_url && (
+                              <div className="mb-2 flex-shrink-0">
+                                <VoiceMessage 
+                                  message={{
+                                    file_url: video.coach_feedback_audio_url,
+                                    message_type: 'audio',
+                                    file_type: 'audio/webm'
+                                  }} 
+                                  isOwnMessage={true}
+                                />
+                              </div>
+                            )}
+                            {(video.coach_feedback || localSubmittedFeedback) && (
+                              <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px] flex-1">
+                                {video.coach_feedback || localSubmittedFeedback}
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        )}
                       </div>
                       
                       {/* Bloc fixe en bas : input + bouton */}
                       <div className="flex flex-col flex-shrink-0 gap-0 pt-3">
-                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3">
+                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3 border-[1.5px] border-transparent focus-within:border-[var(--kaiylo-primary-hex)] transition-colors">
                         {isRecordingVoice ? (
                           <VoiceRecorder
                             onSend={handleVoiceMessageSend}
