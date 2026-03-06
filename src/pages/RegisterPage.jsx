@@ -122,7 +122,8 @@ const RegisterPage = () => {
         name: fullName,
         email: data.email,
         password: data.password,
-        role: 'coach'
+        role: 'coach',
+        accessCode: data.accessCode
       }).catch(error => {
         logger.error('Registration error:', error);
         logger.error('Error response:', error.response?.data);
@@ -467,6 +468,39 @@ const RegisterPage = () => {
                   <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.lastName.message}</p>
                 )}
               </div>
+
+              {/* BETA TEST: Access Code Field */}
+              <div style={{ marginBottom: '3px' }}>
+                <input
+                  id="accessCode"
+                  type="text"
+                  {...register('accessCode', {
+                    required: 'Code d\'accès requis',
+                  })}
+                  className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
+                  style={{
+                    width: '384px',
+                    maxWidth: '100%',
+                    color: 'rgba(255, 255, 255, 1)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '0.5px solid rgba(255, 255, 255, 0.1)',
+                    borderColor: errors.accessCode && dirtyFields.accessCode ? 'rgba(239, 68, 68, 1)' : 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '10px',
+                    fontWeight: '300',
+                    boxShadow: 'none',
+                    paddingLeft: '20px',
+                    paddingRight: '20px',
+                    paddingTop: '10px',
+                    paddingBottom: '10px',
+                  }}
+                  placeholder="Code d'accès beta"
+                  aria-invalid={errors.accessCode ? 'true' : 'false'}
+                />
+                {errors.accessCode && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.accessCode.message}</p>
+                )}
+              </div>
+              {/* --- END BETA TEST --- */}
 
               {/* Email Field */}
               <div style={{ marginBottom: '3px' }}>
