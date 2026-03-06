@@ -124,7 +124,13 @@ const MainLayout = ({ children }) => {
         
         <Navigation />
         <main className="flex-1 flex flex-col overflow-hidden w-full relative z-10" style={{ gap: 0 }}>
-          {!isWorkoutSessionOpen && !hideMainHeaderInChatThread && <Header onOpenFeedback={!isStudent ? () => setIsFeedbackModalOpen(true) : undefined} />}
+          {!isWorkoutSessionOpen && (hideMainHeaderInChatThread ? (
+            <div className="hidden md:block main-layout-header">
+              <Header onOpenFeedback={!isStudent ? () => setIsFeedbackModalOpen(true) : undefined} />
+            </div>
+          ) : (
+            <Header onOpenFeedback={!isStudent ? () => setIsFeedbackModalOpen(true) : undefined} />
+          ))}
           {isStudentDashboard ? (
             <PullToRefresh
               onRefresh={refresh}
