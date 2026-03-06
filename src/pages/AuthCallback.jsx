@@ -103,6 +103,16 @@ const AuthCallback = () => {
               if (backendUser?.role) userRole = backendUser.role;
               if (backendUser?.onboardingCompleted === false) onboardingCompleted = false;
             } catch (profileError) {
+              // --- BETA TEST: Block new Google OAuth users (403 from backend) ---
+              if (profileError?.response?.status === 403) {
+                logger.debug('🚫 Beta test: new OAuth user blocked by backend');
+                await supabase.auth.signOut();
+                try { localStorage.removeItem('authToken'); localStorage.removeItem('supabaseRefreshToken'); localStorage.removeItem('sb-auth-token'); } catch (e) { /* ignore */ }
+                const msg = encodeURIComponent(profileError?.response?.data?.message || 'Les inscriptions publiques sont temporairement fermées.');
+                navigate(`/login?error=${msg}`, { replace: true });
+                return;
+              }
+              // --- END BETA TEST ---
               logger.debug('Auth/me not available (e.g. new user), using metadata:', profileError?.response?.status);
               // Nouveau compte ou backend pas encore à jour : ne pas supposer "élève", ne pas bloquer sur desktop
               if (userRole == null) userRole = 'coach';
