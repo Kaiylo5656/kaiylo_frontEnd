@@ -134,7 +134,6 @@ function App() {
         <PWAProvider>
           <ModalManagerProvider>
             <>
-              <p style={{color: 'red', position: 'fixed', top: 0, left: 0, zIndex: 9999, background: 'black', padding: '4px 12px', fontSize: '14px', margin: 0}}>STAGING</p>
               <div className="App">
                 <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
