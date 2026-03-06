@@ -33,13 +33,10 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
     onClose();
   };
 
-  // Empêcher la fermeture par clic sur le backdrop
-  const handleBackdropClick = (e) => {
+  // Fermer seulement si le mousedown a eu lieu sur le backdrop (évite de fermer quand l'utilisateur relâche en dehors après avoir sélectionné du texte)
+  const handleBackdropMouseDown = (e) => {
     if (e.target === e.currentTarget) {
-      // Prevent closing modal by clicking backdrop during validation
-      if (isUploading || isValidating) {
-        return;
-      }
+      if (isUploading || isValidating) return;
       handleClose();
     }
   };
@@ -68,7 +65,7 @@ const SessionCompletionModal = ({ isOpen, onClose, onComplete, sessionData, isUp
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
       style={{ zIndex: 110 }}
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
     >
       <div className="relative w-full h-full flex items-center justify-center md:h-auto md:w-auto">
         <div

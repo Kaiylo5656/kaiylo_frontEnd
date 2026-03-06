@@ -541,6 +541,24 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises(exercises.filter(ex => ex.id !== id));
   };
 
+  const handleDuplicateExercise = (exerciseIndex) => {
+    const exercise = exercises[exerciseIndex];
+    const duplicatedSets = exercise.sets.map(set => ({
+      ...set,
+      previousRpe: set.previousRpe != null ? set.previousRpe : undefined,
+      previousCharge: set.previousCharge != null ? set.previousCharge : undefined
+    }));
+    const newExercise = {
+      ...exercise,
+      id: Date.now(),
+      isExpanded: true,
+      sets: duplicatedSets
+    };
+    const updated = [...exercises];
+    updated.splice(exerciseIndex + 1, 0, newExercise);
+    setExercises(updated);
+  };
+
   const handleAddSet = (exerciseIndex) => {
     const updatedExercises = [...exercises];
     const currentSets = updatedExercises[exerciseIndex].sets;
@@ -1386,6 +1404,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       onMoveDown={moveExerciseDown}
                       useAbsolute={false}
                       embedded={true}
+                      onReorder={setExercises}
                     />
                   )}
 
@@ -1831,7 +1850,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     placeholder="Saisir le nom de la séance"
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
-                    className="w-full pl-9 md:pl-[42px] pr-3 md:pr-[14px] py-2.5 md:py-3 rounded-[10px] border-0 bg-[rgba(0,0,0,0.5)] text-white text-xs md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0 h-10 md:h-[44px]"
+                    className="w-full pl-9 md:pl-[42px] pr-3 md:pr-[14px] py-2.5 md:py-3 rounded-[10px] border-0 text-white text-xs md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0 h-10 md:h-[44px]"
+                    style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}
                   />
                 </div>
               </div>
@@ -1842,7 +1862,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                 </label>
                 <div
                   onClick={() => dateInputRef.current?.showPicker()}
-                  className="relative rounded-[10px] flex items-center cursor-pointer w-full px-3 md:px-[14px] py-2.5 md:py-3 bg-[rgba(0,0,0,0.5)] h-10 md:h-[44px]"
+                  className="relative rounded-[10px] flex items-center cursor-pointer w-full px-3 md:px-[14px] py-2.5 md:py-3 h-10 md:h-[44px]"
+                  style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -1895,13 +1916,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         delete exerciseRefs.current[exercise.id];
                       }
                     }}
-                    className="rounded-[12px] overflow-hidden bg-[rgba(0,0,0,0.3)]"
+                    className="rounded-[12px] overflow-hidden"
                     style={{
-                      willChange: 'transform'
+                      willChange: 'transform',
+                      background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)'
                     }}
                   >
                     {/* Exercise Header */}
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-[rgba(0,0,0,0.2)]">
+                    <div className="flex items-center justify-between p-3 md:p-4 bg-transparent">
                       <div
                         onClick={(e) => {
                           handleReplaceExercise(exerciseIndex);
@@ -1986,8 +2008,18 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         <div className="w-px h-4 bg-white/10"></div>
                         <button
                           type="button"
+                          onClick={() => handleDuplicateExercise(exerciseIndex)}
+                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
+                          title="Dupliquer l'exercice"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
+                            <path d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleRemoveExercise(exercise.id)}
-                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-2.5 pr-2.5 rounded"
+                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[7px] pr-[10px] rounded"
                           title="Supprimer l'exercice"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
@@ -1999,11 +2031,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
                     {/* Exercise Table */}
                     {exercise.isExpanded && (
-                      <div className="bg-[rgba(0,0,0,0.2)] p-3 md:p-4">
+                      <div className="bg-transparent p-3 md:p-4">
                         {/* Table Container with Scroll */}
                         <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
                           <table className="w-full text-xs md:text-sm min-w-[500px]">
-                            <thead className="sticky top-0 z-10">
+                            <thead className="sticky top-0 z-10" style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}>
                               <tr className="text-white/50 text-xs font-extralight">
                                 <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
                                 <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
@@ -2788,7 +2820,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
         return (
           <ModalPortal>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10000]" onClick={() => setShowStudentPreview(false)}>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10000]" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowStudentPreview(false); }}>
               <div
                 className="text-white rounded-[27px] w-full max-w-[375px] max-h-[92vh] overflow-y-auto overflow-x-hidden shadow-xl bg-[#0a0a0a]"
                 onClick={(e) => e.stopPropagation()}

@@ -90,22 +90,18 @@ const BaseModal = forwardRef(({
     }
   }, [isOpen]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback((e) => {
-    // Check if click is on backdrop (not on modal content or external content)
-    // The backdrop has padding, so we need to check if the target is the backdrop or outside modal content
+  // Handle backdrop: only close when mousedown happened on backdrop (not when user releases there after selecting text inside modal)
+  const handleBackdropMouseDown = useCallback((e) => {
     const isExternalContentClick = externalContentRef.current && externalContentRef.current.contains(e.target);
     const isModalContentClick = modalRef.current && modalRef.current.contains(e.target);
-    const isBackdropClick = e.target === backdropRef.current || 
-                           (backdropRef.current && backdropRef.current.contains(e.target) && 
+    const isBackdropClick = e.target === backdropRef.current ||
+                           (backdropRef.current && backdropRef.current.contains(e.target) &&
                             !isModalContentClick && !isExternalContentClick);
-    
+
     if (isBackdropClick) {
-      // If custom handler provided, always call it (let it decide what to do)
       if (onBackdropClick) {
         onBackdropClick(e);
       } else if (isTopMost && closeOnBackdrop) {
-        // Default behavior: only close if topmost and closeOnBackdrop is enabled
         onClose();
       }
     }
@@ -128,8 +124,7 @@ const BaseModal = forwardRef(({
       <div
         ref={backdropRef}
         className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
-        onMouseDown={handleBackdropClick}
-        onClick={handleBackdropClick}
+        onMouseDown={handleBackdropMouseDown}
         style={{ zIndex: zIndex || 100 }}
       >
         <div className="relative w-full overflow-visible">

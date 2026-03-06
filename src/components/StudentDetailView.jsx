@@ -84,7 +84,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [copiedSession, setCopiedSession] = useState(null); // Store session data awaiting paste
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
-  const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5 or 8
+  const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5, 8 or 10
 
   // Refs pour le scroll horizontal des séances multiples par jour (comme vue entrainement)
   const dayScrollRefs = useRef({});
@@ -3379,8 +3379,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
       const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
       const totalHeight = baseHeight + exercisesHeight;
-      // Add some margin for comfort, minimum 240px for 5 exercises, 300px for 8 exercises
-      const minHeight = visibleExercisesCount === 5 ? 240 : 300;
+      // Add some margin for comfort, minimum 240px for 5, 300px for 8, 360px for 10 exercises
+      const minHeight = visibleExercisesCount === 5 ? 240 : visibleExercisesCount === 8 ? 300 : 360;
       return `${Math.max(totalHeight, minHeight)}px`;
     };
 
@@ -4776,7 +4776,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         {/* Toggle exercises view button - aligned to right */}
                         <div className="flex items-center justify-end ml-auto">
                           <button
-                            onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : 5)}
+                            onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
                             className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm"
                             style={{
                               backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -4793,9 +4793,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
                               e.currentTarget.style.fontWeight = '400';
                             }}
-                            title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : 'Afficher 5 exercices'}
+                            title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : visibleExercisesCount === 8 ? 'Afficher 10 exercices' : 'Afficher 5 exercices'}
                           >
-                            {visibleExercisesCount === 5 ? '5 exercices' : '8 exercices'}
+                            {visibleExercisesCount === 5 ? '5 exercices' : visibleExercisesCount === 8 ? '8 exercices' : '10 exercices'}
                           </button>
                         </div>
                       </div>
@@ -4846,9 +4846,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
                             const sessionHeight = sessionBaseHeight + exercisesHeight;
 
-                            // When in 5 exercises view, use the calculated height (minimum 240px for session)
-                            // When in 8 exercises view, keep minimum 300px
-                            const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
+                            // When in 5/8/10 exercises view: minimum 240 / 300 / 360px for session
+                            const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : visibleExercisesCount === 8 ? Math.max(sessionHeight, 300) : Math.max(sessionHeight, 360);
                             const totalHeight = baseHeight + minSessionHeight;
 
                             return totalHeight;
@@ -5508,12 +5507,34 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             }}
                           >
                             <span
-                              className={`absolute top-[3px] left-[3px] w-3 h-3 bg-white rounded-full transition-transform duration-200 ${isDetailedView ? 'translate-x-[18px]' : 'translate-x-0'
+                              className={`absolute top-1/2 left-[3px] w-3 h-3 bg-white rounded-full transition-transform duration-200 -translate-y-1/2 ${isDetailedView ? 'translate-x-[18px]' : 'translate-x-0'
                                 }`}
                             />
                           </label>
                         </div>
                       </div>
+                      <button
+                        onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
+                        className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          color: 'rgba(250, 250, 250, 0.5)',
+                          fontWeight: '400'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                          e.currentTarget.style.color = '#D48459';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                          e.currentTarget.style.fontWeight = '400';
+                        }}
+                        title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : visibleExercisesCount === 8 ? 'Afficher 10 exercices' : 'Afficher 5 exercices'}
+                      >
+                        {visibleExercisesCount === 5 ? '5 exercices' : visibleExercisesCount === 8 ? '8 exercices' : '10 exercices'}
+                      </button>
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
@@ -5647,6 +5668,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             }
                           }
 
+                          // Height of day cards in detailed view (same formula as calculateTrainingDayHeight) - used so week actions div matches card height
+                          const detailedViewCardHeight = (() => {
+                            if (!isDetailedView) return null;
+                            const dateHeaderHeight = 30;
+                            const paddingHeight = 12;
+                            const baseHeight = dateHeaderHeight + paddingHeight;
+                            const sessionBaseHeight = 100;
+                            const exerciseHeight = 20;
+                            const gapHeight = 6;
+                            const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
+                            const sessionHeight = sessionBaseHeight + exercisesHeight;
+                            const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : visibleExercisesCount === 8 ? Math.max(sessionHeight, 300) : Math.max(sessionHeight, 360);
+                            return baseHeight + minSessionHeight;
+                          })();
+
                           return (
                             <div key={weekKey} className="relative week-group group/week">
                               {/* Week Block Info - Display block name and week number at the top left */}
@@ -5668,9 +5704,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 )}
                               </div>
 
-                              {/* Week Actions - Side Buttons - Hidden on mobile */}
-                              <div className={`hidden md:flex absolute -right-12 top-[28px] flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0 ${isDetailedView ? 'min-h-[260px]' : 'h-[142px]'
-                                }`}>
+                              {/* Week Actions - Side Buttons - Hidden on mobile - height matches day card when detailed view is on */}
+                              <div
+                                className={`hidden md:flex absolute -right-12 top-[28px] flex-col justify-center gap-2 opacity-0 group-hover/week:opacity-100 transition-opacity duration-200 z-10 pl-3 pr-0 ${!isDetailedView ? 'h-[142px]' : ''}`}
+                                style={isDetailedView && detailedViewCardHeight != null ? { minHeight: `${detailedViewCardHeight}px` } : undefined}
+                              >
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -5729,9 +5767,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                     const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
                                     const sessionHeight = sessionBaseHeight + exercisesHeight;
 
-                                    // When in 5 exercises view, use the calculated height (minimum 240px for session)
-                                    // When in 8 exercises view, keep minimum 300px
-                                    const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : Math.max(sessionHeight, 300);
+                                    // When in 5/8/10 exercises view: minimum 240 / 300 / 360px for session
+                                    const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : visibleExercisesCount === 8 ? Math.max(sessionHeight, 300) : Math.max(sessionHeight, 360);
                                     const totalHeight = baseHeight + minSessionHeight;
 
                                     return totalHeight;
