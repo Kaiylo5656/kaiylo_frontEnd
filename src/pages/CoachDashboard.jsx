@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -27,7 +27,7 @@ const CoachDashboard = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredStudents, setFilteredStudents] = useState([]);
+
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPendingInvitationsModalOpen, setIsPendingInvitationsModalOpen] = useState(false);
@@ -125,7 +125,7 @@ const CoachDashboard = () => {
 
 
   // Filter and sort students based on search term, filters and sort params
-  useEffect(() => {
+  const filteredStudents = useMemo(() => {
     let filtered = students;
 
     // Apply search filter
@@ -158,22 +158,18 @@ const CoachDashboard = () => {
       filtered = filtered.filter(student => {
         const nextSessionDate = studentNextSessions[student.id];
         if (!nextSessionDate) {
-          // No session date means no upcoming session
           return true;
         }
 
-        // Check if the session date is still in the future
         const sessionDate = new Date(nextSessionDate);
         sessionDate.setHours(0, 0, 0, 0);
 
-        // Only show students with no upcoming sessions (date is in the past or today is past the session date)
         return sessionDate < today;
       });
     }
 
     // Apply sorting
-    const sorted = sortStudents(filtered, sort || 'name', dir || 'asc', studentVideoCounts, studentNextSessions);
-    setFilteredStudents(sorted);
+    return sortStudents(filtered, sort || 'name', dir || 'asc', studentVideoCounts, studentNextSessions);
   }, [searchTerm, students, sort, dir, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
   // Helper function to extract name without email (preserves first and last names)
