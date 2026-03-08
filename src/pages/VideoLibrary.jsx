@@ -28,6 +28,7 @@ import {
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useVideoFilters } from '../hooks/useVideoFilters';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const VideoLibrary = () => {
   const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'coach'
@@ -101,6 +102,8 @@ const VideoLibrary = () => {
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   const { isTopMost } = useModalManager();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Detect screen size for responsive behavior
   const [isMobile, setIsMobile] = useState(false);
@@ -138,11 +141,32 @@ const VideoLibrary = () => {
     }
   };
 
-  // Handle video click (for both student videos and coach resources)
+  // Handle video click — push videoId to URL so browser back closes the modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
     setIsVideoDetailModalOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', video.id);
+    navigate(`?${params.toString()}`);
   };
+
+  // Close video modal when videoId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoDetailModalOpen) {
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close coach resource modal when resourceId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('resourceId') && isCoachResourceModalOpen) {
+      setIsCoachResourceModalOpen(false);
+      setSelectedCoachResource(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   // Handle coach resource click
   const handleCoachResourceClick = (resource) => {
@@ -162,6 +186,9 @@ const VideoLibrary = () => {
     logger.debug('🎬 Mapped resource:', mappedResource);
 
     setSelectedCoachResource(mappedResource);
+    const params = new URLSearchParams(location.search);
+    params.set('resourceId', resource.id);
+    navigate(`?${params.toString()}`);
     setIsCoachResourceModalOpen(true);
   };
 
@@ -2521,10 +2548,7 @@ const VideoLibrary = () => {
       {/* Video Detail Modal */}
       <VideoDetailModal
         isOpen={isVideoDetailModalOpen}
-        onClose={() => {
-          setIsVideoDetailModalOpen(false);
-          setSelectedVideo(null);
-        }}
+        onClose={() => navigate(-1)}
         video={selectedVideo}
         onFeedbackUpdate={handleFeedbackUpdate}
         videoType="student"
@@ -2534,10 +2558,7 @@ const VideoLibrary = () => {
       {/* Coach Resource Modal */}
       <CoachResourceModal
         isOpen={isCoachResourceModalOpen}
-        onClose={() => {
-          setIsCoachResourceModalOpen(false);
-          setSelectedCoachResource(null);
-        }}
+        onClose={() => navigate(-1)}
         video={selectedCoachResource}
         onFeedbackUpdate={handleFeedbackUpdate}
       />

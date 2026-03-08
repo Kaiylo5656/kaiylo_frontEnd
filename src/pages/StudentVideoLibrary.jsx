@@ -29,13 +29,14 @@ const ChevronDownIcon = ({ className, style }) => (
     <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
   </svg>
 );
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import StudentVideoDetailModal from '../components/StudentVideoDetailModal';
 import CoachResourceModal from '../components/CoachResourceModal';
 
 const StudentVideoLibrary = () => {
   const { user, getAuthToken } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -237,11 +238,32 @@ const StudentVideoLibrary = () => {
     }));
   };
 
-  // Handle video click
+  // Handle video click — push videoId to URL so browser back closes the modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
     setIsVideoDetailModalOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', video.id);
+    navigate(`?${params.toString()}`);
   };
+
+  // Close video modal when videoId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoDetailModalOpen) {
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close coach resource modal when resourceId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('resourceId') && isCoachResourceModalOpen) {
+      setIsCoachResourceModalOpen(false);
+      setSelectedCoachResource(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   // Handle feedback update
   const handleFeedbackUpdate = (videoId, feedback, rating, deleted = false, status = 'completed') => {
@@ -275,6 +297,9 @@ const StudentVideoLibrary = () => {
     };
 
     setSelectedCoachResource(mappedResource);
+    const params = new URLSearchParams(location.search);
+    params.set('resourceId', resource.id);
+    navigate(`?${params.toString()}`);
     setIsCoachResourceModalOpen(true);
   };
 
@@ -995,17 +1020,14 @@ const StudentVideoLibrary = () => {
 
         <StudentVideoDetailModal
           isOpen={isVideoDetailModalOpen}
-          onClose={() => setIsVideoDetailModalOpen(false)}
+          onClose={() => navigate(-1)}
           video={selectedVideo}
           onFeedbackUpdate={handleFeedbackUpdate}
         />
 
         <CoachResourceModal
           isOpen={isCoachResourceModalOpen}
-          onClose={() => {
-            setIsCoachResourceModalOpen(false);
-            setSelectedCoachResource(null);
-          }}
+          onClose={() => navigate(-1)}
           video={selectedCoachResource}
           onFeedbackUpdate={() => { }} // No feedback updates for coach resources in student view
           studentView

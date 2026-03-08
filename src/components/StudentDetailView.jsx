@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw, FileText } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
@@ -33,11 +33,13 @@ import {
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange, initialStudentVideoCounts = {}, initialStudentMessageCounts = {}, initialStudentNextSessions = {} }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sort, dir } = useSortParams('name', 'asc');
   const { isTopMost: isDeleteNoteModalTopMost } = useModalManager();
   const { isTopMost: isDeleteLimitationModalTopMost } = useModalManager();
   const { isTopMost: isDeleteWeekModalTopMost } = useModalManager();
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const tabFromUrl = new URLSearchParams(location.search).get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || initialTab);
   const [studentData, setStudentData] = useState(null);
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -423,9 +425,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } else if (session.status === 'completed') {
       // Pour les séances terminées, ouvrir la modale de révision avec vidéos
       logger.debug('📝 Opening review modal with session:', session);
+      const params = new URLSearchParams(location.search);
+      params.set('sessionReviewId', session.id);
+      navigate(`?${params.toString()}`);
       setIsReviewModalOpen(true);
     } else {
       // Pour les séances en cours, ouvrir la modale de détails en lecture seule
+      const params = new URLSearchParams(location.search);
+      params.set('sessionDetailsId', session.id);
+      navigate(`?${params.toString()}`);
       setIsDetailsModalOpen(true);
     }
   };
@@ -1633,10 +1641,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setLoadingMoreVideos(false);
   };
 
-  // Handle video click
+  // Handle video click — push videoId to URL so browser back closes the modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
     setIsVideoDetailModalOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', video.id);
+    navigate(`?${params.toString()}`);
   };
 
   // Mark all pending videos as completed (no comment) - analyse tab
@@ -2449,10 +2460,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setStudentNextSessions(initialStudentNextSessions);
   }, [initialStudentNextSessions]);
 
-  // Update activeTab when initialTab prop changes
+  // Sync activeTab from URL on browser back/forward
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const VALID_TABS = ['overview', 'training', 'periodization', 'analyse', 'suivi'];
+    const safeTab = VALID_TABS.includes(tab) ? tab : 'overview';
+    if (safeTab !== activeTab) {
+      setActiveTab(safeTab);
+    }
+  }, [location.search]); // intentionally excludes activeTab to avoid loop
+
+  // Close video modal when videoId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoDetailModalOpen) {
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close session review modal when sessionReviewId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('sessionReviewId') && isReviewModalOpen) {
+      setIsReviewModalOpen(false);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close session details modal when sessionDetailsId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('sessionDetailsId') && isDetailsModalOpen) {
+      setIsDetailsModalOpen(false);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   // Fetch videos when analyse tab is active or filters change
   useEffect(() => {
@@ -4122,11 +4164,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
+  const VALID_TABS = ['overview', 'training', 'periodization', 'analyse', 'suivi'];
+
+  const handleTabChange = (tab) => {
+    if (tab === activeTab) return; // no-op — avoids duplicate history entries
+    const safeTab = VALID_TABS.includes(tab) ? tab : 'overview'; // graceful default
+    const params = new URLSearchParams(location.search);
+    params.set('tab', safeTab);
+    navigate(`?${params.toString()}`); // push — creates a history entry per tab
+  };
+
   const handleFeedbackBadgeClick = (student) => {
     if (onStudentChange) {
       onStudentChange(student);
     }
-    setActiveTab('analyse');
+    handleTabChange('analyse');
   };
 
   return (
@@ -4307,7 +4359,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <div className="md:hidden relative flex-shrink-0 ml-auto" style={{ minWidth: '140px' }}>
                         <select
                           value={activeTab}
-                          onChange={(e) => setActiveTab(e.target.value)}
+                          onChange={(e) => handleTabChange(e.target.value)}
                           className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[var(--kaiylo-primary-hex)] transition-colors appearance-none"
                           style={{
                             color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
@@ -4333,7 +4385,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Tableau de bord"
                         style={activeTab !== 'overview' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('overview')}
+                        onClick={() => handleTabChange('overview')}
                       >
                         Tableau de bord
                       </button>
@@ -4341,7 +4393,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'training' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Entraînement"
                         style={activeTab !== 'training' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('training')}
+                        onClick={() => handleTabChange('training')}
                       >
                         Entraînement
                       </button>
@@ -4349,7 +4401,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Périodisation"
                         style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('periodization')}
+                        onClick={() => handleTabChange('periodization')}
                       >
                         Périodisation
                       </button>
@@ -4357,7 +4409,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Analyse vidéo"
                         style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('analyse')}
+                        onClick={() => handleTabChange('analyse')}
                       >
                         Analyse vidéo
                       </button>
@@ -4365,7 +4417,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Suivi Financier"
                         style={activeTab !== 'suivi' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('suivi')}
+                        onClick={() => handleTabChange('suivi')}
                       >
                         Suivi Financier
                       </button>
@@ -6756,7 +6808,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
             <WorkoutSessionDetailsModal
               isOpen={isDetailsModalOpen}
-              onClose={() => setIsDetailsModalOpen(false)}
+              onClose={() => navigate(-1)}
               session={selectedSession}
               selectedDate={selectedDate}
               onCopySession={(sessionForCopy, fromDate) => {
@@ -7133,7 +7185,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
         <VideoDetailModal
           isOpen={isVideoDetailModalOpen}
-          onClose={() => setIsVideoDetailModalOpen(false)}
+          onClose={() => navigate(-1)}
           video={selectedVideo}
           onFeedbackUpdate={handleFeedbackUpdate}
           videoType="student"
@@ -7142,7 +7194,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
         <CoachSessionReviewModal
           isOpen={isReviewModalOpen}
-          onClose={() => setIsReviewModalOpen(false)}
+          onClose={() => navigate(-1)}
           session={selectedSession}
           selectedDate={selectedDate}
           studentId={student.id}

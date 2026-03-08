@@ -369,9 +369,9 @@ const useSocket = () => {
   // Function to listen for video upload notifications (for coaches)
   const onVideoUpload = useCallback((callback) => {
     let connectHandler = null;
-    
+
     const setupListener = () => {
-      if (socketRef.current && isConnected) {
+      if (socketRef.current) {
         // Listen to both events: new_video_upload and new_video_notification
         socketRef.current.on('new_video_upload', callback);
         socketRef.current.on('new_video_notification', callback);
@@ -389,7 +389,7 @@ const useSocket = () => {
           socketRef.current.off('connect', connectHandler);
         }
       };
-      
+
       if (socketRef.current) {
         socketRef.current.on('connect', connectHandler);
       }
@@ -404,14 +404,14 @@ const useSocket = () => {
         }
       }
     };
-  }, [isConnected]);
+  }, []);
 
   // Function to listen for feedback notifications (for students)
   const onFeedback = useCallback((callback) => {
     let connectHandler = null;
-    
+
     const setupListener = () => {
-      if (socketRef.current && isConnected) {
+      if (socketRef.current) {
         socketRef.current.on('new_feedback', callback);
         return true;
       }
@@ -427,7 +427,7 @@ const useSocket = () => {
           socketRef.current.off('connect', connectHandler);
         }
       };
-      
+
       if (socketRef.current) {
         socketRef.current.on('connect', connectHandler);
       }
@@ -441,7 +441,7 @@ const useSocket = () => {
         }
       }
     };
-  }, [isConnected]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
