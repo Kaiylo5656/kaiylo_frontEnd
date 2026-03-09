@@ -12,9 +12,12 @@ import useSortParams from '../hooks/useSortParams';
 import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
 import { getTagColor, getTagColorMap } from '../utils/tagColors';
 import { Search, Check } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const ExerciseManagement = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -248,25 +251,48 @@ const ExerciseManagement = () => {
     }
   };
 
-  // Handle row click to open detail modal
+  // Handle row click — push exerciseId to URL so browser back closes the modal
   const handleRowClick = (exercise) => {
     logger.debug('🔍 Opening detail modal for exercise:', exercise);
     logger.debug('🔍 Exercise ID:', exercise.id);
     setSelectedExerciseId(exercise.id);
     setShowDetailModal(true);
+    const params = new URLSearchParams(location.search);
+    params.set('exerciseId', exercise.id);
+    navigate(`?${params.toString()}`);
   };
 
   // Handle detail modal close
   const handleDetailModalClose = () => {
-    setShowDetailModal(false);
-    setSelectedExerciseId(null);
+    navigate(-1);
   };
+
+  // Close exercise modal when exerciseId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('exerciseId') && showDetailModal) {
+      setShowDetailModal(false);
+      setSelectedExerciseId(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close add/edit exercise modal when addModal leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('addModal') && showModal) {
+      setShowModal(false);
+      setEditingExercise(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   // Edit exercise
   const handleEdit = (exercise) => {
     logger.debug('✏️ Editing exercise:', exercise);
     logger.debug('✏️ Exercise tags:', exercise.tags);
     setEditingExercise(exercise);
+    const params = new URLSearchParams(location.search);
+    params.set('addModal', exercise.id);
+    navigate(`?${params.toString()}`);
     setShowModal(true);
   };
 
@@ -536,6 +562,9 @@ const ExerciseManagement = () => {
               <button
                 onClick={() => {
                   setEditingExercise(null);
+                  const params = new URLSearchParams(location.search);
+                  params.set('addModal', 'new');
+                  navigate(`?${params.toString()}`);
                   setShowModal(true);
                 }}
                 className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-normal p-2.5 rounded-[8px] transition-colors flex items-center justify-center"
@@ -624,6 +653,9 @@ const ExerciseManagement = () => {
           <button
             onClick={() => {
               setEditingExercise(null); // Clear any editing state
+              const params = new URLSearchParams(location.search);
+              params.set('addModal', 'new');
+              navigate(`?${params.toString()}`);
               setShowModal(true);
             }}
             className="hidden md:flex group bg-primary hover:bg-primary/90 text-primary-foreground font-normal pt-[7px] pb-[7px] px-5 rounded-[8px] transition-colors items-center gap-2 order-3"
@@ -687,6 +719,9 @@ const ExerciseManagement = () => {
                       <button
                         onClick={() => {
                           setEditingExercise(null);
+                          const params = new URLSearchParams(location.search);
+                          params.set('addModal', 'new');
+                          navigate(`?${params.toString()}`);
                           setShowModal(true);
                         }}
                         className="px-6 py-2.5 rounded-[8px] hover:bg-white/90 transition-colors font-light mt-2 text-base"
@@ -980,7 +1015,7 @@ const ExerciseManagement = () => {
       {/* Add Exercise Modal */}
       <AddExerciseModal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => navigate(-1)}
         onExerciseCreated={handleSubmit}
         editingExercise={editingExercise}
         onExerciseUpdated={handleUpdate}

@@ -59,6 +59,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
     }
   }, [isOpen, registerVideoModalOpen, registerVideoModalClose]);
 
+  const handleClose = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     if (video) {
       // Initialize feedback field based on video type
@@ -131,7 +135,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
         e.preventDefault();
         e.stopPropagation();
         logger.debug('ESC pressed: Closing modal');
-        onClose();
+        handleClose();
         return;
       }
       
@@ -171,7 +175,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       document.addEventListener('keydown', handleKeyPress, true); // Use capture phase
       return () => document.removeEventListener('keydown', handleKeyPress, true);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -366,7 +370,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       }
       setIsDeleteConfirmOpen(false);
       alert('✅ Vidéo supprimée avec succès');
-      onClose();
+      handleClose();
     } catch (error) {
       logger.error('Error deleting video:', error);
       alert('❌ Erreur lors de la suppression de la vidéo');
@@ -396,7 +400,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       if (onFeedbackUpdate) {
         onFeedbackUpdate(video.id, '', null, false, 'completed', 'student');
       }
-      onClose();
+      handleClose();
     } catch (error) {
       logger.error('Error marking video as completed:', error);
       alert('Erreur lors du passage en complété.');
@@ -461,9 +465,9 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   const studentComment = video.comment || matchedExercise?.comment || matchedExercise?.studentComment || matchedExercise?.student_comment || matchedExercise?.previous_student_comment || null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center z-50 p-2 md:p-4"
-      onClick={onClose}
+      onClick={handleClose}
       style={{ zIndex: 100 }}
     >
 <div
@@ -494,7 +498,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-white/50 hover:text-white transition-colors"
             aria-label="Close modal"
           >

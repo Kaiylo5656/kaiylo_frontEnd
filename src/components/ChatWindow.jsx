@@ -16,6 +16,7 @@ import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 import VideoDetailModal from './VideoDetailModal';
 import StudentVideoDetailModal from './StudentVideoDetailModal';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // Custom MessageSquare Icon Component (Font Awesome)
 const MessageSquareIcon = ({ className, style }) => (
@@ -45,6 +46,8 @@ const ReplyIcon = ({ className, style }) => (
 
 const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack }) => {
   const { getAuthToken } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { socket, isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, startTyping, stopTyping, markMessagesAsRead } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -960,8 +963,20 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
 
     setSelectedVideo(videoObj);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', videoData.videoId);
+    navigate(`?${params.toString()}`);
     setIsVideoModalOpen(true);
   };
+
+  // Close video modal when videoId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoModalOpen) {
+      setIsVideoModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   if (!conversation) {
     return (
@@ -1471,7 +1486,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       {currentUser?.role === 'coach' ? (
         <VideoDetailModal
           isOpen={isVideoModalOpen}
-          onClose={() => setIsVideoModalOpen(false)}
+          onClose={() => navigate(-1)}
           video={selectedVideo}
           videoType="student"
           isCoachView={true}
@@ -1484,7 +1499,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       ) : (
         <StudentVideoDetailModal
           isOpen={isVideoModalOpen}
-          onClose={() => setIsVideoModalOpen(false)}
+          onClose={() => navigate(-1)}
           video={selectedVideo}
         />
       )}

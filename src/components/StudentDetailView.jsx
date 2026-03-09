@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw, FileText } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
@@ -54,11 +54,13 @@ const SET_LINE_ICON = (
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange, initialStudentVideoCounts = {}, initialStudentMessageCounts = {}, initialStudentNextSessions = {} }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sort, dir } = useSortParams('name', 'asc');
   const { isTopMost: isDeleteNoteModalTopMost } = useModalManager();
   const { isTopMost: isDeleteLimitationModalTopMost } = useModalManager();
   const { isTopMost: isDeleteWeekModalTopMost } = useModalManager();
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const tabFromUrl = new URLSearchParams(location.search).get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || initialTab);
   const [studentData, setStudentData] = useState(null);
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +128,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const loadMoreVideosRef = useRef(null);
 
   // Video filters
-  const [statusFilter, setStatusFilter] = useState(''); // Empty string means no filter
+  const [statusFilter, setStatusFilter] = useState('A feedback'); // Default to "A feedback" for analyse tab
   const [exerciseFilter, setExerciseFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
@@ -445,9 +447,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     } else if (session.status === 'completed') {
       // Pour les séances terminées, ouvrir la modale de révision avec vidéos
       logger.debug('📝 Opening review modal with session:', session);
+      const params = new URLSearchParams(location.search);
+      params.set('sessionReviewId', session.id);
+      navigate(`?${params.toString()}`);
       setIsReviewModalOpen(true);
     } else {
       // Pour les séances en cours, ouvrir la modale de détails en lecture seule
+      const params = new URLSearchParams(location.search);
+      params.set('sessionDetailsId', session.id);
+      navigate(`?${params.toString()}`);
       setIsDetailsModalOpen(true);
     }
   };
@@ -1243,6 +1251,37 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setCopiedWeek(copiedData);
   };
 
+  // Shared helper: map exercises for copy/paste (preserves RPE, clears student data)
+  const mapExercisesForCopy = (exercises, originalStatus) => {
+    if (!Array.isArray(exercises)) return exercises;
+    return exercises.map(ex => ({
+      ...ex,
+      previous_student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
+      student_comment: undefined,
+      comment: undefined,
+      studentComment: undefined,
+      sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({
+        ...set,
+        previousRpe: set.rpe_rating ?? set.rpeRating ?? null,
+        previousCharge: set.studentWeight ?? set.student_weight ?? null,
+        rpe_rating: undefined,
+        rpeRating: undefined,
+        feedback: undefined,
+        comment: undefined,
+        notes: undefined,
+        student_comment: undefined,
+        video_url: undefined,
+        video: set.video,
+        hasVideo: undefined,
+        videoStatus: undefined
+      })) : ex.sets.map(set => ({
+        ...set,
+        previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
+        previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
+      }))) : ex.sets
+    }));
+  };
+
   const handlePasteWeek = async (targetWeekStart) => {
     if (!copiedWeek || isPastingWeek) {
       return;
@@ -1254,65 +1293,26 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     try {
       const token = localStorage.getItem('authToken');
 
-      // Copy each session to the target week
-      for (const { session, date } of copiedWeek.sessions) {
-        const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1; // Convert Sunday=0 to Monday=0
+      // Build all session data and POST in parallel
+      await Promise.all(copiedWeek.sessions.map(({ session, date }) => {
+        const dayOfWeek = date.getDay() === 0 ? 6 : date.getDay() - 1;
         const newDate = addDays(targetWeekStart, dayOfWeek);
 
-        // Preserve RPE from completed sessions
-        let exercisesToCopy = session.exercises;
-        if (Array.isArray(session.exercises)) {
-          exercisesToCopy = session.exercises.map(ex => ({
-            ...ex,
-            // Preserve student comment at exercise level for coach reference (read-only display)
-            // Use previous_student_comment so it doesn't pre-fill the editable field
-            previous_student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
-            student_comment: undefined,
-            comment: undefined,
-            studentComment: undefined,
-            sets: Array.isArray(ex.sets) ? (session.status === 'completed' ? ex.sets.map(set => ({
-              ...set,
-              // Conserver les deux pour que le switch Charge/RPE dans la modal ne perde pas les valeurs
-              previousRpe: set.rpe_rating ?? set.rpeRating ?? null,
-              previousCharge: set.studentWeight ?? set.student_weight ?? null,
-              // Clear the actual RPE rating for the new session
-              rpe_rating: undefined,
-              rpeRating: undefined,
-              // Clear student comments and uploaded video data; keep coach "video requested" flag (set.video)
-              feedback: undefined,
-              comment: undefined,
-              notes: undefined,
-              student_comment: undefined,
-              video_url: undefined,
-              video: set.video, // preserve coach request for video (boolean)
-              hasVideo: undefined,
-              videoStatus: undefined
-            })) : ex.sets.map(set => ({
-              ...set,
-              previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
-              previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
-            }))) : ex.sets
-          }));
-        }
-
-        // Always create new sessions as 'assigned', regardless of original status
         const sessionData = {
           title: session.title,
           description: session.description || '',
-          exercises: exercisesToCopy,
+          exercises: mapExercisesForCopy(session.exercises, session.status),
           scheduled_date: format(newDate, 'yyyy-MM-dd'),
           student_id: student.id,
-          status: session.status === 'draft' ? 'draft' : 'published' // Keep draft status, but make completed ones published
+          status: session.status === 'draft' ? 'draft' : 'published'
         };
 
-        await axios.post(
+        return axios.post(
           `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
           sessionData,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-      }
+      }));
 
       // Refresh sessions
       await fetchWorkoutSessions();
@@ -1533,50 +1533,30 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       const originalStatus = copiedSession.session.status;
 
-      // Preserve RPE from completed sessions
-      let exercisesToCopy = copiedSession.session.exercises || [];
-      if (Array.isArray(copiedSession.session.exercises)) {
-        exercisesToCopy = copiedSession.session.exercises.map(ex => ({
-          ...ex,
-          // Preserve student comment at exercise level for coach reference (read-only display)
-          // Use previous_student_comment so it doesn't pre-fill the editable field
-          previous_student_comment: ex.student_comment || ex.comment || ex.studentComment || undefined,
-          student_comment: undefined,
-          comment: undefined,
-          studentComment: undefined,
-          sets: Array.isArray(ex.sets) ? (originalStatus === 'completed' ? ex.sets.map(set => ({
-            ...set,
-            // Conserver les deux pour que le switch Charge/RPE dans la modal ne perde pas les valeurs
-            previousRpe: set.rpe_rating ?? set.rpeRating ?? null,
-            previousCharge: set.studentWeight ?? set.student_weight ?? null,
-            // Clear the actual RPE rating for the new session
-            rpe_rating: undefined,
-            rpeRating: undefined,
-            // Clear student comments and uploaded video data; keep coach "video requested" flag (set.video)
-            feedback: undefined,
-            comment: undefined,
-            notes: undefined,
-            student_comment: undefined,
-            video_url: undefined,
-            video: set.video, // preserve coach request for video (boolean)
-            hasVideo: undefined,
-            videoStatus: undefined
-          })) : ex.sets.map(set => ({
-            ...set,
-            previousRpe: set.previousRpe != null && set.previousRpe !== undefined ? set.previousRpe : null,
-            previousCharge: set.previousCharge != null && set.previousCharge !== undefined ? set.previousCharge : null
-          }))) : ex.sets
-        }));
-      }
-
       const sessionData = {
         title: copiedSession.session.title,
         description: copiedSession.session.description || '',
-        exercises: exercisesToCopy,
+        exercises: mapExercisesForCopy(copiedSession.session.exercises || [], originalStatus),
         scheduled_date: scheduledDate,
         student_id: student.id,
-        status: originalStatus === 'draft' ? 'draft' : originalStatus === 'completed' ? 'published' : 'published'
+        status: originalStatus === 'draft' ? 'draft' : 'published'
       };
+
+      // Optimistic update: show pasted session immediately
+      setWorkoutSessions(prev => {
+        const updated = { ...prev };
+        if (!updated[scheduledDate]) updated[scheduledDate] = [];
+        updated[scheduledDate] = [...updated[scheduledDate], {
+          id: `temp-${Date.now()}`,
+          assignmentId: `temp-${Date.now()}`,
+          title: sessionData.title,
+          exercises: sessionData.exercises,
+          status: sessionData.status === 'draft' ? 'draft' : 'assigned',
+          scheduled_date: scheduledDate,
+          _isOptimistic: true,
+        }];
+        return updated;
+      });
 
       await axios.post(
         `${getApiBaseUrlWithApi()}/workout-sessions/assign`,
@@ -1584,12 +1564,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         { headers }
       );
 
-      await fetchWorkoutSessions();
+      // Refresh in background to replace optimistic entry with real data
+      fetchWorkoutSessions();
       setCopiedSession(null);
       setHoveredPasteDate(null);
     } catch (error) {
       logger.error('Error pasting copied session:', error);
       alert('Erreur lors du collage de la séance');
+      // Revert optimistic update on error
+      fetchWorkoutSessions();
     } finally {
       setIsPastingSession(false);
     }
@@ -1685,6 +1668,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setSelectedVideo(video);
     setSelectedVideoTotalSets(totalSets);
     setIsVideoDetailModalOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', video.id);
+    navigate(`?${params.toString()}`);
   };
 
   // Mark all pending videos as completed (no comment) - analyse tab
@@ -1849,18 +1835,38 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const rangeStart = format(extendedStart, 'yyyy-MM-dd');
       const rangeEnd = format(extendedEnd, 'yyyy-MM-dd');
 
-      const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            startDate: rangeStart,
-            endDate: rangeEnd,
-            limit: 200
+      // Fetch assignments and drafts in parallel
+      const [assignmentsRes, draftsRes] = await Promise.allSettled([
+        axios.get(
+          `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: {
+              startDate: rangeStart,
+              endDate: rangeEnd,
+              limit: 200
+            }
           }
-        }
-      );
+        ),
+        axios.get(
+          `${getApiBaseUrlWithApi()}/workout-sessions`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: {
+              student_id: student.id,
+              status: 'draft'
+            }
+          }
+        )
+      ]);
 
+      // Process assignments (critical)
+      if (assignmentsRes.status !== 'fulfilled') {
+        logger.error('Error fetching assignments:', assignmentsRes.reason);
+        throw assignmentsRes.reason;
+      }
+
+      const response = assignmentsRes.value;
       logger.debug('Fetched assignments:', response.data);
       logger.debug('Date range:', { rangeStart, rangeEnd });
 
@@ -1902,19 +1908,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       });
 
-      // Fetch draft sessions for this specific student (security: only for this student)
-      // Draft sessions don't have assignments, so we need to fetch them separately
+      // Process draft sessions (non-critical - degrade gracefully)
       try {
-        const draftResponse = await axios.get(
-          `${getApiBaseUrlWithApi()}/workout-sessions`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              student_id: student.id,
-              status: 'draft'
-            }
-          }
-        );
+        if (draftsRes.status !== 'fulfilled') {
+          throw draftsRes.reason || new Error('Draft fetch failed');
+        }
+        const draftResponse = draftsRes.value;
 
         if (draftResponse.data?.sessions) {
           draftResponse.data.sessions.forEach(session => {
@@ -1966,62 +1965,53 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     try {
       if (!silent) setLoading(true);
       const token = localStorage.getItem('authToken');
+      const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch student details
-      const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/coach/student/${student.id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      const data = response.data.data;
+      // Run all 3 API calls in parallel with graceful degradation
+      const [detailsRes, oneRmRes, profileRes] = await Promise.allSettled([
+        axios.get(`${getApiBaseUrlWithApi()}/coach/student/${student.id}`, { headers }),
+        axios.get(`${getApiBaseUrlWithApi()}/coach/student/${student.id}/one-rep-max`, { headers }),
+        axios.get(`${getApiBaseUrlWithApi()}/coach/student/${student.id}/profile`, { headers }),
+      ]);
 
-      // Fetch 1RM records from backend
-      try {
-        const oneRmResponse = await axios.get(
-          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/one-rep-max`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
+      // Process details (critical - if this fails, abort)
+      if (detailsRes.status !== 'fulfilled') {
+        logger.error('Failed to fetch student details:', detailsRes.reason);
+        return;
+      }
+      const data = detailsRes.value.data.data;
 
-        if (oneRmResponse.data.success && oneRmResponse.data.data && Array.isArray(oneRmResponse.data.data) && oneRmResponse.data.data.length > 0) {
-          data.oneRepMaxes = oneRmResponse.data.data;
-        } else {
-          // Initialize empty array for new students
-          data.oneRepMaxes = [];
-        }
-      } catch (oneRmError) {
-        logger.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmError);
-        // Fallback to localStorage if backend fails
-        const storageKey = `oneRm_${student.id}`;
-        const savedOneRm = localStorage.getItem(storageKey);
-        if (savedOneRm) {
-          try {
-            const parsedOneRm = JSON.parse(savedOneRm);
-            data.oneRepMaxes = parsedOneRm;
-          } catch (e) {
-            logger.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
-            // Initialize empty array if localStorage parsing fails
+      // Process 1RM (non-critical - degrade gracefully)
+      if (oneRmRes.status === 'fulfilled' && oneRmRes.value.data.success && Array.isArray(oneRmRes.value.data.data) && oneRmRes.value.data.data.length > 0) {
+        data.oneRepMaxes = oneRmRes.value.data.data;
+      } else {
+        if (oneRmRes.status === 'rejected') {
+          logger.warn('Error fetching 1RM records from backend, using localStorage fallback:', oneRmRes.reason);
+          // Fallback to localStorage if backend fails
+          const storageKey = `oneRm_${student.id}`;
+          const savedOneRm = localStorage.getItem(storageKey);
+          if (savedOneRm) {
+            try {
+              const parsedOneRm = JSON.parse(savedOneRm);
+              data.oneRepMaxes = parsedOneRm;
+            } catch (e) {
+              logger.warn('Erreur lors de la lecture des 1RM depuis localStorage:', e);
+              data.oneRepMaxes = [];
+            }
+          } else {
             data.oneRepMaxes = [];
           }
         } else {
-          // Initialize empty array for new students with no localStorage data
           data.oneRepMaxes = [];
         }
       }
 
-      // Fetch limitations from profile
-      try {
-        const profileRes = await axios.get(
-          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/profile`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (profileRes.data.success) {
-          setLimitations(profileRes.data.data.limitations || []);
-        }
-      } catch (err) {
-        logger.warn('Error fetching limitations:', err);
+      // Process profile/limitations (non-critical - degrade gracefully)
+      if (profileRes.status === 'fulfilled' && profileRes.value.data.success) {
+        setLimitations(profileRes.value.data.data.limitations || []);
+      } else {
+        logger.warn('Profile limitations unavailable');
+        setLimitations([]);
       }
 
       setStudentData(data);
@@ -2474,45 +2464,68 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   useEffect(() => {
     fetchStudentDetails();
-    fetchWorkoutSessions();
   }, [student.id]);
 
   useEffect(() => {
     fetchWorkoutSessions();
-  }, [overviewWeekDate, trainingWeekDate, activeTab, weekViewFilter]);
+  }, [student.id, overviewWeekDate, trainingWeekDate, weekViewFilter]);
 
-  // Fetch dashboard counts and next sessions when students list changes
+  // Sync sidebar counts from parent props (CoachDashboard already fetches these)
   useEffect(() => {
-    if (students.length > 0) {
-      fetchDashboardCounts();
-      fetchNextSessions(students);
+    setStudentVideoCounts(initialStudentVideoCounts);
+  }, [initialStudentVideoCounts]);
+
+  useEffect(() => {
+    setStudentMessageCounts(initialStudentMessageCounts);
+  }, [initialStudentMessageCounts]);
+
+  useEffect(() => {
+    setStudentNextSessions(initialStudentNextSessions);
+  }, [initialStudentNextSessions]);
+
+  // Sync activeTab from URL on browser back/forward
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const VALID_TABS = ['overview', 'training', 'periodization', 'analyse', 'suivi'];
+    const safeTab = VALID_TABS.includes(tab) ? tab : 'overview';
+    if (safeTab !== activeTab) {
+      setActiveTab(safeTab);
     }
-  }, [students]);
+  }, [location.search]); // intentionally excludes activeTab to avoid loop
 
-  // Update activeTab when initialTab prop changes
+  // Close video modal when videoId leaves the URL (browser back)
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoDetailModalOpen) {
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
-  // Fetch videos when analyse tab is active
+  // Close session review modal when sessionReviewId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('sessionReviewId') && isReviewModalOpen) {
+      setIsReviewModalOpen(false);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close session details modal when sessionDetailsId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('sessionDetailsId') && isDetailsModalOpen) {
+      setIsDetailsModalOpen(false);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Fetch videos when analyse tab is active or filters change
   useEffect(() => {
     if (activeTab === 'analyse') {
       logger.debug(`📹 Fetching videos for student ${student.id} (analyse tab active)`);
       fetchStudentVideos();
-      // Set default status filter to "A feedback" when opening analyse tab
-      if (statusFilter === '') {
-        setStatusFilter('A feedback');
-      }
     }
-  }, [activeTab, student.id]);
-
-  // Re-fetch when server-side filters change (reset pagination)
-  useEffect(() => {
-    if (activeTab !== 'analyse') return;
-    // Skip initial render (handled by the effect above)
-    if (studentVideos.length === 0 && !videosLoading) return;
-    fetchStudentVideos();
-  }, [statusFilter, exerciseFilter]);
+  }, [activeTab, student.id, statusFilter, exerciseFilter]);
 
   // IntersectionObserver for infinite scroll (video analysis)
   useEffect(() => {
@@ -4268,11 +4281,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
+  const VALID_TABS = ['overview', 'training', 'periodization', 'analyse', 'suivi'];
+
+  const handleTabChange = (tab) => {
+    if (tab === activeTab) return; // no-op — avoids duplicate history entries
+    const safeTab = VALID_TABS.includes(tab) ? tab : 'overview'; // graceful default
+    const params = new URLSearchParams(location.search);
+    params.set('tab', safeTab);
+    navigate(`?${params.toString()}`); // push — creates a history entry per tab
+  };
+
   const handleFeedbackBadgeClick = (student) => {
     if (onStudentChange) {
       onStudentChange(student);
     }
-    setActiveTab('analyse');
+    handleTabChange('analyse');
   };
 
   return (
@@ -4453,7 +4476,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <div className="md:hidden relative flex-shrink-0 ml-auto" style={{ minWidth: '140px' }}>
                         <select
                           value={activeTab}
-                          onChange={(e) => setActiveTab(e.target.value)}
+                          onChange={(e) => handleTabChange(e.target.value)}
                           className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[var(--kaiylo-primary-hex)] transition-colors appearance-none"
                           style={{
                             color: activeTab === 'overview' || activeTab === 'training' || activeTab === 'periodization' || activeTab === 'analyse' || activeTab === 'suivi' ? '#d4845a' : 'rgba(255, 255, 255, 0.5)',
@@ -4479,7 +4502,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'overview' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Tableau de bord"
                         style={activeTab !== 'overview' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('overview')}
+                        onClick={() => handleTabChange('overview')}
                       >
                         Tableau de bord
                       </button>
@@ -4487,7 +4510,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'training' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Entraînement"
                         style={activeTab !== 'training' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('training')}
+                        onClick={() => handleTabChange('training')}
                       >
                         Entraînement
                       </button>
@@ -4495,7 +4518,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Périodisation"
                         style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('periodization')}
+                        onClick={() => handleTabChange('periodization')}
                       >
                         Périodisation
                       </button>
@@ -4503,7 +4526,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Analyse vidéo"
                         style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('analyse')}
+                        onClick={() => handleTabChange('analyse')}
                       >
                         Analyse vidéo
                       </button>
@@ -4511,7 +4534,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Suivi Financier"
                         style={activeTab !== 'suivi' ? { fontWeight: 200 } : {}}
-                        onClick={() => setActiveTab('suivi')}
+                        onClick={() => handleTabChange('suivi')}
                       >
                         Suivi Financier
                       </button>
@@ -6914,7 +6937,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
             <WorkoutSessionDetailsModal
               isOpen={isDetailsModalOpen}
-              onClose={() => setIsDetailsModalOpen(false)}
+              onClose={() => navigate(-1)}
               session={selectedSession}
               selectedDate={selectedDate}
               onCopySession={(sessionForCopy, fromDate) => {
@@ -7304,7 +7327,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
         <CoachSessionReviewModal
           isOpen={isReviewModalOpen}
-          onClose={() => setIsReviewModalOpen(false)}
+          onClose={() => navigate(-1)}
           session={selectedSession}
           selectedDate={selectedDate}
           studentId={student.id}

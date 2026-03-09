@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +28,7 @@ import {
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useVideoFilters } from '../hooks/useVideoFilters';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const VideoLibrary = () => {
   const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'coach'
@@ -76,18 +77,15 @@ const VideoLibrary = () => {
   const [hoveringValidateButtonSessionId, setHoveringValidateButtonSessionId] = useState(null); // When hovering the validate icon, keep session background dim
   const [hoveredVideoId, setHoveredVideoId] = useState(null); // Which video row is hovered
   const [hoveringValidateVideoId, setHoveringValidateVideoId] = useState(null); // When hovering the validate icon on a video row, keep row background dim
-  const [folderMinWidths, setFolderMinWidths] = useState({}); // Store min widths for each folder to prevent size change
 
   // Status filter dropdown states and refs
   const statusFilterButtonRef = useRef(null);
   const statusFilterTextRef = useRef(null);
-  const [statusFilterMinWidth, setStatusFilterMinWidth] = useState(170); // Default width in px
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
 
   // Exercise filter dropdown states and refs
   const exerciseFilterButtonRef = useRef(null);
   const exerciseFilterTextRef = useRef(null);
-  const [exerciseFilterMinWidth, setExerciseFilterMinWidth] = useState(120); // Default width in px
   const [isExerciseFilterOpen, setIsExerciseFilterOpen] = useState(false);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
 
@@ -95,7 +93,6 @@ const VideoLibrary = () => {
   const dateInputRef = useRef(null);
   const dateFilterButtonRef = useRef(null);
   const dateFilterTextRef = useRef(null);
-  const [dateFilterMinWidth, setDateFilterMinWidth] = useState(100); // Default width in px
 
   // Student filter dropdown states and refs
   const studentFilterButtonRef = useRef(null);
@@ -105,6 +102,8 @@ const VideoLibrary = () => {
 
   const { getAuthToken, hasRole, refreshAuthToken } = useAuth();
   const { isTopMost } = useModalManager();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Detect screen size for responsive behavior
   const [isMobile, setIsMobile] = useState(false);
@@ -142,108 +141,32 @@ const VideoLibrary = () => {
     }
   };
 
-  // Calculate button width for status filter based on text in bold (font-weight 400)
-  useLayoutEffect(() => {
-    const calculateButtonWidth = () => {
-      // Possible text values: 'Tous les statuts', 'À feedback', 'Complété'
-      const possibleTexts = ['Tous les statuts', 'À feedback', 'Complété'];
-
-      // Create a temporary span to measure text width
-      const tempSpan = document.createElement('span');
-      tempSpan.style.position = 'absolute';
-      tempSpan.style.visibility = 'hidden';
-      tempSpan.style.whiteSpace = 'nowrap';
-      tempSpan.style.fontSize = '14px';
-      tempSpan.style.fontWeight = '400';
-      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-      document.body.appendChild(tempSpan);
-
-      // Find the widest text
-      let maxWidth = 0;
-      possibleTexts.forEach(text => {
-        tempSpan.textContent = text;
-        maxWidth = Math.max(maxWidth, tempSpan.offsetWidth);
-      });
-
-      document.body.removeChild(tempSpan);
-
-      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
-      const buttonPadding = 30; // 15px * 2
-      const gap = 8; // gap-2
-      const iconWidth = 16; // h-4 w-4 = 16px
-      setStatusFilterMinWidth(maxWidth + buttonPadding + gap + iconWidth);
-    };
-
-    // Calculate on mount
-    calculateButtonWidth();
-  }, []);
-
-  // Calculate button width for exercise filter based on text in bold (font-weight 400)
-  useLayoutEffect(() => {
-    const calculateExerciseButtonWidth = () => {
-      // Use "Exercice" as base width to keep button size consistent
-      const text = 'Exercice';
-
-      // Create a temporary span to measure text width
-      const tempSpan = document.createElement('span');
-      tempSpan.style.position = 'absolute';
-      tempSpan.style.visibility = 'hidden';
-      tempSpan.style.whiteSpace = 'nowrap';
-      tempSpan.style.fontSize = '14px';
-      tempSpan.style.fontWeight = '400';
-      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      tempSpan.textContent = text;
-
-      document.body.appendChild(tempSpan);
-      const width = tempSpan.offsetWidth;
-      document.body.removeChild(tempSpan);
-
-      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
-      const buttonPadding = 30; // 15px * 2
-      const gap = 8; // gap-2
-      const iconWidth = 16; // h-4 w-4 = 16px
-      setExerciseFilterMinWidth(width + buttonPadding + gap + iconWidth);
-    };
-
-    calculateExerciseButtonWidth();
-  }, []);
-
-  // Calculate button width for date filter based on text in bold (font-weight 400)
-  useLayoutEffect(() => {
-    const calculateDateButtonWidth = () => {
-      // Text is always "Date"
-      const text = 'Date';
-
-      // Create a temporary span to measure text width
-      const tempSpan = document.createElement('span');
-      tempSpan.style.position = 'absolute';
-      tempSpan.style.visibility = 'hidden';
-      tempSpan.style.whiteSpace = 'nowrap';
-      tempSpan.style.fontSize = '14px';
-      tempSpan.style.fontWeight = '400';
-      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      tempSpan.textContent = text;
-
-      document.body.appendChild(tempSpan);
-      const width = tempSpan.offsetWidth;
-      document.body.removeChild(tempSpan);
-
-      // Add padding (px-[15px] = 15px left + 15px right = 30px) and gap (gap-2 = 8px) and icon width (16px)
-      const buttonPadding = 30; // 15px * 2
-      const gap = 8; // gap-2
-      const iconWidth = 16; // h-4 w-4 = 16px
-      setDateFilterMinWidth(width + buttonPadding + gap + iconWidth);
-    };
-
-    calculateDateButtonWidth();
-  }, []);
-
-  // Handle video click (for both student videos and coach resources)
+  // Handle video click — push videoId to URL so browser back closes the modal
   const handleVideoClick = (video) => {
     setSelectedVideo(video);
     setIsVideoDetailModalOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.set('videoId', video.id);
+    navigate(`?${params.toString()}`);
   };
+
+  // Close video modal when videoId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('videoId') && isVideoDetailModalOpen) {
+      setIsVideoDetailModalOpen(false);
+      setSelectedVideo(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
+  // Close coach resource modal when resourceId leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('resourceId') && isCoachResourceModalOpen) {
+      setIsCoachResourceModalOpen(false);
+      setSelectedCoachResource(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
 
   // Handle coach resource click
   const handleCoachResourceClick = (resource) => {
@@ -263,6 +186,9 @@ const VideoLibrary = () => {
     logger.debug('🎬 Mapped resource:', mappedResource);
 
     setSelectedCoachResource(mappedResource);
+    const params = new URLSearchParams(location.search);
+    params.set('resourceId', resource.id);
+    navigate(`?${params.toString()}`);
     setIsCoachResourceModalOpen(true);
   };
 
@@ -497,16 +423,10 @@ const VideoLibrary = () => {
   useEffect(() => {
     if (activeTab === 'clients') {
       fetchStudentVideos();
-    } else {
+    } else if (activeTab === 'coach') {
       fetchCoachResources();
     }
-  }, [activeTab]);
-
-  // Re-fetch when server-side filters change (reset pagination)
-  useEffect(() => {
-    if (!isInitialized || activeTab !== 'clients') return;
-    fetchStudentVideos(false);
-  }, [statusFilter, selectedStudent, selectedExercise]);
+  }, [activeTab, statusFilter, selectedStudent, selectedExercise]);
 
   // IntersectionObserver for infinite scroll
   useEffect(() => {
@@ -541,94 +461,19 @@ const VideoLibrary = () => {
   // Close dropdown on scroll
   useEffect(() => {
     if (!openVideoMenuId) return;
-
-    const handleScroll = () => {
-      setOpenVideoMenuId(null);
-      setVideoMenuPosition(null);
-    };
-
-    // Listen to scroll events on window and all scrollable containers
-    window.addEventListener('scroll', handleScroll, true); // Use capture phase to catch all scroll events
-    document.addEventListener('scroll', handleScroll, true);
-
-    // Also listen to scroll events on all scrollable containers
-    const scrollableContainers = document.querySelectorAll('[class*="overflow"], [class*="scroll"]');
-    scrollableContainers.forEach(container => {
-      container.addEventListener('scroll', handleScroll, true);
-    });
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-      document.removeEventListener('scroll', handleScroll, true);
-      scrollableContainers.forEach(container => {
-        container.removeEventListener('scroll', handleScroll, true);
-      });
-    };
+    const handleScroll = () => { setOpenVideoMenuId(null); setVideoMenuPosition(null); };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, [openVideoMenuId]);
 
-  // Calculate fixed widths for folder buttons to prevent size change when font-weight changes
-  useLayoutEffect(() => {
-    if (activeTab !== 'coach' || folders.length === 0) return;
-
-    const calculateFolderWidths = () => {
-      const widths = {};
-
-      // Create a temporary div to measure the exact button width with font-weight 400
-      const tempDiv = document.createElement('div');
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.visibility = 'hidden';
-      tempDiv.style.whiteSpace = 'nowrap';
-      tempDiv.style.display = 'inline-flex';
-      tempDiv.style.alignItems = 'center';
-      tempDiv.style.gap = '6px'; // gap-1.5
-      tempDiv.style.paddingLeft = '12px'; // pl-[12px]
-      tempDiv.style.paddingRight = '12px'; // pr-3
-      tempDiv.style.fontSize = '14px'; // text-sm
-      tempDiv.style.fontWeight = '400'; // font-normal
-      tempDiv.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-      // Create SVG icon for folder (h-4 w-4 = 16px)
-      const tempSvg = document.createElement('div');
-      tempSvg.style.width = '16px';
-      tempSvg.style.height = '16px';
-      tempSvg.style.flexShrink = '0';
-
-      // Create span for text
-      const tempSpan = document.createElement('span');
-      tempSpan.style.fontSize = '14px';
-      tempSpan.style.fontWeight = '400';
-      tempSpan.style.fontFamily = getComputedStyle(document.body).fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-      // Create button element for delete button (14px width)
-      const tempButton = document.createElement('button');
-      tempButton.style.width = '14px';
-      tempButton.style.height = '14px';
-      tempButton.style.flexShrink = '0';
-
-      tempDiv.appendChild(tempSvg);
-      tempDiv.appendChild(tempSpan);
-      tempDiv.appendChild(tempButton);
-      document.body.appendChild(tempDiv);
-
-      folders.forEach(folder => {
-        tempSpan.textContent = folder.name;
-        const buttonWidth = tempDiv.offsetWidth;
-        widths[folder.id] = buttonWidth;
-      });
-
-      document.body.removeChild(tempDiv);
-      setFolderMinWidths(widths);
-    };
-
-    calculateFolderWidths();
-  }, [activeTab, folders]);
-
-  // Auto-select first folder when folders are loaded
+  // Auto-select first folder only on initial load (not when user deselects)
+  const hasFolderAutoSelected = useRef(false);
   useEffect(() => {
-    if (activeTab === 'coach' && folders.length > 0 && selectedFolder === null) {
+    if (activeTab === 'coach' && folders.length > 0 && !hasFolderAutoSelected.current) {
+      hasFolderAutoSelected.current = true;
       setSelectedFolder(folders[0].id);
     }
-  }, [activeTab, folders, selectedFolder]);
+  }, [activeTab, folders]);
 
   // Auto-refresh coach resources if there are videos in processing
   useEffect(() => {
@@ -1860,8 +1705,8 @@ const VideoLibrary = () => {
                         color: isStatusFilterOpen || statusFilter !== 'all' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                         fontWeight: isStatusFilterOpen || statusFilter !== 'all' ? '400' : '200',
                         ...(!isMobile && {
-                          width: `${statusFilterMinWidth}px`,
-                          minWidth: `${statusFilterMinWidth}px`
+                          whiteSpace: 'nowrap',
+                          minWidth: 'max-content'
                         })
                       }}
                     >
@@ -2210,8 +2055,8 @@ const VideoLibrary = () => {
                         color: isExerciseFilterOpen || selectedExercise !== '' ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
                         fontWeight: isExerciseFilterOpen || selectedExercise !== '' ? '400' : '200',
                         ...(!isMobile && {
-                          width: `${exerciseFilterMinWidth}px`,
-                          minWidth: `${exerciseFilterMinWidth}px`
+                          whiteSpace: 'nowrap',
+                          minWidth: 'max-content'
                         })
                       }}
                     >
@@ -2386,8 +2231,8 @@ const VideoLibrary = () => {
                       color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
                       fontWeight: selectedDate ? '400' : '200',
                       ...(!isMobile && {
-                        width: `${dateFilterMinWidth}px`,
-                        minWidth: `${dateFilterMinWidth}px`
+                        whiteSpace: 'nowrap',
+                        minWidth: 'max-content'
                       })
                     }}
                   >
@@ -2539,7 +2384,7 @@ const VideoLibrary = () => {
                           ? 'bg-primary/15 text-primary font-normal'
                           : 'bg-white/5 text-white/75 font-extralight'
                         }`}
-                      style={folderMinWidths[folder.id] ? { width: `${folderMinWidths[folder.id]}px` } : {}}
+                      style={{ whiteSpace: 'nowrap', minWidth: 'max-content' }}
                       onClick={() => handleFolderSelect(folder.id)}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4 flex-shrink-0" fill="currentColor">
@@ -2703,10 +2548,7 @@ const VideoLibrary = () => {
       {/* Video Detail Modal */}
       <VideoDetailModal
         isOpen={isVideoDetailModalOpen}
-        onClose={() => {
-          setIsVideoDetailModalOpen(false);
-          setSelectedVideo(null);
-        }}
+        onClose={() => navigate(-1)}
         video={selectedVideo}
         onFeedbackUpdate={handleFeedbackUpdate}
         videoType="student"
@@ -2716,10 +2558,7 @@ const VideoLibrary = () => {
       {/* Coach Resource Modal */}
       <CoachResourceModal
         isOpen={isCoachResourceModalOpen}
-        onClose={() => {
-          setIsCoachResourceModalOpen(false);
-          setSelectedCoachResource(null);
-        }}
+        onClose={() => navigate(-1)}
         video={selectedCoachResource}
         onFeedbackUpdate={handleFeedbackUpdate}
       />

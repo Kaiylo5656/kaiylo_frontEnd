@@ -10,9 +10,12 @@ import CreateBlockModal from './CreateBlockModal';
 import WeekNotesModal from './WeekNotesModal';
 import BaseModal from './ui/modal/BaseModal';
 import { useModalManager } from './ui/modal/ModalManager';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const PeriodizationTab = ({ studentId, onUpdate }) => {
   const { isTopMost } = useModalManager();
+  const navigate = useNavigate();
+  const location = useLocation();
   // Initialize to current year
   const [selectedYear, setSelectedYear] = useState(() => {
     return new Date().getFullYear();
@@ -189,6 +192,9 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
     setSelectedWeek(weekDate);
     setCreationDuration(4);
     setBlockToEdit(null);
+    const params = new URLSearchParams(location.search);
+    params.set('blockModal', 'new');
+    navigate(`?${params.toString()}`);
     setIsCreateModalOpen(true);
   };
 
@@ -197,6 +203,9 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
     setSelectedWeek(startOfWeek(new Date(), { weekStartsOn: 1 }));
     setCreationDuration(0);
     setBlockToEdit(null);
+    const params = new URLSearchParams(location.search);
+    params.set('blockModal', 'new');
+    navigate(`?${params.toString()}`);
     setIsCreateModalOpen(true);
   };
 
@@ -247,6 +256,15 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [isSelecting]);
 
+  // Close block modal when blockModal leaves the URL (browser back)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.get('blockModal') && isCreateModalOpen) {
+      setIsCreateModalOpen(false);
+      setBlockToEdit(null);
+    }
+  }, [location.search]); // intentionally excludes modal state to avoid loop
+
   const handleBlockSaved = () => {
     fetchBlocks();
     if (onUpdate) onUpdate();
@@ -257,6 +275,9 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   const handleEditBlock = (block, e) => {
     e.stopPropagation();
     setBlockToEdit(block);
+    const params = new URLSearchParams(location.search);
+    params.set('blockModal', block.id);
+    navigate(`?${params.toString()}`);
     setIsCreateModalOpen(true);
   };
 
@@ -1378,7 +1399,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
       {/* Modals */}
       <CreateBlockModal
         isOpen={isCreateModalOpen}
-        onClose={() => { setIsCreateModalOpen(false); setBlockToEdit(null); }}
+        onClose={() => navigate(-1)}
         onSaved={handleBlockSaved}
         studentId={studentId}
         initialDate={selectedWeek}

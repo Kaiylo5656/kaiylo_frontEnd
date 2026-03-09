@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
@@ -27,7 +27,7 @@ const CoachDashboard = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredStudents, setFilteredStudents] = useState([]);
+
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isPendingInvitationsModalOpen, setIsPendingInvitationsModalOpen] = useState(false);
@@ -113,19 +113,30 @@ const CoachDashboard = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const studentIdFromUrl = urlParams.get('studentId');
+    const tabFromUrl = urlParams.get('tab') || 'overview'; // NEW
 
     // If we have an ID in the URL, students are loaded, and no student is currently selected
     if (studentIdFromUrl && students.length > 0 && !selectedStudent) {
       const student = students.find(s => s.id === studentIdFromUrl);
       if (student) {
         setSelectedStudent(student);
+        setSelectedStudentInitialTab(tabFromUrl); // was hardcoded 'overview' before
       }
     }
   }, [location.search, students, selectedStudent]);
 
+  // Clear student when studentId leaves URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    if (!urlParams.get('studentId') && selectedStudent) {
+      setSelectedStudent(null);
+      setSelectedStudentInitialTab('overview');
+    }
+  }, [location.search]); // intentionally excludes selectedStudent to avoid loop
+
 
   // Filter and sort students based on search term, filters and sort params
-  useEffect(() => {
+  const filteredStudents = useMemo(() => {
     let filtered = students;
 
     // Apply search filter
@@ -158,22 +169,18 @@ const CoachDashboard = () => {
       filtered = filtered.filter(student => {
         const nextSessionDate = studentNextSessions[student.id];
         if (!nextSessionDate) {
-          // No session date means no upcoming session
           return true;
         }
 
-        // Check if the session date is still in the future
         const sessionDate = new Date(nextSessionDate);
         sessionDate.setHours(0, 0, 0, 0);
 
-        // Only show students with no upcoming sessions (date is in the past or today is past the session date)
         return sessionDate < today;
       });
     }
 
     // Apply sorting
-    const sorted = sortStudents(filtered, sort || 'name', dir || 'asc', studentVideoCounts, studentNextSessions);
-    setFilteredStudents(sorted);
+    return sortStudents(filtered, sort || 'name', dir || 'asc', studentVideoCounts, studentNextSessions);
   }, [searchTerm, students, sort, dir, filterPendingFeedback, filterPendingMessages, filterNoUpcomingSessions, studentVideoCounts, studentMessageCounts, studentNextSessions]);
 
   // Helper function to extract name without email (preserves first and last names)
@@ -415,10 +422,10 @@ const CoachDashboard = () => {
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
     setSelectedStudentInitialTab('overview');
-    const params = new URLSearchParams({ studentId: student.id });
+    const params = new URLSearchParams({ studentId: student.id, tab: 'overview' });
     if (sort) params.set('sort', sort);
     if (dir) params.set('dir', dir);
-    navigate(`?${params}`, { replace: true });
+    navigate(`?${params}`); // push — no replace:true
   };
 
   // Handle clicking on feedback icon to go to video analysis
@@ -426,10 +433,10 @@ const CoachDashboard = () => {
     e.stopPropagation(); // Prevent triggering the row click
     setSelectedStudent(student);
     setSelectedStudentInitialTab('analyse');
-    const params = new URLSearchParams({ studentId: student.id });
+    const params = new URLSearchParams({ studentId: student.id, tab: 'analyse' });
     if (sort) params.set('sort', sort);
     if (dir) params.set('dir', dir);
-    navigate(`?${params}`, { replace: true });
+    navigate(`?${params}`); // push — no replace:true
   };
 
   // Handle clicking on message icon to go to chat
@@ -467,6 +474,10 @@ const CoachDashboard = () => {
         onStudentChange={(newStudent) => {
           setSelectedStudent(newStudent);
           setSelectedStudentInitialTab('overview');
+          const params = new URLSearchParams({ studentId: newStudent.id, tab: 'overview' });
+          if (sort) params.set('sort', sort);
+          if (dir) params.set('dir', dir);
+          navigate(`?${params}`, { replace: true }); // replace — no history pollution for sidebar
         }}
         initialTab={selectedStudentInitialTab}
         initialStudentVideoCounts={studentVideoCounts}
