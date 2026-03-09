@@ -850,13 +850,13 @@ const ExerciseValidationModal = ({
                         </div>
 
                         {/* Commentaire coach */}
-                        <div className="mt-8 mb-6 flex flex-col items-center justify-center">
-                          <div className="flex flex-col gap-[7px] items-center text-center w-full">
+                        <div className="mt-8 mb-6 flex flex-col items-center justify-center w-full min-w-0">
+                          <div className="flex flex-col gap-[7px] items-center text-center w-full min-w-0">
                             <p className="text-[10px] font-normal text-white/35 leading-normal">
                               Commentaire coach :
                             </p>
                             {coachFeedback ? (
-                              <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full">
+                              <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full min-w-0">
                                 {coachFeedback}
                               </p>
                             ) : (

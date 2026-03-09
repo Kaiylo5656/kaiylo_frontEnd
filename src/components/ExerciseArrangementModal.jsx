@@ -1,6 +1,26 @@
 import React, { useState } from 'react';
 import { Reorder } from 'framer-motion';
 
+/** Group consecutive sets with same reps/weight into { count, reps, weight } for display (e.g. 2×3@5kg, 2×2@5kg). */
+function getSetGroups(sets, useRir) {
+  if (!sets || sets.length === 0) return [];
+  const groups = [];
+  let current = { count: 1, reps: sets[0]?.reps ?? '?', weight: sets[0]?.weight ?? (useRir ? 0 : null) };
+  for (let i = 1; i < sets.length; i++) {
+    const s = sets[i];
+    const reps = s?.reps ?? '?';
+    const weight = s?.weight ?? (useRir ? 0 : null);
+    if (String(reps) === String(current.reps) && String(weight) === String(current.weight)) {
+      current.count++;
+    } else {
+      groups.push(current);
+      current = { count: 1, reps, weight };
+    }
+  }
+  groups.push(current);
+  return groups;
+}
+
 const ExerciseArrangementModal = ({
   isOpen,
   onClose,
@@ -60,15 +80,26 @@ const ExerciseArrangementModal = ({
                 </svg>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   <span className="text-base font-normal break-words leading-relaxed text-left">{exercise.name}</span>
-                  {exercise.sets && exercise.sets.length > 0 && exercise.sets[0] && (
-                    <span className="text-sm font-extralight text-white/50">
-                      {exercise.sets.length}×{exercise.sets[0]?.reps || '?'} {exercise.useRir ? (
-                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {exercise.sets[0]?.weight || 0}</span>
-                      ) : (
-                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{exercise.sets[0]?.weight || 0}kg</span>
-                      )}
-                    </span>
+                  {exercise.tempo && (
+                    <span className="text-xs font-extralight text-white/50">Tempo {exercise.tempo}</span>
                   )}
+                  {exercise.sets && exercise.sets.length > 0 && (() => {
+                    const groups = getSetGroups(exercise.sets, exercise.useRir);
+                    return groups.map((g, i) => (
+                      <span key={i} className="text-sm font-extralight text-white/50 flex items-center gap-1.5">
+                        {groups.length > 1 && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255,255,255,0.5)' }} aria-hidden>
+                            <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                          </svg>
+                        )}
+                        {g.count}×{g.reps} {exercise.useRir ? (
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {g.weight}</span>
+                        ) : (
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{g.weight ?? 0}kg</span>
+                        )}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
@@ -165,15 +196,26 @@ const ExerciseArrangementModal = ({
                 </svg>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   <span className="text-base font-normal break-words leading-relaxed text-left">{exercise.name}</span>
-                  {exercise.sets && exercise.sets.length > 0 && exercise.sets[0] && (
-                    <span className="text-sm font-extralight text-white/50">
-                      {exercise.sets.length}×{exercise.sets[0]?.reps || '?'} {exercise.useRir ? (
-                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {exercise.sets[0]?.weight || 0}</span>
-                      ) : (
-                        <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{exercise.sets[0]?.weight || 0}kg</span>
-                      )}
-                    </span>
+                  {exercise.tempo && (
+                    <span className="text-xs font-extralight text-white/50">Tempo {exercise.tempo}</span>
                   )}
+                  {exercise.sets && exercise.sets.length > 0 && (() => {
+                    const groups = getSetGroups(exercise.sets, exercise.useRir);
+                    return groups.map((g, i) => (
+                      <span key={i} className="text-sm font-extralight text-white/50 flex items-center gap-1.5">
+                        {groups.length > 1 && (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255,255,255,0.5)' }} aria-hidden>
+                            <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                          </svg>
+                        )}
+                        {g.count}×{g.reps} {exercise.useRir ? (
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {g.weight}</span>
+                        ) : (
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{g.weight ?? 0}kg</span>
+                        )}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </div>
               <svg

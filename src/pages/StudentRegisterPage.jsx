@@ -7,6 +7,7 @@ import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Logo from '../components/Logo';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const StudentRegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -15,11 +16,11 @@ const StudentRegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isInfoExpanded, setIsInfoExpanded] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   // Form handling with react-hook-form
   const {
     register,
@@ -90,7 +91,7 @@ const StudentRegisterPage = () => {
   // Handle form submission
   const onSubmit = async (data) => {
     setIsLoading(true);
-    
+
     try {
       // Validate that passwords match
       if (data.password !== data.confirmPassword) {
@@ -107,7 +108,7 @@ const StudentRegisterPage = () => {
 
       // Check if user has an invitation code
       const invitationCodeValue = data.invitationCode?.trim();
-      
+
       if (!invitationCodeValue || invitationCodeValue.length !== 8) {
         setError('invitationCode', {
           type: 'manual',
@@ -140,16 +141,16 @@ const StudentRegisterPage = () => {
         const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
         throw new Error(errorMessage);
       });
-      
+
       const result = response.data;
-      
+
       if (result.success) {
         // If token is provided, set up auth and redirect
         if (result.token && result.user) {
           // Store token and set up axios headers
           localStorage.setItem('authToken', result.token);
           axios.defaults.headers.common['Authorization'] = `Bearer ${result.token}`;
-          
+
           // Use login function to properly initialize auth state
           await login(result.user.email, data.password, navigate, '/onboarding');
         } else {
@@ -173,10 +174,34 @@ const StudentRegisterPage = () => {
     }
   };
 
+  const getTargetPath = (role, onboardingCompleted) => {
+    switch (role) {
+      case 'coach':
+        return '/coach/dashboard';
+      case 'student':
+        const isOnboardingCompleted = onboardingCompleted !== false;
+        return isOnboardingCompleted ? '/student/dashboard' : '/onboarding';
+      case 'admin':
+        return '/admin/dashboard';
+      default:
+        return '/coach/dashboard';
+    }
+  };
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate(getTargetPath(user.role, user.onboardingCompleted), { replace: true });
+    }
+  }, [loading, user, navigate]);
+
+  if (loading || user) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col antialiased relative" style={{ backgroundColor: '#0a0a0a' }}>
       {/* Image de fond */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -191,9 +216,9 @@ const StudentRegisterPage = () => {
           backgroundColor: '#0a0a0a'
         }}
       />
-      
+
       {/* Layer blur sur l'écran */}
-      <div 
+      <div
         style={{
           position: 'fixed',
           top: '0',
@@ -208,13 +233,13 @@ const StudentRegisterPage = () => {
           opacity: 1
         }}
       />
-      
+
       <header className="absolute top-0 left-0 w-full p-4 md:p-6 z-50">
         <Logo />
       </header>
 
       {/* Gradient conique Figma - partie droite */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -233,9 +258,9 @@ const StudentRegisterPage = () => {
           animation: 'organicGradient 15s ease-in-out infinite'
         }}
       />
-      
+
       {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div 
+      <div
         style={{
           position: 'absolute',
           top: '-175px',
@@ -263,7 +288,7 @@ const StudentRegisterPage = () => {
             </h1>
 
             {/* Information section - Accordion */}
-            <div 
+            <div
               className="mb-6 rounded-[10px] bg-[rgba(255,255,255,0.02)] overflow-hidden transition-all duration-300"
               style={{ marginBottom: '30px' }}
             >
@@ -272,7 +297,7 @@ const StudentRegisterPage = () => {
                 type="button"
                 onClick={() => setIsInfoExpanded(!isInfoExpanded)}
                 className="w-full p-4 flex items-center justify-between text-left hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                style={{ 
+                style={{
                   paddingTop: '10px',
                   paddingBottom: '10px',
                   paddingLeft: '16px',
@@ -294,9 +319,8 @@ const StudentRegisterPage = () => {
 
               {/* Content - Expandable */}
               <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  isInfoExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${isInfoExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                  }`}
               >
                 <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                   <p className="text-xs text-[rgba(255,255,255,1)] text-left font-light">
@@ -338,10 +362,10 @@ const StudentRegisterPage = () => {
                     color: 'rgba(255, 255, 255, 1)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
                     border: '0.5px solid rgba(255, 255, 255, 0.1)',
-                    borderColor: (errors.invitationCode && dirtyFields.invitationCode) || invitationError 
-                      ? 'rgba(239, 68, 68, 1)' 
-                      : invitationData 
-                        ? 'rgba(212, 132, 90, 1)' 
+                    borderColor: (errors.invitationCode && dirtyFields.invitationCode) || invitationError
+                      ? 'rgba(239, 68, 68, 1)'
+                      : invitationData
+                        ? 'rgba(212, 132, 90, 1)'
                         : 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '10px',
                     fontWeight: '300',
@@ -530,11 +554,11 @@ const StudentRegisterPage = () => {
                   >
                     {showPassword ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
-                        <path d="M41-24.9c-9.4-9.4-24.6-9.4-33.9 0S-2.3-.3 7 9.1l528 528c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-96.4-96.4c2.7-2.4 5.4-4.8 8-7.2 46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6-56.8 0-105.6 18.2-146 44.2L41-24.9zM204.5 138.7c23.5-16.8 52.4-26.7 83.5-26.7 79.5 0 144 64.5 144 144 0 31.1-9.9 59.9-26.7 83.5l-34.7-34.7c12.7-21.4 17-47.7 10.1-73.7-13.7-51.2-66.4-81.6-117.6-67.9-8.6 2.3-16.7 5.7-24 10l-34.7-34.7zM325.3 395.1c-11.9 3.2-24.4 4.9-37.3 4.9-79.5 0-144-64.5-144-144 0-12.9 1.7-25.4 4.9-37.3L69.4 139.2c-32.6 36.8-55 75.8-66.9 104.5-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6 37.3 0 71.2-7.9 101.5-20.6l-64.2-64.2z"/>
+                        <path d="M41-24.9c-9.4-9.4-24.6-9.4-33.9 0S-2.3-.3 7 9.1l528 528c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-96.4-96.4c2.7-2.4 5.4-4.8 8-7.2 46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6-56.8 0-105.6 18.2-146 44.2L41-24.9zM204.5 138.7c23.5-16.8 52.4-26.7 83.5-26.7 79.5 0 144 64.5 144 144 0 31.1-9.9 59.9-26.7 83.5l-34.7-34.7c12.7-21.4 17-47.7 10.1-73.7-13.7-51.2-66.4-81.6-117.6-67.9-8.6 2.3-16.7 5.7-24 10l-34.7-34.7zM325.3 395.1c-11.9 3.2-24.4 4.9-37.3 4.9-79.5 0-144-64.5-144-144 0-12.9 1.7-25.4 4.9-37.3L69.4 139.2c-32.6 36.8-55 75.8-66.9 104.5-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6 37.3 0 71.2-7.9 101.5-20.6l-64.2-64.2z" />
                       </svg>
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
-                        <path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6-46.8 43.5-78.1 95.4-93 131.1-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64-11.5 0-22.3-3-31.7-8.4-1 10.9-.1 22.1 2.9 33.2 13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-12.2-45.7-55.5-74.8-101.1-70.8 5.3 9.3 8.4 20.1 8.4 31.7z"/>
+                        <path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6-46.8 43.5-78.1 95.4-93 131.1-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64-11.5 0-22.3-3-31.7-8.4-1 10.9-.1 22.1 2.9 33.2 13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-12.2-45.7-55.5-74.8-101.1-70.8 5.3 9.3 8.4 20.1 8.4 31.7z" />
                       </svg>
                     )}
                   </button>
@@ -587,11 +611,11 @@ const StudentRegisterPage = () => {
                   >
                     {showConfirmPassword ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
-                        <path d="M41-24.9c-9.4-9.4-24.6-9.4-33.9 0S-2.3-.3 7 9.1l528 528c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-96.4-96.4c2.7-2.4 5.4-4.8 8-7.2 46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6-56.8 0-105.6 18.2-146 44.2L41-24.9zM204.5 138.7c23.5-16.8 52.4-26.7 83.5-26.7 79.5 0 144 64.5 144 144 0 31.1-9.9 59.9-26.7 83.5l-34.7-34.7c12.7-21.4 17-47.7 10.1-73.7-13.7-51.2-66.4-81.6-117.6-67.9-8.6 2.3-16.7 5.7-24 10l-34.7-34.7zM325.3 395.1c-11.9 3.2-24.4 4.9-37.3 4.9-79.5 0-144-64.5-144-144 0-12.9 1.7-25.4 4.9-37.3L69.4 139.2c-32.6 36.8-55 75.8-66.9 104.5-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6 37.3 0 71.2-7.9 101.5-20.6l-64.2-64.2z"/>
+                        <path d="M41-24.9c-9.4-9.4-24.6-9.4-33.9 0S-2.3-.3 7 9.1l528 528c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-96.4-96.4c2.7-2.4 5.4-4.8 8-7.2 46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6-56.8 0-105.6 18.2-146 44.2L41-24.9zM204.5 138.7c23.5-16.8 52.4-26.7 83.5-26.7 79.5 0 144 64.5 144 144 0 31.1-9.9 59.9-26.7 83.5l-34.7-34.7c12.7-21.4 17-47.7 10.1-73.7-13.7-51.2-66.4-81.6-117.6-67.9-8.6 2.3-16.7 5.7-24 10l-34.7-34.7zM325.3 395.1c-11.9 3.2-24.4 4.9-37.3 4.9-79.5 0-144-64.5-144-144 0-12.9 1.7-25.4 4.9-37.3L69.4 139.2c-32.6 36.8-55 75.8-66.9 104.5-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6 37.3 0 71.2-7.9 101.5-20.6l-64.2-64.2z" />
                       </svg>
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
-                        <path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6-46.8 43.5-78.1 95.4-93 131.1-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64-11.5 0-22.3-3-31.7-8.4-1 10.9-.1 22.1 2.9 33.2 13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-12.2-45.7-55.5-74.8-101.1-70.8 5.3 9.3 8.4 20.1 8.4 31.7z"/>
+                        <path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6-46.8 43.5-78.1 95.4-93 131.1-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64-11.5 0-22.3-3-31.7-8.4-1 10.9-.1 22.1 2.9 33.2 13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-12.2-45.7-55.5-74.8-101.1-70.8 5.3 9.3 8.4 20.1 8.4 31.7z" />
                       </svg>
                     )}
                   </button>
@@ -659,7 +683,7 @@ const StudentRegisterPage = () => {
                 Inscrivez-vous en tant que coach
               </Link>
             </div>
-            
+
             <p className="mt-6 text-sm text-muted-foreground" style={{ fontWeight: '300', color: 'rgba(255, 255, 255, 0.75)' }}>
               Déjà un compte ?{' '}
               <Link to="/login" className="text-primary hover:underline font-semibold">

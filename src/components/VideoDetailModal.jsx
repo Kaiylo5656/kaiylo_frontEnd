@@ -19,7 +19,7 @@ const MODAL_BG_MOBILE = {
   opacity: 0.95
 };
 
-const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
+const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -39,7 +39,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
   const [videoError, setVideoError] = useState(null);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [studentWeight, setStudentWeight] = useState(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [audioRecording, setAudioRecording] = useState(null);
   const [isMarkingCompletedNoFeedback, setIsMarkingCompletedNoFeedback] = useState(false);
@@ -102,37 +101,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
       return () => clearTimeout(loadingTimeout);
     }
   }, [video]);
-
-  // Fetch student weight from profile
-  useEffect(() => {
-    const fetchStudentWeight = async () => {
-      if (!video?.student?.id) {
-        setStudentWeight(null);
-        return;
-      }
-
-      try {
-        const token = await getAuthToken();
-        if (!token) return;
-
-        const response = await axios.get(
-          `${getApiBaseUrlWithApi()}/coach/student/${video.student.id}/profile`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (response.data?.data?.weight) {
-          setStudentWeight(response.data.data.weight);
-        }
-      } catch (error) {
-        logger.error('Error fetching student weight:', error);
-        setStudentWeight(null);
-      }
-    };
-
-    if (isOpen && video?.student?.id) {
-      fetchStudentWeight();
-    }
-  }, [isOpen, video?.student?.id, getAuthToken]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -347,6 +315,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
         onFeedbackUpdate(video.id, feedback.trim(), rating, false, videoType === 'coach' ? 'description' : 'completed', videoType);
       }
       
+      // En vue coach, fermer la modale après envoi du commentaire
+      if (isCoachView && videoType === 'student') {
+        onClose();
+      }
+      
       // Clear audio recording after successful submission
       setAudioRecording(null);
       setIsRecordingVoice(false);
@@ -463,12 +436,21 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
     return { weight: weight || 0, reps: reps || 0, rpe };
   };
 
-  if (!isOpen || !video) return null;
+  /** Nombre total de séries pour cet exercice dans la séance (ex. 3 pour "Série 1/3"). */
+  const getTotalSetsForVideo = (v) => {
+    const exercises = v.assignment?.workout_session?.exercises;
+    if (!exercises?.length) return v.total_sets ?? '?';
+    const name = v.exercise_name ?? '';
+    const setNum = v.set_number ?? 1;
+    for (const ex of exercises) {
+      if (ex.name !== name) continue;
+      const n = ex.sets?.length ?? 0;
+      if (setNum >= 1 && setNum <= n) return n;
+    }
+    return v.total_sets ?? '?';
+  };
 
-  const studentName = video.student?.raw_user_meta_data?.full_name ||
-                     video.student?.raw_user_meta_data?.name ||
-                     video.student?.email ||
-                     'Coach Resource';
+  if (!isOpen || !video) return null;
 
   // Extract exercise-level details (tempo, coach notes) from assignment data
   const matchedExercise = video.assignment?.workout_session?.exercises?.find(
@@ -522,25 +504,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
         {/* Video Information - Mobile: Below header, Desktop: Inside sidebar */}
         <div className="md:hidden shrink-0 px-4 pt-3 pb-4 space-y-3 border-b border-white/10" style={isMobile ? undefined : { backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-          <div className="flex items-center gap-2">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              viewBox="0 0 256 512" 
-              className="h-4 w-4"
-              style={{ color: 'var(--kaiylo-primary-hex)' }}
-              fill="currentColor"
-            >
-              <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-            </svg>
-            <span className="text-white font-light text-sm">
-              {studentName}
-              {studentWeight && (
-                <span className="ml-2 font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                  @{studentWeight}kg
-                </span>
-              )}
-            </span>
-          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -556,7 +519,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
             <span className="text-white/75 text-sm font-extralight">
               {(() => {
                 const { weight, reps, rpe } = getVideoWeightAndReps(video);
-                const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
+                const totalSets = totalSetsProp ?? getTotalSetsForVideo(video);
+                const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
                 const repsText = reps > 0 ? `${reps} reps` : null;
                 const weightText = weight > 0 ? `${weight}kg` : null;
                 const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
@@ -835,25 +799,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
 
             {/* Video Information - Desktop only */}
             <div className="hidden md:block px-6 pt-1.5 pb-5 space-y-3 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 256 512" 
-                  className="h-4 w-4"
-                  style={{ color: 'var(--kaiylo-primary-hex)' }}
-                  fill="currentColor"
-                >
-                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                </svg>
-                <span className="text-white font-light text-sm md:text-base">
-                  {studentName}
-                  {studentWeight && (
-                    <span className="ml-2 font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                      @{studentWeight}kg
-                    </span>
-                  )}
-                </span>
-              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
@@ -869,7 +814,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                 <span className="text-white/75 text-sm md:text-base font-extralight">
                   {(() => {
                     const { weight, reps, rpe } = getVideoWeightAndReps(video);
-                    const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
+                    const totalSets = totalSetsProp ?? getTotalSetsForVideo(video);
+                    const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
                     const repsText = reps > 0 ? `${reps} reps` : null;
                     const weightText = weight > 0 ? `${weight}kg` : null;
                     const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
@@ -1040,32 +986,34 @@ const VideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate, videoType 
                     <div className="flex-1 flex flex-col min-h-0">
                       {/* Zone scrollable : commentaires affichés */}
                       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col">
-                        {(video.coach_feedback || video.coach_feedback_audio_url || localSubmittedFeedback) && (
-                          <div className="flex flex-col gap-[8px] mb-3 flex-1 min-h-0">
-                            {video.coach_feedback_audio_url && (
-                              <div className="mb-2 flex-shrink-0">
-                                <VoiceMessage 
-                                  message={{
-                                    file_url: video.coach_feedback_audio_url,
-                                    message_type: 'audio',
-                                    file_type: 'audio/webm'
-                                  }} 
-                                  isOwnMessage={true}
-                                />
-                              </div>
-                            )}
-                            {(video.coach_feedback || localSubmittedFeedback) && (
-                              <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px] flex-1">
-                                {video.coach_feedback || localSubmittedFeedback}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-col gap-[8px] mb-3 flex-1 min-h-0">
+                          {video.coach_feedback_audio_url && (
+                            <div className="mb-2 flex-shrink-0">
+                              <VoiceMessage 
+                                message={{
+                                  file_url: video.coach_feedback_audio_url,
+                                  message_type: 'audio',
+                                  file_type: 'audio/webm'
+                                }} 
+                                isOwnMessage={true}
+                              />
+                            </div>
+                          )}
+                          {(video.coach_feedback || localSubmittedFeedback) ? (
+                            <div className="text-[12px] md:text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] py-[8px] md:py-[12px] min-h-[80px] md:min-h-[150px] flex-1">
+                              {video.coach_feedback || localSubmittedFeedback}
+                            </div>
+                          ) : (
+                            <div className="text-[12px] md:text-[14px] font-light text-white/30 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[10px] md:px-[12px] pt-[10px] md:pt-[12px] pb-[8px] md:pb-[12px] min-h-[80px] md:min-h-[150px] flex-1 flex flex-col items-stretch">
+                              <p className="text-xs md:text-sm font-light not-italic">Cette vidéo n'a pas encore de commentaire.</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Bloc fixe en bas : input + bouton */}
                       <div className="flex flex-col flex-shrink-0 gap-0 pt-3">
-                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] md:py-[12px] flex items-center gap-2 md:gap-3 border-[1.5px] border-transparent focus-within:border-[var(--kaiylo-primary-hex)] transition-colors">
+                      <div className="w-full min-h-[40px] md:min-h-[48px] bg-[#121214] rounded-[10px] px-[10px] md:px-[14px] py-[8px] flex items-center gap-2 md:gap-3 border-[1.5px] border-transparent">
                         {isRecordingVoice ? (
                           <VoiceRecorder
                             onSend={handleVoiceMessageSend}

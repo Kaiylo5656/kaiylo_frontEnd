@@ -163,7 +163,7 @@ const LoginPage = () => {
     }
   };
 
-  if (loading && !user) {
+  if (loading || user) {
     return <LoadingSpinner />;
   }
 

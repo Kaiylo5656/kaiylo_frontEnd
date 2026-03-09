@@ -7,6 +7,7 @@ import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Logo from '../components/Logo';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +18,7 @@ const RegisterPage = () => {
   const [isConfirmPasswordAutofilled, setIsConfirmPasswordAutofilled] = useState(false);
   const passwordInputRef = useRef(null);
   const confirmPasswordInputRef = useRef(null);
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const API_BASE_URL = getApiBaseUrlWithApi();
   const navigate = useNavigate();
 
@@ -164,6 +165,30 @@ const RegisterPage = () => {
       setIsLoading(false);
     }
   };
+
+  const getTargetPath = (role, onboardingCompleted) => {
+    switch (role) {
+      case 'coach':
+        return '/coach/dashboard';
+      case 'student':
+        const isOnboardingCompleted = onboardingCompleted !== false;
+        return isOnboardingCompleted ? '/student/dashboard' : '/onboarding';
+      case 'admin':
+        return '/admin/dashboard';
+      default:
+        return '/coach/dashboard';
+    }
+  };
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate(getTargetPath(user.role, user.onboardingCompleted), { replace: true });
+    }
+  }, [loading, user, navigate]);
+
+  if (loading || user) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col antialiased relative" style={{ backgroundColor: '#0a0a0a' }}>

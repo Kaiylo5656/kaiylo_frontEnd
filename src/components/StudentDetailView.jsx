@@ -21,7 +21,13 @@ import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
 import useSortParams from '../hooks/useSortParams';
 import logger from '../utils/logger';
+import { getSetGroups } from '../utils/setGroups';
 import PeriodizationTab from './PeriodizationTab';
+
+/** Affiche 0 quand la valeur est absente ou vide (évite "5× @kg" → "5×0 @0kg"). */
+function toDisplayNum(v) {
+  return (v != null && v !== '') ? v : 0;
+}
 import StudentSidebar from './StudentSidebar';
 import {
   DropdownMenu,
@@ -30,6 +36,21 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from './ui/dropdown-menu';
+
+/** Lignes pour la carte séance : nom de l'exercice en premier, puis ses séries en dessous (ex. Traction, 2×5@5kg, 2×5@2.5kg). */
+function getExerciseCardRows(exercise, setsColor = null) {
+  const groups = getSetGroups(exercise.sets, exercise.useRir);
+  if (groups.length === 0) return [{ type: 'name', name: exercise.name }];
+  const rows = [{ type: 'name', name: exercise.name }];
+  for (let i = 0; i < groups.length; i++) rows.push({ type: 'sets', ...groups[i], setsColor });
+  return rows;
+}
+
+const SET_LINE_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255,255,255,0.5)' }} aria-hidden>
+    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+  </svg>
+);
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange, initialStudentVideoCounts = {}, initialStudentMessageCounts = {}, initialStudentNextSessions = {} }) => {
   const navigate = useNavigate();
@@ -94,6 +115,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [studentVideos, setStudentVideos] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
+  const [selectedVideoTotalSets, setSelectedVideoTotalSets] = useState(undefined);
   const [videosLoading, setVideosLoading] = useState(false);
 
   // Video pagination states
@@ -1658,9 +1680,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setLoadingMoreVideos(false);
   };
 
-  // Handle video click
-  const handleVideoClick = (video) => {
+  // Handle video click (totalSets from session order when opening from list)
+  const handleVideoClick = (video, totalSets) => {
     setSelectedVideo(video);
+    setSelectedVideoTotalSets(totalSets);
     setIsVideoDetailModalOpen(true);
   };
 
@@ -2807,6 +2830,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     return { weight: weight || 0, reps: reps || 0, rpe };
   };
 
+  /** Nombre total de séries pour cet exercice dans la séance (ex. 3 pour "Série 1/3"). */
+  const getTotalSetsForVideo = (video) => {
+    const exercises = video.assignment?.workout_session?.exercises;
+    if (!exercises?.length) return video.total_sets ?? '?';
+    const name = video.exercise_name ?? '';
+    const setNum = video.set_number ?? 1;
+    for (const ex of exercises) {
+      if (ex.name !== name) continue;
+      const n = ex.sets?.length ?? 0;
+      if (setNum >= 1 && setNum <= n) return n;
+    }
+    return video.total_sets ?? '?';
+  };
+
   const CircleCheckIcon = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
       <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
@@ -2996,204 +3033,224 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                 </div>
               </div>
 
-              {/* Session Videos (Collapsible) - same structure as VideoLibrary */}
-              {isOpen && (
+              {/* Session Videos (Collapsible) - same structure as VideoLibrary, ordered by session order */}
+              {isOpen && (() => {
+                const exercises = session.videos[0]?.assignment?.workout_session?.exercises ?? [];
+                const slots = [];
+                for (const ex of exercises) {
+                  const setCount = ex.sets?.length ?? 0;
+                  for (let s = 0; s < setCount; s++) slots.push({ name: ex.name, setNumber: s + 1, totalSets: setCount });
+                }
+                const used = new Set();
+                const orderedVideos = [];
+                const videoTotalSets = new Map();
+                for (const slot of slots) {
+                  const matching = session.videos.filter(
+                    v => !used.has(v.id) && (v.exercise_name ?? '') === slot.name && (v.set_number ?? 1) === slot.setNumber
+                  ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+                  if (matching.length) {
+                    orderedVideos.push(matching[0]);
+                    used.add(matching[0].id);
+                    videoTotalSets.set(matching[0].id, slot.totalSets);
+                  }
+                }
+                for (const v of session.videos) {
+                  if (!used.has(v.id)) {
+                    orderedVideos.push(v);
+                    if (!videoTotalSets.has(v.id)) videoTotalSets.set(v.id, getTotalSetsForVideo(v));
+                  }
+                }
+                return (
                 <div className="mt-2 pt-2 pl-4 md:pl-6">
                   <div className="flex flex-col gap-[7px]">
-                    {[...session.videos]
-                      .sort((a, b) => {
-                        const exercises = a.assignment?.workout_session?.exercises ?? b.assignment?.workout_session?.exercises;
-                        const orderA = exercises?.findIndex(ex => ex.name === (a.exercise_name ?? '')) ?? 999;
-                        const orderB = exercises?.findIndex(ex => ex.name === (b.exercise_name ?? '')) ?? 999;
-                        if (orderA !== orderB) return orderA - orderB;
-                        return (a.set_number ?? 0) - (b.set_number ?? 0);
-                      })
-                      .map((video) => {
-                      const isVideoRowHovered = hoveredVideoId === video.id;
-                      const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
-                      const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
-                        ? 'rgba(255, 255, 255, 0.14)'
-                        : 'rgba(255, 255, 255, 0.07)';
-                      return (
-                        <div
-                          key={video.id}
-                          className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
-                          style={{
-                            backgroundColor: videoRowBg,
-                            borderWidth: '0px',
-                            borderColor: 'rgba(0, 0, 0, 0)',
-                            borderStyle: 'none',
-                            borderImage: 'none'
-                          }}
-                          onMouseEnter={() => setHoveredVideoId(video.id)}
-                          onMouseLeave={() => setHoveredVideoId(null)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVideoClick(video);
-                          }}
-                        >
-                          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-                            {/* Video Thumbnail */}
-                            <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
-                              {video?.video_url && video.video_url.trim() !== '' ? (
-                                <>
-                                  <video
-                                    src={video.video_url + '#t=0.1'}
-                                    className="w-full h-full object-cover"
-                                    preload="metadata"
-                                    playsInline
-                                    muted
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                    <PlayCircle size={24} className="text-white" />
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                                  <Video size={24} className="text-gray-500" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Video Info */}
-                            <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
-                              <div className="flex-1 min-w-0">
-                                {/* Exercise Tag and Date */}
-                                <div className="flex flex-col md:flex-row md:items-center gap-1 mb-2 md:mb-0">
-                                  <span className="text-white font-light text-sm md:text-base">
-                                    {video.exercise_name}
-                                  </span>
-                                  <span className="hidden md:inline text-white/50">-</span>
-                                  <span className="text-white/50 text-xs md:text-sm font-extralight">
-                                    {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
-                                  </span>
-                                </div>
-
-                                {/* Series */}
-                                <div className="text-white/75 text-xs md:text-sm font-extralight">
-                                  {(() => {
-                                    const { weight, reps, rpe } = getVideoWeightAndReps(video);
-                                    const seriesText = `Série ${video.set_number || 1}/${video.total_sets || '?'}`;
-                                    const repsText = reps > 0 ? `${reps} reps` : null;
-                                    const weightText = weight > 0 ? `${weight}kg` : null;
-                                    const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
-
-                                    const parts = [seriesText];
-                                    if (repsText) parts.push(repsText);
-
-                                    if (weightText || rpeText) {
-                                      return (
-                                        <>
-                                          {parts.join(' • ')}
-                                          {weightText && (
-                                            <>
-                                              {' '}
-                                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
-                                            </>
-                                          )}
-                                          {rpeText && (
-                                            <>
-                                              {' '}
-                                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
-                                            </>
-                                          )}
-                                        </>
-                                      );
-                                    }
-                                    return parts.join(' • ');
-                                  })()}
-                                </div>
-
-                                {/* Coach Feedback */}
-                                {(video.coach_feedback || video.coach_feedback_audio_url) && (
-                                  <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
-                                    {video.coach_feedback_audio_url && (
-                                      <div className="text-xs">
-                                        <VoiceMessage
-                                          message={{
-                                            file_url: video.coach_feedback_audio_url,
-                                            message_type: 'audio',
-                                            file_type: 'audio/webm'
-                                          }}
-                                          isOwnMessage={false}
-                                        />
-                                      </div>
-                                    )}
-                                    {video.coach_feedback && (
-                                      <div className="flex items-start gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                                          <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
-                                        </svg>
-                                        <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                          {video.coach_feedback}
-                                        </div>
-                                      </div>
-                                    )}
+                    {orderedVideos.map((video) => {
+                        const isVideoRowHovered = hoveredVideoId === video.id;
+                        const isHoveringVideoValidateButton = hoveringValidateVideoId === video.id;
+                        const videoRowBg = (isVideoRowHovered && !isHoveringVideoValidateButton)
+                          ? 'rgba(255, 255, 255, 0.14)'
+                          : 'rgba(255, 255, 255, 0.07)';
+                        return (
+                          <div
+                            key={video.id}
+                            className="pl-2 pr-4 py-2 transition-colors duration-200 cursor-pointer rounded-2xl"
+                            style={{
+                              backgroundColor: videoRowBg,
+                              borderWidth: '0px',
+                              borderColor: 'rgba(0, 0, 0, 0)',
+                              borderStyle: 'none',
+                              borderImage: 'none'
+                            }}
+                            onMouseEnter={() => setHoveredVideoId(video.id)}
+                            onMouseLeave={() => setHoveredVideoId(null)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleVideoClick(video, videoTotalSets.get(video.id));
+                            }}
+                          >
+                            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+                              {/* Video Thumbnail */}
+                              <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
+                                {video?.video_url && video.video_url.trim() !== '' ? (
+                                  <>
+                                    <video
+                                      src={video.video_url + '#t=0.1'}
+                                      className="w-full h-full object-cover"
+                                      preload="metadata"
+                                      playsInline
+                                      muted
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                      <PlayCircle size={24} className="text-white" />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                                    <Video size={24} className="text-gray-500" />
                                   </div>
                                 )}
                               </div>
 
-                          {/* Status Badge + Validate button */}
-                          {(() => {
-                            const hasFeedback = (video.coach_feedback !== null && video.coach_feedback !== undefined) || video.coach_feedback_audio_url;
-                            const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
+                              {/* Video Info */}
+                              <div className="flex-1 min-w-0 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
+                                <div className="flex-1 min-w-0">
+                                  {/* Exercise Tag and Date */}
+                                  <div className="flex flex-col md:flex-row md:items-center gap-1 mb-2 md:mb-0">
+                                    <span className="text-white font-light text-sm md:text-base">
+                                      {video.exercise_name}
+                                    </span>
+                                    <span className="hidden md:inline text-white/50">-</span>
+                                    <span className="text-white/50 text-xs md:text-sm font-extralight">
+                                      {format(new Date(video.created_at), 'd MMM yyyy', { locale: fr })}
+                                    </span>
+                                  </div>
 
-                            if (isCompleted) {
-                              return (
-                                <div className="flex-shrink-0 flex items-center">
-                                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                                    Complété
-                                  </span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div className="flex-shrink-0 flex items-center gap-2">
-                                <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                                  À feedback
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
-                                  disabled={markingVideoId === video.id}
-                                  title="Marquer cet exercice en complété"
-                                  className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
-                                  style={{
-                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                    color: 'rgba(250, 250, 250, 0.5)',
-                                    fontWeight: '400'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    setHoveringValidateVideoId(video.id);
-                                    if (markingVideoId === video.id) return;
-                                    e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
-                                    e.currentTarget.style.color = '#D48459';
-                                    e.currentTarget.style.fontWeight = '400';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    setHoveringValidateVideoId(null);
-                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                    e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
-                                    e.currentTarget.style.fontWeight = '400';
-                                  }}
-                                >
-                                  {markingVideoId === video.id ? (
-                                    <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                  ) : (
-                                    <CircleCheckIcon className="w-4 h-4" />
+                                  {/* Series */}
+                                  <div className="text-white/75 text-xs md:text-sm font-extralight">
+                                    {(() => {
+                                      const { weight, reps, rpe } = getVideoWeightAndReps(video);
+                                      const totalSets = videoTotalSets.get(video.id) ?? getTotalSetsForVideo(video);
+                                      const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
+                                      const repsText = reps > 0 ? `${reps} reps` : null;
+                                      const weightText = weight > 0 ? `${weight}kg` : null;
+                                      const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
+
+                                      const parts = [seriesText];
+                                      if (repsText) parts.push(repsText);
+
+                                      if (weightText || rpeText) {
+                                        return (
+                                          <>
+                                            {parts.join(' • ')}
+                                            {weightText && (
+                                              <>
+                                                {' '}
+                                                <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                                              </>
+                                            )}
+                                            {rpeText && (
+                                              <>
+                                                {' '}
+                                                <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{rpeText}</span>
+                                              </>
+                                            )}
+                                          </>
+                                        );
+                                      }
+                                      return parts.join(' • ');
+                                    })()}
+                                  </div>
+
+                                  {/* Coach Feedback */}
+                                  {(video.coach_feedback || video.coach_feedback_audio_url) && (
+                                    <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
+                                      {video.coach_feedback_audio_url && (
+                                        <div className="text-xs">
+                                          <VoiceMessage
+                                            message={{
+                                              file_url: video.coach_feedback_audio_url,
+                                              message_type: 'audio',
+                                              file_type: 'audio/webm'
+                                            }}
+                                            isOwnMessage={false}
+                                          />
+                                        </div>
+                                      )}
+                                      {video.coach_feedback && (
+                                        <div className="flex items-start gap-2">
+                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                            <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z" />
+                                          </svg>
+                                          <div className="text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                            {video.coach_feedback}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
-                                </button>
+                                </div>
+
+                                {/* Status Badge + Validate button */}
+                                {(() => {
+                                  const hasFeedback = (video.coach_feedback !== null && video.coach_feedback !== undefined) || video.coach_feedback_audio_url;
+                                  const isCompleted = video.status === 'completed' || video.status === 'reviewed' || hasFeedback;
+
+                                  if (isCompleted) {
+                                    return (
+                                      <div className="flex-shrink-0 flex items-center">
+                                        <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                                          Complété
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="flex-shrink-0 flex items-center gap-2">
+                                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                                        À feedback
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleMarkVideoAsCompleted(e, video.id)}
+                                        disabled={markingVideoId === video.id}
+                                        title="Marquer cet exercice en complété"
+                                        className="w-8 h-8 min-w-8 min-h-8 rounded-full transition-colors flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                                        style={{
+                                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                          color: 'rgba(250, 250, 250, 0.5)',
+                                          fontWeight: '400'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          setHoveringValidateVideoId(video.id);
+                                          if (markingVideoId === video.id) return;
+                                          e.currentTarget.style.backgroundColor = 'rgba(212, 132, 89, 0.1)';
+                                          e.currentTarget.style.color = '#D48459';
+                                          e.currentTarget.style.fontWeight = '400';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          setHoveringValidateVideoId(null);
+                                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                          e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
+                                          e.currentTarget.style.fontWeight = '400';
+                                        }}
+                                      >
+                                        {markingVideoId === video.id ? (
+                                          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                        ) : (
+                                          <CircleCheckIcon className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                            );
-                          })()}
-                        </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}
@@ -3596,52 +3653,88 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                 <div className="border-b border-white/10 mb-2"></div>
 
-                <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto min-h-0" style={{ marginTop: '12px' }}>
-                  {exercises.slice(0, visibleExercisesCount).map((exercise, index) => {
-                    // Déterminer la couleur du nombre de séries basée sur les statuts de validation
-                    const getSetsColor = () => {
-                      // Seulement pour les séances terminées
+                <div className="flex flex-col gap-0.5 flex-1 overflow-y-auto min-h-0 scrollbar-thin-transparent-track" style={{ marginTop: '12px' }}>
+                  {(() => {
+                    const rowBudget = visibleExercisesCount + 2; // +2 pour utiliser l'espace réel (lignes plus fines que les slots réservés)
+                    let usedRows = 0;
+                    let visibleCount = 0;
+                    const getSetsColorFor = (exercise) => {
                       if (session.status !== 'completed') return null;
-
                       if (!exercise.sets || exercise.sets.length === 0) return null;
-
-                      // Vérifier les statuts de validation de toutes les séries
                       const hasFailed = exercise.sets.some(set => set.validation_status === 'failed');
                       const allCompleted = exercise.sets.every(set => set.validation_status === 'completed');
-
-                      if (hasFailed) return 'text-red-500'; // Rouge si au moins une série est en échec
-                      if (allCompleted) return 'text-[#2FA064]'; // Vert si toutes les séries sont validées
-
-                      return null; // Couleur par défaut si pas toutes les séries sont validées
+                      if (hasFailed) return 'text-red-500';
+                      if (allCompleted) return 'text-[#2FA064]';
+                      return null;
                     };
-
-                    const setsColor = getSetsColor();
-                    const isCompleted = setsColor === 'text-[#2FA064]';
-                    const isFailed = setsColor === 'text-red-500';
-
+                    if (visibleExercisesCount === 10) {
+                      visibleCount = exercises.length;
+                    } else {
+                      for (let i = 0; i < exercises.length; i++) {
+                        const rowCount = getExerciseCardRows(exercises[i], getSetsColorFor(exercises[i])).length;
+                        if (usedRows + rowCount <= rowBudget) {
+                          visibleCount++;
+                          usedRows += rowCount;
+                        } else break;
+                      }
+                    }
+                    const remainingCount = exercises.length - visibleCount;
                     return (
-                      <div key={index} className="text-[11px] text-white truncate font-extralight">
-                        <span className={`${setsColor || ''} ${isCompleted || isFailed ? 'font-normal' : ''}`}>
-                          {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
-                        </span>
-                        {' '}
-                        {exercise.useRir ? (
-                          <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
-                        ) : (
-                          <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
-                        )} - <span className="font-light text-white/75">{exercise.name}</span>
-                      </div>
+                      <>
+                        {exercises.slice(0, visibleCount).map((exercise, index) => {
+                          const getSetsColor = () => {
+                            if (session.status !== 'completed') return null;
+                            if (!exercise.sets || exercise.sets.length === 0) return null;
+                            const hasFailed = exercise.sets.some(set => set.validation_status === 'failed');
+                            const allCompleted = exercise.sets.every(set => set.validation_status === 'completed');
+                            if (hasFailed) return 'text-red-500';
+                            if (allCompleted) return 'text-[#2FA064]';
+                            return null;
+                          };
+                          const setsColor = getSetsColor();
+                          const isCompleted = setsColor === 'text-[#2FA064]';
+                          const isFailed = setsColor === 'text-red-500';
+                          const rows = getExerciseCardRows(exercise, setsColor);
+                          return (
+                            <React.Fragment key={index}>
+                              {rows.map((row, ri) =>
+                                row.type === 'sets' ? (
+                                  <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px] shrink-0">
+                                    {SET_LINE_ICON}
+                                    <span className={`${row.setsColor || ''} ${(row.setsColor === 'text-[#2FA064]' || row.setsColor === 'text-red-500') ? 'font-normal' : ''}`}>
+                                      {toDisplayNum(row.count)}×{toDisplayNum(row.reps)}
+                                    </span>
+                                    {' '}
+                                    {exercise.useRir ? (
+                                      <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
+                                    ) : (
+                                      <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div key={ri} className="text-[11px] text-white font-extralight shrink-0 flex flex-col gap-0 min-w-0">
+                                    <span className="font-normal text-white/75 truncate">{row.name}</span>
+                                    {exercise.tempo && (
+                                      <span className="text-[10px] text-white/60 font-extralight">Tempo {exercise.tempo}</span>
+                                    )}
+                                  </div>
+                                )
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                        {remainingCount > 0 && (
+                          <div className="text-[11px] text-white/50 font-extralight">
+                            + {remainingCount} exercice{remainingCount > 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </>
                     );
-                  })}
-                  {exercises.length > visibleExercisesCount && (
-                    <div className="text-[11px] text-white/50 font-extralight">
-                      + {exercises.length - visibleExercisesCount} exercice{(exercises.length - visibleExercisesCount) > 1 ? 's' : ''}
-                    </div>
-                  )}
+                  })()}
                 </div>
 
                 <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
-                  <div className="flex items-center gap-1 md:gap-2 flex-1">
+                  <div className="flex items-center gap-1 md:gap-1.5 flex-1">
                     <span
                       className={`px-1.5 md:px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1 md:gap-1.5 ${session.status === 'completed'
                         ? 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20'
@@ -3812,19 +3905,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                     <div className="border-b border-white/10 mb-2"></div>
 
-                    <div className="flex flex-col gap-1.5 flex-1" style={{ marginTop: '12px' }}>
+                    <div className="flex flex-col gap-0.5 flex-1" style={{ marginTop: '12px' }}>
                       {copiedSession.session.exercises?.slice(0, 3).map((exercise, index) => (
-                        <div key={index} className="text-[11px] text-white truncate font-extralight">
-                          <span className="font-light text-white/75">
-                            {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
-                          </span>
-                          {' '}
-                          {exercise.useRir ? (
-                            <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
-                          ) : (
-                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
-                          )} - <span className="font-light text-white/75">{exercise.name}</span>
-                        </div>
+                        <React.Fragment key={index}>
+                          {getExerciseCardRows(exercise, null).map((row, ri) =>
+                            row.type === 'sets' ? (
+                              <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px]">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                {' '}
+                                {exercise.useRir ? (
+                                  <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
+                                ) : (
+                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div key={ri} className="text-[11px] text-white font-extralight flex flex-col gap-0 min-w-0">
+                                <span className="font-normal text-white/75 truncate">{row.name}</span>
+                                {exercise.tempo && (
+                                  <span className="text-[10px] text-white/60 font-extralight">Tempo {exercise.tempo}</span>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </React.Fragment>
                       ))}
                       {copiedSession.session.exercises?.length > 3 && (
                         <div className="text-[11px] text-white/50 font-extralight">
@@ -4066,19 +4171,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                     <div className="border-b border-white/10 mb-1"></div>
 
-                    <div className="flex flex-col gap-1 flex-1">
+                    <div className="flex flex-col gap-0.5 flex-1">
                       {copiedSession.session.exercises?.slice(0, 2).map((exercise, index) => (
-                        <div key={index} className="text-[10px] text-white truncate font-extralight">
-                          <span className="font-light text-white/75">
-                            {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
-                          </span>
-                          {' '}
-                          {exercise.useRir ? (
-                            <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
-                          ) : (
-                            <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
-                          )} - <span className="font-light text-white/75">{exercise.name}</span>
-                        </div>
+                        <React.Fragment key={index}>
+                          {getExerciseCardRows(exercise, null).map((row, ri) =>
+                            row.type === 'sets' ? (
+                              <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                {' '}
+                                {exercise.useRir ? (
+                                  <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
+                                ) : (
+                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">
+                                <span className="font-normal text-white/75 truncate">{row.name}</span>
+                                {exercise.tempo && (
+                                  <span className="text-[10px] text-white/60 font-extralight">Tempo {exercise.tempo}</span>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </React.Fragment>
                       ))}
                       {copiedSession.session.exercises?.length > 2 && (
                         <div className="text-[10px] text-white/50 font-extralight">
@@ -4777,7 +4894,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         <div className="flex items-center justify-end ml-auto">
                           <button
                             onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
-                            className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm"
+                            className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm w-[100px] min-w-[100px] justify-center"
                             style={{
                               backgroundColor: 'rgba(255, 255, 255, 0.05)',
                               color: 'rgba(250, 250, 250, 0.5)',
@@ -4793,9 +4910,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
                               e.currentTarget.style.fontWeight = '400';
                             }}
-                            title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : visibleExercisesCount === 8 ? 'Afficher 10 exercices' : 'Afficher 5 exercices'}
+                            title={visibleExercisesCount === 5 ? 'Agrandir les cartes séance' : visibleExercisesCount === 8 ? 'Agrandir encore les cartes' : 'Réduire les cartes séance'}
                           >
-                            {visibleExercisesCount === 5 ? '5 exercices' : visibleExercisesCount === 8 ? '8 exercices' : '10 exercices'}
+                            {visibleExercisesCount === 5 ? 'Compact' : visibleExercisesCount === 8 ? 'Moyen' : 'Étendu'}
                           </button>
                         </div>
                       </div>
@@ -5515,7 +5632,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </div>
                       <button
                         onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
-                        className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm"
+                        className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm w-[100px] min-w-[100px] justify-center"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           color: 'rgba(250, 250, 250, 0.5)',
@@ -5531,9 +5648,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
                           e.currentTarget.style.fontWeight = '400';
                         }}
-                        title={visibleExercisesCount === 5 ? 'Afficher 8 exercices' : visibleExercisesCount === 8 ? 'Afficher 10 exercices' : 'Afficher 5 exercices'}
+                        title={visibleExercisesCount === 5 ? 'Agrandir les cartes séance' : visibleExercisesCount === 8 ? 'Agrandir encore les cartes' : 'Réduire les cartes séance'}
                       >
-                        {visibleExercisesCount === 5 ? '5 exercices' : visibleExercisesCount === 8 ? '8 exercices' : '10 exercices'}
+                        {visibleExercisesCount === 5 ? 'Compact' : visibleExercisesCount === 8 ? 'Moyen' : 'Étendu'}
                       </button>
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
@@ -6004,14 +6121,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                   {exercises.length > 0 && (
                                                     <>
                                                       <div className="border-b border-white/10 mb-1"></div>
-                                                      <div className="flex items-center justify-between text-[11px] text-white/75">
-                                                        <span className="font-light text-[9px] md:text-[11px]">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
+                                                      <div className="flex items-center justify-between text-[11px] text-white/75 min-w-0">
+                                                        <span className="font-light text-[9px] md:text-[11px] truncate">+ {exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
                                                       </div>
                                                     </>
                                                   )}
 
                                                   <div className="flex items-center justify-between pt-0 text-[9px] md:text-[11px]">
-                                                    <div className="flex items-center gap-2 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-1">
                                                       <span
                                                         className={`px-2.5 py-0.5 rounded-full font-normal shadow-sm flex items-center gap-1.5 ${session.status === 'completed'
                                                           ? 'bg-[#3E6E54] text-white shadow-[#3E6E54]/20'
@@ -6128,19 +6245,31 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                   {copiedSession.session.exercises && copiedSession.session.exercises.length > 0 && (
                                                     <>
                                                       <div className="border-b border-white/10 mb-1"></div>
-                                                      <div className="flex flex-col gap-1 flex-1">
+                                                      <div className="flex flex-col gap-0.5 flex-1">
                                                         {copiedSession.session.exercises.slice(0, 2).map((exercise, index) => (
-                                                          <div key={index} className="text-[10px] text-white truncate font-extralight">
-                                                            <span className="font-light text-white/75">
-                                                              {exercise.sets?.length || 0}×{exercise.sets?.[0]?.reps || '?'}
-                                                            </span>
-                                                            {' '}
-                                                            {exercise.useRir ? (
-                                                              <span className="text-[#d4845a] font-normal">RPE {exercise.sets?.[0]?.weight || 0}</span>
-                                                            ) : (
-                                                              <span className="text-[#d4845a] font-normal">@{exercise.sets?.[0]?.weight || 0}kg</span>
-                                                            )} - <span className="font-light text-white/75">{exercise.name}</span>
-                                                          </div>
+                                                          <React.Fragment key={index}>
+                                                            {getExerciseCardRows(exercise, null).map((row, ri) =>
+                                                              row.type === 'sets' ? (
+                                                                <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                                                  {SET_LINE_ICON}
+                                                                  <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                                                  {' '}
+                                                                  {exercise.useRir ? (
+                                                                    <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
+                                                                  ) : (
+                                                                    <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                                                  )}
+                                                                </div>
+                                                              ) : (
+                                                                <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">
+                                                                  <span className="font-normal text-white/75 truncate">{row.name}</span>
+                                                                  {exercise.tempo && (
+                                                                    <span className="text-[10px] text-white/60 font-extralight">Tempo {exercise.tempo}</span>
+                                                                  )}
+                                                                </div>
+                                                              )
+                                                            )}
+                                                          </React.Fragment>
                                                         ))}
                                                         {copiedSession.session.exercises.length > 2 && (
                                                           <div className="text-[10px] text-white/50 font-extralight">
@@ -7162,8 +7291,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
         <VideoDetailModal
           isOpen={isVideoDetailModalOpen}
-          onClose={() => setIsVideoDetailModalOpen(false)}
+          onClose={() => {
+            setIsVideoDetailModalOpen(false);
+            setSelectedVideoTotalSets(undefined);
+          }}
           video={selectedVideo}
+          totalSets={selectedVideoTotalSets}
           onFeedbackUpdate={handleFeedbackUpdate}
           videoType="student"
           isCoachView={true}

@@ -192,7 +192,7 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                 <path d="M512 240c0 132.5-114.6 240-256 240-37.1 0-72.3-7.4-104.1-20.7L33.5 510.1c-9.4 4-20.2 1.7-27.1-5.8S-2 485.8 2.8 476.8l48.8-92.2C19.2 344.3 0 294.3 0 240 0 107.5 114.6 0 256 0S512 107.5 512 240z"/>
               </svg>
-              <div className="text-[11px] md:text-xs font-normal line-clamp-2 flex-1" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+              <div className="text-[11px] md:text-xs font-normal flex-1 min-w-0 break-words" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                 {feedback}
               </div>
             </div>

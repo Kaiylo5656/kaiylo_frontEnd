@@ -539,9 +539,9 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                         {(exercise.coach_feedback || exercise.coachFeedback || exercise.notes) && (
-                                          <div className="text-[10px] text-white/50 font-normal mt-0.5">
+                                          <div className="text-[10px] text-white/50 font-normal mt-0.5 min-w-0">
                                             <span className="text-white/40">Commentaire coach : </span>
-                                            <span className="whitespace-pre-wrap">{(exercise.coach_feedback || exercise.coachFeedback || exercise.notes).trim()}</span>
+                                            <span className="whitespace-pre-wrap break-words block">{(exercise.coach_feedback || exercise.coachFeedback || exercise.notes).trim()}</span>
                                           </div>
                                         )}
                                       </div>
@@ -670,9 +670,9 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                         {(exercise.coach_feedback || exercise.coachFeedback || exercise.notes) && (
-                                          <div className="text-[10px] text-white/50 font-normal mt-0.5">
+                                          <div className="text-[10px] text-white/50 font-normal mt-0.5 min-w-0">
                                             <span className="text-white/40">Commentaire coach : </span>
-                                            <span className="whitespace-pre-wrap">{(exercise.coach_feedback || exercise.coachFeedback || exercise.notes).trim()}</span>
+                                            <span className="whitespace-pre-wrap break-words block">{(exercise.coach_feedback || exercise.coachFeedback || exercise.notes).trim()}</span>
                                           </div>
                                         )}
                                       </div>
