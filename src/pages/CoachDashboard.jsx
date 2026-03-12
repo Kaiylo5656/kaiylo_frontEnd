@@ -1252,6 +1252,10 @@ const CoachDashboard = () => {
                               e.stopPropagation();
                               setSelectedStudent(student);
                               setSelectedStudentInitialTab('analyse');
+                              const params = new URLSearchParams({ studentId: student.id, tab: 'analyse' });
+                              if (sort) params.set('sort', sort);
+                              if (dir) params.set('dir', dir);
+                              navigate(`?${params.toString()}`);
                             }}
                             title="Voir les vidéos en attente de feedback"
                           >
@@ -1276,6 +1280,10 @@ const CoachDashboard = () => {
                             e.stopPropagation(); // Prevent triggering the row click
                             setSelectedStudent(student);
                             setSelectedStudentInitialTab('analyse');
+                            const params = new URLSearchParams({ studentId: student.id, tab: 'analyse' });
+                            if (sort) params.set('sort', sort);
+                            if (dir) params.set('dir', dir);
+                            navigate(`?${params.toString()}`);
                           } : undefined}
                           title="Voir les vidéos en attente de feedback"
                         >
