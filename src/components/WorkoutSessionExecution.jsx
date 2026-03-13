@@ -71,6 +71,15 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   // Get exercises from the correct data structure
   const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
 
+  // Superset range utility: given an exercise index, find the start and end of its superset group
+  const getSupersetRange = (exArr, index) => {
+    let start = index;
+    while (start > 0 && exArr[start - 1]?.linkedToNext) start--;
+    let end = index;
+    while (end < exArr.length - 1 && exArr[end]?.linkedToNext) end++;
+    return { start, end };
+  };
+
   // Calculate estimated duration: each exercise = 10 minutes
   const calculateEstimatedDuration = () => {
     const totalMinutes = exercises.length * 10;
@@ -2320,23 +2329,34 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
         <div
           ref={exerciseListRef}
-          className="space-y-[10px] ml-[-5px] flex flex-col w-full"
+          className="ml-[-5px] flex flex-col w-full"
         >
           {exercises && exercises.length > 0 ? (
             exercises.map((exercise, exerciseIndex) => {
-              const isActive = exerciseIndex === currentExerciseIndex;
+              const { start: sStart, end: sEnd } = getSupersetRange(exercises, exerciseIndex);
+              const isActive = currentExerciseIndex >= sStart && currentExerciseIndex <= sEnd;
               const isCompleted = isExerciseFullyComplete(exerciseIndex);
               const exerciseSummary = getExerciseSummary(exercise);
+              
+              const isLinkedToNext = !!exercise.supersetGroup && 
+                exercise.supersetGroup === exercises[exerciseIndex + 1]?.supersetGroup;
+              const isLinkedToPrev = !!exercise.supersetGroup && 
+                exercise.supersetGroup === exercises[exerciseIndex - 1]?.supersetGroup;
 
               return (
+                <React.Fragment key={exerciseIndex}>
                 <div
-                  key={exerciseIndex}
                   ref={el => exerciseCardRefs.current[exerciseIndex] = el}
+                  style={{ marginBottom: 0 }}
                   onClick={() => handleExerciseSelection(exerciseIndex)}
                   className={`
-                    rounded-[12px] overflow-hidden transition-all duration-200
+                    overflow-hidden transition-all duration-200
                     ${isCompleted ? 'bg-white/10' : 'bg-white/10'}
                     ${isSessionStarted ? 'cursor-pointer' : 'cursor-default opacity-75'}
+                    ${isLinkedToNext && isLinkedToPrev ? 'rounded-none border-b border-white/5' : 
+                      isLinkedToNext ? 'rounded-t-[12px] rounded-b-none border-b border-white/5' : 
+                      isLinkedToPrev ? 'rounded-b-[12px] rounded-t-none' : 
+                      'rounded-[12px]'}
                     w-full min-h-[64px] flex items-center justify-center
                   `}
                 >
@@ -2444,6 +2464,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                     </div>
                   </div>
                 </div>
+                {isLinkedToNext ? (
+                  <div className="h-0" />
+                ) : (
+                  <div className="h-[10px]" />
+                )}
+                </React.Fragment>
               );
             })
           ) : (

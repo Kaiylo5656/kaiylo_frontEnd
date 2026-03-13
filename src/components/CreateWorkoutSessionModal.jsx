@@ -2,7 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2 } from 'lucide-react';
+import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2, Link } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
@@ -90,6 +90,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [initialState, setInitialState] = useState(null);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [showStudentPreview, setShowStudentPreview] = useState(false);
+  const [supersetMismatchDialog, setSupersetMismatchDialog] = useState(null); // { indexA, indexB } when pending confirmation
 
   // Video modal state for student preview
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -171,6 +172,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           tempo: ex.tempo || '',
           per_side: ex.per_side || false,
           useRir: ex.useRir || false,
+          supersetGroup: ex.supersetGroup || null,
           studentComment: ex.comment || ex.student_comment || ex.studentComment || ex.previous_student_comment || ''
         };
       }) || [];
@@ -529,7 +531,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       isExpanded: true,
       tempo: '',
       per_side: false,
-      useRir: false
+      useRir: false,
+      supersetGroup: null
     };
 
     setExercises([...exercises, newExercise]);
@@ -538,7 +541,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   };
 
   const handleRemoveExercise = (id) => {
-    setExercises(exercises.filter(ex => ex.id !== id));
+    const updated = exercises.filter(ex => ex.id !== id);
+    validateSupersets(updated);
+    setExercises(updated);
   };
 
   const handleDuplicateExercise = (exerciseIndex) => {
@@ -552,7 +557,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       ...exercise,
       id: Date.now(),
       isExpanded: true,
-      sets: duplicatedSets
+      sets: duplicatedSets,
+      supersetGroup: null
     };
     const updated = [...exercises];
     updated.splice(exerciseIndex + 1, 0, newExercise);
@@ -592,6 +598,89 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       set.serie = idx + 1;
     });
     setExercises(updatedExercises);
+  };
+
+  // Superset helpers
+
+  /** Returns the next unused superset letter ('A', 'B', 'C', ...) for the given exercise array. */
+  const getNextSupersetLetter = (exs) => {
+    const used = new Set(exs.map(e => e.supersetGroup).filter(Boolean));
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    for (const letter of letters) {
+      if (!used.has(letter)) return letter;
+    }
+    return 'A';
+  };
+
+  /**
+   * Mutates the given exercise array: clears supersetGroup from any exercise
+   * whose superset partner is no longer adjacent to it.
+   */
+  const validateSupersets = (exs) => {
+    exs.forEach((ex, i) => {
+      if (!ex.supersetGroup) return;
+      const group = ex.supersetGroup;
+      const prevHasSameGroup = i > 0 && exs[i - 1].supersetGroup === group;
+      const nextHasSameGroup = i < exs.length - 1 && exs[i + 1].supersetGroup === group;
+      if (!prevHasSameGroup && !nextHasSameGroup) {
+        ex.supersetGroup = null;
+      }
+    });
+  };
+
+  /** Toggle superset link between two adjacent exercises by their indices. */
+  const handleLinkSuperset = (indexA, indexB) => {
+    const exA = exercises[indexA];
+    const exB = exercises[indexB];
+
+    // Both already in the same group → unlink only these two from the group
+    if (exA.supersetGroup && exA.supersetGroup === exB.supersetGroup) {
+      const group = exA.supersetGroup;
+      const updated = [...exercises];
+      // Count members in this group
+      const members = updated.filter(e => e.supersetGroup === group);
+      if (members.length <= 2) {
+        // Only 2 members → dissolve the whole group
+        updated.forEach((e, i) => {
+          if (e.supersetGroup === group) {
+            updated[i] = { ...updated[i], supersetGroup: null };
+          }
+        });
+      } else {
+        // More than 2 → only remove the link between A and B (remove B and onwards from group)
+        // Find the contiguous tail starting at indexB and remove them from the group
+        let i = indexB;
+        while (i < updated.length && updated[i].supersetGroup === group) {
+          updated[i] = { ...updated[i], supersetGroup: null };
+          i++;
+        }
+      }
+      setExercises(updated);
+      return;
+    }
+
+    // One or both already have a group → use the existing group letter, extend it
+    const existingGroup = exA.supersetGroup || exB.supersetGroup;
+    const letter = existingGroup || getNextSupersetLetter(exercises);
+    const updated = [...exercises];
+    updated[indexA] = { ...updated[indexA], supersetGroup: letter };
+    updated[indexB] = { ...updated[indexB], supersetGroup: letter };
+    setExercises(updated);
+  };
+
+  /** Confirm superset creation despite set count mismatch — truncates the longer exercise. */
+  const handleConfirmMismatch = () => {
+    if (!supersetMismatchDialog) return;
+    const { indexA, indexB } = supersetMismatchDialog;
+    const updated = [...exercises];
+    const minSets = Math.min(updated[indexA].sets.length, updated[indexB].sets.length);
+    updated[indexA] = { ...updated[indexA], sets: updated[indexA].sets.slice(0, minSets) };
+    updated[indexB] = { ...updated[indexB], sets: updated[indexB].sets.slice(0, minSets) };
+    const letter = getNextSupersetLetter(exercises);
+    updated[indexA] = { ...updated[indexA], supersetGroup: letter };
+    updated[indexB] = { ...updated[indexB], supersetGroup: letter };
+    setExercises(updated);
+    setSupersetMismatchDialog(null);
   };
 
   // Helper function to check if session was copied from a completed session (charge ou RPE précédent)
@@ -647,6 +736,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       // Fallback if refs not available
       const updatedExercises = [...exercises];
       [updatedExercises[fromIndex], updatedExercises[toIndex]] = [updatedExercises[toIndex], updatedExercises[fromIndex]];
+      validateSupersets(updatedExercises);
       setExercises(updatedExercises);
       return;
     }
@@ -663,6 +753,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     // Update state (this will cause React to reorder elements)
     const updatedExercises = [...exercises];
     [updatedExercises[fromIndex], updatedExercises[toIndex]] = [updatedExercises[toIndex], updatedExercises[fromIndex]];
+    validateSupersets(updatedExercises);
     setExercises(updatedExercises);
 
     // FLIP: Last - after React renders, get final positions and animate
@@ -778,6 +869,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       // Insert it at the new position
       updatedExercises.splice(dropIndex, 0, draggedExercise);
 
+      validateSupersets(updatedExercises);
       setExercises(updatedExercises);
     }
   };
@@ -811,7 +903,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         notes: ex.notes,
         tempo: ex.tempo,
         per_side: ex.per_side || false,
-        useRir: ex.useRir || false
+        useRir: ex.useRir || false,
+        supersetGroup: ex.supersetGroup || null
       })),
       scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,
@@ -881,7 +974,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         notes: ex.notes,
         tempo: ex.tempo,
         per_side: ex.per_side || false,
-        useRir: ex.useRir || false
+        useRir: ex.useRir || false,
+        supersetGroup: ex.supersetGroup || null
       })),
       status: existingSession?.status || 'published'
     };
@@ -1404,7 +1498,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       onMoveDown={moveExerciseDown}
                       useAbsolute={false}
                       embedded={true}
-                      onReorder={setExercises}
+                      onReorder={(newOrder) => {
+                        validateSupersets(newOrder);
+                        setExercises(newOrder);
+                      }}
+                      onLinkSuperset={handleLinkSuperset}
                     />
                   )}
 
@@ -1905,10 +2003,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
               {/* Description removed as per coach request */}
 
-              <div className="space-y-4">
-                {exercises.map((exercise, exerciseIndex) => (
+              <div className="flex flex-col">
+                {exercises.map((exercise, exerciseIndex) => {
+                  const isLinked = !!exercise.supersetGroup && 
+                    exercise.supersetGroup === exercises[exerciseIndex + 1]?.supersetGroup;
+                  const isLinkedToPrev = !!exercise.supersetGroup && 
+                    exercise.supersetGroup === exercises[exerciseIndex - 1]?.supersetGroup;
+                  
+                  return (
+                  <React.Fragment key={exercise.id}>
                   <div
-                    key={exercise.id}
                     ref={(el) => {
                       if (el) {
                         exerciseRefs.current[exercise.id] = el;
@@ -1916,14 +2020,19 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         delete exerciseRefs.current[exercise.id];
                       }
                     }}
-                    className="rounded-[12px] overflow-hidden"
+                    className={`overflow-hidden transition-all duration-200 mt-0 ${
+                      isLinked && isLinkedToPrev ? 'rounded-none border-t border-white/5' : 
+                      isLinked ? 'rounded-t-[12px] rounded-b-none' : 
+                      isLinkedToPrev ? 'rounded-b-[12px] rounded-t-none border-t border-white/5' : 
+                      'rounded-[12px]'
+                    }`}
                     style={{
                       willChange: 'transform',
                       background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)'
                     }}
                   >
                     {/* Exercise Header */}
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-transparent">
+                    <div className="flex items-center justify-between p-3 md:p-4 bg-transparent border-0" style={{ borderTopWidth: isLinkedToPrev ? '0px' : '0' }}>
                       <div
                         onClick={(e) => {
                           handleReplaceExercise(exerciseIndex);
@@ -2641,7 +2750,35 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       </div>
                     )}
                   </div>
-                ))}
+                  {exerciseIndex < exercises.length - 1 && (
+                    <div
+                      className="flex items-center justify-center relative w-full pointer-events-none z-20"
+                      style={{ height: isLinked ? '6px' : '28px' }}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleLinkSuperset(exerciseIndex, exerciseIndex + 1);
+                        }}
+                        className={`flex items-center justify-center rounded-[6px] border-[0.5px] pointer-events-auto transition-all ${
+                          isLinked
+                            ? 'w-[42px] h-[22px] bg-[#2E1E16] border-[#D4845A] hover:bg-[#3D281D]'
+                            : 'w-[42px] h-[22px] bg-[#1E1F23] border-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)]'
+                        }`}
+                        title={isLinked ? 'Supprimer le superset' : 'Créer un superset'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" clipRule="evenodd" d="M6.75 8.625C5.85489 8.625 4.99645 8.98058 4.36351 9.61351C3.73058 10.2465 3.375 11.1049 3.375 12C3.375 12.8951 3.73058 13.7536 4.36351 14.3865C4.99645 15.0194 5.85489 15.375 6.75 15.375H9.40594C10.0273 15.375 10.5309 15.8787 10.5309 16.5C10.5309 17.1213 10.0273 17.625 9.40594 17.625H6.75C5.25816 17.625 3.82742 17.0324 2.77252 15.9775C1.71763 14.9226 1.125 13.4918 1.125 12C1.125 10.5082 1.71763 9.07742 2.77252 8.02252C3.82742 6.96763 5.25816 6.375 6.75 6.375H9.34734C9.96866 6.375 10.4723 6.87868 10.4723 7.5C10.4723 8.12132 9.96866 8.625 9.34734 8.625H6.75Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
+                          <path fillRule="evenodd" clipRule="evenodd" d="M13.5273 7.5C13.5273 6.87868 14.031 6.375 14.6523 6.375H17.2497C18.7415 6.375 20.1723 6.96763 21.2272 8.02252C22.2821 9.07742 22.8747 10.5082 22.8747 12C22.8747 13.4918 22.2821 14.9226 21.2272 15.9775C20.1723 17.0324 18.7415 17.625 17.2497 17.625H14.5937C13.9724 17.625 13.4688 17.1213 13.4688 16.5C13.4688 15.8787 13.9724 15.375 14.5937 15.375H17.2497C18.1448 15.375 19.0032 15.0194 19.6362 14.3865C20.2691 13.7536 20.6247 12.8951 20.6247 12C20.6247 11.1049 20.2691 10.2464 19.6362 9.61351C19.0032 8.98058 18.1448 8.625 17.2497 8.625H14.6523C14.031 8.625 13.5273 8.12132 13.5273 7.5Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
+                          <path fillRule="evenodd" clipRule="evenodd" d="M6.80078 12C6.80078 11.3787 7.30446 10.875 7.92578 10.875H16.1692C16.7905 10.875 17.2942 11.3787 17.2942 12C17.2942 12.6213 16.7905 13.125 16.1692 13.125H7.92578C7.30446 13.125 6.80078 12.6213 6.80078 12Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  </React.Fragment>
+                  );
+                })}
               </div>
 
               {/* Exercise Selector */}
@@ -2812,6 +2949,49 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         onClose={handleCancelQuit}
         onConfirm={handleConfirmQuit}
       />
+
+      {/* Superset Set-Count Mismatch Dialog */}
+      {supersetMismatchDialog && (() => {
+        const exA = exercises[supersetMismatchDialog.indexA];
+        const exB = exercises[supersetMismatchDialog.indexB];
+        if (!exA || !exB) return null;
+        const diff = Math.abs(exA.sets.length - exB.sets.length);
+        const longer = exA.sets.length > exB.sets.length ? exA : exB;
+        return (
+          <ModalPortal>
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4 z-[10001]"
+              onMouseDown={(e) => { if (e.target === e.currentTarget) setSupersetMismatchDialog(null); }}
+            >
+              <div className="bg-[#111] border border-white/10 rounded-[16px] p-6 w-full max-w-[340px] text-white">
+                <p className="text-sm font-light text-white/80 mb-4">
+                  <span className="font-normal">{exA.name}</span> a {exA.sets.length} série{exA.sets.length > 1 ? 's' : ''} et{' '}
+                  <span className="font-normal">{exB.name}</span> a {exB.sets.length} série{exB.sets.length > 1 ? 's' : ''}.
+                  <br />
+                  Le superset va supprimer {diff} série{diff > 1 ? 's' : ''} de{' '}
+                  <span className="font-normal">{longer.name}</span>.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSupersetMismatchDialog(null)}
+                    className="px-4 py-2 text-sm text-white/60 bg-white/5 hover:bg-white/10 rounded-[8px] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmMismatch}
+                    className="px-4 py-2 text-sm text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 rounded-[8px] transition-colors"
+                  >
+                    Confirmer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        );
+      })()}
 
       {/* Student Preview Modal */}
       {showStudentPreview && exercises.length > 0 && (() => {

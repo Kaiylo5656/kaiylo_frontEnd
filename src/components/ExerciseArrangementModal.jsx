@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Reorder } from 'framer-motion';
+import { Link } from 'lucide-react';
 
 /** Group consecutive sets with same reps/weight into { count, reps, weight } for display (e.g. 2×3@5kg, 2×2@5kg). */
 function getSetGroups(sets, useRir) {
@@ -38,7 +39,8 @@ const ExerciseArrangementModal = ({
   onMoveDown,
   useAbsolute = false,
   embedded = false,
-  onReorder
+  onReorder,
+  onLinkSuperset
 }) => {
   const [hoveredId, setHoveredId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
@@ -102,9 +104,26 @@ const ExerciseArrangementModal = ({
                   })()}
                 </div>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                <path d="M128 40c0-22.1-17.9-40-40-40L40 0C17.9 0 0 17.9 0 40L0 88c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zm0 192c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM0 424l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 40c0-22.1-17.9-40-40-40L232 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM192 232l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 424c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48z" />
-              </svg>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {index < exercises.length - 1 && onLinkSuperset && (() => {
+                  const isLinked = exercise.supersetGroup !== null &&
+                    exercise.supersetGroup === exercises[index + 1]?.supersetGroup;
+                  return (
+                    <button
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onLinkSuperset(index, index + 1); }}
+                      className={`p-1 rounded-full transition-colors ${isLinked ? 'text-orange-500 bg-orange-500/10' : 'text-zinc-600 hover:text-zinc-400'}`}
+                      title={isLinked ? 'Supprimer le superset' : 'Créer un superset'}
+                    >
+                      <Link size={13} />
+                    </button>
+                  );
+                })()}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" className="h-4 w-4 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                  <path d="M128 40c0-22.1-17.9-40-40-40L40 0C17.9 0 0 17.9 0 40L0 88c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zm0 192c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM0 424l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 40c0-22.1-17.9-40-40-40L232 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48zM192 232l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40zM320 424c0-22.1-17.9-40-40-40l-48 0c-22.1 0-40 17.9-40 40l0 48c0 22.1 17.9 40 40 40l48 0c22.1 0 40-17.9 40-40l0-48z" />
+                </svg>
+              </div>
             </Reorder.Item>
           ))}
         </Reorder.Group>

@@ -113,10 +113,10 @@ const StudentDashboard = () => {
     );
   }, [assignments, selectedDate]);
 
-  // Reset card index when selected assignments change
+  // Reset card index when selected date or assignments change
   useEffect(() => {
     setCurrentCardIndex(0);
-  }, [selectedAssignments.length]);
+  }, [selectedDate]);
 
   const selectedAssignment = selectedAssignments[0]; // Keep for backward compatibility
 

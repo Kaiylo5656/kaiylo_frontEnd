@@ -36,6 +36,7 @@ const ExerciseValidationModal = ({
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [isRpeModalOpen, setIsRpeModalOpen] = useState(false);
   const [selectedSetForRpe, setSelectedSetForRpe] = useState(null);
+  const [collapsedSupersetSeries, setCollapsedSupersetSeries] = useState(new Set());
   const [studentWeights, setStudentWeights] = useState({}); // Store student weights locally
   const [fetchedDetails, setFetchedDetails] = useState(null);
   const modalRef = useRef(null);
@@ -339,7 +340,12 @@ const ExerciseValidationModal = ({
   // Gérer la sélection du RPE
   const handleRpeSelect = (rpeRating) => {
     if (selectedSetForRpe !== null && onRpeUpdate) {
-      onRpeUpdate(exerciseIndex, selectedSetForRpe, rpeRating);
+      // Superset passes { exIdx, setIndex }, normal mode passes a plain set index number
+      if (typeof selectedSetForRpe === 'object' && selectedSetForRpe !== null && 'exIdx' in selectedSetForRpe) {
+        onRpeUpdate(selectedSetForRpe.exIdx, selectedSetForRpe.setIndex, rpeRating);
+      } else {
+        onRpeUpdate(exerciseIndex, selectedSetForRpe, rpeRating);
+      }
     }
     setIsRpeModalOpen(false);
     setSelectedSetForRpe(null);
@@ -668,17 +674,103 @@ const ExerciseValidationModal = ({
     return Math.abs(offset) * velocity;
   };
 
+  // Superset support
+  const supersetPeers = allExercises.filter(
+    (ex, i) => ex.supersetGroup && ex.supersetGroup === exercise?.supersetGroup && i !== exerciseIndex
+  );
+  const isInSuperset = supersetPeers.length > 0;
+
+  // All exercises in this superset, in session order (including current exercise)
+  const supersetMembers = isInSuperset
+    ? allExercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => ex.supersetGroup && ex.supersetGroup === exercise.supersetGroup)
+    : [];
+
+  const getSetStatusFor = (exIdx, setIdx) => {
+    const key = `${exIdx}-${setIdx}`;
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'status' in setData) return setData.status;
+    if (typeof setData === 'string') return setData;
+    return 'pending';
+  };
+
+  const getRpeForSetOf = (exIdx, setIdx) => {
+    const key = `${exIdx}-${setIdx}`;
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'rpeRating' in setData) return setData.rpeRating;
+    return null;
+  };
+
+  const getStudentWeightForSetOf = (exIdx, setIdx) => {
+    const key = `${exIdx}-${setIdx}`;
+    if (studentWeights[key]) return studentWeights[key];
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object' && 'studentWeight' in setData) return setData.studentWeight || '';
+    return '';
+  };
+
+  const hasVideoForSetOf = (exIdx, setIdx) => {
+    const hasLocalVideo = localVideos.some((video) => {
+      if (video.exerciseIndex === exIdx && video.setIndex === setIdx)
+        return video.file !== null && video.file !== undefined && video.file !== 'no-video';
+      if (video.exerciseInfo && video.setInfo)
+        return video.exerciseInfo.exerciseIndex === exIdx && video.setInfo.setIndex === setIdx &&
+          video.file !== null && video.file !== undefined && video.file !== 'no-video';
+      return false;
+    });
+    if (hasLocalVideo) return true;
+    const key = `${exIdx}-${setIdx}`;
+    const setData = completedSets[key];
+    return !!(setData && typeof setData === 'object' && setData.hasVideo === true);
+  };
+
+  // Returns 'no-video' if user chose "Pas de vidéo", true if real video, false if no choice yet
+  const hasVideoChoiceForSetOf = (exIdx, setIdx) => {
+    const matchingVideo = localVideos.find((video) => {
+      if (video.exerciseIndex === exIdx && video.setIndex === setIdx) return true;
+      if (video.exerciseInfo && video.setInfo)
+        return video.exerciseInfo.exerciseIndex === exIdx && video.setInfo.setIndex === setIdx;
+      return false;
+    });
+    if (matchingVideo) {
+      if (matchingVideo.file === 'no-video') return 'no-video';
+      if (matchingVideo.file !== null && matchingVideo.file !== undefined) return true;
+    }
+    const key = `${exIdx}-${setIdx}`;
+    const setData = completedSets[key];
+    if (setData && typeof setData === 'object') {
+      if (setData.videoStatus === 'no-video') return 'no-video';
+      if (setData.hasVideo === true) return true;
+    }
+    return false;
+  };
+
+  const toggleSupersetSerie = (setIdx) => {
+    setCollapsedSupersetSeries(prev => {
+      const next = new Set(prev);
+      if (next.has(setIdx)) next.delete(setIdx); else next.add(setIdx);
+      return next;
+    });
+  };
+
+  // Superset boundary indices
+  const supersetStart = isInSuperset ? supersetMembers[0].idx : exerciseIndex;
+  const supersetEnd = isInSuperset ? supersetMembers[supersetMembers.length - 1].idx : exerciseIndex;
+
   const handleNextExercise = () => {
-    if (exerciseIndex < allExercises.length - 1 && onExerciseChange) {
+    const nextIndex = supersetEnd + 1;
+    if (nextIndex < allExercises.length && onExerciseChange) {
       setDirection(1);
-      onExerciseChange(exerciseIndex + 1);
+      onExerciseChange(nextIndex);
     }
   };
 
   const handlePrevExercise = () => {
-    if (exerciseIndex > 0 && onExerciseChange) {
+    const prevIndex = supersetStart - 1;
+    if (prevIndex >= 0 && onExerciseChange) {
       setDirection(-1);
-      onExerciseChange(exerciseIndex - 1);
+      onExerciseChange(prevIndex);
     }
   };
 
@@ -705,28 +797,35 @@ const ExerciseValidationModal = ({
                 {/* STATIC HEADER: Title & Navigation */}
                 <div className="px-12 pt-8 pb-0 z-10 text-white flex-shrink-0">
                   <div className="mb-6">
-                    <div className="flex items-center justify-center gap-3 mb-[7px]">
-                      <button
-                        type="button"
-                        onClick={handlePrevExercise}
-                        disabled={exerciseIndex === 0}
-                        className="flex items-center justify-center p-1 rounded-full transition-opacity touch-target disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none hover:opacity-100"
-                        aria-label="Exercice précédent"
-                      >
-                        <ChevronLeft className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
-                      </button>
-                      <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-center select-none">
-                        {exercise.name}
-                      </h1>
-                      <button
-                        type="button"
-                        onClick={handleNextExercise}
-                        disabled={exerciseIndex >= (allExercises?.length ?? 1) - 1}
-                        className="flex items-center justify-center p-1 rounded-full text-white/50 touch-target disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none hover:opacity-100"
-                        aria-label="Exercice suivant"
-                      >
-                        <ChevronRight className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
-                      </button>
+                    <div className="flex flex-col items-center gap-[7px] mb-[7px]">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handlePrevExercise}
+                          disabled={supersetStart === 0}
+                          className="flex items-center justify-center p-1 rounded-full transition-opacity touch-target disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none hover:opacity-100"
+                          aria-label="Exercice précédent"
+                        >
+                          <ChevronLeft className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
+                        </button>
+                        <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-center select-none">
+                          {isInSuperset ? supersetMembers.map(m => m.ex.name).join(' x ') : exercise.name}
+                        </h1>
+                        <button
+                          type="button"
+                          onClick={handleNextExercise}
+                          disabled={supersetEnd >= (allExercises?.length ?? 1) - 1}
+                          className="flex items-center justify-center p-1 rounded-full text-white/50 touch-target disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none hover:opacity-100"
+                          aria-label="Exercice suivant"
+                        >
+                          <ChevronRight className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
+                        </button>
+                      </div>
+                      {isInSuperset && (
+                        <p className="text-[10px] font-normal text-white/50 text-center leading-normal">
+                          Super Set
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -772,20 +871,37 @@ const ExerciseValidationModal = ({
                             </div>
                           )}
 
-                          {/* Points d'avancement - représentent les exercices de la séance */}
+                          {/* Points d'avancement - 1 dot par exercice standalone ou par groupe superset */}
                           {allExercises && allExercises.length > 0 && (
                             <div className="flex items-center justify-center gap-2 w-full">
-                              {allExercises.map((_, exIndex) => {
-                                const isFinalized = isSpecificExerciseFinalized(exIndex);
-                                const isCurrentExercise = exIndex === exerciseIndex;
-                                return (
-                                  <div
-                                    key={exIndex}
-                                    className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${isCurrentExercise ? 'bg-[#d4845a]' : isFinalized ? 'bg-white/50' : 'bg-white/30'
-                                      }`}
-                                  />
-                                );
-                              })}
+                              {(() => {
+                                // Build groups: superset members share one dot
+                                const groups = [];
+                                const seenGroups = new Set();
+                                allExercises.forEach((ex, i) => {
+                                  if (ex.supersetGroup) {
+                                    if (!seenGroups.has(ex.supersetGroup)) {
+                                      seenGroups.add(ex.supersetGroup);
+                                      const indices = allExercises
+                                        .map((e, j) => e.supersetGroup === ex.supersetGroup ? j : -1)
+                                        .filter(j => j >= 0);
+                                      groups.push(indices);
+                                    }
+                                  } else {
+                                    groups.push([i]);
+                                  }
+                                });
+                                return groups.map((indices, dotIndex) => {
+                                  const isCurrent = indices.includes(exerciseIndex);
+                                  const isFinalized = indices.every(i => isSpecificExerciseFinalized(i));
+                                  return (
+                                    <div
+                                      key={dotIndex}
+                                      className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${isCurrent ? 'bg-[#d4845a]' : isFinalized ? 'bg-white/50' : 'bg-white/30'}`}
+                                    />
+                                  );
+                                });
+                              })()}
                             </div>
                           )}
 
@@ -868,7 +984,7 @@ const ExerciseValidationModal = ({
                         </div>
 
                         {/* Liste des séries */}
-                        <div className="space-y-[10px] pb-6"> {/* Removed pl-6 pr-12 because parent has padding */}
+                        {!isInSuperset && (<div className="space-y-[10px] pb-6"> {/* Removed pl-6 pr-12 because parent has padding */}
                           {/* Headers - Positionnés au-dessus des séries */}
                           <div className="flex items-center mb-2">
                             <div className="w-[20px] flex-shrink-0 mr-1" />
@@ -1206,7 +1322,167 @@ const ExerciseValidationModal = ({
                             </div>
                           )}
 
-                        </div>
+                        </div>)}
+
+                        {/* Superset Série N view */}
+                        {isInSuperset && (
+                          <div className="space-y-[10px] pb-6">
+                            {Array.from({ length: Math.max(...supersetMembers.map(m => m.ex.sets?.length || 0)) }, (_, setIndex) => (
+                              <React.Fragment key={setIndex}>
+                                {/* Série N label */}
+                                <div className={`flex items-center gap-[6px] ${setIndex > 0 ? 'mt-3' : ''}`}>
+                                  <svg width="5" height="7" viewBox="0 0 5 7" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                    <path d="M1 1L4 3.5L1 6" stroke="#d4845a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  <p className="text-[12px] font-normal text-[#d4845a]">Série {setIndex + 1}</p>
+                                </div>
+                                {/* Header labels row — same as normal mode */}
+                                <div className="flex items-center mb-1">
+                                  <div className="w-[20px] flex-shrink-0 mr-1" />
+                                  <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]">
+                                    <div className="flex items-center w-full gap-3">
+                                      <div className="w-[42px] flex justify-center items-center flex-shrink-0">
+                                        <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>
+                                      </div>
+                                      <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                                        <p className="text-[8px] font-normal text-white/25 leading-none">Charge</p>
+                                      </div>
+                                      <div className="flex-1 flex justify-center items-center gap-[15px]">
+                                        <div className="w-[17px] h-[17px]" />
+                                        <div className="w-[17px] h-[17px]" />
+                                      </div>
+                                      <div className="w-[24px] flex justify-center items-center flex-shrink-0">
+                                        <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">RPE</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                                </div>
+                                {supersetMembers.map(({ ex: exObj, idx: exIdx }, memberIndex) => {
+                                        const s = exObj.sets?.[setIndex];
+                                        if (!s) return (
+                                          <div key={exIdx} className="flex items-center">
+                                            <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
+                                            <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+                                              <div className="flex items-center w-full gap-3">
+                                                <div className="w-[42px] h-[17px] flex-shrink-0" />
+                                                <div className="w-[50px] h-[17px] flex-shrink-0" />
+                                                <div className="flex-1 h-[17px]" />
+                                                <div className="w-[24px] h-[17px] flex-shrink-0" />
+                                              </div>
+                                            </div>
+                                            <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                                          </div>
+                                        );
+                                        const st = getSetStatusFor(exIdx, setIndex);
+                                        const isComp = st === 'completed';
+                                        const isFail = st === 'failed';
+                                        const rpeVal = getRpeForSetOf(exIdx, setIndex);
+                                        const wVal = getStudentWeightForSetOf(exIdx, setIndex);
+                                        const repType = s.repType || 'reps';
+                                        let repsDisplay = s.reps || '?';
+                                        if (repType === 'hold') {
+                                          const rv = s.reps || '';
+                                          repsDisplay = rv.includes(':') ? rv : rv ? (rv.endsWith('s') ? rv : `${rv}s`) : '0s';
+                                        } else if (repType === 'amrap') {
+                                          repsDisplay = 'AMRAP';
+                                        }
+                                        const weightVal = s.weight ?? 0;
+                                        const videoEnabled = s.video === true || s.video === 1 || s.video === 'true';
+                                        const hasVid = hasVideoForSetOf(exIdx, setIndex);
+                                        const videoChoice = hasVideoChoiceForSetOf(exIdx, setIndex);
+
+                                        return (
+                                          <div key={exIdx} className="flex items-center">
+                                            <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
+                                            <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+                                              <div className="flex items-center w-full gap-3">
+                                                <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                                                  <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '15px' }}>{repsDisplay}</span>
+                                                </div>
+                                                <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                                                  {exObj.useRir ? (
+                                                    <span className="text-[15px] text-[#d4845a] leading-none">{weightVal || '-'}</span>
+                                                  ) : (
+                                                    <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{weightVal}<span className="text-[12px] font-normal">kg</span></span>
+                                                  )}
+                                                </div>
+                                                <div className="flex-1 flex justify-center items-center gap-[15px]">
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isComp ? 'pending' : 'completed', setIndex); }}
+                                                    className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isComp ? 'bg-[#d4845a]' : 'bg-white/15'}`}
+                                                    title="Valider la série"
+                                                  >
+                                                    <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0"><path d="M1 3.5L3.5 6L9 1" stroke="#FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity={isComp ? "1" : "0.25"} /></svg>
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isFail ? 'pending' : 'failed', setIndex); }}
+                                                    className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isFail ? 'bg-[#d4845a]' : 'bg-white/15'}`}
+                                                    title="Marquer en échec"
+                                                  >
+                                                    <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0"><path d="M5 12L12 5M5 5L12 12" stroke="white" strokeOpacity={isFail ? "1" : "0.25"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                                  </button>
+                                                </div>
+                                                <div className={`${exObj.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                                  <div className="flex justify-center items-center w-full">
+                                                    {exObj.useRir ? (
+                                                      <div className="relative flex items-center gap-[2px]">
+                                                        <input
+                                                          type="text"
+                                                          inputMode="decimal"
+                                                          value={wVal || ''}
+                                                          onChange={(e) => { if (onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
+                                                          disabled={!isComp}
+                                                          placeholder=""
+                                                          className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'}`}
+                                                          style={{ padding: '0', lineHeight: 1 }}
+                                                          maxLength={3}
+                                                        />
+                                                        <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                                                      </div>
+                                                    ) : (
+                                                      <button
+                                                        onClick={(e) => { e.stopPropagation(); if (isComp) { setSelectedSetForRpe({ exIdx, setIndex }); setIsRpeModalOpen(true); } }}
+                                                        disabled={!isComp}
+                                                        className={`touch-expand bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${!isComp ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white/10'}`}
+                                                        title={!isComp ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
+                                                      >
+                                                        <span className={`text-[9px] font-medium leading-none ${rpeVal ? 'text-[#d4845a]' : 'text-white/50'}`}>{rpeVal || ''}</span>
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="relative flex-shrink-0 ml-[10px]">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); if (onVideoUpload) onVideoUpload(exIdx, setIndex); }}
+                                                disabled={!videoEnabled}
+                                                className={`touch-expand w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${videoEnabled ? (hasVid ? 'bg-white/10' : videoChoice === 'no-video' ? 'bg-white/10' : 'bg-[#d4845a]') : 'bg-white/5 opacity-50 cursor-not-allowed'}`}
+                                                title={!videoEnabled ? 'Vidéo non requise' : hasVid ? 'Vidéo ajoutée' : videoChoice === 'no-video' ? 'Pas de vidéo - Cliquez pour modifier' : 'Ajouter vidéo'}
+                                              >
+                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                                  <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" fill={(hasVid || videoChoice === 'no-video') ? '#9CA3AF' : (videoEnabled ? '#FFF' : '#9CA3AF')} fillOpacity={(hasVid || videoChoice === 'no-video') || !videoEnabled ? "0.4" : "1"} />
+                                                  {!videoEnabled && <line x1="1" y1="1" x2="11" y2="11" stroke="#9CA3AF" strokeWidth="1.5" strokeOpacity="0.4" strokeLinecap="round"></line>}
+                                                </svg>
+                                              </button>
+                                              {videoChoice === 'no-video' && (
+                                                <div className="absolute -top-1 -right-1 w-[10px] h-[10px] bg-[#DA3336] rounded-full flex items-center justify-center border border-white/20" style={{ opacity: 1 }}>
+                                                  <svg width="6" height="6" viewBox="0 0 6 6" fill="none" className="flex-shrink-0">
+                                                    <path d="M1 1L5 5M5 1L1 5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                                                  </svg>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+
+                                </React.Fragment>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Bouton fermer - juste sous le dernier exercice */}
                         <div className="mt-4 px-0 pb-8">
@@ -1276,7 +1552,9 @@ const ExerciseValidationModal = ({
 
       {/* RPE Selection Modal */}
       {isRpeModalOpen && selectedSetForRpe !== null && (() => {
-        const currentRpe = getRpeForSet(selectedSetForRpe);
+        const currentRpe = typeof selectedSetForRpe === 'object' && 'exIdx' in selectedSetForRpe
+          ? getRpeForSetOf(selectedSetForRpe.exIdx, selectedSetForRpe.setIndex)
+          : getRpeForSet(selectedSetForRpe);
 
         // Empêcher la fermeture par clic sur le backdrop
         const handleBackdropClick = (e) => {
