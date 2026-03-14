@@ -115,17 +115,21 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
         }
       } else if (existingVideo.file === 'uploaded' && existingVideo.videoId && !existingVideo.videoUrl) {
         // Video was just uploaded via TUS (has videoId but no videoUrl yet)
-        // We need to fetch the signed URL from the API
         logger.debug('📹 Video uploaded but no URL yet, fetching from API...', existingVideo.videoId);
-        // For now, mark as uploaded - the video will be fetched from API on next session load
-        // Or we could trigger a fetch here, but that's more complex
-        setVideoFile('uploaded');
+        setVideoFile('processing');
         setVideoPreviewUrl(null);
         initializedRef.current = true;
-        lastVideoUrlRef.current = 'uploaded-no-url';
+        lastVideoUrlRef.current = 'processing';
+      } else if (existingVideo.file === null && !existingVideo.videoUrl) {
+        // Video was restored from localStorage (file can't be recovered) but URL not yet fetched from API
+        // Show processing state — API re-fetch should provide the URL soon
+        logger.debug('📹 Video restored from localStorage but no URL yet (waiting for API)');
+        setVideoFile('processing');
+        setVideoPreviewUrl(null);
+        initializedRef.current = true;
+        lastVideoUrlRef.current = 'processing';
       } else if (existingVideo.status) {
          // Maybe it's a video already uploaded?
-         // For now, assume we are handling file objects or fresh uploads.
          logger.debug('⚠️ Video has status but no URL or file:', existingVideo.status);
          initializedRef.current = true;
          lastVideoUrlRef.current = `status-${existingVideo.status}`;
@@ -374,8 +378,18 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
             </div>
           )}
 
+          {/* Processing state — video uploaded but URL not yet available */}
+          {videoFile === 'processing' && !videoPreviewUrl && (
+            <div className="px-[28px] pt-[12px]">
+              <div className="bg-white/5 border border-white/10 rounded-[5px] w-full h-[80px] flex items-center justify-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#d4845a]" />
+                <p className="text-[11px] font-light text-white/60">Vidéo en cours de traitement...</p>
+              </div>
+            </div>
+          )}
+
           {(() => {
-            const shouldShowVideo = !showTrimEditor && videoFile && videoFile !== 'no-video' && (typeof videoFile === 'object' || typeof videoFile === 'string');
+            const shouldShowVideo = !showTrimEditor && videoFile && videoFile !== 'no-video' && videoFile !== 'processing' && (typeof videoFile === 'object' || typeof videoFile === 'string');
             const hasPreviewUrl = !!videoPreviewUrl;
             
             logger.debug('🔍 Render check:', {

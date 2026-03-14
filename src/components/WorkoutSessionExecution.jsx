@@ -51,6 +51,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const isRestoringProgress = useRef(false); // Flag to prevent saving during restoration
   const lastRestoredSessionId = useRef(null); // Track which session was last restored
   const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
+  const lastFetchedVideosAssignmentId = useRef(null); // Guard against duplicate video fetches
   const historyEntryAdded = useRef(false); // Track if history entry was added for back button interception
 
   // Show/hide Header and BottomNavBar when component mounts/unmounts
@@ -378,11 +379,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
     // Fetch videos from API for this session (after localStorage restoration)
     // This will merge uploaded videos from Supabase with local videos
-    // Wait a bit to ensure exercises are loaded
+    // Guard: only fetch once per assignmentId to avoid hammering the API on every exercises update
     if (sessionId && exercises && exercises.length > 0) {
       const assignmentId = session?.assignment_id || session?.id;
-      if (assignmentId) {
-        // Small delay to ensure exercises are fully loaded
+      if (assignmentId && lastFetchedVideosAssignmentId.current !== assignmentId) {
+        lastFetchedVideosAssignmentId.current = assignmentId;
         setTimeout(() => {
           fetchSessionVideosFromAPI(assignmentId);
         }, 300);
@@ -1974,13 +1975,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         ];
       });
 
-      // If video was uploaded successfully (has videoId and status), re-fetch from API to get signed URL
-      // This ensures the video can be displayed in the modal when reopened
-      if (videoData.videoId && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
+      // If video was uploaded but no URL returned yet, re-fetch from API as fallback
+      // (rawVideoUrl is provided directly by confirmVideoUpload, so this is only needed if that failed)
+      if (videoData.videoId && !videoData.videoUrl && (videoData.status === 'READY' || videoData.status === 'UPLOADED_RAW')) {
         const assignmentId = session?.assignment_id || session?.id;
         if (assignmentId) {
-          // Re-fetch immediately to get the signed URL for the newly uploaded video
-          // Use a small delay to ensure backend has processed the upload confirmation
           setTimeout(() => {
             fetchSessionVideosFromAPI(assignmentId);
           }, 500);
@@ -2579,15 +2578,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           isFromAPI: existingVideoForSet?.isFromAPI
         });
 
-        // If video exists but has no videoUrl (uploaded but not yet fetched from API), trigger a re-fetch
-        if (isVideoModalOpen && existingVideoForSet && existingVideoForSet.videoId && !existingVideoForSet.videoUrl) {
-          const assignmentId = session?.assignment_id || session?.id;
-          if (assignmentId) {
-            logger.debug('🔄 Video has no URL yet, fetching from API...', existingVideoForSet.videoId);
-            fetchSessionVideosFromAPI(assignmentId);
-          }
-        }
-
         // Log pour déboguer l'ouverture du modal
         if (isVideoModalOpen) {
           logger.debug('🎥 Opening Video Modal for:', {
@@ -2687,6 +2677,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                 [exerciseIndex]: setIndex
               }));
               setVideoUploadExerciseIndex(exerciseIndex); // Store the exercise index for video upload
+              // If video was uploaded but URL not yet available, re-fetch from API
+              const existingVid = localVideos.find(v => v.exerciseIndex === exerciseIndex && v.setIndex === setIndex);
+              if (existingVid && !existingVid.videoUrl) {
+                const assignmentId = session?.assignment_id || session?.id;
+                if (assignmentId) fetchSessionVideosFromAPI(assignmentId);
+              }
               // Keep ExerciseValidationModal open while opening video upload modal
               setIsVideoModalOpen(true);
             }

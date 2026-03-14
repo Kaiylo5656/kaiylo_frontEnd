@@ -162,7 +162,7 @@ export function BackgroundUploadProvider({ children }) {
           // Confirm upload to backend
           try {
             const freshToken = await getAuthToken();
-            await axios.patch(
+            const confirmResponse = await axios.patch(
               buildApiUrl(`/videos/${videoId}`),
               {
                 status: 'UPLOADED_RAW',
@@ -181,6 +181,7 @@ export function BackgroundUploadProvider({ children }) {
                 file: 'uploaded',
                 videoId: videoId,
                 status: 'READY',
+                videoUrl: confirmResponse.data?.rawVideoUrl || null,
                 exerciseInfo,
                 setInfo,
               });
