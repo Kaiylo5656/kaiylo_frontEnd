@@ -333,11 +333,12 @@ const CreateBlockModal = ({ isOpen, onClose, onSaved, initialDate, studentId, in
                  <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
                     Nom du bloc
                 </label>
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ex : Prépa Force"
+                    autoComplete="off"
                     className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)] h-[46px]"
                 />
             </div>
