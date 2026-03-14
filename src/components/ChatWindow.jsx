@@ -938,6 +938,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       exercise_name: videoData.exerciseName,
       created_at: videoData.videoDate,
       set_number: videoData.setNumber,
+      total_sets: videoData.totalSets,
       weight: videoData.weight,
       reps: videoData.reps,
       coach_rating: videoData.rating,
