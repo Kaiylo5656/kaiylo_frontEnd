@@ -5,7 +5,7 @@ import './index.css';
 import App from './App.jsx';
 import { BrowserRouter } from 'react-router-dom';
 
-Sentry.init({
+const SENTRY_CONFIG = {
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
   integrations: [
@@ -26,7 +26,10 @@ Sentry.init({
     if (breadcrumb.category === 'console' && breadcrumb.level === 'log') return null;
     return breadcrumb;
   },
-});
+};
+
+// TODO: Re-enable cookie consent before production launch
+Sentry.init(SENTRY_CONFIG);
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

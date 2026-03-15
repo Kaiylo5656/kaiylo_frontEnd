@@ -464,6 +464,7 @@ const CoachDashboard = () => {
 
 
 
+  // Delete account handler
   // Show student detail view if a student is selected
   if (selectedStudent) {
     return (
@@ -1369,6 +1370,7 @@ const CoachDashboard = () => {
         studentCount={selectedStudents.size}
         loading={isDeletingStudents}
       />
+
     </div>
   );
 };

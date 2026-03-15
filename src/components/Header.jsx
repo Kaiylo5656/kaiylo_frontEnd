@@ -1,15 +1,15 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
 import NotificationSidebar from './NotificationSidebar';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import useSocket from '../hooks/useSocket';
 import axios from 'axios';
-import { getApiBaseUrlWithApi } from '../config/api';
+import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import VideoDetailModal from './VideoDetailModal';
 import StudentVideoDetailModal from './StudentVideoDetailModal';
 import { useModalManager } from './ui/modal/ModalManager';
@@ -41,12 +41,17 @@ const SettingsIcon = ({ className, style }) => (
 );
 
 const Header = ({ onOpenFeedback }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const settingsRef = useRef(null);
   const location = useLocation();
   const { onVideoUpload, onFeedback } = useSocket();
   
@@ -245,6 +250,33 @@ const Header = ({ onOpenFeedback }) => {
       if (unsubscribe) unsubscribe();
     };
   }, [user?.role, onFeedback]);
+
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setIsSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      await axios.delete(buildApiUrl('/auth/me'), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      logout();
+      navigate('/login', { replace: true });
+    } catch (err) {
+      logger.error('Account deletion error:', err);
+      setIsDeletingAccount(false);
+      setIsDeleteAccountModalOpen(false);
+    }
+  };
 
   // Determine page title based on current route
   const getPageTitle = () => {
@@ -456,20 +488,61 @@ const Header = ({ onOpenFeedback }) => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-0 flex-shrink-0">
-        {/* Settings icon */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="text-white/75 hover:text-[#d4845a] h-9 w-9"
-          style={{ background: 'unset', backgroundColor: 'unset' }}
-        >
-          <SettingsIcon style={{ width: '24px', height: '24px' }} />
-        </Button>
+        {/* Settings icon + dropdown */}
+        <div ref={settingsRef} style={{ position: 'relative' }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white/75 hover:text-[#d4845a] h-9 w-9"
+            style={{ background: 'unset', backgroundColor: 'unset' }}
+            onClick={() => setIsSettingsOpen(prev => !prev)}
+          >
+            <SettingsIcon style={{ width: '24px', height: '24px' }} />
+          </Button>
+          {isSettingsOpen && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              right: 0,
+              backgroundColor: '#1a1a1a',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+              borderRadius: '10px',
+              padding: '6px',
+              minWidth: '200px',
+              zIndex: 9999,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              <button
+                onClick={() => { setIsSettingsOpen(false); setIsDeleteAccountModalOpen(true); }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: '13px',
+                  fontWeight: 300,
+                  color: 'rgba(220,80,80,0.85)',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  borderRadius: '7px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: "'Inter', sans-serif",
+                  transition: 'background-color 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(220,80,80,0.08)'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                Supprimer mon compte
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Notification icon */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="relative text-white/75 hover:text-[#d4845a]"
           onClick={() => setIsNotificationOpen(true)}
           style={{ background: 'unset', backgroundColor: 'unset' }}
@@ -586,6 +659,78 @@ const Header = ({ onOpenFeedback }) => {
             // For now, no action needed here as Header doesn't manage the list
           }}
         />
+      )}
+      {/* Delete Account Confirmation Modal */}
+      {isDeleteAccountModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+          onClick={() => !isDeletingAccount && setIsDeleteAccountModalOpen(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#111',
+              border: '0.5px solid rgba(255,255,255,0.1)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '420px',
+              width: '100%',
+              fontFamily: "'Inter', sans-serif"
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '18px', fontWeight: 300, color: 'rgba(255,255,255,0.95)', marginBottom: '12px' }}>
+              Supprimer mon compte
+            </h3>
+            <p style={{ fontSize: '14px', fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: '1.6', marginBottom: '28px' }}>
+              Cette action est irréversible. Toutes vos données seront définitivement supprimées. Êtes-vous sûr ?
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setIsDeleteAccountModalOpen(false)}
+                disabled={isDeletingAccount}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '14px',
+                  fontWeight: 300,
+                  color: 'rgba(255,255,255,0.6)',
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  border: '0.5px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  color: 'rgba(255,255,255,1)',
+                  backgroundColor: isDeletingAccount ? 'rgba(180,50,50,0.5)' : 'rgba(220,50,50,1)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: isDeletingAccount ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                {isDeletingAccount ? 'Suppression...' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

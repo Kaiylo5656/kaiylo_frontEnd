@@ -34,6 +34,9 @@ const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
 const StudentVideoLibrary = lazy(() => import('./pages/StudentVideoLibrary'));
 const FinancialTracking = lazy(() => import('./pages/FinancialTracking'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const MentionsLegalesPage = lazy(() => import('./pages/MentionsLegalesPage'));
+const CGUPage = lazy(() => import('./pages/CGUPage'));
+const PolitiqueConfidentialitePage = lazy(() => import('./pages/PolitiqueConfidentialitePage'));
 
 import './App.css';
 
@@ -140,6 +143,9 @@ function App() {
                   {/* Public Routes - root is login; landing/waitlist at /waitlist */}
                   <Route path="/" element={<LoginPage />} />
                   <Route path="/waitlist" element={<LandingPage />} />
+                  <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
+                  <Route path="/cgu" element={<CGUPage />} />
+                  <Route path="/politique-confidentialite" element={<PolitiqueConfidentialitePage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/register/student" element={<StudentRegisterPage />} />

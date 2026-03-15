@@ -3,6 +3,7 @@ import DashboardShowcase from '../components/DashboardShowcase';
 import BorderBeam from '../components/ui/BorderBeam';
 import DashboardCoachCard from '../components/DashboardCoachCard';
 import BetaSignupSection from '../components/BetaSignupSection';
+import LegalFooter from '../components/LegalFooter';
 import axios from 'axios';
 import { getApiBaseUrlWithApi } from '../config/api';
 
@@ -296,6 +297,8 @@ const LandingPage = () => {
         <DashboardCoachCard />
         <BetaSignupSection />
       </DashboardShowcase>
+
+      <LegalFooter />
 
     </div>
   );

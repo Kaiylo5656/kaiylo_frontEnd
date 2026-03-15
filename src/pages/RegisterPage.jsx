@@ -688,6 +688,46 @@ const RegisterPage = () => {
                 </div>
               )}
 
+              {/* CGU Checkbox */}
+              <div style={{ marginTop: '20px', marginBottom: '4px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    {...register('acceptCGU', {
+                      required: 'Vous devez accepter les CGU pour vous inscrire'
+                    })}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      flexShrink: 0,
+                      marginTop: '2px',
+                      accentColor: 'rgba(212,132,90,1)',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: 300, color: 'rgba(255,255,255,0.65)', lineHeight: '1.5' }}>
+                    J'accepte les{' '}
+                    <Link to="/cgu" style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none' }}>
+                      CGU
+                    </Link>
+                    {' '}et la{' '}
+                    <Link to="/politique-confidentialite" style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none' }}>
+                      Politique de confidentialité
+                    </Link>
+                  </span>
+                </label>
+                {errors.acceptCGU && (
+                  <p className="text-xs mt-1" style={{ color: 'rgba(239, 68, 68, 0.85)' }}>* {errors.acceptCGU.message}</p>
+                )}
+              </div>
+
               {/* Submit Button */}
               <button
                 type="submit"
@@ -706,12 +746,6 @@ const RegisterPage = () => {
               >
                 {isLoading ? 'Création en cours...' : "S'inscrire"}
               </button>
-
-              {/* CGU Text */}
-              <p className="text-xs text-center mt-4 px-2" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: '300', fontSize: '14px', lineHeight: '1.5' }}>
-                En créant un compte vous acceptez les{' '}
-                <span style={{ color: 'rgba(212, 132, 90, 1)', fontWeight: '400' }}>CGU et conditions d'utilisation</span>
-              </p>
             </form>
 
             {/* Student invitation section */}

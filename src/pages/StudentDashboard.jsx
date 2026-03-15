@@ -13,9 +13,10 @@ import WorkoutSessionExecution from '../components/WorkoutSessionExecution';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SessionSuccessModal from '../components/SessionSuccessModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 
 const StudentDashboard = () => {
-  const { user, getAuthToken, refreshAuthToken } = useAuth();
+  const { user, getAuthToken, refreshAuthToken, logout } = useAuth();
   const planningContext = useStudentPlanning();
   const assignments = planningContext?.assignments ?? [];
   const assignmentsLoading = planningContext?.assignmentsLoading ?? false;
@@ -890,6 +891,7 @@ const StudentDashboard = () => {
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
       />
+
     </div>
   );
 };
