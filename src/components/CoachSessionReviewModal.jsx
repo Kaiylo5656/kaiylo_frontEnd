@@ -134,13 +134,29 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         const buttonTop = buttonRect.top - modalRect.top;
         const buttonHeight = buttonRect.height;
         const availableHeight = modalRect.height - (buttonTop + buttonHeight + gap);
-        setMainModalHeight(availableHeight);
+        // Guard against rare negative values (e.g. very small viewport)
+        setMainModalHeight(Math.max(0, availableHeight));
       }
     };
 
     if (isOpen) {
       updateHeight();
       window.addEventListener('resize', updateHeight);
+      // Recalculate when content height changes (e.g. when exercise row sizes change)
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          // Debounce to avoid layout thrashing
+          window.requestAnimationFrame(() => updateHeight());
+        });
+        if (contentRef.current) ro.observe(contentRef.current);
+        if (exercisesButtonRef.current) ro.observe(exercisesButtonRef.current);
+
+        return () => {
+          window.removeEventListener('resize', updateHeight);
+          ro.disconnect();
+        };
+      }
+
       return () => window.removeEventListener('resize', updateHeight);
     }
   }, [isOpen, contentRef, exercisesButtonRef]);
@@ -467,6 +483,24 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     ? session.exercises[selectedExerciseIndex]
     : null;
 
+  // If selected exercise is in a superset, collect the whole consecutive group
+  const selectedExerciseGroup = useMemo(() => {
+    const exs = session?.exercises ?? [];
+    if (!selectedExercise || !exs.length) return [{ exercise: selectedExercise, index: selectedExerciseIndex }].filter(Boolean);
+
+    const groupId = selectedExercise.supersetGroup;
+    if (!groupId) return [{ exercise: selectedExercise, index: selectedExerciseIndex }];
+
+    let start = selectedExerciseIndex;
+    while (start > 0 && exs[start - 1]?.supersetGroup === groupId) start--;
+    let end = selectedExerciseIndex;
+    while (end < exs.length - 1 && exs[end + 1]?.supersetGroup === groupId) end++;
+
+    const group = [];
+    for (let i = start; i <= end; i++) group.push({ exercise: exs[i], index: i });
+    return group.length ? group : [{ exercise: selectedExercise, index: selectedExerciseIndex }];
+  }, [session, selectedExercise, selectedExerciseIndex]);
+
   // Memoize exerciseVideos to recalculate when sessionVideos changes
   // Must be called unconditionally (same order every render)
   // Note: getVideosForExercise uses sessionVideos from closure, so we include sessionVideos in deps
@@ -743,6 +777,13 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     <path d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z" fill="currentColor" />
                   </svg>
                   {(() => {
+                    const groupNames = selectedExerciseGroup?.map(({ exercise }) => exercise?.name).filter(Boolean) ?? [];
+                    if (groupNames.length > 1) {
+                      return (
+                        <span className="font-normal min-w-0 break-words">Super set</span>
+                      );
+                    }
+
                     const setsCount = selectedExercise.sets?.length || 0;
                     const repsPerSet = selectedExercise.sets?.[0]?.reps;
                     const weight = selectedExercise.sets?.[0]?.weight;
@@ -782,7 +823,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         )}
                         {displayValue !== null && (
                           <span className="text-[#D4845A] font-normal flex-shrink-0">
-                            {displayLabel === 'kg' ? ` @${displayValue}${displayLabel}` : ` RPE ${displayValue}`}
+                            {displayLabel === 'kg' ? ` @${displayValue}${!/[a-zA-Z]/.test(String(displayValue)) ? displayLabel : ''}` : ` RPE ${displayValue}`}
                           </span>
                         )}
                       </>
@@ -797,233 +838,326 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
               {/* Left: Exercise Sets */}
               <div className={`${isMobile ? 'w-full' : 'w-[320px]'} flex-shrink-0 flex flex-col`}>
                 <div className={`overflow-y-auto space-y-[7px] pr-2 scrollbar-transparent ${isMobile ? 'h-auto max-h-[171px]' : 'h-[171px]'}`}>
-                  {selectedExercise && selectedExercise.sets?.map((set, setIndex) => {
-                    // Try to find video by set_number (1-indexed) or set_index (0-indexed)
-                    const setVideo = exerciseVideos.find(v =>
+                  {(() => {
+                    const exGroup = selectedExerciseGroup ?? [];
+                    const totalSeries = Math.max(0, ...exGroup.map(({ exercise }) => exercise?.sets?.length ?? 0));
+                    if (!totalSeries) return null;
+                    const showExerciseName = exGroup.length > 1;
+
+                    const findSetVideoFor = (videos, set, setIndex) => videos.find(v =>
                       v.set_number === setIndex + 1 ||
                       v.set_index === setIndex ||
-                      (v.set_number && v.set_number === set.serie) ||
+                      (v.set_number && set?.serie && v.set_number === set.serie) ||
                       (v.set_index !== undefined && v.set_index === setIndex)
                     );
-                    // Try multiple sources for RPE value
-                    // Check set first (RPE might be stored directly in the set after completion)
-                    // The RPE could be in various fields depending on how it was saved
-                    let rpeValue = set.rpe ||
-                      set.rpe_rating ||
-                      set.rpeRating ||
-                      set.RPE || // Sometimes uppercase
-                      (set.completedSets && typeof set.completedSets === 'object' && set.completedSets.rpeRating) ||
-                      null;
 
-                    // Convert to number if it's a string
-                    if (rpeValue && typeof rpeValue === 'string') {
-                      rpeValue = parseInt(rpeValue, 10) || null;
-                    }
+                    const getRpeValue = (set, setVideo, videos, setIndex) => {
+                      let rpeValue = set?.rpe ||
+                        set?.rpe_rating ||
+                        set?.rpeRating ||
+                        set?.RPE ||
+                        (set?.completedSets && typeof set.completedSets === 'object' && set.completedSets.rpeRating) ||
+                        null;
+                      if (rpeValue && typeof rpeValue === 'string') rpeValue = parseInt(rpeValue, 10) || null;
 
-                    // If not in set, check video
-                    if (!rpeValue && setVideo) {
-                      rpeValue = setVideo.rpe_rating || setVideo.rpe || null;
-                      if (rpeValue && typeof rpeValue === 'string') {
-                        rpeValue = parseInt(rpeValue, 10) || null;
+                      if (!rpeValue && setVideo) {
+                        rpeValue = setVideo.rpe_rating || setVideo.rpe || null;
+                        if (rpeValue && typeof rpeValue === 'string') rpeValue = parseInt(rpeValue, 10) || null;
                       }
-                    }
 
-                    // If still no RPE, try to find it in any video for this set number
-                    if (!rpeValue && exerciseVideos.length > 0) {
-                      const anySetVideo = exerciseVideos.find(v =>
-                        (v.set_number === setIndex + 1 || v.set_index === setIndex) &&
-                        (v.rpe_rating || v.rpe)
-                      );
-                      if (anySetVideo) {
-                        rpeValue = anySetVideo.rpe_rating || anySetVideo.rpe || null;
-                        if (rpeValue && typeof rpeValue === 'string') {
-                          rpeValue = parseInt(rpeValue, 10) || null;
+                      if (!rpeValue && videos?.length) {
+                        const any = videos.find(v =>
+                          (v.set_number === setIndex + 1 || v.set_index === setIndex) && (v.rpe_rating || v.rpe)
+                        );
+                        if (any) {
+                          rpeValue = any.rpe_rating || any.rpe || null;
+                          if (rpeValue && typeof rpeValue === 'string') rpeValue = parseInt(rpeValue, 10) || null;
                         }
                       }
-                    }
 
-                    // Ensure rpeValue is a valid number (1-10) or null
-                    if (rpeValue !== null && (isNaN(rpeValue) || rpeValue < 1 || rpeValue > 10)) {
-                      rpeValue = null;
-                    }
-                    const setStatus = set.validation_status || (setVideo?.status === 'completed' ? 'completed' : null);
-                    const isSelected = selectedSetIndex === setIndex;
-                    const isFailed = setStatus === 'failed';
-                    const hasVideo = setVideo && setVideo.video_url;
+                      if (rpeValue !== null && (isNaN(rpeValue) || rpeValue < 1 || rpeValue > 10)) return null;
+                      return rpeValue ?? null;
+                    };
 
-                    // Debug RPE and weight for this set - show full set object
-                    if (setIndex === 0 && (selectedExercise.useRir || selectedExercise.use_rir)) {
-                      logger.debug('🔍 Charge/RPE Debug for first set (useRir=true):', {
-                        setIndex,
-                        set: JSON.parse(JSON.stringify(set)), // Deep clone to see all properties
-                        setKeys: Object.keys(set), // Show all keys in the set object
-                        setVideo: setVideo,
-                        studentWeight: set.studentWeight || set.student_weight,
-                        studentWeightFromCompletedSets: set.completedSets?.studentWeight,
-                        videoStudentWeight: setVideo?.student_weight || setVideo?.studentWeight,
-                        requestedRpe: set.weight,
-                        rpeValue: rpeValue,
-                        useRir: selectedExercise.useRir || selectedExercise.use_rir
-                      });
-                    }
+                    const getStudentWeight = (set, setVideo, fallbackWeightIfNoVideo = false) => {
+                      let studentWeight = set?.studentWeight ||
+                        set?.student_weight ||
+                        set?.studentWeightValue ||
+                        (set?.completedSets && typeof set.completedSets === 'object' && set.completedSets.studentWeight) ||
+                        (set?.data && typeof set.data === 'object' && set.data.studentWeight) ||
+                        setVideo?.student_weight ||
+                        setVideo?.studentWeight ||
+                        setVideo?.weight ||
+                        null;
 
-                    return (
-                      <div
-                        key={setIndex}
-                        onClick={hasVideo ? () => handleSetSelect(setIndex, selectedExercise, selectedExerciseIndex) : undefined}
-                        className={`
-                          h-[37.5px] px-[15px] rounded-[8px]
-                          flex items-center justify-between gap-2 min-w-0
-                          ${hasVideo ? 'cursor-pointer transition-colors' : ''}
-                          ${hasVideo
-                            ? isSelected
-                              ? 'bg-[rgba(212,132,90,0.2)]'
-                              : 'bg-black/50'
-                            : ''
-                          }
-                        `}
-                      >
-                        <div className="flex items-baseline justify-end gap-[15px] min-w-0 flex-shrink">
-                          <span className={`text-[10px] md:text-[12px] whitespace-nowrap flex-shrink-0 ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
-                            Set {setIndex + 1}
+                      if (
+                        (studentWeight === null || studentWeight === undefined || studentWeight === '') &&
+                        fallbackWeightIfNoVideo &&
+                        set?.weight !== undefined &&
+                        set?.weight !== null &&
+                        set?.weight !== ''
+                      ) {
+                        studentWeight = set.weight;
+                      }
+
+                      if (studentWeight === null || studentWeight === undefined || studentWeight === '') return null;
+                      const v = String(studentWeight).trim();
+                      return v ? v : null;
+                    };
+
+                    const formatTarget = (exercise, set, isSelected) => {
+                      const useRir = exercise?.useRir || exercise?.use_rir;
+                      if (useRir) {
+                        const requestedRpe = set?.weight;
+                        if (requestedRpe === undefined || requestedRpe === null || requestedRpe === '') return null;
+                        const r = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
+                        if (isNaN(r) || r < 1 || r > 10) return null;
+                        return (
+                          <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
+                            {' RPE '}{Math.round(r)}
                           </span>
-                          <span className={`text-xs md:text-[14px] font-light whitespace-nowrap min-w-0 truncate ${isSelected ? 'font-normal text-[#D4845A]' : 'text-white'}`}>
-                            {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
-                            {(() => {
-                              // Si useRir === true, afficher le RPE demandé au lieu de la charge
-                              if (selectedExercise.useRir || selectedExercise.use_rir) {
-                                const requestedRpe = set.weight;
-                                if (requestedRpe !== undefined && requestedRpe !== null && requestedRpe !== '') {
-                                  const rpeNumber = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
-                                  if (!isNaN(rpeNumber) && rpeNumber >= 1 && rpeNumber <= 10) {
-                                    return (
-                                      <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
-                                        {' RPE '}{Math.round(rpeNumber)}
+                        );
+                      }
+                      return (
+                        <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
+                          {' @'}{set?.weight || 0}{!/[a-zA-Z]/.test(String(set?.weight || 0)) ? 'kg' : ''}
+                        </span>
+                      );
+                    };
+
+                    if (showExerciseName) {
+                      // Superset: one "Série X" label above, then each exercise line aligned left
+                      return Array.from({ length: totalSeries }).map((_, setIndex) => (
+                        <div key={`serie-${setIndex}`} className="flex flex-col gap-1">
+                          <div className="text-[10px] md:text-[12px] font-light text-white/50 px-[15px]">
+                            Série {setIndex + 1}
+                          </div>
+                          <div className="flex flex-col gap-[7px]">
+                            {exGroup.map(({ exercise, index: exerciseIndexInSession }) => {
+                              const set = exercise?.sets?.[setIndex];
+                              if (!set) return null;
+
+                              const videos = getVideosForExercise(exercise, exerciseIndexInSession);
+                              const setVideo = findSetVideoFor(videos, set, setIndex);
+                              const hasVideo = !!(setVideo && setVideo.video_url);
+
+                              const setStatus = set.validation_status || (setVideo?.status === 'completed' ? 'completed' : null);
+                              const isSelected = selectedSetIndex === setIndex && selectedExerciseIndex === exerciseIndexInSession;
+
+                              const useRir = exercise?.useRir || exercise?.use_rir;
+                              const rpeValue = !useRir ? getRpeValue(set, setVideo, videos, setIndex) : null;
+                              const studentWeight = useRir ? getStudentWeight(set, setVideo, !hasVideo) : null;
+
+                              return (
+                                <div
+                                  key={`${exercise?.id || exercise?.exerciseId || exercise?.name || 'ex'}-${exerciseIndexInSession}-${setIndex}`}
+                                  onClick={hasVideo ? () => handleSetSelect(setIndex, exercise, exerciseIndexInSession) : undefined}
+                                  className={`
+                                    h-[43.5px] px-[15px]
+                                    flex items-center justify-between gap-2 min-w-0
+                                    ${hasVideo ? 'rounded-[8px] cursor-pointer transition-colors' : ''}
+                                    ${hasVideo
+                                      ? isSelected
+                                        ? 'bg-[rgba(212,132,90,0.2)]'
+                                        : 'bg-black/50'
+                                      : 'bg-transparent'
+                                    }
+                                  `}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 256 512"
+                                      className="h-4 w-4 flex-shrink-0"
+                                      fill="currentColor"
+                                      style={{ color: 'var(--kaiylo-primary-hex)' }}
+                                      aria-hidden
+                                    >
+                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                                    </svg>
+                                    <div className="flex flex-col min-w-0 leading-tight">
+                                      {exercise?.name && (
+                                        <span className="text-xs md:text-[12px] font-light text-white/75 whitespace-nowrap min-w-0 truncate">
+                                          {exercise.name}
+                                        </span>
+                                      )}
+                                      <span className={`text-xs md:text-[14px] font-light whitespace-nowrap min-w-0 truncate ${isSelected ? 'font-normal text-[#D4845A]' : 'text-white'}`}>
+                                        {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
+                                        {formatTarget(exercise, set, isSelected)}
                                       </span>
-                                    );
-                                  }
-                                }
-                              } else {
-                                // Si useRir === false, afficher la charge normale
-                                return (
-                                  <span className={`font-normal ${isSelected ? 'text-[#D4845A]' : 'text-[#D4845A]'}`}>
-                                    {' @'}{set.weight || 0}kg
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-[15px] flex-shrink-0">
-                          {(() => {
-                            // Si useRir === true, afficher la charge renseignée par l'élève au lieu du RPE
-                            if (selectedExercise.useRir || selectedExercise.use_rir) {
-                              // Récupérer la charge (studentWeight) depuis plusieurs sources possibles
-                              let studentWeight = set.studentWeight ||
-                                set.student_weight ||
-                                set.studentWeightValue ||
-                                (set.completedSets && typeof set.completedSets === 'object' && set.completedSets.studentWeight) ||
-                                (set.data && typeof set.data === 'object' && set.data.studentWeight) ||
-                                setVideo?.student_weight ||
-                                setVideo?.studentWeight ||
-                                setVideo?.weight ||
-                                null;
-
-                              // Si toujours null, chercher dans les données de session complétée
-                              if (!studentWeight && session?.exercises?.[selectedExerciseIndex]?.sets?.[setIndex]) {
-                                const completedSet = session.exercises[selectedExerciseIndex].sets[setIndex];
-                                studentWeight = completedSet.studentWeight ||
-                                  completedSet.student_weight ||
-                                  (completedSet.completedSets && typeof completedSet.completedSets === 'object' && completedSet.completedSets.studentWeight) ||
-                                  null;
-                              }
-
-                              // Si toujours null et qu'il n'y a pas de vidéo, essayer d'utiliser la charge demandée du set original comme fallback
-                              // (ceci permettra d'afficher la charge même sans vidéo uploadée)
-                              if (!studentWeight && !hasVideo && set.weight !== undefined && set.weight !== null && set.weight !== '') {
-                                studentWeight = set.weight;
-                              }
-
-                              // Convertir en string si nécessaire et afficher
-                              if (studentWeight !== null && studentWeight !== undefined && studentWeight !== '') {
-                                const weightValue = String(studentWeight).trim();
-                                if (weightValue) {
-                                  return (
-                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
-                                      <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{weightValue}kg</span></span>
                                     </div>
-                                  );
-                                }
-                              }
-                              return null;
-                            } else {
-                              // Si useRir === false, afficher le RPE normal
-                              // Le coach a demandé un RPE, donc set.weight contient la valeur RPE demandée
-                              if (rpeValue) {
-                                return (
-                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
-                                    <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span></span>
                                   </div>
-                                );
-                              }
-                              // Si pas de RPE enregistré mais qu'il y a une valeur demandée (set.weight contient le RPE demandé par le coach)
-                              // Afficher le RPE demandé comme fallback (car useRir === false signifie que c'est du RPE, pas une charge)
-                              if (!hasVideo && set.weight !== undefined && set.weight !== null && set.weight !== '') {
-                                const requestedRpe = set.weight;
-                                // Vérifier que c'est bien un RPE valide (1-10)
-                                if (!isNaN(parseFloat(requestedRpe)) && parseFloat(requestedRpe) >= 1 && parseFloat(requestedRpe) <= 10) {
-                                  return (
-                                    <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
-                                      <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{Math.round(parseFloat(requestedRpe))}</span></span>
-                                    </div>
-                                  );
-                                }
-                              }
-                              return null;
-                            }
-                          })()}
-                          {setStatus === 'completed' && (
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 12 12"
-                              fill="none"
-                              className="flex-shrink-0 relative z-10"
-                              style={{ display: 'block', margin: '0' }}
-                            >
-                              <path
-                                d="M2 6L4.5 8.5L10 3"
-                                stroke="#2FA064"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
-                          {setStatus === 'failed' && (
-                            <svg
-                              width="20"
-                              height="20"
-                              viewBox="0 0 12 12"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="flex-shrink-0 relative z-10"
-                              style={{ display: 'block', margin: '0' }}
-                            >
-                              <path
-                                d="M3 3L9 9M9 3L3 9"
-                                stroke="#DA3336"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
+
+                                  <div className="flex items-center gap-[15px] flex-shrink-0">
+                                    {useRir ? (
+                                      studentWeight ? (
+                                        <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                          <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">
+                                            Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{studentWeight}{!/[a-zA-Z]/.test(String(studentWeight)) ? 'kg' : ''}</span>
+                                          </span>
+                                        </div>
+                                      ) : null
+                                    ) : (
+                                      rpeValue ? (
+                                        <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                          <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">
+                                            RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span>
+                                          </span>
+                                        </div>
+                                      ) : null
+                                    )}
+
+                                    {setStatus === 'completed' && (
+                                      <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 12 12"
+                                        fill="none"
+                                        className="flex-shrink-0 relative z-10"
+                                        style={{ display: 'block', margin: '0' }}
+                                      >
+                                        <path
+                                          d="M2 6L4.5 8.5L10 3"
+                                          stroke="#2FA064"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    )}
+                                    {setStatus === 'failed' && (
+                                      <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 12 12"
+                                        fill="none"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="flex-shrink-0 relative z-10"
+                                        style={{ display: 'block', margin: '0' }}
+                                      >
+                                        <path
+                                          d="M3 3L9 9M9 3L3 9"
+                                          stroke="#DA3336"
+                                          strokeWidth="1.5"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      ));
+                    }
+
+                    // Non-superset: keep one line per set (same as before)
+                    return Array.from({ length: totalSeries }).flatMap((_, setIndex) => {
+                      return exGroup.map(({ exercise, index: exerciseIndexInSession }) => {
+                        const set = exercise?.sets?.[setIndex];
+                        if (!set) return null;
+
+                        const videos = getVideosForExercise(exercise, exerciseIndexInSession);
+                        const setVideo = findSetVideoFor(videos, set, setIndex);
+                        const hasVideo = !!(setVideo && setVideo.video_url);
+
+                        const setStatus = set.validation_status || (setVideo?.status === 'completed' ? 'completed' : null);
+                        const isSelected = selectedSetIndex === setIndex && selectedExerciseIndex === exerciseIndexInSession;
+
+                        const useRir = exercise?.useRir || exercise?.use_rir;
+                        const rpeValue = !useRir ? getRpeValue(set, setVideo, videos, setIndex) : null;
+                        const studentWeight = useRir ? getStudentWeight(set, setVideo, !hasVideo) : null;
+
+                        return (
+                          <div
+                            key={`${exercise?.id || exercise?.exerciseId || exercise?.name || 'ex'}-${exerciseIndexInSession}-${setIndex}`}
+                            onClick={hasVideo ? () => handleSetSelect(setIndex, exercise, exerciseIndexInSession) : undefined}
+                            className={`
+                              h-[37.5px] px-[15px]
+                              flex items-center justify-between gap-2 min-w-0
+                              ${hasVideo ? 'rounded-[8px] cursor-pointer transition-colors' : ''}
+                              ${hasVideo
+                                ? isSelected
+                                  ? 'bg-[rgba(212,132,90,0.2)]'
+                                  : 'bg-black/50'
+                                : 'bg-transparent'
+                              }
+                            `}
+                          >
+                            <div className="flex items-baseline justify-end gap-[15px] min-w-0 flex-shrink">
+                              <span className={`text-[10px] md:text-[12px] whitespace-nowrap flex-shrink-0 ${isSelected ? 'font-normal text-[#D4845A]' : 'font-light text-white/50'}`}>
+                                Série {setIndex + 1}
+                              </span>
+                              <span className={`text-xs md:text-[14px] font-light whitespace-nowrap min-w-0 truncate ${isSelected ? 'font-normal text-[#D4845A]' : 'text-white'}`}>
+                                {set.reps || '?'}{set.repType === 'hold' ? '' : ' reps'}
+                                {formatTarget(exercise, set, isSelected)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-[15px] flex-shrink-0">
+                              {useRir ? (
+                                studentWeight ? (
+                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                    <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">
+                                      Charge : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{studentWeight}{!/[a-zA-Z]/.test(String(studentWeight)) ? 'kg' : ''}</span>
+                                    </span>
+                                  </div>
+                                ) : null
+                              ) : (
+                                rpeValue ? (
+                                  <div className="h-[15px] px-[5px] py-0 rounded-[3px] flex items-center justify-center flex-shrink-0">
+                                    <span className="text-[10px] md:text-[12px] font-light text-white/50 whitespace-nowrap">
+                                      RPE : <span className="text-[#D4845A] font-normal" style={{ fontWeight: 500 }}>{rpeValue}</span>
+                                    </span>
+                                  </div>
+                                ) : null
+                              )}
+
+                              {setStatus === 'completed' && (
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
+                                  className="flex-shrink-0 relative z-10"
+                                  style={{ display: 'block', margin: '0' }}
+                                >
+                                  <path
+                                    d="M2 6L4.5 8.5L10 3"
+                                    stroke="#2FA064"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                              {setStatus === 'failed' && (
+                                <svg
+                                  width="20"
+                                  height="20"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="flex-shrink-0 relative z-10"
+                                  style={{ display: 'block', margin: '0' }}
+                                >
+                                  <path
+                                    d="M3 3L9 9M9 3L3 9"
+                                    stroke="#DA3336"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }).filter(Boolean);
+                    });
+                  })()}
                 </div>
 
                 {/* Student Comment for this Exercise - Display at bottom of sets list */}

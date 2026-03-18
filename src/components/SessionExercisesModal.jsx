@@ -22,6 +22,39 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
   // Get exercises from session
   const exercises = session.exercises || [];
 
+  // Group consecutive exercises that share the same supersetGroup.
+  // We keep original indices for correct selection + video lookup.
+  const groupedExercises = React.useMemo(() => {
+    const groups = [];
+    let currentGroup = [];
+
+    for (let i = 0; i < exercises.length; i++) {
+      const ex = exercises[i];
+      const item = { exercise: ex, index: i };
+
+      if (currentGroup.length === 0) {
+        currentGroup.push(item);
+        continue;
+      }
+
+      const prev = currentGroup[currentGroup.length - 1]?.exercise;
+      if (
+        ex?.supersetGroup !== null &&
+        ex?.supersetGroup !== undefined &&
+        ex?.supersetGroup !== '' &&
+        ex?.supersetGroup === prev?.supersetGroup
+      ) {
+        currentGroup.push(item);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [item];
+      }
+    }
+
+    if (currentGroup.length > 0) groups.push(currentGroup);
+    return groups;
+  }, [exercises]);
+
   // Helper function to check if exercise has a comment
   const hasComment = (exercise) => {
     const comment = exercise.comment || exercise.studentComment || exercise.student_comment || exercise.previous_student_comment;
@@ -150,89 +183,122 @@ const SessionExercisesModal = ({ isOpen, onClose, session, position, mainModalHe
       <div className="border-b border-white/10 mx-6"></div>
 
       {/* Exercises List */}
-      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 ${exercises.length ? 'space-y-1.5' : 'flex items-center justify-center'}`}>
-        {exercises.length ? (
-          exercises.map((exercise, index) => {
-            const isSelected = selectedExerciseIndex === index;
+      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 py-6 ${groupedExercises.length ? 'space-y-1.5' : 'flex items-center justify-center'}`}>
+        {groupedExercises.length ? (
+          groupedExercises.map((group) => {
+            const groupSelected = group.some((it) => it.index === selectedExerciseIndex);
+            const clickIndex = group[0]?.index ?? 0;
+            const groupKey = `${group[0]?.exercise?.id || group[0]?.exercise?.exerciseId || 'ex'}-${clickIndex}`;
 
             return (
               <div
-                key={`${exercise.id || exercise.exerciseId || 'ex'}-${index}`}
+                key={groupKey}
                 onClick={() => {
-                  if (onExerciseSelect) {
-                    onExerciseSelect(index);
-                  }
+                  if (onExerciseSelect) onExerciseSelect(clickIndex);
                 }}
-                className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${isSelected
+                className={`cursor-pointer transition-colors ${groupSelected
                   ? 'bg-[rgba(212,132,90,0.25)]'
-                  : 'bg-black/50 text-white/50 hover:bg-black/40'
+                  : 'bg-black/50 hover:bg-black/40'
                   }`}
                 style={{
                   borderRadius: '14px',
-                  ...(isSelected && { color: 'var(--kaiylo-primary-hex)' })
+                  ...(groupSelected && { color: 'var(--kaiylo-primary-hex)' })
                 }}
               >
-                <div className="flex-1 flex items-center gap-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 512"
-                    className="h-4 w-4 flex-shrink-0"
-                    fill="currentColor"
-                    style={{ color: 'var(--kaiylo-primary-hex)' }}
-                  >
-                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
-                  </svg>
-                  <span
-                    className={`text-base ${isSelected ? 'font-medium' : 'font-normal'}`}
-                    style={!isSelected ? { color: 'rgba(255, 255, 255, 1)' } : undefined}
-                  >
-                    {exercise.name || 'Exercice'}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {/* Comment Indicator */}
-                    <div className="flex items-center" title={hasComment(exercise) ? "Commentaire ajouté" : "Aucun commentaire"}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 640 640"
-                        className="h-4 w-4"
-                        style={{
-                          fill: hasComment(exercise)
-                            ? 'rgba(212, 132, 89, 0.8)'
-                            : 'rgba(255, 255, 255, 0.2)'
-                        }}
-                      >
-                        <path d="M576 304C576 436.5 461.4 544 320 544C282.9 544 247.7 536.6 215.9 523.3L97.5 574.1C88.1 578.1 77.3 575.8 70.4 568.3C63.5 560.8 62 549.8 66.8 540.8L115.6 448.6C83.2 408.3 64 358.3 64 304C64 171.5 178.6 64 320 64C461.4 64 576 171.5 576 304z" />
-                      </svg>
-                    </div>
-                    {/* Video Indicator */}
-                    <div className="flex items-center gap-0.5" title={hasVideos(exercise, index) ? `${getVideoCount(exercise, index)} vidéo(s) ajoutée(s)` : "Aucune vidéo"}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 640 640"
-                        className="h-4 w-4"
-                        style={{
-                          fill: hasVideos(exercise, index)
-                            ? 'rgba(212, 132, 89, 0.8)'
-                            : 'rgba(255, 255, 255, 0.2)'
-                        }}
-                      >
-                        <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" />
-                      </svg>
-                      {getVideoCount(exercise, index) > 1 && (
-                        <span
-                          className="text-xs font-medium"
-                          style={{
-                            color: hasVideos(exercise, index)
-                              ? 'rgba(212, 132, 89, 0.8)'
-                              : 'rgba(255, 255, 255, 0.2)'
-                          }}
+                {group.map(({ exercise, index }, idxInGroup) => {
+                  const isLinkedToNext = idxInGroup < group.length - 1;
+
+                  return (
+                    <div
+                      key={`${exercise?.id || exercise?.exerciseId || 'ex'}-${index}`}
+                      className="relative flex items-center px-4 py-3"
+                      style={{
+                        borderTopLeftRadius: idxInGroup === 0 ? '14px' : 0,
+                        borderTopRightRadius: idxInGroup === 0 ? '14px' : 0,
+                        borderBottomLeftRadius: idxInGroup === group.length - 1 ? '14px' : 0,
+                        borderBottomRightRadius: idxInGroup === group.length - 1 ? '14px' : 0,
+                      }}
+                    >
+                      <div className="flex-1 flex items-center gap-4 min-w-0">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 256 512"
+                          className="h-4 w-4 flex-shrink-0"
+                          fill="currentColor"
+                          style={{ color: 'var(--kaiylo-primary-hex)' }}
                         >
-                          x{getVideoCount(exercise, index)}
+                          <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                        </svg>
+
+                        <span
+                          className={`text-base ${groupSelected ? 'font-medium' : 'font-normal'} break-words min-w-0`}
+                          style={!groupSelected ? { color: 'rgba(255, 255, 255, 1)' } : undefined}
+                        >
+                          {exercise?.name || 'Exercice'}
                         </span>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {/* Comment Indicator */}
+                          <div className="flex items-center" title={hasComment(exercise) ? "Commentaire ajouté" : "Aucun commentaire"}>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 640 640"
+                              className="h-4 w-4"
+                              style={{
+                                fill: hasComment(exercise)
+                                  ? 'rgba(212, 132, 89, 0.8)'
+                                  : 'rgba(255, 255, 255, 0.2)'
+                              }}
+                            >
+                              <path d="M576 304C576 436.5 461.4 544 320 544C282.9 544 247.7 536.6 215.9 523.3L97.5 574.1C88.1 578.1 77.3 575.8 70.4 568.3C63.5 560.8 62 549.8 66.8 540.8L115.6 448.6C83.2 408.3 64 358.3 64 304C64 171.5 178.6 64 320 64C461.4 64 576 171.5 576 304z" />
+                            </svg>
+                          </div>
+
+                          {/* Video Indicator */}
+                          <div className="flex items-center gap-0.5" title={hasVideos(exercise, index) ? `${getVideoCount(exercise, index)} vidéo(s) ajoutée(s)` : "Aucune vidéo"}>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 640 640"
+                              className="h-4 w-4"
+                              style={{
+                                fill: hasVideos(exercise, index)
+                                  ? 'rgba(212, 132, 89, 0.8)'
+                                  : 'rgba(255, 255, 255, 0.2)'
+                              }}
+                            >
+                              <path d="M128 128C92.7 128 64 156.7 64 192L64 448C64 483.3 92.7 512 128 512L384 512C419.3 512 448 483.3 448 448L448 192C448 156.7 419.3 128 384 128L128 128zM496 400L569.5 458.8C573.7 462.2 578.9 464 584.3 464C597.4 464 608 453.4 608 440.3L608 199.7C608 186.6 597.4 176 584.3 176C578.9 176 573.7 177.8 569.5 181.2L496 240L496 400z" />
+                            </svg>
+                            {getVideoCount(exercise, index) > 1 && (
+                              <span
+                                className="text-xs font-medium"
+                                style={{
+                                  color: hasVideos(exercise, index)
+                                    ? 'rgba(212, 132, 89, 0.8)'
+                                    : 'rgba(255, 255, 255, 0.2)'
+                                }}
+                              >
+                                x{getVideoCount(exercise, index)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isLinkedToNext && (
+                        <div
+                          className="absolute right-6 -bottom-[10px] z-[2] flex items-center justify-center pointer-events-none rounded-full w-[20px] h-[20px]"
+                          style={{ background: 'transparent' }}
+                          aria-hidden
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                          </svg>
+                        </div>
                       )}
                     </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             );
           })

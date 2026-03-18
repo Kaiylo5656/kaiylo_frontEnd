@@ -186,25 +186,48 @@ const StudentHistoryPage = () => {
     return { blockNumber, weekInBlock, totalWeeks };
   };
 
-  const formatSetsForDisplay = (exercise) => {
+  const getExerciseGroups = (exercise) => {
     const sets = exercise.sets || [];
-    if (sets.length === 0) return '';
+    if (sets.length === 0) return null;
+    const showKg = (w) => w != null && w !== '' && !/[a-zA-Z]/.test(String(w));
+
     if (exercise.useRir) {
       const firstReps = sets[0]?.reps ?? '?';
       const firstRpe = sets[0]?.weight ?? 0;
-      const allSameReps = sets.every((s) => String(s.reps ?? '?') === String(firstReps));
-      const allSameRpe = sets.every((s) => String(s.weight ?? 0) === String(firstRpe));
-      if (allSameReps && allSameRpe) return `${sets.length}x${firstReps} RPE ${firstRpe}`;
-      return sets.map((s) => `${s.reps ?? '?'} RPE ${s.weight ?? 0}`).join(', ');
+      const allSame = sets.every((s) => String(s.reps ?? '?') === String(firstReps) && String(s.weight ?? 0) === String(firstRpe));
+      if (allSame) return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: `RPE ${firstRpe}` };
+      const groups = [];
+      let i = 0;
+      while (i < sets.length) {
+        let j = i + 1;
+        while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? 0) === String(sets[i].weight ?? 0)) j++;
+        groups.push({ scheme: `${j - i}x${sets[i].reps ?? '?'}`, weight: `RPE ${sets[i].weight ?? 0}` });
+        i = j;
+      }
+      return { groups };
     }
+
     const withWeight = sets.every((s) => s.weight != null && s.weight !== '');
     const firstReps = sets[0]?.reps ?? '?';
     const firstWeight = sets[0]?.weight;
     const allSameReps = sets.every((s) => String(s.reps ?? '?') === String(firstReps));
     const allSameWeight = !withWeight || sets.every((s) => String(s.weight) === String(firstWeight));
-    if (withWeight && allSameReps && allSameWeight && firstWeight != null) return `${sets.length}x${firstReps} @${firstWeight}kg`;
-    if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
-    return sets.map((s) => (s.weight ? `${s.reps ?? '?'}@${s.weight}kg` : `${s.reps ?? '?'}reps`)).join(', ');
+    if (withWeight && allSameReps && allSameWeight && firstWeight != null) {
+      return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: `@${firstWeight}${showKg(firstWeight) ? 'kg' : ''}` };
+    }
+    if (!withWeight && allSameReps) return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: null };
+
+    const groups = [];
+    let i = 0;
+    while (i < sets.length) {
+      let j = i + 1;
+      while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? '') === String(sets[i].weight ?? '')) j++;
+      const w = sets[i].weight;
+      const weightLabel = (w != null && w !== '') ? `@${w}${showKg(w) ? 'kg' : ''}` : null;
+      groups.push({ scheme: `${j - i}x${sets[i].reps ?? '?'}`, weight: weightLabel });
+      i = j;
+    }
+    return { groups };
   };
 
   const handleDayClick = (day) => {
@@ -508,26 +531,37 @@ const StudentHistoryPage = () => {
                           <div className="px-3 pb-4 pt-1 bg-white/5">
                             <div className="relative flex flex-col">
                               {exercisesList.map((exercise, exIdx) => {
-                                const setsStr = formatSetsForDisplay(exercise);
-                                const setCount = exercise.sets?.length || 0;
+                                const summary = getExerciseGroups(exercise);
+                                const isGrouped = summary && !summary.simple;
                                 return (
-                                  <div key={exIdx} className="flex items-center gap-2 py-1">
+                                  <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0 relative z-10 my-auto" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }} aria-hidden>
                                         <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                       </svg>
                                     </div>
-                                    <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                                    <div className="min-w-0 flex-1 flex items-start justify-between gap-2">
                                       <div className="min-w-0 flex-1">
                                         <div className="text-[12px] font-normal text-white truncate">{exercise.name}</div>
-                                        {setsStr && (
-                                          <div className="text-[10px] text-white/75 font-normal truncate">
-                                            {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
-                                              part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
-                                                <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
-                                              ) : (
-                                                <span key={i}>{part}</span>
-                                              )
+                                        {summary && (
+                                          <div className="flex flex-col gap-[1px]">
+                                            {isGrouped ? (
+                                              summary.groups.map((g, gi) => (
+                                                <div key={gi} className="text-[10px] text-white/75 font-normal">
+                                                  {summary.groups.length > 1 && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="inline flex-shrink-0" style={{ width: '5px', height: '5px', fill: 'rgba(255,255,255,0.75)', marginRight: '3px', verticalAlign: 'middle' }}>
+                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                                    </svg>
+                                                  )}
+                                                  <span>{g.scheme}</span>
+                                                  {g.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{g.weight}</span></>}
+                                                </div>
+                                              ))
+                                            ) : (
+                                              <div className="text-[10px] text-white/75 font-normal">
+                                                <span>{summary.scheme}</span>
+                                                {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                              </div>
                                             )}
                                           </div>
                                         )}
@@ -545,8 +579,8 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                       </div>
-                                      {setCount > 0 && (
-                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{setCount}</span>
+                                      {!isGrouped && (exercise.sets?.length || 0) > 0 && (
+                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{exercise.sets.length}</span>
                                       )}
                                     </div>
                                   </div>
@@ -639,26 +673,37 @@ const StudentHistoryPage = () => {
                           <div className="px-3 pb-4 pt-1 bg-white/5">
                             <div className="relative flex flex-col">
                               {exercisesList.map((exercise, exIdx) => {
-                                const setsStr = formatSetsForDisplay(exercise);
-                                const setCount = exercise.sets?.length || 0;
+                                const summary = getExerciseGroups(exercise);
+                                const isGrouped = summary && !summary.simple;
                                 return (
-                                  <div key={exIdx} className="flex items-center gap-2 py-1">
+                                  <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0 relative z-10 my-auto" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }} aria-hidden>
                                         <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                       </svg>
                                     </div>
-                                    <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                                    <div className="min-w-0 flex-1 flex items-start justify-between gap-2">
                                       <div className="min-w-0 flex-1">
                                         <div className="text-[12px] font-normal text-white truncate">{exercise.name}</div>
-                                        {setsStr && (
-                                          <div className="text-[10px] text-white/75 font-normal truncate">
-                                            {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
-                                              part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
-                                                <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
-                                              ) : (
-                                                <span key={i}>{part}</span>
-                                              )
+                                        {summary && (
+                                          <div className="flex flex-col gap-[1px]">
+                                            {isGrouped ? (
+                                              summary.groups.map((g, gi) => (
+                                                <div key={gi} className="text-[10px] text-white/75 font-normal">
+                                                  {summary.groups.length > 1 && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="inline flex-shrink-0" style={{ width: '5px', height: '5px', fill: 'rgba(255,255,255,0.75)', marginRight: '3px', verticalAlign: 'middle' }}>
+                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                                    </svg>
+                                                  )}
+                                                  <span>{g.scheme}</span>
+                                                  {g.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{g.weight}</span></>}
+                                                </div>
+                                              ))
+                                            ) : (
+                                              <div className="text-[10px] text-white/75 font-normal">
+                                                <span>{summary.scheme}</span>
+                                                {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                              </div>
                                             )}
                                           </div>
                                         )}
@@ -676,8 +721,8 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                       </div>
-                                      {setCount > 0 && (
-                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{setCount}</span>
+                                      {!isGrouped && (exercise.sets?.length || 0) > 0 && (
+                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{exercise.sets.length}</span>
                                       )}
                                     </div>
                                   </div>

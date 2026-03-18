@@ -633,28 +633,34 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const exA = exercises[indexA];
     const exB = exercises[indexB];
 
-    // Both already in the same group → unlink only these two from the group
+    // Both already in the same group → split at this exact point
     if (exA.supersetGroup && exA.supersetGroup === exB.supersetGroup) {
       const group = exA.supersetGroup;
       const updated = [...exercises];
-      // Count members in this group
-      const members = updated.filter(e => e.supersetGroup === group);
-      if (members.length <= 2) {
-        // Only 2 members → dissolve the whole group
-        updated.forEach((e, i) => {
-          if (e.supersetGroup === group) {
-            updated[i] = { ...updated[i], supersetGroup: null };
-          }
-        });
-      } else {
-        // More than 2 → only remove the link between A and B (remove B and onwards from group)
-        // Find the contiguous tail starting at indexB and remove them from the group
-        let i = indexB;
-        while (i < updated.length && updated[i].supersetGroup === group) {
-          updated[i] = { ...updated[i], supersetGroup: null };
-          i++;
-        }
+
+      // Collect all contiguous indices belonging to this group
+      // Find the full contiguous range of the group around indexA/indexB
+      let groupStart = indexA;
+      while (groupStart > 0 && updated[groupStart - 1]?.supersetGroup === group) groupStart--;
+      let groupEnd = indexB;
+      while (groupEnd < updated.length - 1 && updated[groupEnd + 1]?.supersetGroup === group) groupEnd++;
+
+      // "Head" = groupStart → indexA, "Tail" = indexB → groupEnd
+      const headSize = indexA - groupStart + 1;
+      const tailSize = groupEnd - indexB + 1;
+
+      // Head: keep original letter only if size >= 2, else clear
+      if (headSize < 2) {
+        updated[indexA] = { ...updated[indexA], supersetGroup: null };
       }
+      // (else head keeps its letter — no change needed)
+
+      // Tail: assign new letter if size >= 2, else clear
+      const tailLetter = tailSize >= 2 ? getNextSupersetLetter(updated) : null;
+      for (let i = indexB; i <= groupEnd; i++) {
+        updated[i] = { ...updated[i], supersetGroup: tailLetter };
+      }
+
       setExercises(updated);
       return;
     }
@@ -667,6 +673,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     updated[indexB] = { ...updated[indexB], supersetGroup: letter };
     setExercises(updated);
   };
+
 
   /** Confirm superset creation despite set count mismatch — truncates the longer exercise. */
   const handleConfirmMismatch = () => {
@@ -722,106 +729,161 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setExercises(updatedExercises);
   };
 
-  // Helper function to animate exercise movement using FLIP technique
-  const animateExerciseMove = (fromIndex, toIndex) => {
-    const fromExercise = exercises[fromIndex];
-    const toExercise = exercises[toIndex];
+  // Generic FLIP animation for any number of exercises.
+  // `exerciseIds` = ordered list of exercise IDs involved in the move (before the state update).
+  // `updater` = function that returns the new exercises array.
+  const animateExerciseMoveMulti = (exerciseIds, updater) => {
+    // FLIP First: capture current positions for every involved element
+    const snapshots = {};
+    const container = exerciseIds.length > 0
+      ? exerciseRefs.current[exerciseIds[0]]?.parentElement
+      : null;
+    const containerRect = container?.getBoundingClientRect();
 
-    if (!fromExercise || !toExercise) return;
-
-    const fromElement = exerciseRefs.current[fromExercise.id];
-    const toElement = exerciseRefs.current[toExercise.id];
-
-    if (!fromElement || !toElement) {
-      // Fallback if refs not available
-      const updatedExercises = [...exercises];
-      [updatedExercises[fromIndex], updatedExercises[toIndex]] = [updatedExercises[toIndex], updatedExercises[fromIndex]];
-      validateSupersets(updatedExercises);
-      setExercises(updatedExercises);
+    if (!containerRect) {
+      // Fallback: just update state without animation
+      setExercises(updater(exercises));
       return;
     }
 
-    // FLIP: First - capture initial positions
-    const fromInitialRect = fromElement.getBoundingClientRect();
-    const toInitialRect = toElement.getBoundingClientRect();
-    const containerRect = fromElement.parentElement.getBoundingClientRect();
+    for (const id of exerciseIds) {
+      const el = exerciseRefs.current[id];
+      if (el) {
+        snapshots[id] = el.getBoundingClientRect().top - containerRect.top;
+      }
+    }
 
-    const fromInitialTop = fromInitialRect.top - containerRect.top;
-    const toInitialTop = toInitialRect.top - containerRect.top;
-    const distance = Math.abs(toInitialTop - fromInitialTop);
+    // FLIP Last: update state so React re-renders
+    setExercises(updater(exercises));
 
-    // Update state (this will cause React to reorder elements)
-    const updatedExercises = [...exercises];
-    [updatedExercises[fromIndex], updatedExercises[toIndex]] = [updatedExercises[toIndex], updatedExercises[fromIndex]];
-    validateSupersets(updatedExercises);
-    setExercises(updatedExercises);
-
-    // FLIP: Last - after React renders, get final positions and animate
+    // After render: compute deltas and animate
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Get elements after re-render (they've swapped positions in DOM)
-        const newFromElement = exerciseRefs.current[fromExercise.id];
-        const newToElement = exerciseRefs.current[toExercise.id];
+        const newContainerRect = container?.getBoundingClientRect();
+        if (!newContainerRect) return;
 
-        if (!newFromElement || !newToElement) return;
+        const DURATION = '0.45s';
+        const EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
-        const fromFinalRect = newFromElement.getBoundingClientRect();
-        const toFinalRect = newToElement.getBoundingClientRect();
-        const newContainerRect = newFromElement.parentElement.getBoundingClientRect();
+        for (const id of exerciseIds) {
+          const el = exerciseRefs.current[id];
+          if (!el || snapshots[id] == null) continue;
+          const finalTop = el.getBoundingClientRect().top - newContainerRect.top;
+          const delta = snapshots[id] - finalTop;
+          if (Math.abs(delta) < 1) continue; // no movement needed
 
-        const fromFinalTop = fromFinalRect.top - newContainerRect.top;
-        const toFinalTop = toFinalRect.top - newContainerRect.top;
+          // Invert
+          el.style.transform = `translateY(${delta}px)`;
+          el.style.transition = 'none';
+          el.style.zIndex = '10';
 
-        // FLIP: Invert - set elements to their initial positions
-        const fromDelta = fromInitialTop - fromFinalTop;
-        const toDelta = toInitialTop - toFinalTop;
+          // Play
+          requestAnimationFrame(() => {
+            el.style.transition = `transform ${DURATION} ${EASING}`;
+            el.style.transform = 'translateY(0)';
+          });
 
-        newFromElement.style.transform = `translateY(${fromDelta}px)`;
-        newFromElement.style.transition = 'none';
-        newFromElement.style.zIndex = '10';
-
-        newToElement.style.transform = `translateY(${toDelta}px)`;
-        newToElement.style.transition = 'none';
-        newToElement.style.zIndex = '9';
-
-        // FLIP: Play - animate to final positions
-        requestAnimationFrame(() => {
-          newFromElement.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
-          newToElement.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
-
-          newFromElement.style.transform = 'translateY(0)';
-          newToElement.style.transform = 'translateY(0)';
-        });
-
-        // Clean up after animation
-        setTimeout(() => {
-          if (newFromElement) {
-            newFromElement.style.transform = '';
-            newFromElement.style.transition = '';
-            newFromElement.style.zIndex = '';
-          }
-          if (newToElement) {
-            newToElement.style.transform = '';
-            newToElement.style.transition = '';
-            newToElement.style.zIndex = '';
-          }
-        }, 500);
+          // Cleanup
+          setTimeout(() => {
+            el.style.transform = '';
+            el.style.transition = '';
+            el.style.zIndex = '';
+          }, 460);
+        }
       });
     });
   };
 
-  // Exercise reordering functions with smooth slide animation
+  // Exercise reordering — superset-aware
   const moveExerciseUp = (index) => {
-    if (index > 0) {
-      animateExerciseMove(index, index - 1);
+    const exercise = exercises[index];
+    const prev = exercises[index - 1];
+
+    if (exercise?.supersetGroup && prev?.supersetGroup === exercise.supersetGroup) {
+      // Linked: swap within the superset group
+      animateExerciseMoveMulti(
+        [exercise.id, prev.id],
+        (exs) => {
+          const updated = [...exs];
+          [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+          return updated;
+        }
+      );
+    } else if (!exercise?.supersetGroup && index > 0) {
+      if (prev?.supersetGroup) {
+        // Skip the entire superset group above
+        const groupId = prev.supersetGroup;
+        let groupStart = index - 1;
+        while (groupStart > 0 && exercises[groupStart - 1]?.supersetGroup === groupId) groupStart--;
+        // All involved IDs: solo exercise + all superset members
+        const involvedIds = [exercise.id, ...exercises.slice(groupStart, index).map(e => e.id)];
+        animateExerciseMoveMulti(
+          involvedIds,
+          (exs) => {
+            const updated = [...exs];
+            updated.splice(index, 1);
+            updated.splice(groupStart, 0, exercise);
+            return updated;
+          }
+        );
+      } else {
+        animateExerciseMoveMulti(
+          [exercise.id, prev.id],
+          (exs) => {
+            const updated = [...exs];
+            [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+            return updated;
+          }
+        );
+      }
     }
   };
 
   const moveExerciseDown = (index) => {
-    if (index < exercises.length - 1) {
-      animateExerciseMove(index, index + 1);
+    const exercise = exercises[index];
+    const next = exercises[index + 1];
+
+    if (exercise?.supersetGroup && next?.supersetGroup === exercise.supersetGroup) {
+      // Linked: swap within the superset group
+      animateExerciseMoveMulti(
+        [exercise.id, next.id],
+        (exs) => {
+          const updated = [...exs];
+          [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+          return updated;
+        }
+      );
+    } else if (!exercise?.supersetGroup && index < exercises.length - 1) {
+      if (next?.supersetGroup) {
+        // Skip the entire superset group below
+        const groupId = next.supersetGroup;
+        let groupEnd = index + 1;
+        while (groupEnd < exercises.length - 1 && exercises[groupEnd + 1]?.supersetGroup === groupId) groupEnd++;
+        // All involved IDs: solo exercise + all superset members
+        const involvedIds = [exercise.id, ...exercises.slice(index + 1, groupEnd + 1).map(e => e.id)];
+        animateExerciseMoveMulti(
+          involvedIds,
+          (exs) => {
+            const updated = [...exs];
+            updated.splice(index, 1);
+            updated.splice(groupEnd, 0, exercise);
+            return updated;
+          }
+        );
+      } else {
+        animateExerciseMoveMulti(
+          [exercise.id, next.id],
+          (exs) => {
+            const updated = [...exs];
+            [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+            return updated;
+          }
+        );
+      }
     }
   };
+
+
 
   // Drag and drop handlers
   const handleDragStart = (e, index) => {
@@ -2005,778 +2067,784 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
 
               <div className="flex flex-col">
                 {exercises.map((exercise, exerciseIndex) => {
-                  const isLinked = !!exercise.supersetGroup && 
+                  const isLinked = !!exercise.supersetGroup &&
                     exercise.supersetGroup === exercises[exerciseIndex + 1]?.supersetGroup;
-                  const isLinkedToPrev = !!exercise.supersetGroup && 
+                  const isLinkedToPrev = !!exercise.supersetGroup &&
                     exercise.supersetGroup === exercises[exerciseIndex - 1]?.supersetGroup;
-                  
+                  // Disabled state for arrows: superset exercises are locked inside their group
+                  const isUpDisabled = exercise.supersetGroup
+                    ? exercises[exerciseIndex - 1]?.supersetGroup !== exercise.supersetGroup
+                    : exerciseIndex === 0;
+                  const isDownDisabled = exercise.supersetGroup
+                    ? exercises[exerciseIndex + 1]?.supersetGroup !== exercise.supersetGroup
+                    : exerciseIndex === exercises.length - 1;
+
                   return (
-                  <React.Fragment key={exercise.id}>
-                  <div
-                    ref={(el) => {
-                      if (el) {
-                        exerciseRefs.current[exercise.id] = el;
-                      } else {
-                        delete exerciseRefs.current[exercise.id];
-                      }
-                    }}
-                    className={`overflow-hidden transition-all duration-200 mt-0 ${
-                      isLinked && isLinkedToPrev ? 'rounded-none border-t border-white/5' : 
-                      isLinked ? 'rounded-t-[12px] rounded-b-none' : 
-                      isLinkedToPrev ? 'rounded-b-[12px] rounded-t-none border-t border-white/5' : 
-                      'rounded-[12px]'
-                    }`}
-                    style={{
-                      willChange: 'transform',
-                      background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)'
-                    }}
-                  >
-                    {/* Exercise Header */}
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-transparent border-0" style={{ borderTopWidth: isLinkedToPrev ? '0px' : '0' }}>
+                    <React.Fragment key={exercise.id}>
                       <div
-                        onClick={(e) => {
-                          handleReplaceExercise(exerciseIndex);
-                          // Force blur immediately to remove hover state
-                          if (e.currentTarget instanceof HTMLElement) {
-                            e.currentTarget.blur();
+                        ref={(el) => {
+                          if (el) {
+                            exerciseRefs.current[exercise.id] = el;
+                          } else {
+                            delete exerciseRefs.current[exercise.id];
                           }
                         }}
-                        className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors min-w-0 ${replacingExerciseIndex === exerciseIndex
-                          ? 'bg-[rgba(255,255,255,0.10)]'
-                          : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
+                        className={`overflow-hidden transition-all duration-200 mt-0 ${isLinked && isLinkedToPrev ? 'rounded-none border-t border-white/5' :
+                          isLinked ? 'rounded-t-[12px] rounded-b-none' :
+                            isLinkedToPrev ? 'rounded-b-[12px] rounded-t-none border-t border-white/5' :
+                              'rounded-[12px]'
                           }`}
+                        style={{
+                          willChange: 'transform',
+                          background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)'
+                        }}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                          <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
-                        </svg>
-                        <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
-                        <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px]">
-                          {exercise.tags && exercise.tags.map((tag, tagIndex) => {
-                            const tagStyle = getTagColor(tag);
-                            return (
-                              <span
-                                key={tagIndex}
-                                className="px-2 py-0.5 rounded-full text-xs font-light"
-                                style={tagStyle}
-                              >
-                                {tag}
-                              </span>
-                            );
-                          })}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const updatedExercises = [...exercises];
-                            updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                            // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
-                            updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
-                              ...set,
-                              weight: ''
-                            }));
-                            setExercises(updatedExercises);
-                          }}
-                          className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${exercise.useRir
-                            ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
-                            : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
-                            }`}
-                          title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
-                            <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z" />
-                          </svg>
-                          <span className="hidden sm:inline">{exercise.useRir ? 'RPE' : 'Charge'}</span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-0 px-0">
-                        <div className="flex items-center gap-0" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
-                          <button
-                            type="button"
-                            onClick={() => moveExerciseUp(exerciseIndex)}
-                            disabled={exerciseIndex === 0}
-                            className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1 py-1.5 rounded"
-                            title="Monter l'exercice"
+                        {/* Exercise Header */}
+                        <div className="flex items-center justify-between p-3 md:p-4 bg-transparent border-0" style={{ borderTopWidth: isLinkedToPrev ? '0px' : '0' }}>
+                          <div
+                            onClick={(e) => {
+                              handleReplaceExercise(exerciseIndex);
+                              // Force blur immediately to remove hover state
+                              if (e.currentTarget instanceof HTMLElement) {
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className={`flex items-center flex-1 py-1 pl-2 pr-1 rounded-lg border-0 cursor-pointer transition-colors min-w-0 ${replacingExerciseIndex === exerciseIndex
+                              ? 'bg-[rgba(255,255,255,0.10)]'
+                              : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
+                              }`}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
-                              <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                              <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                             </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveExerciseDown(exerciseIndex)}
-                            disabled={exerciseIndex === exercises.length - 1}
-                            className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors py-1.5 pl-1 pr-1 rounded"
-                            title="Descendre l'exercice"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
-                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="w-px h-4 bg-white/10"></div>
-                        <button
-                          type="button"
-                          onClick={() => handleDuplicateExercise(exerciseIndex)}
-                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
-                          title="Dupliquer l'exercice"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
-                            <path d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveExercise(exercise.id)}
-                          className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[7px] pr-[10px] rounded"
-                          title="Supprimer l'exercice"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
-                            <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Exercise Table */}
-                    {exercise.isExpanded && (
-                      <div className="bg-transparent p-3 md:p-4">
-                        {/* Table Container with Scroll */}
-                        <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
-                          <table className="w-full text-xs md:text-sm min-w-[500px]">
-                            <thead className="sticky top-0 z-10" style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}>
-                              <tr className="text-white/50 text-xs font-extralight">
-                                <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                                  <DropdownMenu modal={false}>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type="button"
-                                        className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
-                                        style={{ color: 'rgba(255, 255, 255, 0.25)' }}
-                                      >
-                                        <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
-                                          <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
-                                        </svg>
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="start"
-                                      sideOffset={5}
-                                      disablePortal={true}
-                                      className="rounded-lg shadow-2xl z-[9999]"
-                                      style={{
-                                        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                                        backdropFilter: 'blur(10px)',
-                                        borderColor: 'rgba(255, 255, 255, 0.15)',
-                                        borderWidth: '1px',
-                                        borderStyle: 'solid',
-                                        marginLeft: '12px'
-                                      }}
-                                    >
-                                      <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
-                                        Reps
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
-                                        Hold
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </th>
-                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
-                                {hasPreviousRpeData() && (
-                                  <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                                    {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
-                                  </th>
-                                )}
-                                <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
-                                <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
-                                <th className="pb-3"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {exercise.sets.map((set, setIndex) => (
-                                <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
-                                  <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
-                                  <td className="py-1.5 min-w-24">
-                                    {set.repType === 'hold' ? (
-                                      <div
-                                        className="relative flex items-center justify-center mx-auto w-[82px]"
-                                        onMouseEnter={(e) => {
-                                          const input = e.currentTarget.querySelector('input');
-                                          if (input) {
-                                            input.style.borderStyle = 'solid';
-                                            input.style.borderWidth = '0.5px';
-                                            input.style.borderColor = '#d4845a';
-                                          }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          const input = e.currentTarget.querySelector('input');
-                                          if (input && document.activeElement !== input) {
-                                            input.style.borderStyle = 'none';
-                                            input.style.borderWidth = '0px';
-                                            input.style.borderColor = 'transparent';
-                                          }
-                                        }}
-                                      >
-                                        <Input
-                                          type="text"
-                                          value={set.reps || ''}
-                                          maxLength={8}
-                                          onChange={(e) => {
-                                            const inputValue = e.target.value.slice(0, 8);
-                                            const previousValue = set.reps || '';
-
-                                            // Allow empty string
-                                            if (inputValue === '') {
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', '');
-                                              return;
-                                            }
-
-                                            // Prevent deleting 's' at the end - if user tries to delete 's', restore it
-                                            let cleanValue = inputValue.replace(/s/gi, '');
-
-                                            // If previous value was "0s" or "0" and user types a digit, replace the 0
-                                            if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                              return;
-                                            }
-
-                                            // Check if it contains colon (MM:SS format) - don't add 's' for this format
-                                            if (cleanValue.includes(':')) {
-                                              const parts = cleanValue.split(':');
-                                              if (parts.length === 2) {
-                                                const minutes = parseInt(parts[0], 10);
-                                                const seconds = parseInt(parts[1], 10);
-                                                if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
-                                                  handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
-                                                }
-                                              }
-                                              return;
-                                            }
-
-                                            // Allow only digits - always add 's' at the end
-                                            if (/^\d+$/.test(cleanValue)) {
-                                              const numValue = parseInt(cleanValue, 10);
-                                              if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
-                                                // Store with 's' appended
-                                                handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                              }
-                                            }
-                                          }}
-                                          onKeyDown={(e) => {
-                                            const input = e.target;
-                                            const cursorPosition = input.selectionStart;
-                                            const value = input.value;
-
-                                            const allowedKeys = [
-                                              'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
-                                              'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
-                                            ];
-
-                                            // Prevent deleting 's' at the end
-                                            if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
-                                              e.preventDefault();
-                                              // Move cursor before 's' to allow deleting the number
-                                              input.setSelectionRange(value.length - 1, value.length - 1);
-                                              return;
-                                            }
-
-                                            // Prevent typing at the end if it would overwrite 's'
-                                            if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
-                                              if (/^\d$/.test(e.key)) {
-                                                // Allow digits but insert before 's', limit to 8 characters
-                                                e.preventDefault();
-                                                const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
-                                                handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
-                                                setTimeout(() => {
-                                                  input.setSelectionRange(newValue.length - 1, newValue.length - 1);
-                                                }, 0);
-                                                return;
-                                              }
-                                            }
-
-                                            if (allowedKeys.includes(e.key)) {
-                                              return;
-                                            }
-
-                                            // Allow digits and ':' (but not 's')
-                                            if (/^\d$/.test(e.key) || e.key === ':') {
-                                              return;
-                                            }
-
-                                            e.preventDefault();
-                                          }}
-                                          placeholder="40s"
-                                          className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
-                                          onFocus={(e) => {
-                                            const input = e.target;
-                                            const value = input.value;
-                                            // If value is "0s", select the "0" so it can be easily replaced
-                                            if (value === '0s') {
-                                              setTimeout(() => {
-                                                input.setSelectionRange(0, 1);
-                                              }, 0);
-                                            } else if (value.endsWith('s') && !value.includes(':')) {
-                                              // If value ends with 's' (but not "0s"), position cursor before 's'
-                                              setTimeout(() => {
-                                                input.setSelectionRange(value.length - 1, value.length - 1);
-                                              }, 0);
-                                            }
-                                            e.target.style.borderStyle = 'solid';
-                                            e.target.style.borderWidth = '0.5px';
-                                            e.target.style.borderColor = '#d4845a';
-                                          }}
-                                          onBlur={(e) => {
-                                            e.target.style.borderStyle = 'none';
-                                            e.target.style.borderWidth = '0px';
-                                            e.target.style.borderColor = 'transparent';
-                                            // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
-                                            const value = e.target.value;
-                                            if (value && !value.includes(':') && !value.endsWith('s')) {
-                                              handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
-                                            }
-                                          }}
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div
-                                        className="flex items-center justify-center w-[82px] mx-auto"
-                                        onMouseEnter={(e) => {
-                                          const input = e.currentTarget.querySelector('input');
-                                          if (input) {
-                                            input.style.borderStyle = 'solid';
-                                            input.style.borderWidth = '0.5px';
-                                            input.style.borderColor = '#d4845a';
-                                          }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          const input = e.currentTarget.querySelector('input');
-                                          if (input && document.activeElement !== input) {
-                                            input.style.borderStyle = 'none';
-                                            input.style.borderWidth = '0px';
-                                            input.style.borderColor = 'transparent';
-                                          }
-                                        }}
-                                      >
-                                        <Input
-                                          type="text"
-                                          value={set.reps || ''}
-                                          maxLength={8}
-                                          onChange={(e) => {
-                                            // Allow any character - free text input, limit to 8 characters
-                                            const value = e.target.value.slice(0, 8);
-                                            handleSetChange(exerciseIndex, setIndex, 'reps', value);
-                                          }}
-                                          placeholder=""
-                                          className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
-                                          onFocus={(e) => {
-                                            e.target.style.borderStyle = 'solid';
-                                            e.target.style.borderWidth = '0.5px';
-                                            e.target.style.borderColor = '#d4845a';
-                                          }}
-                                          onBlur={(e) => {
-                                            e.target.style.borderStyle = 'none';
-                                            e.target.style.borderWidth = '0px';
-                                            e.target.style.borderColor = 'transparent';
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-1.5 min-w-24">
-                                    <div
-                                      className="relative flex items-center justify-center mx-auto w-20"
-                                      onMouseEnter={(e) => {
-                                        const input = e.currentTarget.querySelector('input');
-                                        if (input) {
-                                          input.style.borderStyle = 'solid';
-                                          input.style.borderWidth = '0.5px';
-                                          input.style.borderColor = '#d4845a';
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        const input = e.currentTarget.querySelector('input');
-                                        if (input && document.activeElement !== input) {
-                                          input.style.borderStyle = 'none';
-                                          input.style.borderWidth = '0px';
-                                          input.style.borderColor = 'transparent';
-                                        }
-                                      }}
-                                    >
-                                      <Input
-                                        type="text"
-                                        maxLength={5}
-                                        value={set.weight ?? ''}
-                                        onChange={(e) => {
-                                          // Charge et RPE : texte libre, limité à 5 caractères (comme la charge)
-                                          const value = e.target.value.slice(0, 5);
-                                          handleSetChange(exerciseIndex, setIndex, 'weight', value);
-                                        }}
-                                        placeholder=""
-                                        className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${exercise.useRir ? '' : 'pr-6'} transition-colors`}
-                                        onFocus={(e) => {
-                                          e.target.style.borderStyle = 'solid';
-                                          e.target.style.borderWidth = '0.5px';
-                                          e.target.style.borderColor = '#d4845a';
-                                        }}
-                                        onBlur={(e) => {
-                                          e.target.style.borderStyle = 'none';
-                                          e.target.style.borderWidth = '0px';
-                                          e.target.style.borderColor = 'transparent';
-                                        }}
-                                      />
-                                      {!exercise.useRir && (
-                                        <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  {hasPreviousRpeData() && (
-                                    <td className="py-1.5 min-w-24">
-                                      <div className="flex items-center justify-center">
-                                        {(() => {
-                                          const prevVal = exercise.useRir ? set.previousCharge : set.previousRpe;
-                                          const hasVal = prevVal != null && prevVal !== '';
-                                          return hasVal ? (
-                                            <div
-                                              className="flex items-center justify-center px-2 py-1 rounded"
-                                              title={exercise.useRir
-                                                ? `Charge renseignée lors de la séance précédente: ${prevVal}kg`
-                                                : `RPE renseigné lors de la séance précédente: ${prevVal}`
-                                              }
-                                            >
-                                              <span className="text-[#d4845a] text-sm font-normal">
-                                                {exercise.useRir ? `${prevVal}kg` : prevVal}
-                                              </span>
-                                            </div>
-                                          ) : (
-                                            <span className="text-white/25 text-sm font-light">-</span>
-                                          );
-                                        })()}
-                                      </div>
-                                    </td>
-                                  )}
-                                  <td className="py-1.5 min-w-24">
-                                    <div
-                                      className="flex items-center justify-center"
-                                      onMouseEnter={(e) => {
-                                        const input = e.currentTarget.querySelector('input');
-                                        if (input) {
-                                          input.style.borderStyle = 'solid';
-                                          input.style.borderWidth = '0.5px';
-                                          input.style.borderColor = '#d4845a';
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        const input = e.currentTarget.querySelector('input');
-                                        if (input && document.activeElement !== input) {
-                                          input.style.borderStyle = 'none';
-                                          input.style.borderWidth = '0px';
-                                          input.style.borderColor = 'transparent';
-                                        }
-                                      }}
-                                    >
-                                      <Input
-                                        type="text"
-                                        value={set.rest}
-                                        onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
-                                        placeholder="03:00"
-                                        className="text-white text-sm text-center h-8 w-20 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                            e.preventDefault();
-                                            const currentValue = set.rest || '00:00';
-                                            const parts = currentValue.split(':');
-                                            if (parts.length === 2) {
-                                              const minutes = parseInt(parts[0], 10) || 0;
-                                              const seconds = parseInt(parts[1], 10) || 0;
-                                              const totalSeconds = minutes * 60 + seconds;
-
-                                              // Add or subtract 1 minute (60 seconds)
-                                              const newTotalSeconds = e.key === 'ArrowUp'
-                                                ? totalSeconds + 60
-                                                : Math.max(0, totalSeconds - 60);
-
-                                              const newMinutes = Math.floor(newTotalSeconds / 60);
-                                              const newSeconds = newTotalSeconds % 60;
-
-                                              // Format as MM:SS with leading zeros
-                                              const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
-                                              handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
-                                            }
-                                          }
-                                        }}
-                                        onFocus={(e) => {
-                                          e.target.style.borderStyle = 'solid';
-                                          e.target.style.borderWidth = '0.5px';
-                                          e.target.style.borderColor = '#d4845a';
-                                        }}
-                                        onBlur={(e) => {
-                                          e.target.style.borderStyle = 'none';
-                                          e.target.style.borderWidth = '0px';
-                                          e.target.style.borderColor = 'transparent';
-                                        }}
-                                      />
-                                    </div>
-                                  </td>
-                                  <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
-                                    <div className="flex items-center justify-center">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSetChange(exerciseIndex, setIndex, 'video', !set.video);
-                                        }}
-                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary ${set.video
-                                          ? 'bg-primary border-primary text-primary-foreground'
-                                          : ''
-                                          }`}
-                                        style={{
-                                          borderWidth: '1px',
-                                          borderColor: set.video ? undefined : 'rgba(255, 255, 255, 0.1)'
-                                        }}
-                                      >
-                                        {set.video && (
-                                          <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </td>
-                                  <td className="py-1.5 text-center pr-[10px]">
-                                    {exercise.sets.length > 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
-                                        className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-[#d4845a] transition-all p-1 rounded"
-                                      >
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
-                                          <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z" />
-                                        </svg>
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
-                          {/* Left side: Charge par main checkbox and Tempo input */}
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
-                            {/* Charge par main checkbox */}
-                            <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
+                            <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
+                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px]">
+                              {exercise.tags && exercise.tags.map((tag, tagIndex) => {
+                                const tagStyle = getTagColor(tag);
+                                return (
+                                  <span
+                                    key={tagIndex}
+                                    className="px-2 py-0.5 rounded-full text-xs font-light"
+                                    style={tagStyle}
+                                  >
+                                    {tag}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const updatedExercises = [...exercises];
+                                updatedExercises[exerciseIndex].useRir = !exercise.useRir;
+                                // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
+                                updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
+                                  ...set,
+                                  weight: ''
+                                }));
+                                setExercises(updatedExercises);
+                              }}
+                              className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${exercise.useRir
+                                ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
+                                : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
+                                }`}
+                              title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
+                                <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z" />
+                              </svg>
+                              <span className="hidden sm:inline">{exercise.useRir ? 'RPE' : 'Charge'}</span>
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-0 px-0">
+                            <div className="flex items-center gap-0" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const updatedExercises = [...exercises];
-                                  updatedExercises[exerciseIndex].per_side = !exercise.per_side;
-                                  setExercises(updatedExercises);
-                                }}
-                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary cursor-pointer ${exercise.per_side
-                                  ? 'bg-primary border-primary text-primary-foreground'
-                                  : ''
-                                  }`}
-                                style={{
-                                  borderWidth: '1px',
-                                  borderColor: exercise.per_side ? undefined : 'rgba(255, 255, 255, 0.1)'
-                                }}
+                                onClick={() => moveExerciseUp(exerciseIndex)}
+                                disabled={isUpDisabled}
+                                className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1 py-1.5 rounded"
+                                title="Monter l'exercice"
                               >
-                                {exercise.per_side && (
-                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                )}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
+                                  <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
+                                </svg>
                               </button>
-                              <label
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const updatedExercises = [...exercises];
-                                  updatedExercises[exerciseIndex].per_side = !exercise.per_side;
-                                  setExercises(updatedExercises);
-                                }}
-                                className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
+                              <button
+                                type="button"
+                                onClick={() => moveExerciseDown(exerciseIndex)}
+                                disabled={isDownDisabled}
+                                className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors py-1.5 pl-1 pr-1 rounded"
+                                title="Descendre l'exercice"
                               >
-                                Charge par main
-                              </label>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
+                                  <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                                </svg>
+                              </button>
                             </div>
-
-                            {/* Tempo input */}
-                            <Input
-                              type="text"
-                              value={exercise.tempo || ''}
-                              onChange={(e) => {
-                                let value = e.target.value;
-
-                                // Si l'utilisateur supprime ou modifie, permettre l'édition libre
-                                // Filtrer pour n'accepter que les chiffres et les tirets
-                                value = value.replace(/[^0-9-]/g, '');
-
-                                // Si l'utilisateur tape uniquement des chiffres, formater automatiquement
-                                const digitsOnly = value.replace(/-/g, '');
-
-                                // Limiter à 4 chiffres maximum
-                                if (digitsOnly.length > 4) {
-                                  const limitedDigits = digitsOnly.slice(0, 4);
-                                  // Formater en x-x-x-x
-                                  value = `${limitedDigits[0]}-${limitedDigits[1]}-${limitedDigits[2]}-${limitedDigits[3]}`;
-                                } else if (digitsOnly.length > 0) {
-                                  // Formater progressivement selon le nombre de chiffres
-                                  const digits = digitsOnly.split('');
-                                  if (digits.length === 1) {
-                                    value = digits[0];
-                                  } else if (digits.length === 2) {
-                                    value = `${digits[0]}-${digits[1]}`;
-                                  } else if (digits.length === 3) {
-                                    value = `${digits[0]}-${digits[1]}-${digits[2]}`;
-                                  } else if (digits.length === 4) {
-                                    value = `${digits[0]}-${digits[1]}-${digits[2]}-${digits[3]}`;
-                                  }
-                                } else {
-                                  // Si vide, permettre la suppression
-                                  value = '';
-                                }
-
-                                const updatedExercises = [...exercises];
-                                updatedExercises[exerciseIndex].tempo = value;
-                                setExercises(updatedExercises);
-
-                                // Mettre à jour la bordure selon si une valeur est présente (seulement si le champ n'est pas en focus)
-                                const inputElement = e.target;
-                                if (document.activeElement !== inputElement) {
-                                  inputElement.style.borderStyle = 'none';
-                                  inputElement.style.borderWidth = '0px';
-                                  inputElement.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                  inputElement.style.borderImage = 'none';
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                // Permettre toutes les touches de navigation et suppression
-                                if (e.key === 'Backspace' || e.key === 'Delete' ||
-                                  e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
-                                  e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
-                                  e.key === 'Tab' || e.key === 'Enter' ||
-                                  e.key === 'Home' || e.key === 'End' ||
-                                  (e.ctrlKey && (e.key === 'a' || e.key === 'c' || e.key === 'v' || e.key === 'x'))) {
-                                  return; // Laisser le comportement par défaut
-                                }
-
-                                // Empêcher uniquement les caractères non numériques
-                                if (!/[0-9]/.test(e.key)) {
-                                  e.preventDefault();
-                                }
-                              }}
-                              onFocus={(e) => {
-                                // Sélectionner tout le texte pour faciliter la modification
-                                e.target.select();
-                                if (!e.target.value) {
-                                  e.target.placeholder = 'X-X-X-X';
-                                }
-                                // Ajouter la bordure orange au focus
-                                e.target.style.borderStyle = 'none';
-                                e.target.style.borderWidth = '0px';
-                                e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                e.target.style.borderImage = 'none';
-                              }}
-                              onBlur={(e) => {
-                                if (!e.target.value) {
-                                  e.target.placeholder = 'Tempo';
-                                  // Restaurer la bordure par défaut si vide
-                                  e.target.style.borderStyle = 'none';
-                                  e.target.style.borderWidth = '0px';
-                                  e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                  e.target.style.borderImage = 'none';
-                                } else {
-                                  // Garder une bordure blanche visible si une valeur est présente
-                                  e.target.style.borderStyle = 'none';
-                                  e.target.style.borderWidth = '0px';
-                                  e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
-                                  e.target.style.borderImage = 'none';
-                                }
-                              }}
-                              placeholder="Tempo"
-                              className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[12px] md:text-[12px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
-                            />
+                            <div className="w-px h-4 bg-white/10"></div>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateExercise(exerciseIndex)}
+                              className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
+                              title="Dupliquer l'exercice"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
+                                <path d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveExercise(exercise.id)}
+                              className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[7px] pr-[10px] rounded"
+                              title="Supprimer l'exercice"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
+                                <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z" />
+                              </svg>
+                            </button>
                           </div>
-
-                          {/* Right side: Ajouter une série button */}
-                          <button
-                            type="button"
-                            onClick={() => handleAddSet(exerciseIndex)}
-                            className="text-[10px] md:text-[11px] font-normal py-1.5 md:py-1 px-3 md:px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap sm:ml-auto hover:bg-[rgba(212,132,90,0.25)] w-full sm:w-auto"
-                            style={{
-                              fontFamily: "'Inter', sans-serif",
-                              color: 'var(--kaiylo-primary-hex)',
-                              borderColor: 'var(--kaiylo-primary-hex)',
-                              borderWidth: '1px'
-                            }}
-                          >
-                            Ajouter une série
-                          </button>
                         </div>
 
-                        {/* Notes Input */}
-                        <Input
-                          value={exercise.notes}
-                          onChange={(e) => {
-                            const updatedExercises = [...exercises];
-                            updatedExercises[exerciseIndex].notes = e.target.value;
-                            setExercises(updatedExercises);
-                          }}
-                          placeholder="Ajouter une note pour cet exercice"
-                          className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
-                          onFocus={(e) => {
-                            e.target.style.borderStyle = 'none';
-                            e.target.style.borderWidth = '0px';
-                            e.target.style.borderColor = 'transparent';
-                          }}
-                          onBlur={(e) => {
-                            e.target.style.borderStyle = 'none';
-                            e.target.style.borderWidth = '0px';
-                            e.target.style.borderColor = 'transparent';
-                          }}
-                        />
+                        {/* Exercise Table */}
+                        {exercise.isExpanded && (
+                          <div className="bg-transparent p-3 md:p-4">
+                            {/* Table Container with Scroll */}
+                            <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
+                              <table className="w-full text-xs md:text-sm min-w-[500px]">
+                                <thead className="sticky top-0 z-10" style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}>
+                                  <tr className="text-white/50 text-xs font-extralight">
+                                    <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
+                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                                      <DropdownMenu modal={false}>
+                                        <DropdownMenuTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
+                                            style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                          >
+                                            <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                                            </svg>
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent
+                                          align="start"
+                                          sideOffset={5}
+                                          disablePortal={true}
+                                          className="rounded-lg shadow-2xl z-[9999]"
+                                          style={{
+                                            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                            backdropFilter: 'blur(10px)',
+                                            borderColor: 'rgba(255, 255, 255, 0.15)',
+                                            borderWidth: '1px',
+                                            borderStyle: 'solid',
+                                            marginLeft: '12px'
+                                          }}
+                                        >
+                                          <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
+                                            Reps
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
+                                            Hold
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </th>
+                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
+                                    {hasPreviousRpeData() && (
+                                      <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
+                                        {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
+                                      </th>
+                                    )}
+                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                                    <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
+                                    <th className="pb-3"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {exercise.sets.map((set, setIndex) => (
+                                    <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
+                                      <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
+                                      <td className="py-1.5 min-w-24">
+                                        {set.repType === 'hold' ? (
+                                          <div
+                                            className="relative flex items-center justify-center mx-auto w-[82px]"
+                                            onMouseEnter={(e) => {
+                                              const input = e.currentTarget.querySelector('input');
+                                              if (input) {
+                                                input.style.borderStyle = 'solid';
+                                                input.style.borderWidth = '0.5px';
+                                                input.style.borderColor = '#d4845a';
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              const input = e.currentTarget.querySelector('input');
+                                              if (input && document.activeElement !== input) {
+                                                input.style.borderStyle = 'none';
+                                                input.style.borderWidth = '0px';
+                                                input.style.borderColor = 'transparent';
+                                              }
+                                            }}
+                                          >
+                                            <Input
+                                              type="text"
+                                              value={set.reps || ''}
+                                              maxLength={8}
+                                              onChange={(e) => {
+                                                const inputValue = e.target.value.slice(0, 8);
+                                                const previousValue = set.reps || '';
 
-                        {/* Student Comment (read-only, from completed session) */}
-                        {exercise.studentComment && (
-                          <div className="mt-3">
-                            <div className="text-[14px] font-extralight text-white/50 mb-[8px]">Commentaire élève :</div>
-                            <div className="text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-[#d4845a]">
-                              {exercise.studentComment.charAt(0).toUpperCase() + exercise.studentComment.slice(1)}
+                                                // Allow empty string
+                                                if (inputValue === '') {
+                                                  handleSetChange(exerciseIndex, setIndex, 'reps', '');
+                                                  return;
+                                                }
+
+                                                // Prevent deleting 's' at the end - if user tries to delete 's', restore it
+                                                let cleanValue = inputValue.replace(/s/gi, '');
+
+                                                // If previous value was "0s" or "0" and user types a digit, replace the 0
+                                                if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
+                                                  handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                                  return;
+                                                }
+
+                                                // Check if it contains colon (MM:SS format) - don't add 's' for this format
+                                                if (cleanValue.includes(':')) {
+                                                  const parts = cleanValue.split(':');
+                                                  if (parts.length === 2) {
+                                                    const minutes = parseInt(parts[0], 10);
+                                                    const seconds = parseInt(parts[1], 10);
+                                                    if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
+                                                      handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
+                                                    }
+                                                  }
+                                                  return;
+                                                }
+
+                                                // Allow only digits - always add 's' at the end
+                                                if (/^\d+$/.test(cleanValue)) {
+                                                  const numValue = parseInt(cleanValue, 10);
+                                                  if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
+                                                    // Store with 's' appended
+                                                    handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
+                                                  }
+                                                }
+                                              }}
+                                              onKeyDown={(e) => {
+                                                const input = e.target;
+                                                const cursorPosition = input.selectionStart;
+                                                const value = input.value;
+
+                                                const allowedKeys = [
+                                                  'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+                                                  'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
+                                                ];
+
+                                                // Prevent deleting 's' at the end
+                                                if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
+                                                  e.preventDefault();
+                                                  // Move cursor before 's' to allow deleting the number
+                                                  input.setSelectionRange(value.length - 1, value.length - 1);
+                                                  return;
+                                                }
+
+                                                // Prevent typing at the end if it would overwrite 's'
+                                                if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
+                                                  if (/^\d$/.test(e.key)) {
+                                                    // Allow digits but insert before 's', limit to 8 characters
+                                                    e.preventDefault();
+                                                    const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
+                                                    handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
+                                                    setTimeout(() => {
+                                                      input.setSelectionRange(newValue.length - 1, newValue.length - 1);
+                                                    }, 0);
+                                                    return;
+                                                  }
+                                                }
+
+                                                if (allowedKeys.includes(e.key)) {
+                                                  return;
+                                                }
+
+                                                // Allow digits and ':' (but not 's')
+                                                if (/^\d$/.test(e.key) || e.key === ':') {
+                                                  return;
+                                                }
+
+                                                e.preventDefault();
+                                              }}
+                                              placeholder="40s"
+                                              className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
+                                              onFocus={(e) => {
+                                                const input = e.target;
+                                                const value = input.value;
+                                                // If value is "0s", select the "0" so it can be easily replaced
+                                                if (value === '0s') {
+                                                  setTimeout(() => {
+                                                    input.setSelectionRange(0, 1);
+                                                  }, 0);
+                                                } else if (value.endsWith('s') && !value.includes(':')) {
+                                                  // If value ends with 's' (but not "0s"), position cursor before 's'
+                                                  setTimeout(() => {
+                                                    input.setSelectionRange(value.length - 1, value.length - 1);
+                                                  }, 0);
+                                                }
+                                                e.target.style.borderStyle = 'solid';
+                                                e.target.style.borderWidth = '0.5px';
+                                                e.target.style.borderColor = '#d4845a';
+                                              }}
+                                              onBlur={(e) => {
+                                                e.target.style.borderStyle = 'none';
+                                                e.target.style.borderWidth = '0px';
+                                                e.target.style.borderColor = 'transparent';
+                                                // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
+                                                const value = e.target.value;
+                                                if (value && !value.includes(':') && !value.endsWith('s')) {
+                                                  handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div
+                                            className="flex items-center justify-center w-[82px] mx-auto"
+                                            onMouseEnter={(e) => {
+                                              const input = e.currentTarget.querySelector('input');
+                                              if (input) {
+                                                input.style.borderStyle = 'solid';
+                                                input.style.borderWidth = '0.5px';
+                                                input.style.borderColor = '#d4845a';
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              const input = e.currentTarget.querySelector('input');
+                                              if (input && document.activeElement !== input) {
+                                                input.style.borderStyle = 'none';
+                                                input.style.borderWidth = '0px';
+                                                input.style.borderColor = 'transparent';
+                                              }
+                                            }}
+                                          >
+                                            <Input
+                                              type="text"
+                                              value={set.reps || ''}
+                                              maxLength={8}
+                                              onChange={(e) => {
+                                                // Allow any character - free text input, limit to 8 characters
+                                                const value = e.target.value.slice(0, 8);
+                                                handleSetChange(exerciseIndex, setIndex, 'reps', value);
+                                              }}
+                                              placeholder=""
+                                              className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
+                                              onFocus={(e) => {
+                                                e.target.style.borderStyle = 'solid';
+                                                e.target.style.borderWidth = '0.5px';
+                                                e.target.style.borderColor = '#d4845a';
+                                              }}
+                                              onBlur={(e) => {
+                                                e.target.style.borderStyle = 'none';
+                                                e.target.style.borderWidth = '0px';
+                                                e.target.style.borderColor = 'transparent';
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="py-1.5 min-w-24">
+                                        <div
+                                          className="relative flex items-center justify-center mx-auto w-20"
+                                          onMouseEnter={(e) => {
+                                            const input = e.currentTarget.querySelector('input');
+                                            if (input) {
+                                              input.style.borderStyle = 'solid';
+                                              input.style.borderWidth = '0.5px';
+                                              input.style.borderColor = '#d4845a';
+                                            }
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            const input = e.currentTarget.querySelector('input');
+                                            if (input && document.activeElement !== input) {
+                                              input.style.borderStyle = 'none';
+                                              input.style.borderWidth = '0px';
+                                              input.style.borderColor = 'transparent';
+                                            }
+                                          }}
+                                        >
+                                          <Input
+                                            type="text"
+                                            maxLength={5}
+                                            value={set.weight ?? ''}
+                                            onChange={(e) => {
+                                              // Charge et RPE : texte libre, limité à 5 caractères (comme la charge)
+                                              const value = e.target.value.slice(0, 5);
+                                              handleSetChange(exerciseIndex, setIndex, 'weight', value);
+                                            }}
+                                            className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${(!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight)) ? 'pr-6' : ''} transition-colors`}
+                                            onFocus={(e) => {
+                                              e.target.style.borderStyle = 'solid';
+                                              e.target.style.borderWidth = '0.5px';
+                                              e.target.style.borderColor = '#d4845a';
+                                            }}
+                                            onBlur={(e) => {
+                                              e.target.style.borderStyle = 'none';
+                                              e.target.style.borderWidth = '0px';
+                                              e.target.style.borderColor = 'transparent';
+                                            }}
+                                          />
+                                          {!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight) && (
+                                            <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      {hasPreviousRpeData() && (
+                                        <td className="py-1.5 min-w-24">
+                                          <div className="flex items-center justify-center">
+                                            {(() => {
+                                              const prevVal = exercise.useRir ? set.previousCharge : set.previousRpe;
+                                              const hasVal = prevVal != null && prevVal !== '';
+                                              return hasVal ? (
+                                                <div
+                                                  className="flex items-center justify-center px-2 py-1 rounded"
+                                                  title={exercise.useRir
+                                                    ? `Charge renseignée lors de la séance précédente: ${prevVal}kg`
+                                                    : `RPE renseigné lors de la séance précédente: ${prevVal}`
+                                                  }
+                                                >
+                                                  <span className="text-[#d4845a] text-sm font-normal">
+                                                    {exercise.useRir
+                                                      ? `${prevVal}${prevVal !== null && prevVal !== '' && !/[a-zA-Z]/.test(prevVal) ? 'kg' : ''}`
+                                                      : prevVal}
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <span className="text-white/25 text-sm font-light">-</span>
+                                              );
+                                            })()}
+                                          </div>
+                                        </td>
+                                      )}
+                                      <td className="py-1.5 min-w-24">
+                                        <div
+                                          className="flex items-center justify-center"
+                                          onMouseEnter={(e) => {
+                                            const input = e.currentTarget.querySelector('input');
+                                            if (input) {
+                                              input.style.borderStyle = 'solid';
+                                              input.style.borderWidth = '0.5px';
+                                              input.style.borderColor = '#d4845a';
+                                            }
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            const input = e.currentTarget.querySelector('input');
+                                            if (input && document.activeElement !== input) {
+                                              input.style.borderStyle = 'none';
+                                              input.style.borderWidth = '0px';
+                                              input.style.borderColor = 'transparent';
+                                            }
+                                          }}
+                                        >
+                                          <Input
+                                            type="text"
+                                            value={set.rest}
+                                            onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
+                                            placeholder="03:00"
+                                            className="text-white text-sm text-center h-8 w-20 mx-auto rounded-[8px] focus:outline-none placeholder:text-white/30 transition-colors"
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                                e.preventDefault();
+                                                const currentValue = set.rest || '00:00';
+                                                const parts = currentValue.split(':');
+                                                if (parts.length === 2) {
+                                                  const minutes = parseInt(parts[0], 10) || 0;
+                                                  const seconds = parseInt(parts[1], 10) || 0;
+                                                  const totalSeconds = minutes * 60 + seconds;
+
+                                                  // Add or subtract 1 minute (60 seconds)
+                                                  const newTotalSeconds = e.key === 'ArrowUp'
+                                                    ? totalSeconds + 60
+                                                    : Math.max(0, totalSeconds - 60);
+
+                                                  const newMinutes = Math.floor(newTotalSeconds / 60);
+                                                  const newSeconds = newTotalSeconds % 60;
+
+                                                  // Format as MM:SS with leading zeros
+                                                  const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
+                                                  handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
+                                                }
+                                              }
+                                            }}
+                                            onFocus={(e) => {
+                                              e.target.style.borderStyle = 'solid';
+                                              e.target.style.borderWidth = '0.5px';
+                                              e.target.style.borderColor = '#d4845a';
+                                            }}
+                                            onBlur={(e) => {
+                                              e.target.style.borderStyle = 'none';
+                                              e.target.style.borderWidth = '0px';
+                                              e.target.style.borderColor = 'transparent';
+                                            }}
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
+                                        <div className="flex items-center justify-center">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSetChange(exerciseIndex, setIndex, 'video', !set.video);
+                                            }}
+                                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary ${set.video
+                                              ? 'bg-primary border-primary text-primary-foreground'
+                                              : ''
+                                              }`}
+                                            style={{
+                                              borderWidth: '1px',
+                                              borderColor: set.video ? undefined : 'rgba(255, 255, 255, 0.1)'
+                                            }}
+                                          >
+                                            {set.video && (
+                                              <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                            )}
+                                          </button>
+                                        </div>
+                                      </td>
+                                      <td className="py-1.5 text-center pr-[10px]">
+                                        {exercise.sets.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveSet(exerciseIndex, setIndex)}
+                                            className="opacity-0 group-hover:opacity-100 text-white/25 hover:text-[#d4845a] transition-all p-1 rounded"
+                                          >
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                              <path d="M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z" />
+                                            </svg>
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
+
+                            {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
+                              {/* Left side: Charge par main checkbox and Tempo input */}
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
+                                {/* Charge par main checkbox */}
+                                <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const updatedExercises = [...exercises];
+                                      updatedExercises[exerciseIndex].per_side = !exercise.per_side;
+                                      setExercises(updatedExercises);
+                                    }}
+                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors border-border hover:border-primary cursor-pointer ${exercise.per_side
+                                      ? 'bg-primary border-primary text-primary-foreground'
+                                      : ''
+                                      }`}
+                                    style={{
+                                      borderWidth: '1px',
+                                      borderColor: exercise.per_side ? undefined : 'rgba(255, 255, 255, 0.1)'
+                                    }}
+                                  >
+                                    {exercise.per_side && (
+                                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                    )}
+                                  </button>
+                                  <label
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const updatedExercises = [...exercises];
+                                      updatedExercises[exerciseIndex].per_side = !exercise.per_side;
+                                      setExercises(updatedExercises);
+                                    }}
+                                    className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
+                                  >
+                                    Charge par main
+                                  </label>
+                                </div>
+
+                                {/* Tempo input */}
+                                <Input
+                                  type="text"
+                                  value={exercise.tempo || ''}
+                                  onChange={(e) => {
+                                    let value = e.target.value;
+
+                                    // Si l'utilisateur supprime ou modifie, permettre l'édition libre
+                                    // Filtrer pour n'accepter que les chiffres et les tirets
+                                    value = value.replace(/[^0-9-]/g, '');
+
+                                    // Si l'utilisateur tape uniquement des chiffres, formater automatiquement
+                                    const digitsOnly = value.replace(/-/g, '');
+
+                                    // Limiter à 4 chiffres maximum
+                                    if (digitsOnly.length > 4) {
+                                      const limitedDigits = digitsOnly.slice(0, 4);
+                                      // Formater en x-x-x-x
+                                      value = `${limitedDigits[0]}-${limitedDigits[1]}-${limitedDigits[2]}-${limitedDigits[3]}`;
+                                    } else if (digitsOnly.length > 0) {
+                                      // Formater progressivement selon le nombre de chiffres
+                                      const digits = digitsOnly.split('');
+                                      if (digits.length === 1) {
+                                        value = digits[0];
+                                      } else if (digits.length === 2) {
+                                        value = `${digits[0]}-${digits[1]}`;
+                                      } else if (digits.length === 3) {
+                                        value = `${digits[0]}-${digits[1]}-${digits[2]}`;
+                                      } else if (digits.length === 4) {
+                                        value = `${digits[0]}-${digits[1]}-${digits[2]}-${digits[3]}`;
+                                      }
+                                    } else {
+                                      // Si vide, permettre la suppression
+                                      value = '';
+                                    }
+
+                                    const updatedExercises = [...exercises];
+                                    updatedExercises[exerciseIndex].tempo = value;
+                                    setExercises(updatedExercises);
+
+                                    // Mettre à jour la bordure selon si une valeur est présente (seulement si le champ n'est pas en focus)
+                                    const inputElement = e.target;
+                                    if (document.activeElement !== inputElement) {
+                                      inputElement.style.borderStyle = 'none';
+                                      inputElement.style.borderWidth = '0px';
+                                      inputElement.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                      inputElement.style.borderImage = 'none';
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    // Permettre toutes les touches de navigation et suppression
+                                    if (e.key === 'Backspace' || e.key === 'Delete' ||
+                                      e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                                      e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+                                      e.key === 'Tab' || e.key === 'Enter' ||
+                                      e.key === 'Home' || e.key === 'End' ||
+                                      (e.ctrlKey && (e.key === 'a' || e.key === 'c' || e.key === 'v' || e.key === 'x'))) {
+                                      return; // Laisser le comportement par défaut
+                                    }
+
+                                    // Empêcher uniquement les caractères non numériques
+                                    if (!/[0-9]/.test(e.key)) {
+                                      e.preventDefault();
+                                    }
+                                  }}
+                                  onFocus={(e) => {
+                                    // Sélectionner tout le texte pour faciliter la modification
+                                    e.target.select();
+                                    if (!e.target.value) {
+                                      e.target.placeholder = 'X-X-X-X';
+                                    }
+                                    // Ajouter la bordure orange au focus
+                                    e.target.style.borderStyle = 'none';
+                                    e.target.style.borderWidth = '0px';
+                                    e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                    e.target.style.borderImage = 'none';
+                                  }}
+                                  onBlur={(e) => {
+                                    if (!e.target.value) {
+                                      e.target.placeholder = 'Tempo';
+                                      // Restaurer la bordure par défaut si vide
+                                      e.target.style.borderStyle = 'none';
+                                      e.target.style.borderWidth = '0px';
+                                      e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                      e.target.style.borderImage = 'none';
+                                    } else {
+                                      // Garder une bordure blanche visible si une valeur est présente
+                                      e.target.style.borderStyle = 'none';
+                                      e.target.style.borderWidth = '0px';
+                                      e.target.style.borderColor = 'rgba(0, 0, 0, 0)';
+                                      e.target.style.borderImage = 'none';
+                                    }
+                                  }}
+                                  placeholder="Tempo"
+                                  className="bg-[rgba(255,255,255,0.05)] rounded-[8px] text-white text-[12px] md:text-[12px] font-[400] px-[11px] py-[4px] h-[29px] w-[95px] focus:outline-none focus:ring-1 focus:ring-[#d4845a] placeholder:text-[rgba(255,255,255,0.5)] placeholder:font-[300] transition-colors duration-200 text-center"
+                                />
+                              </div>
+
+                              {/* Right side: Ajouter une série button */}
+                              <button
+                                type="button"
+                                onClick={() => handleAddSet(exerciseIndex)}
+                                className="text-[10px] md:text-[11px] font-normal py-1.5 md:py-1 px-3 md:px-2 rounded-md transition-colors duration-200 bg-white/5 border whitespace-nowrap sm:ml-auto hover:bg-[rgba(212,132,90,0.25)] w-full sm:w-auto"
+                                style={{
+                                  fontFamily: "'Inter', sans-serif",
+                                  color: 'var(--kaiylo-primary-hex)',
+                                  borderColor: 'var(--kaiylo-primary-hex)',
+                                  borderWidth: '1px'
+                                }}
+                              >
+                                Ajouter une série
+                              </button>
+                            </div>
+
+                            {/* Notes Input */}
+                            <Input
+                              value={exercise.notes}
+                              onChange={(e) => {
+                                const updatedExercises = [...exercises];
+                                updatedExercises[exerciseIndex].notes = e.target.value;
+                                setExercises(updatedExercises);
+                              }}
+                              placeholder="Ajouter une note pour cet exercice"
+                              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-transparent focus-visible:ring-0 mt-4"
+                              onFocus={(e) => {
+                                e.target.style.borderStyle = 'none';
+                                e.target.style.borderWidth = '0px';
+                                e.target.style.borderColor = 'transparent';
+                              }}
+                              onBlur={(e) => {
+                                e.target.style.borderStyle = 'none';
+                                e.target.style.borderWidth = '0px';
+                                e.target.style.borderColor = 'transparent';
+                              }}
+                            />
+
+                            {/* Student Comment (read-only, from completed session) */}
+                            {exercise.studentComment && (
+                              <div className="mt-3">
+                                <div className="text-[14px] font-extralight text-white/50 mb-[8px]">Commentaire élève :</div>
+                                <div className="text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-[#d4845a]">
+                                  {exercise.studentComment.charAt(0).toUpperCase() + exercise.studentComment.slice(1)}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  {exerciseIndex < exercises.length - 1 && (
-                    <div
-                      className="flex items-center justify-center relative w-full pointer-events-none z-20"
-                      style={{ height: isLinked ? '6px' : '28px' }}
-                    >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleLinkSuperset(exerciseIndex, exerciseIndex + 1);
-                        }}
-                        className={`flex items-center justify-center rounded-[6px] border-[0.5px] pointer-events-auto transition-all ${
-                          isLinked
-                            ? 'w-[42px] h-[22px] bg-[#2E1E16] border-[#D4845A] hover:bg-[#3D281D]'
-                            : 'w-[42px] h-[22px] bg-[#1E1F23] border-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)]'
-                        }`}
-                        title={isLinked ? 'Supprimer le superset' : 'Créer un superset'}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path fillRule="evenodd" clipRule="evenodd" d="M6.75 8.625C5.85489 8.625 4.99645 8.98058 4.36351 9.61351C3.73058 10.2465 3.375 11.1049 3.375 12C3.375 12.8951 3.73058 13.7536 4.36351 14.3865C4.99645 15.0194 5.85489 15.375 6.75 15.375H9.40594C10.0273 15.375 10.5309 15.8787 10.5309 16.5C10.5309 17.1213 10.0273 17.625 9.40594 17.625H6.75C5.25816 17.625 3.82742 17.0324 2.77252 15.9775C1.71763 14.9226 1.125 13.4918 1.125 12C1.125 10.5082 1.71763 9.07742 2.77252 8.02252C3.82742 6.96763 5.25816 6.375 6.75 6.375H9.34734C9.96866 6.375 10.4723 6.87868 10.4723 7.5C10.4723 8.12132 9.96866 8.625 9.34734 8.625H6.75Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
-                          <path fillRule="evenodd" clipRule="evenodd" d="M13.5273 7.5C13.5273 6.87868 14.031 6.375 14.6523 6.375H17.2497C18.7415 6.375 20.1723 6.96763 21.2272 8.02252C22.2821 9.07742 22.8747 10.5082 22.8747 12C22.8747 13.4918 22.2821 14.9226 21.2272 15.9775C20.1723 17.0324 18.7415 17.625 17.2497 17.625H14.5937C13.9724 17.625 13.4688 17.1213 13.4688 16.5C13.4688 15.8787 13.9724 15.375 14.5937 15.375H17.2497C18.1448 15.375 19.0032 15.0194 19.6362 14.3865C20.2691 13.7536 20.6247 12.8951 20.6247 12C20.6247 11.1049 20.2691 10.2464 19.6362 9.61351C19.0032 8.98058 18.1448 8.625 17.2497 8.625H14.6523C14.031 8.625 13.5273 8.12132 13.5273 7.5Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
-                          <path fillRule="evenodd" clipRule="evenodd" d="M6.80078 12C6.80078 11.3787 7.30446 10.875 7.92578 10.875H16.1692C16.7905 10.875 17.2942 11.3787 17.2942 12C17.2942 12.6213 16.7905 13.125 16.1692 13.125H7.92578C7.30446 13.125 6.80078 12.6213 6.80078 12Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'}/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                  </React.Fragment>
+                      {exerciseIndex < exercises.length - 1 && (
+                        <div
+                          className="flex items-center justify-center relative w-full pointer-events-none z-20"
+                          style={{ height: isLinked ? '0px' : '28px' }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleLinkSuperset(exerciseIndex, exerciseIndex + 1);
+                            }}
+                            className={`flex items-center justify-center rounded-[6px] pointer-events-auto transition-all ${isLinked
+                              ? 'w-[42px] h-[22px] bg-transparent border-none'
+                              : 'w-[42px] h-[22px] bg-transparent border-none'
+                              }`}
+                            title={isLinked ? 'Supprimer le superset' : 'Créer un superset'}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path fillRule="evenodd" clipRule="evenodd" d="M6.75 8.625C5.85489 8.625 4.99645 8.98058 4.36351 9.61351C3.73058 10.2465 3.375 11.1049 3.375 12C3.375 12.8951 3.73058 13.7536 4.36351 14.3865C4.99645 15.0194 5.85489 15.375 6.75 15.375H9.40594C10.0273 15.375 10.5309 15.8787 10.5309 16.5C10.5309 17.1213 10.0273 17.625 9.40594 17.625H6.75C5.25816 17.625 3.82742 17.0324 2.77252 15.9775C1.71763 14.9226 1.125 13.4918 1.125 12C1.125 10.5082 1.71763 9.07742 2.77252 8.02252C3.82742 6.96763 5.25816 6.375 6.75 6.375H9.34734C9.96866 6.375 10.4723 6.87868 10.4723 7.5C10.4723 8.12132 9.96866 8.625 9.34734 8.625H6.75Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'} />
+                              <path fillRule="evenodd" clipRule="evenodd" d="M13.5273 7.5C13.5273 6.87868 14.031 6.375 14.6523 6.375H17.2497C18.7415 6.375 20.1723 6.96763 21.2272 8.02252C22.2821 9.07742 22.8747 10.5082 22.8747 12C22.8747 13.4918 22.2821 14.9226 21.2272 15.9775C20.1723 17.0324 18.7415 17.625 17.2497 17.625H14.5937C13.9724 17.625 13.4688 17.1213 13.4688 16.5C13.4688 15.8787 13.9724 15.375 14.5937 15.375H17.2497C18.1448 15.375 19.0032 15.0194 19.6362 14.3865C20.2691 13.7536 20.6247 12.8951 20.6247 12C20.6247 11.1049 20.2691 10.2464 19.6362 9.61351C19.0032 8.98058 18.1448 8.625 17.2497 8.625H14.6523C14.031 8.625 13.5273 8.12132 13.5273 7.5Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'} />
+                              <path fillRule="evenodd" clipRule="evenodd" d="M6.80078 12C6.80078 11.3787 7.30446 10.875 7.92578 10.875H16.1692C16.7905 10.875 17.2942 11.3787 17.2942 12C17.2942 12.6213 16.7905 13.125 16.1692 13.125H7.92578C7.30446 13.125 6.80078 12.6213 6.80078 12Z" fill={isLinked ? '#D4845A' : 'rgba(255,255,255,0.6)'} />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </div>

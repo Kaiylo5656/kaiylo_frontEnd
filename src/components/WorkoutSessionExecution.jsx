@@ -974,25 +974,64 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       return null;
     }
 
-    const totalSets = exercise.sets.length;
-    const firstSet = exercise.sets[0] || {};
-    const reps = firstSet?.reps;
-    const weight = firstSet?.weight;
+    const sets = exercise.sets;
 
-    const scheme = reps ? `${totalSets}x${reps}` : `${totalSets} séries`;
-    let weightLabel = null;
-
-    if (weight !== undefined && weight !== null && weight !== '') {
-      if (exercise.useRir) {
-        // Mode RPE : afficher "RPE X"
-        weightLabel = `RPE ${weight}`;
-      } else {
-        // Mode Charge : afficher "@X kg"
-        weightLabel = `@${weight} kg`;
+    if (exercise.useRir) {
+      const firstReps = sets[0]?.reps ?? '?';
+      const firstRpe = sets[0]?.weight ?? 0;
+      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+      const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
+      if (allSameReps && allSameRpe) {
+        return { scheme: `${sets.length}x${firstReps}`, weight: `RPE ${firstRpe}` };
       }
+      // Group consecutive identical sets
+      const groups = [];
+      let i = 0;
+      while (i < sets.length) {
+        let j = i + 1;
+        while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? 0) === String(sets[i].weight ?? 0)) j++;
+        const count = j - i;
+        const scheme = `${count}x${sets[i].reps ?? '?'}`;
+        groups.push({ scheme, weight: `RPE ${sets[i].weight ?? 0}` });
+        i = j;
+      }
+      return { groups };
     }
 
-    return { scheme, weight: weightLabel };
+    const withWeight = sets.every(s => s.weight != null && s.weight !== '');
+    const firstReps = sets[0]?.reps ?? '?';
+    const firstWeight = sets[0]?.weight;
+    const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
+    const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
+
+    if (withWeight && allSameReps && allSameWeight && firstWeight != null) {
+      const showKg = !/[a-zA-Z]/.test(String(firstWeight));
+      return { scheme: `${sets.length}x${firstReps}`, weight: `@${firstWeight}${showKg ? 'kg' : ''}` };
+    }
+    if (!withWeight && allSameReps) {
+      return { scheme: `${sets.length}x${firstReps}`, weight: null };
+    }
+
+    // Group consecutive identical sets
+    const groups = [];
+    let i = 0;
+    while (i < sets.length) {
+      let j = i + 1;
+      while (
+        j < sets.length &&
+        String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') &&
+        String(sets[j].weight ?? '') === String(sets[i].weight ?? '')
+      ) j++;
+      const count = j - i;
+      const scheme = `${count}x${sets[i].reps ?? '?'}`;
+      const w = sets[i].weight;
+      const weightLabel = (w != null && w !== '')
+        ? `@${w}${!/[a-zA-Z]/.test(String(w)) ? 'kg' : ''}`
+        : null;
+      groups.push({ scheme, weight: weightLabel });
+      i = j;
+    }
+    return { groups };
   };
 
   // Check if video upload is enabled for the currently selected set
@@ -2362,18 +2401,36 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                   <div className="px-[18px] py-[10px] h-full w-full">
                     <div className="flex items-center justify-between gap-5 h-full">
                       <div className="flex flex-col gap-[3px]">
-                        <h3 className="text-[14px] font-light text-white break-words leading-tight">
+                        <h3 className={`${(isLinkedToNext || isLinkedToPrev) ? 'text-[12px]' : 'text-[14px]'} font-light text-white break-words leading-tight`}>
                           {exercise.name}
                         </h3>
                         {exerciseSummary && (
-                          <p className="text-[11px] font-light text-white/50 leading-tight">
-                            <span>{exerciseSummary.scheme}</span>{' '}
-                            {exerciseSummary.weight && (
-                              <span className="text-[#d4845a] font-medium">
-                                {exerciseSummary.weight}
-                              </span>
+                          <div className="flex flex-col gap-[2px] mt-[1px]">
+                            {exerciseSummary.groups ? (
+                              exerciseSummary.groups.map((g, gi) => (
+                                <p key={gi} className="text-[11px] font-light text-white/50 leading-tight">
+                                  {exerciseSummary.groups.length > 1 && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="flex-shrink-0 inline" style={{ width: '6px', height: '6px', fill: 'rgba(255,255,255,0.5)', marginRight: '3px', verticalAlign: 'middle' }}>
+                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                    </svg>
+                                  )}
+                                  <span>{g.scheme}</span>
+                                  {g.weight && (
+                                    <><span> </span><span className="text-[#d4845a] font-medium">{g.weight}</span></>
+                                  )}
+                                </p>
+                              ))
+                            ) : (
+                              <p className="text-[11px] font-light text-white/50 leading-tight">
+                                <span>{exerciseSummary.scheme}</span>{' '}
+                                {exerciseSummary.weight && (
+                                  <span className="text-[#d4845a] font-medium">
+                                    {exerciseSummary.weight}
+                                  </span>
+                                )}
+                              </p>
                             )}
-                          </p>
+                          </div>
                         )}
                       </div>
 

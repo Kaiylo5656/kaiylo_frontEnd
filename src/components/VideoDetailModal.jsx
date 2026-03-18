@@ -526,10 +526,22 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                 const totalSets = totalSetsProp ?? getTotalSetsForVideo(video);
                 const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
                 const repsText = reps > 0 ? `${reps} reps` : null;
-                const weightText = weight > 0 ? `${weight}kg` : null;
+                const weightText = (() => {
+                  if (weight === null || weight === undefined || weight === '') return null;
+                  const raw = String(weight).trim();
+                  if (!raw) return null;
+                  // "PDC" and other non-numeric weights should be shown as-is
+                  if (raw.toLowerCase() === 'pdc') return 'PDC';
+                  const n = Number(raw);
+                  if (!Number.isNaN(n) && raw !== '') {
+                    // Only append kg when it looks numeric
+                    return `${raw}${!/[a-zA-Z]/.test(raw) ? 'kg' : ''}`;
+                  }
+                  return raw;
+                })();
                 const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
 
-                const parts = [seriesText];
+                    const parts = [seriesText];
                 if (repsText) parts.push(repsText);
 
                 if (weightText || rpeText) {
@@ -539,7 +551,9 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                       {weightText && (
                         <>
                           {' '}
-                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                          <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>
+                            @{weightText}
+                          </span>
                         </>
                       )}
                       {rpeText && (
@@ -553,7 +567,12 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                   );
                 }
                 const result = parts.join(' • ');
-                return exerciseTempo ? <>{result} • Tempo {exerciseTempo}</> : result;
+                    return (
+                      <>
+                        {result}
+                        {exerciseTempo && <> • Tempo {exerciseTempo}</>}
+                      </>
+                    );
               })()}
             </span>
           </div>
@@ -821,7 +840,17 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                     const totalSets = totalSetsProp ?? getTotalSetsForVideo(video);
                     const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
                     const repsText = reps > 0 ? `${reps} reps` : null;
-                    const weightText = weight > 0 ? `${weight}kg` : null;
+                    const weightText = (() => {
+                      if (weight === null || weight === undefined || weight === '') return null;
+                      const raw = String(weight).trim();
+                      if (!raw) return null;
+                      if (raw.toLowerCase() === 'pdc') return 'PDC';
+                      const n = Number(raw);
+                      if (!Number.isNaN(n) && raw !== '') {
+                        return `${raw}${!/[a-zA-Z]/.test(raw) ? 'kg' : ''}`;
+                      }
+                      return raw;
+                    })();
                     const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
 
                     const parts = [seriesText];
@@ -834,7 +863,9 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                           {weightText && (
                             <>
                               {' '}
-                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>@{weightText}</span>
+                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>
+                                @{weightText}
+                              </span>
                             </>
                           )}
                           {rpeText && (
@@ -848,7 +879,12 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                       );
                     } else {
                       const result = parts.join(' • ');
-                      return exerciseTempo ? <>{result} • Tempo {exerciseTempo}</> : result;
+                      return (
+                        <>
+                          {result}
+                          {exerciseTempo && <> • Tempo {exerciseTempo}</>}
+                        </>
+                      );
                     }
                   })()}
                 </span>

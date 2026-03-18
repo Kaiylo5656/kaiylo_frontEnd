@@ -8,7 +8,6 @@ const PolitiqueConfidentialitePage = () => {
       className="min-h-screen text-white antialiased relative"
       style={{ backgroundColor: '#0a0a0a' }}
     >
-      {/* Background */}
       <div
         style={{
           position: 'fixed',
@@ -38,38 +37,42 @@ const PolitiqueConfidentialitePage = () => {
           pointerEvents: 'none'
         }}
       />
+      {/* Conic gradient right */}
       <div
         style={{
-          position: 'absolute',
-          top: '-25px',
+          position: 'fixed',
+          top: '-175px',
           left: 0,
           transform: 'translateY(-50%)',
           width: '50vw',
-          height: '900px',
-          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255,255,255,0.95) 5deg, rgba(255,255,255,0.9) 10deg,rgb(35,38,49) 23.5deg, rgba(0,0,0,0.51) 105deg, rgba(18,2,10,0.18) 281deg, rgba(9,0,4,0.04) 330deg, rgba(35,70,193,0.15) 340deg, rgba(35,70,193,0.08) 350deg, rgba(35,70,193,0.03) 355deg, rgba(0,0,0,0.005) 360deg)',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
-          filter: 'brightness(1.5)',
+          filter: 'brightness(1.25)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 1.0,
-          animation: 'organicGradientBright 15s ease-in-out infinite'
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite'
         }}
       />
+      {/* Conic gradient left */}
       <div
         style={{
-          position: 'absolute',
-          top: '-25px',
+          position: 'fixed',
+          top: '-175px',
           left: '50vw',
           transform: 'translateY(-50%) scaleX(-1)',
           width: '50vw',
-          height: '900px',
-          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255,255,255,0.95) 5deg, rgba(255,255,255,0.9) 10deg,rgb(35,38,49) 23.5deg, rgba(0,0,0,0.51) 105deg, rgba(18,2,10,0.18) 281deg, rgba(9,0,4,0.04) 330deg, rgba(35,70,193,0.15) 340deg, rgba(35,70,193,0.08) 350deg, rgba(35,70,193,0.03) 355deg, rgba(0,0,0,0.005) 360deg)',
+          height: '600px',
+          borderRadius: '0',
+          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
           backdropFilter: 'blur(75px)',
-          filter: 'brightness(1.5)',
+          filter: 'brightness(1.25)',
           zIndex: 5,
           pointerEvents: 'none',
-          opacity: 1.0,
-          animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+          opacity: 0.75,
+          animation: 'organicGradient 15s ease-in-out infinite 1.5s'
         }}
       />
 

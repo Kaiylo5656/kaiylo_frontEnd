@@ -88,8 +88,8 @@ const ExerciseValidationModal = ({
     if (isOpen && exercise) {
       fetchDetails();
     }
-  // Use stable ID values instead of full exercise object to avoid firing on every parent re-render
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Use stable ID values instead of full exercise object to avoid firing on every parent re-render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, exercise?.id, exercise?.exerciseId, exercise?.exercise_id, getAuthToken]);
 
   // Update studentComment when initialStudentComment changes (e.g., when switching exercises)
@@ -685,8 +685,8 @@ const ExerciseValidationModal = ({
   // All exercises in this superset, in session order (including current exercise)
   const supersetMembers = isInSuperset
     ? allExercises
-        .map((ex, idx) => ({ ex, idx }))
-        .filter(({ ex }) => ex.supersetGroup && ex.supersetGroup === exercise.supersetGroup)
+      .map((ex, idx) => ({ ex, idx }))
+      .filter(({ ex }) => ex.supersetGroup && ex.supersetGroup === exercise.supersetGroup)
     : [];
 
   const getSetStatusFor = (exIdx, setIdx) => {
@@ -810,8 +810,23 @@ const ExerciseValidationModal = ({
                         >
                           <ChevronLeft className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
                         </button>
-                        <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal text-center select-none">
-                          {isInSuperset ? supersetMembers.map(m => m.ex.name).join(' x ') : exercise.name}
+                        <h1 className={`${isInSuperset ? 'text-[19px]' : 'text-[25px]'} font-normal text-[#d4845a] leading-tight text-center select-none ${isInSuperset ? 'flex flex-col items-center gap-0' : ''}`}>
+                          {isInSuperset ? (
+                            supersetMembers.map((m, idx) => (
+                              <React.Fragment key={idx}>
+                                <span>{m.ex.name}</span>
+                                {idx < supersetMembers.length - 1 && (
+                                  <span className="flex justify-center items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-[10px] h-[10px]" fill="#d4845a">
+                                      <path d="M376.6 84.5c11.3-13.6 9.5-33.8-4.1-45.1s-33.8-9.5-45.1 4.1L192 206 56.6 43.5C45.3 29.9 25.1 28.1 11.5 39.4S-3.9 70.9 7.4 84.5L150.3 256 7.4 427.5c-11.3 13.6-9.5 33.8 4.1 45.1s33.8 9.5 45.1-4.1L192 306 327.4 468.5c11.3 13.6 31.5 15.4 45.1 4.1s15.4-31.5 4.1-45.1L233.7 256 376.6 84.5z" />
+                                    </svg>
+                                  </span>
+                                )}
+                              </React.Fragment>
+                            ))
+                          ) : (
+                            exercise.name
+                          )}
                         </h1>
                         <button
                           type="button"
@@ -823,11 +838,6 @@ const ExerciseValidationModal = ({
                           <ChevronRight className="w-5 h-5 text-white/50 flex-shrink-0" aria-hidden />
                         </button>
                       </div>
-                      {isInSuperset && (
-                        <p className="text-[10px] font-normal text-white/50 text-center leading-normal">
-                          Super Set
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -863,14 +873,30 @@ const ExerciseValidationModal = ({
                       <div className="px-6 pb-8 pt-2">
                         <div className="flex flex-col gap-[15px] items-center w-full">
                           {/* Tempo et Charge par main - Affichés si définis par le coach */}
-                          {(exercise.tempo || exercise.per_side) && (
-                            <div className="flex flex-col gap-[15px] items-center w-full">
-                              <p className="text-[12px] font-light text-white/50">
-                                {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
-                                {exercise.tempo && exercise.per_side ? ' | ' : ''}
-                                {exercise.per_side ? 'Charge par main' : ''}
-                              </p>
-                            </div>
+                          {isInSuperset ? (
+                            // En Super Set : on affiche les infos de chaque membre qui a un tempo ou per_side
+                            supersetMembers.some(m => m.ex.tempo || m.ex.per_side) && (
+                              <div className="flex flex-col gap-[8px] items-center w-full">
+                                {supersetMembers.map((m, idx) => (m.ex.tempo || m.ex.per_side) && (
+                                  <p key={idx} className="text-[11px] font-light text-white/50 text-center leading-tight">
+                                    <span>{idx + 1}.</span> {m.ex.tempo ? `Tempo ${m.ex.tempo}` : ''}
+                                    {m.ex.tempo && m.ex.per_side ? ' | ' : ''}
+                                    {m.ex.per_side ? 'Charge par main' : ''}
+                                  </p>
+                                ))}
+                              </div>
+                            )
+                          ) : (
+                            // Mode normal
+                            (exercise.tempo || exercise.per_side) && (
+                              <div className="flex flex-col gap-[15px] items-center w-full">
+                                <p className="text-[12px] font-light text-white/50">
+                                  {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
+                                  {exercise.tempo && exercise.per_side ? ' | ' : ''}
+                                  {exercise.per_side ? 'Charge par main' : ''}
+                                </p>
+                              </div>
+                            )
                           )}
 
                           {/* Points d'avancement - 1 dot par exercice standalone ou par groupe superset */}
@@ -920,26 +946,27 @@ const ExerciseValidationModal = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (exerciseHasInfo) {
+                                if (exerciseHasInfo || isInSuperset) {
                                   setIsInfoModalOpen(true);
                                 }
                               }}
-                              disabled={!exerciseHasInfo}
-                              className={`w-5 h-5 flex items-center justify-center rounded-full transition-opacity ${exerciseHasInfo
+                              disabled={!exerciseHasInfo && !isInSuperset}
+                              className={`w-5 h-5 flex items-center justify-center rounded-full transition-opacity ${(exerciseHasInfo || isInSuperset)
                                 ? 'hover:opacity-80 cursor-pointer'
                                 : 'cursor-not-allowed'
                                 }`}
-                              title={exerciseHasInfo
+                              title={(exerciseHasInfo || isInSuperset)
                                 ? "Voir les instructions et la vidéo de l'exercice"
                                 : "Aucune information disponible pour cet exercice"}
+                              style={{ backgroundColor: 'transparent', padding: 0 }}
                             >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 512 512"
-                                className={`w-5 h-5 ${exerciseHasInfo
-                                  ? 'text-[#d4845a]'
-                                  : 'text-white/25'
-                                  }`}
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 512 512"
+                                  className={`w-5 h-5 ${(exerciseHasInfo || isInSuperset)
+                                    ? 'text-[#d4845a]'
+                                    : 'text-white/25'
+                                    }`}
                                 fill="currentColor"
                                 aria-hidden="true"
                               >
@@ -973,14 +1000,36 @@ const ExerciseValidationModal = ({
                             <p className="text-[10px] font-normal text-white/35 leading-normal">
                               Commentaire coach :
                             </p>
-                            {coachFeedback ? (
-                              <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full min-w-0">
-                                {coachFeedback}
-                              </p>
+                            {isInSuperset ? (
+                              // Mode Super Set : afficher les commentaires de chaque membre
+                              supersetMembers.some(m => m.ex.coach_feedback || m.ex.feedback || m.ex.notes) ? (
+                                <div className="flex flex-col gap-[10px] w-full">
+                                  {supersetMembers.map((m, idx) => {
+                                    const feedback = m.ex.coach_feedback || m.ex.feedback || m.ex.notes;
+                                    if (!feedback) return null;
+                                    return (
+                                      <p key={idx} className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full min-w-0">
+                                        {idx + 1}. {feedback}
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-white/25 leading-normal">
+                                  Aucun commentaire pour le moment
+                                </p>
+                              )
                             ) : (
-                              <p className="text-[10px] text-white/25 leading-normal">
-                                Aucun commentaire pour le moment
-                              </p>
+                              // Mode normal
+                              (coachFeedback || exercise.coach_feedback || exercise.feedback) ? (
+                                <p className="text-[13px] font-medium text-[#d4845a] leading-normal whitespace-pre-wrap break-words w-full min-w-0">
+                                  {coachFeedback || exercise.coach_feedback || exercise.feedback}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-white/25 leading-normal">
+                                  Aucun commentaire pour le moment
+                                </p>
+                              )
                             )}
                           </div>
                         </div>
@@ -1075,8 +1124,8 @@ const ExerciseValidationModal = ({
                                           </span>
                                         ) : (
                                           // Mode Charge : afficher le poids en kg
-                                          <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">
-                                            {weight}<span className="text-[12px] font-normal">kg</span>
+                                          <span className="text-[15px] text-[#d4845a] leading-none flex items-center">
+                                            {weight}{!/[a-zA-Z]/.test(String(weight)) && <span className="text-[12px] font-normal">kg</span>}
                                           </span>
                                         )}
                                       </div>
@@ -1128,7 +1177,7 @@ const ExerciseValidationModal = ({
                                         <div className="flex justify-center items-center w-full">
                                           {exercise.useRir ? (
                                             // Si coach demande RPE : l'élève saisit une charge
-                                            <div className="relative flex items-center gap-[2px]">
+                                            <div className="relative flex items-center">
                                               <input
                                                 type="text"
                                                 inputMode="decimal"
@@ -1189,7 +1238,7 @@ const ExerciseValidationModal = ({
                                                 maxLength={3}
                                                 title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 caractères max (le - compte). Virgule pour décimales, négatif possible (ex. -15 ou 21)"}
                                               />
-                                              <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                                              {!/[a-zA-Z]/.test(String(getStudentWeightForSet(setIndex) || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}
                                             </div>
                                           ) : (
                                             // Si coach demande charge : l'élève saisit un RPE
@@ -1328,18 +1377,18 @@ const ExerciseValidationModal = ({
 
                         {/* Superset Série N view */}
                         {isInSuperset && (
-                          <div className="space-y-[10px] pb-6">
+                          <div className="flex flex-col pb-6">
                             {Array.from({ length: Math.max(...supersetMembers.map(m => m.ex.sets?.length || 0)) }, (_, setIndex) => (
                               <React.Fragment key={setIndex}>
                                 {/* Série N label */}
-                                <div className={`flex items-center gap-[6px] ${setIndex > 0 ? 'mt-3' : ''}`}>
-                                  <svg width="5" height="7" viewBox="0 0 5 7" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                    <path d="M1 1L4 3.5L1 6" stroke="#d4845a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <div className={`flex items-center gap-[6px] ${setIndex > 0 ? 'mt-5' : 'mt-1'}`}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-[8px] h-[10px]" fill="#d4845a">
+                                    <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                   </svg>
                                   <p className="text-[12px] font-normal text-[#d4845a]">Série {setIndex + 1}</p>
                                 </div>
                                 {/* Header labels row — same as normal mode */}
-                                <div className="flex items-center mb-1">
+                                <div className="flex items-center mb-1 mt-0.5">
                                   <div className="w-[20px] flex-shrink-0 mr-1" />
                                   <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]">
                                     <div className="flex items-center w-full gap-3">
@@ -1361,144 +1410,143 @@ const ExerciseValidationModal = ({
                                   <div className="w-[24px] flex-shrink-0 ml-[10px]" />
                                 </div>
                                 {supersetMembers.map(({ ex: exObj, idx: exIdx }, memberIndex) => {
-                                        const s = exObj.sets?.[setIndex];
-                                        if (!s) return (
-                                          <div key={exIdx} className="flex items-center">
-                                            <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
-                                            <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
-                                              <div className="flex items-center w-full gap-3">
-                                                <div className="w-[42px] h-[17px] flex-shrink-0" />
-                                                <div className="w-[50px] h-[17px] flex-shrink-0" />
-                                                <div className="flex-1 h-[17px]" />
-                                                <div className="w-[24px] h-[17px] flex-shrink-0" />
-                                              </div>
-                                            </div>
-                                            <div className="w-[24px] flex-shrink-0 ml-[10px]" />
-                                          </div>
-                                        );
-                                        const st = getSetStatusFor(exIdx, setIndex);
-                                        const isComp = st === 'completed';
-                                        const isFail = st === 'failed';
-                                        const rpeVal = getRpeForSetOf(exIdx, setIndex);
-                                        const wVal = getStudentWeightForSetOf(exIdx, setIndex);
-                                        const repType = s.repType || 'reps';
-                                        let repsDisplay = s.reps || '?';
-                                        if (repType === 'hold') {
-                                          const rv = s.reps || '';
-                                          repsDisplay = rv.includes(':') ? rv : rv ? (rv.endsWith('s') ? rv : `${rv}s`) : '0s';
-                                        } else if (repType === 'amrap') {
-                                          repsDisplay = 'AMRAP';
-                                        }
-                                        const weightVal = s.weight ?? 0;
-                                        const videoEnabled = s.video === true || s.video === 1 || s.video === 'true';
-                                        const hasVid = hasVideoForSetOf(exIdx, setIndex);
-                                        const videoChoice = hasVideoChoiceForSetOf(exIdx, setIndex);
+                                  const s = exObj.sets?.[setIndex];
+                                  if (!s) return (
+                                    <div key={exIdx} className="flex items-center mt-2">
+                                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
+                                      <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+                                        <div className="flex items-center w-full gap-3">
+                                          <div className="w-[42px] h-[17px] flex-shrink-0" />
+                                          <div className="w-[50px] h-[17px] flex-shrink-0" />
+                                          <div className="flex-1 h-[17px]" />
+                                          <div className="w-[24px] h-[17px] flex-shrink-0" />
+                                        </div>
+                                      </div>
+                                      <div className="w-[24px] flex-shrink-0 ml-[10px]" />
+                                    </div>
+                                  );
+                                  const st = getSetStatusFor(exIdx, setIndex);
+                                  const isComp = st === 'completed';
+                                  const isFail = st === 'failed';
+                                  const rpeVal = getRpeForSetOf(exIdx, setIndex);
+                                  const wVal = getStudentWeightForSetOf(exIdx, setIndex);
+                                  const repType = s.repType || 'reps';
+                                  let repsDisplay = s.reps || '?';
+                                  if (repType === 'hold') {
+                                    const rv = s.reps || '';
+                                    repsDisplay = rv.includes(':') ? rv : rv ? (rv.endsWith('s') ? rv : `${rv}s`) : '0s';
+                                  } else if (repType === 'amrap') {
+                                    repsDisplay = 'AMRAP';
+                                  }
+                                  const weightVal = s.weight ?? 0;
+                                  const videoEnabled = s.video === true || s.video === 1 || s.video === 'true';
+                                  const hasVid = hasVideoForSetOf(exIdx, setIndex);
+                                  const videoChoice = hasVideoChoiceForSetOf(exIdx, setIndex);
 
-                                        return (
-                                          <div key={exIdx} className="flex items-center">
-                                            <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
-                                            <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
-                                              <div className="flex items-center w-full gap-3">
-                                                <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
-                                                  <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '15px' }}>{repsDisplay}</span>
+                                  return (
+                                    <div key={exIdx} className="flex items-center mt-2">
+                                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
+                                      <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+                                        <div className="flex items-center w-full gap-3">
+                                          <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
+                                            <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '15px' }}>{repsDisplay}</span>
+                                          </div>
+                                          <div className="w-[50px] flex justify-center items-center flex-shrink-0">
+                                            {exObj.useRir ? (
+                                              <span className="text-[15px] text-[#d4845a] leading-none">{weightVal || '-'}</span>
+                                            ) : (
+                                              <span className="text-[15px] text-[#d4845a] leading-none flex items-center">{weightVal}{!/[a-zA-Z]/.test(String(weightVal)) && <span className="text-[12px] font-normal">kg</span>}</span>
+                                            )}
+                                          </div>
+                                          <div className="flex-1 flex justify-center items-center gap-[15px]">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isComp ? 'pending' : 'completed', setIndex); }}
+                                              className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isComp ? 'bg-[#d4845a]' : 'bg-white/15'}`}
+                                              title="Valider la série"
+                                            >
+                                              <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0"><path d="M1 3.5L3.5 6L9 1" stroke="#FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity={isComp ? "1" : "0.25"} /></svg>
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isFail ? 'pending' : 'failed', setIndex); }}
+                                              className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isFail ? 'bg-[#d4845a]' : 'bg-white/15'}`}
+                                              title="Marquer en échec"
+                                            >
+                                              <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0"><path d="M5 12L12 5M5 5L12 12" stroke="white" strokeOpacity={isFail ? "1" : "0.25"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                            </button>
+                                          </div>
+                                          <div className={`${exObj.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                            <div className="flex justify-center items-center w-full">
+                                              {exObj.useRir ? (
+                                                <div className="relative flex items-center">
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={wVal || ''}
+                                                    onChange={(e) => { if (onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
+                                                    disabled={!isComp}
+                                                    placeholder=""
+                                                    className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'}`}
+                                                    style={{ padding: '0', lineHeight: 1 }}
+                                                    maxLength={3}
+                                                  />
+                                                  {!/[a-zA-Z]/.test(String(wVal || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}
                                                 </div>
-                                                <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                                                  {exObj.useRir ? (
-                                                    <span className="text-[15px] text-[#d4845a] leading-none">{weightVal || '-'}</span>
-                                                  ) : (
-                                                    <span className="text-[15px] text-[#d4845a] leading-none flex items-center gap-[3px]">{weightVal}<span className="text-[12px] font-normal">kg</span></span>
-                                                  )}
-                                                </div>
-                                                <div className="flex-1 flex justify-center items-center gap-[15px]">
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isComp ? 'pending' : 'completed', setIndex); }}
-                                                    className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isComp ? 'bg-[#d4845a]' : 'bg-white/15'}`}
-                                                    title="Valider la série"
-                                                  >
-                                                    <svg width="10" height="7" viewBox="0 0 10 7" fill="none" className="flex-shrink-0"><path d="M1 3.5L3.5 6L9 1" stroke="#FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity={isComp ? "1" : "0.25"} /></svg>
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isFail ? 'pending' : 'failed', setIndex); }}
-                                                    className={`touch-expand w-[17px] h-[17px] rounded-full flex items-center justify-center p-[4px] transition-all duration-200 ${isFail ? 'bg-[#d4845a]' : 'bg-white/15'}`}
-                                                    title="Marquer en échec"
-                                                  >
-                                                    <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0"><path d="M5 12L12 5M5 5L12 12" stroke="white" strokeOpacity={isFail ? "1" : "0.25"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                                  </button>
-                                                </div>
-                                                <div className={`${exObj.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
-                                                  <div className="flex justify-center items-center w-full">
-                                                    {exObj.useRir ? (
-                                                      <div className="relative flex items-center gap-[2px]">
-                                                        <input
-                                                          type="text"
-                                                          inputMode="decimal"
-                                                          value={wVal || ''}
-                                                          onChange={(e) => { if (onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
-                                                          disabled={!isComp}
-                                                          placeholder=""
-                                                          className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'}`}
-                                                          style={{ padding: '0', lineHeight: 1 }}
-                                                          maxLength={3}
-                                                        />
-                                                        <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
-                                                      </div>
-                                                    ) : (
-                                                      <button
-                                                        onClick={(e) => { e.stopPropagation(); if (isComp) { setSelectedSetForRpe({ exIdx, setIndex }); setIsRpeModalOpen(true); } }}
-                                                        disabled={!isComp}
-                                                        className={`touch-expand bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${!isComp ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white/10'}`}
-                                                        title={!isComp ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
-                                                      >
-                                                        <span className={`text-[9px] font-medium leading-none ${rpeVal ? 'text-[#d4845a]' : 'text-white/50'}`}>{rpeVal || ''}</span>
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                            <div className="relative flex-shrink-0 ml-[10px]">
-                                              <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); if (onVideoUpload) onVideoUpload(exIdx, setIndex); }}
-                                                disabled={!videoEnabled}
-                                                className={`touch-expand w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${
-                                                  !videoEnabled
-                                                    ? 'bg-white/5 opacity-50 cursor-not-allowed'
-                                                    : !(hasVid || videoChoice === 'no-video')
-                                                      ? 'bg-[#d4845a] hover:bg-[#e87c3e] cursor-pointer'
-                                                      : 'bg-white/10 hover:bg-white/20 cursor-pointer'
-                                                }`}
-                                                title={!videoEnabled ? 'Vidéo non requise' : hasVid ? 'Vidéo uploadée - Cliquez pour modifier' : videoChoice === 'no-video' ? 'Pas de vidéo - Cliquez pour modifier' : 'Ajouter vidéo'}
-                                              >
-                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                                                  <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" fill={(hasVid || videoChoice === 'no-video') ? '#9CA3AF' : (videoEnabled ? '#FFF' : '#9CA3AF')} fillOpacity={(hasVid || videoChoice === 'no-video') || !videoEnabled ? "0.4" : "1"} />
-                                                  {!videoEnabled && <line x1="1" y1="1" x2="11" y2="11" stroke="#9CA3AF" strokeWidth="1.5" strokeOpacity="0.4" strokeLinecap="round"></line>}
-                                                </svg>
-                                              </button>
-                                              {videoEnabled && (hasVid || videoChoice === 'no-video') && (
-                                                <>
-                                                  {hasVid && (
-                                                    <div className="absolute -top-1 -right-1 w-[10px] h-[10px] bg-[#4ADE80] rounded-full flex items-center justify-center border border-white/20" style={{ opacity: 1 }}>
-                                                      <svg width="6" height="5" viewBox="0 0 6 5" fill="none" className="flex-shrink-0">
-                                                        <path d="M1 2.5L2.5 4L5 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                                                      </svg>
-                                                    </div>
-                                                  )}
-                                                  {videoChoice === 'no-video' && (
-                                                    <div className="absolute -top-1 -right-1 w-[10px] h-[10px] bg-[#DA3336] rounded-full flex items-center justify-center border border-white/20" style={{ opacity: 1 }}>
-                                                      <svg width="6" height="6" viewBox="0 0 6 6" fill="none" className="flex-shrink-0">
-                                                        <path d="M1 1L5 5M5 1L1 5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-                                                      </svg>
-                                                    </div>
-                                                  )}
-                                                </>
+                                              ) : (
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); if (isComp) { setSelectedSetForRpe({ exIdx, setIndex }); setIsRpeModalOpen(true); } }}
+                                                  disabled={!isComp}
+                                                  className={`touch-expand bg-white/5 border-[0.5px] border-white/25 rounded-[5px] w-[18px] h-[18px] flex items-center justify-center transition-colors ${!isComp ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white/10'}`}
+                                                  title={!isComp ? "Validez d'abord votre série pour évaluer l'effort (RPE)" : "Évaluer l'effort (RPE)"}
+                                                >
+                                                  <span className={`text-[9px] font-medium leading-none ${rpeVal ? 'text-[#d4845a]' : 'text-white/50'}`}>{rpeVal || ''}</span>
+                                                </button>
                                               )}
                                             </div>
                                           </div>
-                                        );
-                                      })}
+                                        </div>
+                                      </div>
+                                      <div className="relative flex-shrink-0 ml-[10px]">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); if (onVideoUpload) onVideoUpload(exIdx, setIndex); }}
+                                          disabled={!videoEnabled}
+                                          className={`touch-expand w-[24px] h-[24px] min-w-[24px] max-w-[24px] flex items-center justify-center rounded-full transition-all duration-200 ${!videoEnabled
+                                              ? 'bg-white/5 opacity-50 cursor-not-allowed'
+                                              : !(hasVid || videoChoice === 'no-video')
+                                                ? 'bg-[#d4845a] hover:bg-[#e87c3e] cursor-pointer'
+                                                : 'bg-white/10 hover:bg-white/20 cursor-pointer'
+                                            }`}
+                                          title={!videoEnabled ? 'Vidéo non requise' : hasVid ? 'Vidéo uploadée - Cliquez pour modifier' : videoChoice === 'no-video' ? 'Pas de vidéo - Cliquez pour modifier' : 'Ajouter vidéo'}
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                                            <path fillRule="evenodd" clipRule="evenodd" d="M0 3.75C0 3.35218 0.158035 2.97064 0.43934 2.68934C0.720644 2.40804 1.10218 2.25 1.5 2.25H7.125C7.48882 2.24996 7.84025 2.38214 8.11386 2.62195C8.38746 2.86175 8.56459 3.19282 8.61225 3.5535L10.9447 2.517C11.0589 2.46613 11.184 2.4446 11.3086 2.45436C11.4332 2.46413 11.5534 2.50488 11.6583 2.57292C11.7631 2.64096 11.8493 2.73412 11.909 2.84394C11.9687 2.95376 11.9999 3.07676 12 3.20175V8.79825C11.9999 8.92314 11.9686 9.04603 11.909 9.15576C11.8493 9.26549 11.7632 9.35859 11.6585 9.42661C11.5537 9.49463 11.4336 9.53541 11.3091 9.54526C11.1846 9.55511 11.0596 9.53371 10.9455 9.483L8.61225 8.4465C8.56459 8.80718 8.38746 9.13825 8.11386 9.37805C7.84025 9.61786 7.48882 9.75004 7.125 9.75H1.5C1.10218 9.75 0.720644 9.59196 0.43934 9.31066C0.158035 9.02936 0 8.64782 0 8.25V3.75ZM8.625 7.63125L11.25 8.79825V3.20175L8.625 4.36875V7.63125ZM1.5 3C1.30109 3 1.11032 3.07902 0.96967 3.21967C0.829018 3.36032 0.75 3.55109 0.75 3.75V8.25C0.75 8.44891 0.829018 8.63968 0.96967 8.78033C1.11032 8.92098 1.30109 9 1.5 9H7.125C7.32391 9 7.51468 8.92098 7.65533 8.78033C7.79598 8.63968 7.875 8.44891 7.875 8.25V3.75C7.875 3.55109 7.79598 3.36032 7.65533 3.21967C7.51468 3.07902 7.32391 3 7.125 3H1.5Z" fill={(hasVid || videoChoice === 'no-video') ? '#9CA3AF' : (videoEnabled ? '#FFF' : '#9CA3AF')} fillOpacity={(hasVid || videoChoice === 'no-video') || !videoEnabled ? "0.4" : "1"} />
+                                            {!videoEnabled && <line x1="1" y1="1" x2="11" y2="11" stroke="#9CA3AF" strokeWidth="1.5" strokeOpacity="0.4" strokeLinecap="round"></line>}
+                                          </svg>
+                                        </button>
+                                        {videoEnabled && (hasVid || videoChoice === 'no-video') && (
+                                          <>
+                                            {hasVid && (
+                                              <div className="absolute -top-1 -right-1 w-[10px] h-[10px] bg-[#4ADE80] rounded-full flex items-center justify-center border border-white/20" style={{ opacity: 1 }}>
+                                                <svg width="6" height="5" viewBox="0 0 6 5" fill="none" className="flex-shrink-0">
+                                                  <path d="M1 2.5L2.5 4L5 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                              </div>
+                                            )}
+                                            {videoChoice === 'no-video' && (
+                                              <div className="absolute -top-1 -right-1 w-[10px] h-[10px] bg-[#DA3336] rounded-full flex items-center justify-center border border-white/20" style={{ opacity: 1 }}>
+                                                <svg width="6" height="6" viewBox="0 0 6 6" fill="none" className="flex-shrink-0">
+                                                  <path d="M1 1L5 5M5 1L1 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+                                                </svg>
+                                              </div>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
 
-                                </React.Fragment>
+                              </React.Fragment>
                             ))}
                           </div>
                         )}
@@ -1566,7 +1614,11 @@ const ExerciseValidationModal = ({
       <ExerciseInfoModal
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}
-        exercise={fetchedDetails ? { ...exercise, ...fetchedDetails } : exercise}
+        exercises={
+          isInSuperset 
+            ? supersetMembers.map(m => (m.idx === exerciseIndex && fetchedDetails) ? { ...m.ex, ...fetchedDetails } : m.ex) 
+            : [fetchedDetails ? { ...exercise, ...fetchedDetails } : exercise]
+        }
       />
 
       {/* RPE Selection Modal */}

@@ -3050,17 +3050,35 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               {isOpen && (() => {
                 const exercises = session.videos[0]?.assignment?.workout_session?.exercises ?? [];
                 const slots = [];
-                for (const ex of exercises) {
+                for (let exIndex = 0; exIndex < exercises.length; exIndex++) {
+                  const ex = exercises[exIndex];
                   const setCount = ex.sets?.length ?? 0;
-                  for (let s = 0; s < setCount; s++) slots.push({ name: ex.name, setNumber: s + 1, totalSets: setCount });
+                  for (let s = 0; s < setCount; s++) {
+                    slots.push({ exerciseIndex: exIndex, name: ex.name, setNumber: s + 1, totalSets: setCount });
+                  }
                 }
                 const used = new Set();
                 const orderedVideos = [];
                 const videoTotalSets = new Map();
                 for (const slot of slots) {
-                  const matching = session.videos.filter(
-                    v => !used.has(v.id) && (v.exercise_name ?? '') === slot.name && (v.set_number ?? 1) === slot.setNumber
-                  ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+                  const matching = session.videos.filter((v) => {
+                    if (used.has(v.id)) return false;
+
+                    // Prefer the exact match by exercise_index to preserve session order
+                    if (v.exercise_index !== null && v.exercise_index !== undefined) {
+                      return (
+                        v.exercise_index === slot.exerciseIndex &&
+                        (v.exercise_name ?? '') === slot.name &&
+                        (v.set_number ?? 1) === slot.setNumber
+                      );
+                    }
+
+                    // Fallback for legacy videos without exercise_index
+                    return (
+                      (v.exercise_name ?? '') === slot.name &&
+                      (v.set_number ?? 1) === slot.setNumber
+                    );
+                  }).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
                   if (matching.length) {
                     orderedVideos.push(matching[0]);
                     used.add(matching[0].id);
@@ -3144,7 +3162,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                       const totalSets = videoTotalSets.get(video.id) ?? getTotalSetsForVideo(video);
                                       const seriesText = `Série ${video.set_number || 1}/${totalSets}`;
                                       const repsText = reps > 0 ? `${reps} reps` : null;
-                                      const weightText = weight > 0 ? `${weight}kg` : null;
+                                      const weightText = (() => {
+                                        if (weight === null || weight === undefined || weight === '') return null;
+                                        const raw = String(weight).trim();
+                                        if (!raw) return null;
+                                        if (raw.toLowerCase() === 'pdc') return 'PDC';
+                                        const n = Number(raw);
+                                        if (!Number.isNaN(n) && raw !== '') {
+                                          return `${raw}${!/[a-zA-Z]/.test(raw) ? 'kg' : ''}`;
+                                        }
+                                        return raw;
+                                      })();
                                       const rpeText = rpe > 0 ? `RPE ${rpe}` : null;
 
                                       const parts = [seriesText];
@@ -3721,7 +3749,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                     {exercise.useRir ? (
                                       <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                     ) : (
-                                      <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                      <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
                                     )}
                                   </div>
                                 ) : (
@@ -3930,7 +3958,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 {exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
-                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
                                 )}
                               </div>
                             ) : (
@@ -4196,7 +4224,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 {exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
-                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                  <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
                                 )}
                               </div>
                             ) : (
@@ -6280,7 +6308,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                                   {exercise.useRir ? (
                                                                     <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                                                   ) : (
-                                                                    <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}kg</span>
+                                                                    <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
                                                                   )}
                                                                 </div>
                                                               ) : (

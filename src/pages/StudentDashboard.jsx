@@ -771,7 +771,7 @@ const StudentDashboard = () => {
                                     {ex.useRir ? (
                                       <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
                                     ) : (
-                                      <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
+                                      <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0}{!/[a-zA-Z]/.test(String(ex.sets?.[0]?.weight || '')) ? 'kg' : ''}</span>
                                     )}
                                   </p>
                                 </div>
@@ -846,7 +846,7 @@ const StudentDashboard = () => {
                                   {ex.useRir ? (
                                     <span className="text-[#d4845a] font-normal">RPE {ex.sets?.[0]?.weight ?? 0}</span>
                                   ) : (
-                                    <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0} kg</span>
+                                    <span className="text-[#d4845a] font-normal">@{ex.sets?.[0]?.weight ?? 0}{!/[a-zA-Z]/.test(String(ex.sets?.[0]?.weight || '')) ? 'kg' : ''}</span>
                                   )}
                                 </p>
                               </div>

@@ -693,7 +693,7 @@ const RegisterPage = () => {
                 <label
                   style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
+                    alignItems: 'center',
                     gap: '10px',
                     cursor: 'pointer'
                   }}
@@ -703,22 +703,21 @@ const RegisterPage = () => {
                     {...register('acceptCGU', {
                       required: 'Vous devez accepter les CGU pour vous inscrire'
                     })}
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      flexShrink: 0,
-                      marginTop: '2px',
-                      accentColor: 'rgba(212,132,90,1)',
-                      cursor: 'pointer'
-                    }}
+                    className="kaiylo-checkbox"
                   />
                   <span style={{ fontSize: '13px', fontWeight: 300, color: 'rgba(255,255,255,0.65)', lineHeight: '1.5' }}>
                     J'accepte les{' '}
-                    <Link to="/cgu" style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none' }}>
+                    <Link
+                      to="/cgu"
+                      style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none', fontWeight: 400 }}
+                    >
                       CGU
                     </Link>
                     {' '}et la{' '}
-                    <Link to="/politique-confidentialite" style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none' }}>
+                    <Link
+                      to="/politique-confidentialite"
+                      style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none', fontWeight: 400 }}
+                    >
                       Politique de confidentialité
                     </Link>
                   </span>

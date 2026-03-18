@@ -193,13 +193,13 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                                   <td className="py-3 text-center text-white overflow-hidden">
                                     <span className="whitespace-nowrap inline-block" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '14px' }}>{repsDisplay}</span>
                                   </td>
-                                  <td className="py-3 text-center text-white">
+                                  <td className="py-3 text-center text-[#d4845a]">
                                     {exercise.useRir ? (
                                       // Mode RPE : afficher le RPE demandé
                                       set.weight || '-'
                                     ) : (
                                       // Mode Charge : afficher le poids avec "kg"
-                                      set.weight ? `${set.weight} kg` : '-'
+                                      set.weight ? `${set.weight}${!/[a-zA-Z]/.test(String(set.weight)) ? 'kg' : ''}` : '-'
                                     )}
                                   </td>
                                   <td className="py-3 text-center text-white">{set.rest || '-'}</td>

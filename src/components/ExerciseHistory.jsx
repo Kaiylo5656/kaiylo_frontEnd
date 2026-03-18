@@ -93,7 +93,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
 
   const formatLoad = (weight) => {
     if (!weight || weight === 0) return '—';
-    return `${weight} kg`;
+    return `${weight}${!/[a-zA-Z]/.test(String(weight)) ? 'kg' : ''}`;
   };
 
   const formatSetsAndWeight = (setsSummary, weight) => {
@@ -149,7 +149,7 @@ const ExerciseHistory = ({ exerciseId, className = '' }) => {
       return (
         <>
           <span className="text-white/80" style={{ fontWeight: 200 }}>{setsRepsText}</span>
-          <span className="text-[#d4845a]"> @{finalWeight}kg</span>
+          <span className="text-[#d4845a]"> @{finalWeight}{!/[a-zA-Z]/.test(String(finalWeight)) ? 'kg' : ''}</span>
         </>
       );
     }
