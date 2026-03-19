@@ -2225,7 +2225,7 @@ const VideoLibrary = () => {
                 <div className="hidden sm:block relative w-full sm:w-auto">
                   <div
                     ref={dateFilterButtonRef}
-                    onClick={() => dateInputRef.current?.showPicker()}
+                    onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
                     className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 w-full sm:w-auto overflow-hidden"
                     style={{
                       color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',
