@@ -83,10 +83,10 @@ const ExerciseEditor = ({
         return;
       }
 
-      // Validate file size (300MB max)
-      const maxSize = 300 * 1024 * 1024; // 300MB in bytes
+      // Validate file size (500MB max)
+      const maxSize = 500 * 1024 * 1024; // 500MB in bytes
       if (file.size > maxSize) {
-        setVideoError('File size must be less than 300MB');
+        setVideoError('Vidéo : max 500 Mo');
         return;
       }
 
@@ -160,7 +160,8 @@ const ExerciseEditor = ({
       }
     } catch (error) {
       logger.error('Error uploading video:', error);
-      setVideoError('Failed to upload video. Please try again.');
+      const serverMessage = error.response?.data?.message;
+      setVideoError(serverMessage || 'Échec de l\'upload vidéo. Veuillez réessayer.');
       return null;
     } finally {
       setUploadingVideo(false);
