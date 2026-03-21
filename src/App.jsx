@@ -33,6 +33,7 @@ const StudentChatPage = lazy(() => import('./pages/StudentChatPage'));
 const VideoLibrary = lazy(() => import('./pages/VideoLibrary'));
 const StudentVideoLibrary = lazy(() => import('./pages/StudentVideoLibrary'));
 const FinancialTracking = lazy(() => import('./pages/FinancialTracking'));
+const FacturationPage = lazy(() => import('./pages/FacturationPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const MentionsLegalesPage = lazy(() => import('./pages/MentionsLegalesPage'));
 const CGUPage = lazy(() => import('./pages/CGUPage'));
@@ -207,6 +208,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['coach']}>
                         <VideoLibrary />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/coach/facturation"
+                    element={
+                      <ProtectedRoute allowedRoles={['coach']}>
+                        <FacturationPage />
                       </ProtectedRoute>
                     }
                   />
