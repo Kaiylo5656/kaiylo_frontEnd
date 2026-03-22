@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FacturationPage from '../FacturationPage';
 
@@ -26,14 +26,27 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }) => children,
 }));
 
+// Mock BaseModal for UpgradeConfirmationModal
+vi.mock('@/components/ui/modal/BaseModal', () => ({
+  default: ({ isOpen, onClose, children, title, modalId }) => {
+    if (!isOpen) return null;
+    return (
+      <div role="dialog" aria-modal="true" data-testid={modalId}>
+        <h2>{title}</h2>
+        {children}
+      </div>
+    );
+  }
+}));
+
 // Mock api config
 vi.mock('@/config/api', () => ({
   buildApiUrl: (path) => `http://localhost:3001${path}`,
 }));
 
-const renderPage = () =>
+const renderPage = (initialRoute = '/coach/facturation') =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialRoute]}>
       <FacturationPage />
     </MemoryRouter>
   );
@@ -185,6 +198,62 @@ describe('FacturationPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText("Voir l'historique")).toBeInTheDocument();
+    });
+  });
+
+  it('opens upgrade confirmation modal when Passer à Pro is clicked', async () => {
+    global.fetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({
+        success: true,
+        data: { plan: 'free', status: 'active', clientCount: 1, clientLimit: 3, currentPeriodEnd: null },
+      }),
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Passer à Pro')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Passer à Pro'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Continuer')).toBeInTheDocument();
+    expect(screen.getByText('Annuler')).toBeInTheDocument();
+  });
+
+  it('shows success toast when ?upgraded=true is present', async () => {
+    global.fetch.mockResolvedValue({
+      json: () => Promise.resolve({
+        success: true,
+        data: { plan: 'pro', status: 'active', clientCount: 1, clientLimit: 10, currentPeriodEnd: '2026-04-21T00:00:00Z' },
+      }),
+    });
+
+    renderPage('/coach/facturation?upgraded=true');
+
+    await waitFor(() => {
+      expect(screen.getByText('Bienvenue sur Pro !')).toBeInTheDocument();
+    });
+  });
+
+  it('success toast has correct accessibility attributes', async () => {
+    global.fetch.mockResolvedValue({
+      json: () => Promise.resolve({
+        success: true,
+        data: { plan: 'pro', status: 'active', clientCount: 1, clientLimit: 10, currentPeriodEnd: '2026-04-21T00:00:00Z' },
+      }),
+    });
+
+    renderPage('/coach/facturation?upgraded=true');
+
+    await waitFor(() => {
+      const toast = screen.getByRole('status');
+      expect(toast).toBeInTheDocument();
+      expect(toast).toHaveAttribute('aria-live', 'polite');
     });
   });
 });

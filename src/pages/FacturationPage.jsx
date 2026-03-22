@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { Crown, CreditCard, Clock, Mail, ExternalLink, ArrowUpRight, Users, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Toast } from '@/components/ui/Toast';
+import UpgradeConfirmationModal from '@/components/billing/UpgradeConfirmationModal';
 import { buildApiUrl } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,10 +38,14 @@ const SkeletonCard = ({ delay = 0 }) => (
 
 const FacturationPage = () => {
   const { getAuthToken } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -63,6 +70,43 @@ const FacturationPage = () => {
   useEffect(() => {
     fetchBillingStatus();
   }, [fetchBillingStatus]);
+
+  // Detect ?upgraded=true after Stripe Checkout redirect
+  useEffect(() => {
+    if (searchParams.get('upgraded') === 'true') {
+      setShowSuccessToast(true);
+      fetchBillingStatus();
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, fetchBillingStatus]);
+
+  const handleCheckout = useCallback(async () => {
+    try {
+      setCheckoutLoading(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/create-checkout-session'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (result.success && result.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl;
+      } else {
+        console.error('Checkout session error:', result);
+        setError(result.error || 'Impossible de créer la session de paiement');
+        setShowUpgradeModal(false);
+      }
+    } catch (err) {
+      console.error('Checkout request failed:', err);
+      setError('Erreur lors de la redirection vers le paiement');
+      setShowUpgradeModal(false);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [getAuthToken]);
 
   const handleManageBilling = useCallback(async () => {
     try {
@@ -219,6 +263,7 @@ const FacturationPage = () => {
                   </button>
                 ) : (
                   <button
+                    onClick={() => setShowUpgradeModal(true)}
                     className="w-full mt-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-300 hover:opacity-90 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
                   >
                     <Zap className="h-3.5 w-3.5" />
@@ -344,6 +389,22 @@ const FacturationPage = () => {
           </div>
         )}
       </div>
+
+      {/* Upgrade Confirmation Modal */}
+      <UpgradeConfirmationModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onConfirm={handleCheckout}
+        isLoading={checkoutLoading}
+      />
+
+      {/* Success Toast */}
+      <Toast
+        message="Bienvenue sur Pro !"
+        type="success"
+        isVisible={showSuccessToast}
+        onClose={() => setShowSuccessToast(false)}
+      />
     </div>
   );
 };
