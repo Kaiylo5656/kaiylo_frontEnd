@@ -100,8 +100,37 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentV
 
         {/* Content */}
         <div className="px-[25px] py-0 space-y-4 flex-1 min-h-0 overflow-y-auto">
-          {/* Video player */}
+          {/* Media player */}
           {currentVideoUrl && currentVideoUrl.trim() !== '' ? (
+            /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(currentVideoUrl) ? (
+              <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10">
+                <img
+                  src={currentVideoUrl}
+                  alt={video.title || 'Ressource'}
+                  className="w-full h-auto max-h-[300px] object-contain"
+                  onLoad={() => setIsVideoLoading(false)}
+                  onError={() => {
+                    setVideoError('Impossible de charger l\'image.');
+                    setIsVideoLoading(false);
+                  }}
+                />
+                {isVideoLoading && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
+                    <div className="text-white text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white mx-auto mb-3"></div>
+                      <p className="text-sm">Chargement...</p>
+                    </div>
+                  </div>
+                )}
+                {videoError && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
+                    <div className="text-red-400 text-center px-4">
+                      <p className="text-sm">{videoError}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
             <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10">
               <video
                 ref={videoRef}
@@ -227,6 +256,7 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentV
                 </div>
               )}
             </div>
+            )
           ) : (
             <div className="bg-[#262626] rounded-lg border border-white/10 h-[200px] flex items-center justify-center">
               <p className="text-gray-400 text-xs font-light">Aucune vidéo disponible</p>

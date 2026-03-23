@@ -747,13 +747,17 @@ const StudentVideoLibrary = () => {
                                   {/* Video Thumbnail */}
                                   <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                     {video.video_url ? (
-                                      <video
-                                        src={video.video_url + '#t=0.1'}
-                                        className="w-full h-full object-cover"
-                                        preload="metadata"
-                                        playsInline
-                                        muted
-                                      />
+                                      /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(video.video_url) ? (
+                                        <img src={video.video_url} alt={video.exercise_name || ''} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <video
+                                          src={video.video_url + '#t=0.1'}
+                                          className="w-full h-full object-cover"
+                                          preload="metadata"
+                                          playsInline
+                                          muted
+                                        />
+                                      )
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
                                         <Video className="w-8 h-8 text-white/30" />
@@ -966,13 +970,17 @@ const StudentVideoLibrary = () => {
                                   {/* Video Thumbnail */}
                                   <div className="relative w-full sm:w-24 h-32 sm:h-16 bg-white/5 rounded-[10px] flex-shrink-0 overflow-hidden">
                                     {resource.fileUrl ? (
-                                      <video
-                                        src={resource.fileUrl + '#t=0.1'}
-                                        className="w-full h-full object-cover"
-                                        preload="metadata"
-                                        playsInline
-                                        muted
-                                      />
+                                      /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(resource.fileUrl) ? (
+                                        <img src={resource.fileUrl} alt={resource.title || ''} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <video
+                                          src={resource.fileUrl + '#t=0.1'}
+                                          className="w-full h-full object-cover"
+                                          preload="metadata"
+                                          playsInline
+                                          muted
+                                        />
+                                      )
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
                                         <Video className="w-8 h-8 text-white/30" />
