@@ -5,11 +5,19 @@ import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
+/** Coach resources uploaded from AddExerciseModal / ExerciseEditor use title `${exerciseName} - Demo Video`. */
+function exerciseTitleForInstructionLookup(resourceTitle) {
+  if (!resourceTitle || typeof resourceTitle !== 'string') return '';
+  return resourceTitle.replace(/\s*-\s*Demo Video\s*$/i, '').trim();
+}
+
 const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentView = false }) => {
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [isFileMissing, setIsFileMissing] = useState(false);
-  
+  const [exerciseInstructions, setExerciseInstructions] = useState(null);
+  const [instructionsLoading, setInstructionsLoading] = useState(false);
+
   const videoRef = useRef(null);
   const { getAuthToken } = useAuth();
 
@@ -30,6 +38,50 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentV
       return () => clearTimeout(loadingTimeout);
     }
   }, [video]);
+
+  // Load exercise instructions from coach library (same title as resource), not resource.description
+  useEffect(() => {
+    if (!isOpen || !video?.title || !video.title.trim()) {
+      setExerciseInstructions(null);
+      return;
+    }
+
+    let cancelled = false;
+    const raw = video.title.trim();
+    const title =
+      exerciseTitleForInstructionLookup(raw) || raw;
+
+    (async () => {
+      setInstructionsLoading(true);
+      try {
+        const token = await getAuthToken();
+        let data;
+        ({ data } = await axios.get(
+          buildApiUrl(`/exercises/by-title?title=${encodeURIComponent(title)}`),
+          { headers: { Authorization: `Bearer ${token}` } }
+        ));
+        if (cancelled) return;
+        if (!data?.exercise && title !== raw) {
+          ({ data } = await axios.get(
+            buildApiUrl(`/exercises/by-title?title=${encodeURIComponent(raw)}`),
+            { headers: { Authorization: `Bearer ${token}` } }
+          ));
+        }
+        if (cancelled) return;
+        const text = data?.exercise?.instructions;
+        setExerciseInstructions(typeof text === 'string' ? text : null);
+      } catch (e) {
+        logger.warn('CoachResourceModal: failed to load exercise instructions', e);
+        if (!cancelled) setExerciseInstructions(null);
+      } finally {
+        if (!cancelled) setInstructionsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, video?.id, video?.title, getAuthToken]);
 
   // Prevent body scroll when modal is open (mobile-friendly)
   useEffect(() => {
@@ -263,19 +315,23 @@ const CoachResourceModal = ({ isOpen, onClose, video, onFeedbackUpdate, studentV
             </div>
           )}
 
-          {/* Description section */}
-          {video.description && (
-            <div>
-              <p className="text-gray-400 text-xs font-light leading-relaxed mb-3 text-left">
-                Description
-              </p>
-              <div className="rounded-lg px-3 py-3" style={{ backgroundColor: 'var(--surface-800)' }}>
-                <p className="text-white/85 text-xs font-light leading-relaxed whitespace-pre-wrap">
-                  {video.description}
-                </p>
-              </div>
+          {/* Instructions — from exercise library (matches resource title), aligned with ExerciseDetailModal */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-[14px] font-[200] text-[rgba(255,255,255,0.5)]">Instructions</h3>
             </div>
-          )}
+            <div className="w-full px-4 py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)]">
+              {instructionsLoading ? (
+                <div className="text-white/40 font-extralight text-xs">Chargement…</div>
+              ) : exerciseInstructions && exerciseInstructions.trim() ? (
+                <div className="text-white/80 whitespace-pre-wrap break-words text-sm font-light">
+                  {exerciseInstructions}
+                </div>
+              ) : (
+                <div className="text-white/40 font-extralight text-xs">Aucune instruction fournie</div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
