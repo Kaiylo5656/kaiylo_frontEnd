@@ -62,6 +62,8 @@ export default defineConfig(({ mode }) => {
     ] : []),
     VitePWA({
       registerType: 'autoUpdate',
+      // Use virtual:pwa-register in main.jsx so registration failures are handled (avoids unhandled "Error: Rejected" from the default injected script)
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifestFilename: 'manifest.json',
       devOptions: {

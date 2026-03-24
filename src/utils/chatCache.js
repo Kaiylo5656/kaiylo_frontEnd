@@ -135,6 +135,17 @@ export function appendCachedMessage(conversationId, message) {
   setCachedMessages(conversationId, updated, cached.nextCursor);
 }
 
+/** Merge updates into a cached message (e.g. after edit). */
+export function patchCachedMessage(conversationId, messageId, updates) {
+  if (!conversationId || !messageId || !updates || typeof updates !== 'object') return;
+  const cached = getCachedMessages(conversationId);
+  if (!cached?.messages?.length) return;
+  const updated = cached.messages.map((m) =>
+    m.id === messageId ? { ...m, ...updates } : m
+  );
+  setCachedMessages(conversationId, updated, cached.nextCursor);
+}
+
 // --- Cleanup ---
 
 export function clearAllChatCache() {
