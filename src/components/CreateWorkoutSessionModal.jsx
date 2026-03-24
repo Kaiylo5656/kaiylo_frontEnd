@@ -915,6 +915,21 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }
   };
 
+  /** Keep the session form (left column) scrolled so the exercise card matches reorder drag in the arrangement panel. */
+  const scrollMainToExerciseId = useCallback((exerciseId) => {
+    const scrollEl = modalRef.current?.querySelector('.modal-scrollable-body');
+    const el = exerciseRefs.current[exerciseId];
+    if (!scrollEl || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const spRect = scrollEl.getBoundingClientRect();
+    const pad = 80;
+    if (elRect.top < spRect.top + pad) {
+      scrollEl.scrollTop += elRect.top - spRect.top - pad;
+    } else if (elRect.bottom > spRect.bottom - pad) {
+      scrollEl.scrollTop += elRect.bottom - spRect.bottom + pad;
+    }
+  }, []);
+
   const handleDrop = (e, dropIndex) => {
     e.preventDefault();
     setDragOverIndex(null);
@@ -1565,6 +1580,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         setExercises(newOrder);
                       }}
                       onLinkSuperset={handleLinkSuperset}
+                      scrollMainToExerciseId={scrollMainToExerciseId}
                     />
                   )}
 
