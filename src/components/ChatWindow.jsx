@@ -31,6 +31,21 @@ const MessageSquareIcon = ({ className, style }) => (
   </svg>
 );
 
+/**
+ * GET /messages returns Supabase shape with nested `reply_to`.
+ * WebSocket and optimistic sends use `replyTo`. Canonicalize for UI.
+ */
+function normalizeChatMessage(msg) {
+  if (!msg || typeof msg !== 'object') return msg;
+  const replyTo = msg.replyTo ?? msg.reply_to ?? null;
+  return { ...msg, ...(replyTo ? { replyTo } : {}) };
+}
+
+function normalizeChatMessages(messages) {
+  if (!Array.isArray(messages)) return messages;
+  return messages.map(normalizeChatMessage);
+}
+
 // Custom Reply Icon Component (Font Awesome)
 const ReplyIcon = ({ className, style }) => (
   <svg 
@@ -98,7 +113,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         messageCacheCheckedRef.current = conversation.id;
         const cached = getCachedMessages(conversation.id);
         if (cached?.messages?.length) {
-          setMessages(cached.messages);
+          setMessages(normalizeChatMessages(cached.messages));
           setNextCursor(cached.nextCursor);
           setHasMoreMessages(!!cached.nextCursor);
           setIsInitialLoad(false);
@@ -150,13 +165,13 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         // When loading more, prepend older messages to the beginning of the array
         // API returns messages in newest-to-oldest order (descending)
         // We need to reverse them to oldest-to-newest before prepending
-        const reversedOlderMessages = [...newMessages].reverse();
+        const reversedOlderMessages = normalizeChatMessages([...newMessages].reverse());
         setMessages(prev => [...reversedOlderMessages, ...prev]);
       } else {
         // Initial load
         // CRITICAL: API returns messages in newest-to-oldest order (descending)
         // We need to reverse them to oldest-to-newest for proper display (oldest at top, newest at bottom)
-        const reversedMessages = [...newMessages].reverse();
+        const reversedMessages = normalizeChatMessages([...newMessages].reverse());
         setMessages(reversedMessages);
         setIsInitialLoad(false); // Mark initial load as complete
 
@@ -598,7 +613,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
         if (!response.ok) return;
 
         const data = await response.json();
-        const freshMessages = (data.data?.messages || []).reverse(); // oldest-first
+        const freshMessages = normalizeChatMessages((data.data?.messages || []).reverse()); // oldest-first
 
         if (freshMessages.length > 0) {
           setMessages(prev => {
@@ -684,7 +699,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   useEffect(() => {
     if (!socket || !conversation?.id) return;
 
-    const handleNewMessage = (messageData) => {
+    const handleNewMessage = (rawMessageData) => {
+      const messageData = normalizeChatMessage(rawMessageData);
       // Only process messages for the current conversation
       const receivedConversationId = messageData.conversationId || messageData.conversation_id;
       if (receivedConversationId !== conversation.id) return;
@@ -1149,6 +1165,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 isRead = true;
               }
 
+              const replyToPreview = message.replyTo || message.reply_to;
+
               return (
                 <div
                   data-message-id={message.id}
@@ -1158,11 +1176,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   }`}
                 >
                   <div className={`relative group flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-                    {message.replyTo && (
+                    {replyToPreview && (
                       <div className="mb-1.5" style={{ maxWidth: '75vw', width: 'fit-content' }}>
                         <ReplyMessage
-                          replyTo={message.replyTo}
+                          replyTo={replyToPreview}
                           isOwnMessage={isOwnMessage}
+                          currentUserId={currentUser?.id}
                           onReplyClick={handleReplyClick}
                         />
                       </div>
@@ -1215,8 +1234,21 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                         )}
                       </div>
 
+                      <button
+                        type="button"
+                        className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                        onClick={() => handleReplyToMessage(message)}
+                        title="Répondre"
+                        style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'transparent' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
+                      >
+                        <ReplyIcon className="w-4 h-4" />
+                      </button>
+
                       {isOwnMessage && (
                         <button
+                          type="button"
                           className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
                           onClick={() => handleDeleteMessage(message.id)}
                           title="Supprimer le message"
@@ -1227,19 +1259,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5">
                             <path fill="currentColor" d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
                           </svg>
-                        </button>
-                      )}
-
-                      {!isOwnMessage && (
-                        <button
-                          className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
-                          onClick={() => handleReplyToMessage(message)}
-                          title="Reply to this message"
-                          style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'transparent' }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
-                        >
-                          <ReplyIcon className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -1274,20 +1293,29 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           
           {/* Reply content with cancel button */}
           <div className="flex items-start justify-between gap-2">
-            <div 
-              className="text-sm leading-relaxed break-words flex-1 min-w-0"
-              style={{ 
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontSize: '13px',
-                lineHeight: '1.4'
-              }}
-            >
-              {replyingTo.message_type === 'file' 
-                ? `📎 ${replyingTo.file_name || 'Fichier'}`
-                : replyingTo.message_type === 'audio'
-                ? `🎤 ${replyingTo.file_name || 'Message vocal'}`
-                : replyingTo.content
-              }
+            <div className="text-sm leading-relaxed break-words flex-1 min-w-0">
+              <div
+                className="text-xs font-medium mb-1"
+                style={{ color: 'var(--kaiylo-primary-hex)' }}
+              >
+                {replyingTo.sender_id === currentUser?.id
+                  ? 'Vous'
+                  : getParticipantDisplayName()}
+              </div>
+              <div
+                style={{
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontSize: '13px',
+                  lineHeight: '1.4'
+                }}
+              >
+                {replyingTo.message_type === 'file'
+                  ? `📎 ${replyingTo.file_name || 'Fichier'}`
+                  : replyingTo.message_type === 'audio'
+                    ? `🎤 ${replyingTo.file_name || 'Message vocal'}`
+                    : replyingTo.content
+                }
+              </div>
             </div>
             
             {/* Cancel button */}
