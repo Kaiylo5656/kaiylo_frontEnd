@@ -10,8 +10,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
-import { getCachedMessages, setCachedMessages, appendCachedMessage } from '../utils/chatCache';
-import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
+import { getCachedMessages, setCachedMessages, appendCachedMessage, patchCachedMessage } from '../utils/chatCache';
+import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video, Pencil } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 import VideoDetailModal from './VideoDetailModal';
@@ -82,6 +82,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  /** When set, composer is editing this message (WhatsApp-style: text in input bar, submit = PATCH). */
+  const [editingMessageId, setEditingMessageId] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [otherParticipantReadAt, setOtherParticipantReadAt] = useState(null);
@@ -410,6 +412,23 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     setShowDeleteModal(true);
   }, [conversation?.id, messages]);
 
+  const cancelEditMessage = useCallback(() => {
+    setEditingMessageId(null);
+    setNewMessage('');
+    stopTyping(conversation?.id);
+    setIsTyping(false);
+  }, [conversation?.id, stopTyping]);
+
+  const handleEditMessage = useCallback((messageId) => {
+    if (!conversation?.id || !messageId) return;
+    const message = messages.find(msg => msg.id === messageId);
+    if (!message || message.message_type !== 'text') return;
+    setReplyingTo(null);
+    setEditingMessageId(messageId);
+    setNewMessage(message.content || '');
+    setTimeout(() => messageInputRef.current?.focus(), 0);
+  }, [conversation?.id, messages]);
+
   const handleConfirmDelete = useCallback(async () => {
     if (!messageToDelete || !conversation?.id) return;
 
@@ -459,6 +478,46 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
 
     const messageContent = newMessage.trim();
+
+    // Inline edit (composer): save via PATCH, not a new message
+    if (editingMessageId) {
+      setSending(true);
+      try {
+        stopTyping(conversation.id);
+        setIsTyping(false);
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl(`/api/chat/messages/${editingMessageId}`), {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ content: messageContent })
+        });
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+        }
+        const json = await response.json();
+        const data = json.data;
+        const updates = {
+          content: data.content,
+          updated_at: data.updated_at,
+          edited_at: data.edited_at
+        };
+        setMessages(prev => prev.map(msg => (msg.id === editingMessageId ? { ...msg, ...updates } : msg)));
+        patchCachedMessage(conversation.id, editingMessageId, updates);
+        setEditingMessageId(null);
+        setNewMessage('');
+      } catch (error) {
+        logger.error('Error updating message:', error);
+        alert(error.message || 'Erreur lors de la modification du message. Veuillez réessayer.');
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const replyToMessageId = replyingTo?.id || null;
     
     setNewMessage('');
@@ -554,8 +613,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
       setSending(false);
     }
   }, [
-    newMessage, sending, replyingTo, conversation?.id, 
-    currentUser, isConnected, socket, sendSocketMessage, 
+    newMessage, sending, replyingTo, conversation?.id, editingMessageId,
+    currentUser, isConnected, socket, sendSocketMessage,
     stopTyping, onMessageSent, getAuthToken
   ]);
 
@@ -570,6 +629,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
       // Clear processed message IDs when switching conversations
       processedMessageIdsRef.current.clear();
+      setEditingMessageId(null);
+      setNewMessage('');
 
       fetchMessages(); // Initial load (no cursor)
       markMessagesAsReadRef.current(conversation.id);
@@ -793,10 +854,14 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     };
 
     const handleMessageUpdated = (data) => {
-      if (data.conversationId !== conversation.id) return;
+      const convId = data.conversationId || data.conversation_id;
+      if (convId !== conversation.id) return;
       setMessages(prev => prev.map(msg =>
         msg.id === data.messageId ? { ...msg, ...data.updates } : msg
       ));
+      if (data.messageId && data.updates) {
+        patchCachedMessage(conversation.id, data.messageId, data.updates);
+      }
     };
 
     socket.on('new_message', handleNewMessage);
@@ -826,6 +891,19 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     [messages]
   );
 
+  /** Newest message in thread (bottom of list). Only this message may be edited (WhatsApp / Instagram style). */
+  const lastThreadMessageId = useMemo(() => {
+    if (!filteredMessages.length) return null;
+    return filteredMessages[filteredMessages.length - 1].id;
+  }, [filteredMessages]);
+
+  // If user was editing and the last message is no longer theirs / no longer last, exit edit mode
+  useEffect(() => {
+    if (!editingMessageId) return;
+    if (!lastThreadMessageId || editingMessageId !== lastThreadMessageId) {
+      cancelEditMessage();
+    }
+  }, [editingMessageId, lastThreadMessageId, cancelEditMessage]);
 
   // Handle typing indicators
   const handleInputChange = (e) => {
@@ -911,6 +989,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
 
   // Handle reply to message
   const handleReplyToMessage = (message) => {
+    setEditingMessageId(null);
     setReplyingTo(message);
     // Focus on the message input field using ref
     setTimeout(() => {
@@ -1218,6 +1297,11 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                                   style={{ overflowWrap: 'break-word', wordBreak: 'break-word', overflow: 'hidden', minWidth: 0 }}
                                 >
                                   {message.content}
+                                  {message.edited_at && (
+                                    <span className="block text-[10px] text-white/50 mt-1 font-extralight">
+                                      Modifié
+                                    </span>
+                                  )}
                                 </div>
                                 {isOwnMessage && isSent && (
                                   <span className="flex-shrink-0 flex items-center" style={{ marginBottom: '2px' }}>
@@ -1246,6 +1330,20 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                         <ReplyIcon className="w-4 h-4" />
                       </button>
 
+                      {isOwnMessage && message.message_type === 'text' && isSent && message.id === lastThreadMessageId && (
+                        <button
+                          type="button"
+                          className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-full flex items-center justify-center flex-shrink-0 border-none outline-none focus:outline-none"
+                          onClick={() => handleEditMessage(message.id)}
+                          title="Modifier le message"
+                          style={{ color: 'rgba(255, 255, 255, 0.5)', backgroundColor: 'transparent' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
+
                       {isOwnMessage && (
                         <button
                           type="button"
@@ -1269,6 +1367,47 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
           />
         )}
       </div>
+
+      {/* Editing message — same bar pattern as reply (WhatsApp-style composer) */}
+      {editingMessageId && (
+        <div
+          className="mx-2 md:mx-4 mb-2 relative overflow-hidden transition-opacity duration-200"
+          style={{
+            background: 'linear-gradient(90deg, rgba(212, 132, 90, 0.2) 0%, rgba(212, 132, 90, 0.15) 50%, rgba(212, 132, 90, 0.05) 100%)',
+            borderRadius: '8px',
+            padding: '8px 12px 8px 28px',
+            animation: 'slideDown 0.2s ease-out'
+          }}
+        >
+          <div
+            className="absolute left-2 top-2 bottom-2 transition-opacity duration-200"
+            style={{
+              width: '2px',
+              backgroundColor: 'var(--kaiylo-primary-hex)',
+              borderRadius: '5px'
+            }}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+              Modification du message
+            </span>
+            <button
+              type="button"
+              onClick={cancelEditMessage}
+              className="flex-shrink-0 rounded-full transition-all duration-200 flex items-center justify-center"
+              title="Annuler la modification"
+              style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#d4845a'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Reply Indicator - Modern style */}
       {replyingTo && (
@@ -1438,8 +1577,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               variant="ghost"
               size="icon"
               onClick={() => fileInputRef.current?.click()}
-              disabled={sending || uploadingFile}
-              title="Attach file"
+              disabled={sending || uploadingFile || !!editingMessageId}
+              title={editingMessageId ? 'Terminez la modification pour joindre un fichier' : 'Attach file'}
               className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
             >
               <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
@@ -1449,8 +1588,8 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
               variant="ghost"
               size="icon"
               onClick={() => setShowVoiceRecorder(true)}
-              disabled={sending || uploadingFile || showVoiceRecorder}
-              title="Enregistrer un message vocal"
+              disabled={sending || uploadingFile || showVoiceRecorder || !!editingMessageId}
+              title={editingMessageId ? 'Terminez la modification pour un message vocal' : 'Enregistrer un message vocal'}
               className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0 text-muted-foreground hover:text-foreground rounded-[100px]"
             >
               <svg 
@@ -1468,7 +1607,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 type="text"
                 value={newMessage}
                 onChange={handleInputChange}
-                placeholder="Tapez un message ici..."
+                placeholder={editingMessageId ? 'Modifier le message…' : 'Tapez un message ici...'}
                 className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-normal text-white"
                 style={{ 
                   borderStyle: 'none',

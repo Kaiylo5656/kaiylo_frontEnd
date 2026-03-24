@@ -139,14 +139,32 @@ const ChatList = ({
       });
     };
 
+    const handleMessageUpdated = (data) => {
+      const conversationId = data.conversationId || data.conversation_id;
+      const messageId = data.messageId;
+      if (!conversationId || !messageId || !data.updates) return;
+
+      setLocalConversations(prev => prev.map(conv => {
+        if (conv.id !== conversationId) return conv;
+        const lm = conv.last_message;
+        if (!lm || lm.id !== messageId) return conv;
+        return {
+          ...conv,
+          last_message: { ...lm, ...data.updates }
+        };
+      }));
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('new_message_notification', handleNewMessageNotification);
     socket.on('messages_read', handleMessagesRead);
+    socket.on('message_updated', handleMessageUpdated);
 
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('new_message_notification', handleNewMessageNotification);
       socket.off('messages_read', handleMessagesRead);
+      socket.off('message_updated', handleMessageUpdated);
     };
   }, [socket, isConnected, currentUser]);
 
