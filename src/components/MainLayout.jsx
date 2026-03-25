@@ -145,7 +145,7 @@ const MainLayout = ({ children }) => {
                   {children}
                 </PullToRefresh>
               ) : (
-                <div className={`flex-1 relative z-10 overflow-x-hidden min-h-0 ${isChatPage ? (hideMainHeaderInChatThread ? 'p-0 overflow-hidden' : 'p-0 overflow-hidden pb-16 md:pb-0') : isExercisePage ? 'pt-0 pb-6 overflow-hidden flex flex-col w-full dashboard-scrollbar' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
+                <div className={`flex-1 relative z-10 overflow-x-hidden min-h-0 ${isChatPage ? (hideMainHeaderInChatThread ? 'p-0 overflow-hidden' : 'p-0 overflow-hidden pb-16 md:pb-0') : isExercisePage ? 'pt-0 pb-0 overflow-hidden flex flex-col w-full min-h-0 dashboard-scrollbar' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
                   {children}
                 </div>
               )}

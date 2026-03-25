@@ -13,15 +13,28 @@ const TagFilterDropdown = ({
   onTagsChange, 
   placeholder = "Rechercher un tag...",
   className = "",
-  disabled = false
+  disabled = false,
+  isOpen: controlledIsOpen,
+  onOpenChange,
+  /** 'default' = pill with label; 'iconOnly' = compact filter icon (e.g. inline after a search field) */
+  triggerVariant = 'default',
 }) => {
   const [inputValue, setInputValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
   const containerRef = useRef(null);
+  const isControlled = typeof controlledIsOpen === 'boolean';
+  const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+
+  const setIsOpen = (nextValue) => {
+    if (!isControlled) {
+      setInternalIsOpen(nextValue);
+    }
+    onOpenChange?.(nextValue);
+  };
 
   // Get unique tags with counts
   const tagsWithCounts = useMemo(() => {
@@ -60,15 +73,25 @@ const TagFilterDropdown = ({
   }, [inputValue, tagsWithCounts, selectedTags]);
 
   // Handle button click
-  const handleButtonClick = () => {
-    if (!disabled) {
-      setIsOpen(!isOpen);
-      if (!isOpen) {
-        // Focus input when opening
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 0);
-      }
+  const handleButtonClick = (e) => {
+    if (disabled) return;
+
+    // iconOnly (e.g. performance modal): when filters are active and the menu is closed,
+    // one click clears all tags without opening the dropdown. Next click opens the menu.
+    if (isIconOnly && selectedTags.length > 0 && !isOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      onTagsChange([]);
+      setInputValue('');
+      setActiveIndex(-1);
+      return;
+    }
+
+    setIsOpen(!isOpen);
+    if (!isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -94,11 +117,15 @@ const TagFilterDropdown = ({
     if (!isTagSelected(normalizedTag, selectedTags)) {
       onTagsChange([...selectedTags, normalizedTag]);
     }
-    
-    // Clear input but keep dropdown open
+
     setInputValue('');
     setActiveIndex(-1);
-    inputRef.current?.focus();
+    if (isIconOnly) {
+      setIsOpen(false);
+      inputRef.current?.blur();
+    } else {
+      inputRef.current?.focus();
+    }
   };
 
   // Handle tag removal
@@ -145,7 +172,9 @@ const TagFilterDropdown = ({
     }
   };
 
-  // Handle click outside
+  // Close when clicking outside this instance. Use "click" (not "mousedown") so a duplicate
+  // hidden instance (e.g. mobile + desktop) does not close on mousedown before the tag
+  // button's click handler runs.
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -156,8 +185,8 @@ const TagFilterDropdown = ({
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [isOpen]);
 
@@ -181,20 +210,35 @@ const TagFilterDropdown = ({
     }
   }, [isOpen]);
 
+  const isIconOnly = triggerVariant === 'iconOnly';
+
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Button with selected tags chips */}
       <button
         onClick={handleButtonClick}
         disabled={disabled}
-        className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground overflow-hidden"
+        onPointerDown={(e) => {
+          if (isIconOnly && selectedTags.length > 0 && !isOpen) {
+            e.stopPropagation();
+          }
+        }}
+        type="button"
+        className={
+          isIconOnly
+            ? 'group relative font-extralight h-9 w-9 shrink-0 rounded-[999px] transition-colors duration-200 flex items-center justify-center text-primary-foreground overflow-hidden'
+            : 'group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground overflow-hidden'
+        }
         style={{
           color: isOpen || selectedTags.length > 0 ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
         }}
         title="Filtres"
+        aria-label="Filtres par tags"
       >
         <span
-          className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+          className={`absolute inset-0 transition-[background-color] duration-200 ${
+            isIconOnly ? 'rounded-[999px]' : 'rounded-[50px]'
+          } ${
             isOpen || selectedTags.length > 0
               ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
               : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
@@ -204,25 +248,35 @@ const TagFilterDropdown = ({
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
           <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z"/>
         </svg>
-        <span className="relative z-10">Filtres</span>
-        {selectedTags.length > 0 && (
-          <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
-            {selectedTags.length}
-          </span>
+        {!isIconOnly && (
+          <>
+            <span className="relative z-10">Filtres</span>
+            {selectedTags.length > 0 && (
+              <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
+                {selectedTags.length}
+              </span>
+            )}
+            <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${isOpen ? 'rotate-180' : ''}`} />
+          </>
         )}
-        <ChevronDown className={`h-4 w-4 transition-transform relative z-10 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 mt-2 w-80 bg-card border border-border rounded-xl shadow-lg pb-2"
+          className={`absolute z-50 mt-2 w-80 bg-card border border-border rounded-xl shadow-lg pb-2 overflow-hidden ${
+            isIconOnly
+              ? 'right-0 origin-top-right max-h-56'
+              : 'left-0 origin-top-left max-h-[70vh]'
+          }`}
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.75)',
             backdropFilter: 'blur(10px)',
             borderColor: 'rgba(255, 255, 255, 0.1)'
           }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="pt-3 px-3 pb-2 border-border">
@@ -247,7 +301,7 @@ const TagFilterDropdown = ({
 
           {/* Selected Tags */}
           {selectedTags.length > 0 && (
-            <div className="p-3 border-border">
+            <div className={`p-3 border-border ${isIconOnly ? 'max-h-24 overflow-y-auto' : ''}`}>
               <div className="flex flex-wrap gap-1.5">
                 {selectedTags.map((tag) => (
                   <span
@@ -282,7 +336,7 @@ const TagFilterDropdown = ({
           )}
 
           {/* Suggestions List */}
-          <div className="max-h-60 overflow-y-auto">
+          <div className={isIconOnly ? 'max-h-36 overflow-y-auto' : 'max-h-60 overflow-y-auto'}>
             {suggestions.length > 0 ? (
               suggestions.map(({ tag, count, isNew }, index) => (
                 <button

@@ -735,7 +735,8 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
     return getTagColorMap(tagNames);
   }, [allTags]);
 
-  // Calculate block numbers by sorting blocks by start date
+  // Calculate block numbers by sorting blocks by start date.
+  // One-week blocks are excluded from numbering.
   const blockNumbers = useMemo(() => {
     const sortedBlocks = [...blocks].sort((a, b) => {
       const dateA = new Date(a.start_week_date).getTime();
@@ -743,8 +744,15 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
       return dateA - dateB;
     });
     const numbers = new Map();
-    sortedBlocks.forEach((block, index) => {
-      numbers.set(block.id, index + 1);
+    let currentNumber = 1;
+    sortedBlocks.forEach((block) => {
+      const duration = parseInt(block.duration, 10);
+      if (duration === 1) {
+        numbers.set(block.id, null);
+        return;
+      }
+      numbers.set(block.id, currentNumber);
+      currentNumber += 1;
     });
     return numbers;
   }, [blocks]);
@@ -1184,7 +1192,11 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                               color: tagHexColor || 'white'
                             }}
                           >
-                            Bloc {blockNumbers.get(activeBlock.id) || 1} : {activeBlock.name || (activeBlock.tags ? activeBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t).join(', ') : 'Sans nom')}
+                            {(() => {
+                              const blockNumber = blockNumbers.get(activeBlock.id);
+                              const blockName = activeBlock.name || (activeBlock.tags ? activeBlock.tags.map(t => typeof t === 'string' ? t : t?.name || t).join(', ') : 'Sans nom');
+                              return blockNumber ? `Bloc ${blockNumber} : ${blockName}` : `Bloc : ${blockName}`;
+                            })()}
                           </div>
                         )}
                         {isStart && (() => {

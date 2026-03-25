@@ -9,7 +9,7 @@ import {
 } from './ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
 
-const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) => {
+const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions, onTriggerClick }) => {
   const [open, setOpen] = useState(false);
   
   const defaultSortOptions = [
@@ -47,6 +47,7 @@ const SortControl = ({ sort, dir, onChange, sortOptions: customSortOptions }) =>
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
         <button
+          onClick={() => onTriggerClick?.()}
           className="group relative font-extralight py-2 px-[15px] rounded-[50px] transition-colors duration-200 flex items-center gap-2 text-primary-foreground justify-center md:justify-start flex-1 md:flex-none overflow-hidden"
           style={{
             color: isActive ? '#D48459' : 'rgba(250, 250, 250, 0.75)'

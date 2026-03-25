@@ -55,7 +55,8 @@ const ExerciseArrangementModal = ({
       } else {
         const prevExercise = currentGroup[currentGroup.length - 1];
         if (
-          exercise.supersetGroup !== null &&
+          exercise.supersetGroup != null &&
+          prevExercise.supersetGroup != null &&
           exercise.supersetGroup === prevExercise.supersetGroup
         ) {
           currentGroup.push(exercise);
