@@ -99,7 +99,10 @@ const ContainedSideSheet = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="shrink-0 px-6 pt-6 pb-1 flex items-center justify-between">
+        <div 
+          className="shrink-0 px-6 pb-1 flex items-center justify-between"
+          style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))' }}
+        >
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-light" style={{ color: 'var(--tw-ring-offset-color)' }}>{title}</h2>
             {badgeCount !== undefined && badgeCount > 0 && (

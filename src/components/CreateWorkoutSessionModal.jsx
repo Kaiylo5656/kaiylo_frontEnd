@@ -915,6 +915,21 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }
   };
 
+  /** Keep the session form (left column) scrolled so the exercise card matches reorder drag in the arrangement panel. */
+  const scrollMainToExerciseId = useCallback((exerciseId) => {
+    const scrollEl = modalRef.current?.querySelector('.modal-scrollable-body');
+    const el = exerciseRefs.current[exerciseId];
+    if (!scrollEl || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const spRect = scrollEl.getBoundingClientRect();
+    const pad = 80;
+    if (elRect.top < spRect.top + pad) {
+      scrollEl.scrollTop += elRect.top - spRect.top - pad;
+    } else if (elRect.bottom > spRect.bottom - pad) {
+      scrollEl.scrollTop += elRect.bottom - spRect.bottom + pad;
+    }
+  }, []);
+
   const handleDrop = (e, dropIndex) => {
     e.preventDefault();
     setDragOverIndex(null);
@@ -1571,6 +1586,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                         setExercises(newOrder);
                       }}
                       onLinkSuperset={handleLinkSuperset}
+                      scrollMainToExerciseId={scrollMainToExerciseId}
                     />
                   )}
 
@@ -2027,7 +2043,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   Date de la séance
                 </label>
                 <div
-                  onClick={() => dateInputRef.current?.showPicker()}
+                  onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
                   className="relative rounded-[10px] flex items-center cursor-pointer w-full px-3 md:px-[14px] py-2.5 md:py-3 h-10 md:h-[44px]"
                   style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}
                 >

@@ -13,7 +13,7 @@ const ReplyIcon = ({ className, style }) => (
   </svg>
 );
 
-const ReplyMessage = ({ replyTo, isOwnMessage = false, onReplyClick }) => {
+const ReplyMessage = ({ replyTo, isOwnMessage = false, currentUserId, onReplyClick }) => {
   if (!replyTo) return null;
 
   const formatReplyContent = (reply) => {
@@ -36,6 +36,7 @@ const ReplyMessage = ({ replyTo, isOwnMessage = false, onReplyClick }) => {
   };
 
   const getSenderName = () => {
+    if (currentUserId && replyTo.sender_id === currentUserId) return 'Vous';
     if (replyTo.sender?.name) return replyTo.sender.name;
     if (replyTo.sender?.email) return replyTo.sender.email;
     return 'Message';

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as Sentry from "@sentry/react";
+import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 import App from './App.jsx';
 import { BrowserRouter } from 'react-router-dom';
@@ -30,6 +31,12 @@ const SENTRY_CONFIG = {
 
 // TODO: Re-enable cookie consent before production launch
 Sentry.init(SENTRY_CONFIG);
+
+registerSW({
+  onRegisterError(error) {
+    console.warn('[PWA] Service worker registration failed', error);
+  },
+});
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -1,6 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'lucide-react';
+
+/**
+ * Symmetric drag auto-scroll (Framer's built-in scroll gates bottom edge on velocity > 0, which breaks scrolling down).
+ * Uses viewport coordinates (clientY).
+ */
+function scrollContainerByPointerEdge(scrollEl, clientY) {
+  if (!scrollEl) return;
+  const rect = scrollEl.getBoundingClientRect();
+  const threshold = 56;
+  const maxSpeed = 24;
+  const distTop = clientY - rect.top;
+  const distBottom = rect.bottom - clientY;
+  let delta = 0;
+  if (distTop < threshold && distTop >= 0) {
+    const intensity = 1 - distTop / threshold;
+    delta = -maxSpeed * intensity * intensity;
+  } else if (distBottom < threshold && distBottom >= 0) {
+    const intensity = 1 - distBottom / threshold;
+    delta = maxSpeed * intensity * intensity;
+  }
+  if (delta === 0) return;
+  const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
+  scrollEl.scrollTop = Math.max(0, Math.min(maxScroll, scrollEl.scrollTop + delta));
+}
 
 /** Group consecutive sets with same reps/weight into { count, reps, weight } for display (e.g. 2×3@5kg, 2×2@5kg). */
 function getSetGroups(sets, useRir) {
@@ -40,10 +64,13 @@ const ExerciseArrangementModal = ({
   useAbsolute = false,
   embedded = false,
   onReorder,
-  onLinkSuperset
+  onLinkSuperset,
+  /** While reordering, keep the matching exercise card in view in the main session modal (left column). */
+  scrollMainToExerciseId
 }) => {
   const [hoveredId, setHoveredId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
+  const arrangementScrollRef = useRef(null);
 
   const groupedExercises = React.useMemo(() => {
     const groups = [];
@@ -108,7 +135,19 @@ const ExerciseArrangementModal = ({
               layout: { type: "spring", bounce: 0.2, duration: 0.6 },
               default: { duration: 0.3 }
             }}
-            onDragStart={() => setDraggingId(groupKey)}
+            onDragStart={(e) => {
+              setDraggingId(groupKey);
+              scrollMainToExerciseId?.(groupKey);
+              if (e?.clientY != null) {
+                scrollContainerByPointerEdge(arrangementScrollRef.current, e.clientY);
+              }
+            }}
+            onDrag={(e) => {
+              if (e?.clientY != null) {
+                scrollContainerByPointerEdge(arrangementScrollRef.current, e.clientY);
+              }
+              scrollMainToExerciseId?.(groupKey);
+            }}
             onDragEnd={() => {
               setDraggingId(null);
               setHoveredId(null);
@@ -191,7 +230,11 @@ const ExerciseArrangementModal = ({
 
   if (embedded) {
     return (
-      <div className="flex-1 min-h-0 px-6 py-6 overflow-y-auto overscroll-contain modal-scrollable-body" style={{ overflowX: 'hidden' }}>
+      <div
+        ref={arrangementScrollRef}
+        className="flex-1 min-h-0 px-6 py-6 overflow-y-auto overscroll-contain modal-scrollable-body"
+        style={{ overflowX: 'hidden' }}
+      >
         {renderGroupedList()}
         {exercises.length === 0 && (
           <div className="rounded-2xl px-6 py-12 text-center text-xs text-white/50 font-extralight">
@@ -241,7 +284,11 @@ const ExerciseArrangementModal = ({
       <div className="border-b border-white/10 mx-6"></div>
 
       {/* Exercises List */}
-      <div className="flex-1 min-h-0 px-6 py-6 overflow-y-auto overscroll-contain modal-scrollable-body" style={{ overflowX: 'hidden' }}>
+      <div
+        ref={arrangementScrollRef}
+        className="flex-1 min-h-0 px-6 py-6 overflow-y-auto overscroll-contain modal-scrollable-body"
+        style={{ overflowX: 'hidden' }}
+      >
         {renderGroupedList()}
 
         {exercises.length === 0 && (

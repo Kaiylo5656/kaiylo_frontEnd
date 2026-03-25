@@ -283,7 +283,7 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
           <div>
             <label className="block text-sm font-extralight text-white/50 mb-2">Date de naissance</label>
             <div 
-              onClick={() => dateInputRef.current?.showPicker()}
+              onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
               className="relative rounded-[10px] flex items-center cursor-pointer w-full px-[14px] py-3 bg-[rgba(0,0,0,0.5)]"
             >
               <svg 

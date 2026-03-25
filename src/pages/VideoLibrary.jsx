@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, Play, Video } from 'lucide-react';
+import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, Play, Video, ImageIcon } from 'lucide-react';
 
 const CircleCheckIcon = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
@@ -1127,18 +1127,22 @@ const VideoLibrary = () => {
                             {/* Video Thumbnail */}
                             <div className="relative w-full md:w-32 h-32 md:h-20 bg-gray-800 rounded-lg flex-shrink-0 overflow-hidden">
                               {video?.video_url && video.video_url.trim() !== '' ? (
-                                <>
-                                  <video
-                                    src={video.video_url + '#t=0.1'}
-                                    className="w-full h-full object-cover"
-                                    preload="metadata"
-                                    playsInline
-                                    muted
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
-                                    <PlayCircle size={24} className="text-white" />
-                                  </div>
-                                </>
+                                /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(video.video_url) ? (
+                                  <img src={video.video_url} alt={video.exercise_name || ''} className="w-full h-full object-cover" />
+                                ) : (
+                                  <>
+                                    <video
+                                      src={video.video_url + '#t=0.1'}
+                                      className="w-full h-full object-cover"
+                                      preload="metadata"
+                                      playsInline
+                                      muted
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black bg-opacity-30">
+                                      <PlayCircle size={24} className="text-white" />
+                                    </div>
+                                  </>
+                                )
                               ) : (
                                 <div className="w-full h-full bg-gray-700 flex items-center justify-center">
                                   <Video size={24} className="text-gray-500" />
@@ -1311,27 +1315,33 @@ const VideoLibrary = () => {
           >
             {/* Video Thumbnail */}
             <div className="relative aspect-video bg-muted overflow-hidden">
-              <video
-                src={(video.video_url || '') + '#t=0.1' || undefined}
-                className="w-full h-full object-cover"
-                preload="metadata"
-                playsInline
-                muted
-                onLoadedMetadata={(e) => {
-                  const duration = e.target.duration;
-                  if (duration && !isNaN(duration)) {
-                    const minutes = Math.floor(duration / 60);
-                    const seconds = Math.floor(duration % 60);
-                    const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                    e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
-                  }
-                }}
-              />
-              {/* Duration Overlay */}
-              <div className="duration-display absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md">
-                Loading...
-              </div>
-              {/* Play Icon Overlay */}
+              {/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(video.video_url || '') ? (
+                <img src={video.video_url} alt={video.exercise_name || ''} className="w-full h-full object-cover" />
+              ) : (
+                <>
+                  <video
+                    src={(video.video_url || '') + '#t=0.1' || undefined}
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                    playsInline
+                    muted
+                    onLoadedMetadata={(e) => {
+                      const duration = e.target.duration;
+                      if (duration && !isNaN(duration)) {
+                        const minutes = Math.floor(duration / 60);
+                        const seconds = Math.floor(duration % 60);
+                        const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        e.target.parentElement.querySelector('.duration-display').textContent = timeDisplay;
+                      }
+                    }}
+                  />
+                  {/* Duration Overlay */}
+                  <div className="duration-display absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md">
+                    Loading...
+                  </div>
+                </>
+              )}
+              {/* Play/View Icon Overlay */}
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
                   <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z" />
@@ -1407,7 +1417,11 @@ const VideoLibrary = () => {
                   </div>
                 ) : (
                   <>
-                    <video src={(video.fileUrl || '') + '#t=0.1' || undefined} className="w-full h-full object-cover" preload="metadata" playsInline muted></video>
+                    {/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(video.fileUrl || '') ? (
+                      <img src={video.fileUrl} alt={video.title || ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <video src={(video.fileUrl || '') + '#t=0.1' || undefined} className="w-full h-full object-cover" preload="metadata" playsInline muted></video>
+                    )}
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="40" height="40" className="drop-shadow-lg" style={{ color: 'white' }} fill="currentColor" aria-hidden="true">
                         <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM212.5 147.5c-7.4-4.5-16.7-4.7-24.3-.5S176 159.3 176 168l0 176c0 8.7 4.7 16.7 12.3 20.9s16.8 4.1 24.3-.5l144-88c7.1-4.4 11.5-12.1 11.5-20.5s-4.4-16.1-11.5-20.5l-144-88zM298 256l-74 45.2 0-90.4 74 45.2z" />
@@ -2225,7 +2239,7 @@ const VideoLibrary = () => {
                 <div className="hidden sm:block relative w-full sm:w-auto">
                   <div
                     ref={dateFilterButtonRef}
-                    onClick={() => dateInputRef.current?.showPicker()}
+                    onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
                     className="group relative rounded-[50px] flex items-center cursor-pointer px-[15px] py-2 transition-colors duration-200 gap-2 w-full sm:w-auto overflow-hidden"
                     style={{
                       color: selectedDate ? 'rgb(212, 132, 89)' : 'rgba(250, 250, 250, 0.75)',

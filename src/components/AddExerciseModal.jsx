@@ -116,11 +116,11 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         return;
       }
 
-      const maxVideoSize = 50 * 1024 * 1024 * 1024; // 50GB
+      const maxVideoSize = 500 * 1024 * 1024; // 500MB
       const maxImageSize = 20 * 1024 * 1024; // 20MB
       const maxSize = isImageType(file.type) ? maxImageSize : maxVideoSize;
       if (file.size > maxSize) {
-        setVideoError(isImageType(file.type) ? 'Image : max 20 Mo' : 'Vidéo : max 50 Go');
+        setVideoError(isImageType(file.type) ? 'Image : max 20 Mo' : 'Vidéo : max 500 Mo');
         return;
       }
 
@@ -214,7 +214,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       }
     } catch (error) {
       logger.error('Error uploading video:', error);
-      setVideoError('Failed to upload video. Please try again.');
+      const serverMessage = error.response?.data?.message;
+      setVideoError(serverMessage || 'Échec de l\'upload vidéo. Veuillez réessayer.');
       return null;
     } finally {
       setUploadingVideo(false);

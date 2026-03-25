@@ -8,6 +8,7 @@ import {
   getCachedMessages,
   setCachedMessages,
   appendCachedMessage,
+  patchCachedMessage,
   clearAllChatCache,
 } from '../chatCache';
 
@@ -340,6 +341,32 @@ describe('chatCache', () => {
       appendCachedMessage(CONV_ID, makeMessage('m2'));
 
       expect(getCachedMessages(CONV_ID).nextCursor).toBe('cursor-123');
+    });
+  });
+
+  // =====================
+  // patchCachedMessage
+  // =====================
+  describe('patchCachedMessage', () => {
+    it('merges updates into the matching message', () => {
+      setCachedMessages(CONV_ID, [makeMessage('m1', 'Hi'), makeMessage('m2')]);
+
+      patchCachedMessage(CONV_ID, 'm1', { content: 'Edited', edited_at: '2025-01-02T00:00:00Z' });
+
+      const cached = getCachedMessages(CONV_ID);
+      expect(cached.messages[0].content).toBe('Edited');
+      expect(cached.messages[0].edited_at).toBe('2025-01-02T00:00:00Z');
+      expect(cached.messages[1].id).toBe('m2');
+    });
+
+    it('no-ops when no cache or invalid args', () => {
+      patchCachedMessage(CONV_ID, 'm1', { content: 'x' });
+      expect(getCachedMessages(CONV_ID)).toBeNull();
+      setCachedMessages(CONV_ID, [makeMessage('m1')]);
+      patchCachedMessage(null, 'm1', { content: 'x' });
+      patchCachedMessage(CONV_ID, null, { content: 'x' });
+      patchCachedMessage(CONV_ID, 'm1', null);
+      expect(getCachedMessages(CONV_ID).messages[0].content).toBe('Hello');
     });
   });
 
