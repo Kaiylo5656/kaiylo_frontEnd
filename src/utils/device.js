@@ -1,6 +1,6 @@
 /**
- * Consider desktop when viewport width >= 768px (matches app breakpoint md).
- * Used to restrict student accounts to mobile only.
+ * Consider desktop when viewport width >= 1024px (Tailwind lg breakpoint).
+ * This keeps student access available on mobile and tablet.
  */
 export const isDesktopViewport = () =>
-  typeof window !== 'undefined' && window.innerWidth >= 768;
+  typeof window !== 'undefined' && window.innerWidth >= 1024;
