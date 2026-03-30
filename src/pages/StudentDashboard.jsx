@@ -523,7 +523,7 @@ const StudentDashboard = () => {
           }}
         />
 
-        <div className="-m-6 lg:-m-8 md:-m-6 -mb-20 md:-mb-6 w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] md:w-[calc(100%+3rem)] -ml-6 lg:-ml-8 md:-ml-6 relative z-10">
+        <div className="-m-6 lg:-m-8 md:-m-6 -mb-6 md:-mb-6 w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] md:w-[calc(100%+3rem)] -ml-6 lg:-ml-8 md:-ml-6 relative z-10">
           <WorkoutSessionExecution
             session={executingSession}
             onBack={handleBackToPlanning}
