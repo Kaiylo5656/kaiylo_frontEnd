@@ -1220,7 +1220,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                       {/* Text feedback display */}
                       {currentSetVideo?.coach_feedback && (
-                        <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-full min-w-0 min-h-[45px]">
+                        <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[300px] min-w-[300px] max-w-[300px] min-h-[45px]">
                           {currentSetVideo.coach_feedback}
                         </div>
                       )}
