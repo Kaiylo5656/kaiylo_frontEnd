@@ -13,6 +13,10 @@ const AuthCallback = () => {
   const { checkAuthStatus } = useAuth();
   const [error, setError] = useState(null);
   const sessionProcessedRef = useRef(false);
+  
+  // Students are allowed only on mobile/tablet.
+  // The "desktop" heuristic lives in `src/utils/device.js` and should exclude touch tablets.
+  const ALLOW_STUDENT_ON_DESKTOP = false;
 
   useEffect(() => {
     logger.debug('🔄 AuthCallback mounted, checking OAuth callback...');
@@ -121,7 +125,7 @@ const AuthCallback = () => {
 
             let targetPath;
             // Bloquer uniquement si le backend a explicitement retourné role === 'student' (pas si rôle inconnu / nouveau compte)
-            if (userRole === 'student' && isDesktopViewport()) {
+            if (userRole === 'student' && isDesktopViewport() && !ALLOW_STUDENT_ON_DESKTOP) {
               await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
               try {
                 if (typeof localStorage !== 'undefined') {
