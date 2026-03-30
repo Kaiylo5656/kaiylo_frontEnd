@@ -767,6 +767,7 @@ input[type="number"] {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   box-sizing: border-box;
+  overflow-anchor: none;
 }
 
 .modal-scrollable-body::-webkit-scrollbar {

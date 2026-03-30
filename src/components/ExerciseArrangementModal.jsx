@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
 import { Link } from 'lucide-react';
+import { getExerciseTableVisibility } from '../utils/sessionExerciseTableVisibility';
 
 /**
  * Symmetric drag auto-scroll (Framer's built-in scroll gates bottom edge on velocity > 0, which breaks scrolling down).
@@ -26,24 +27,48 @@ function scrollContainerByPointerEdge(scrollEl, clientY) {
   scrollEl.scrollTop = Math.max(0, Math.min(maxScroll, scrollEl.scrollTop + delta));
 }
 
-/** Group consecutive sets with same reps/weight into { count, reps, weight } for display (e.g. 2×3@5kg, 2×2@5kg). */
-function getSetGroups(sets, useRir) {
+/** Group consecutive sets with same reps/weight for display; keys respect colonnes Reps / Charge visibles. */
+function getSetGroups(sets, useRir, visibility) {
+  const showReps = visibility?.repsHold !== false;
+  const showCharge = visibility?.chargeRpe !== false;
   if (!sets || sets.length === 0) return [];
+  const keyFor = (s) => {
+    const r = showReps ? String(s?.reps ?? '?') : '';
+    const w = showCharge ? String(s?.weight ?? (useRir ? 0 : '')) : '';
+    return `${r}|${w}`;
+  };
   const groups = [];
-  let current = { count: 1, reps: sets[0]?.reps ?? '?', weight: sets[0]?.weight ?? (useRir ? 0 : null) };
+  let current = {
+    count: 1,
+    reps: showReps ? (sets[0]?.reps ?? '?') : '',
+    weight: showCharge ? (sets[0]?.weight ?? (useRir ? 0 : null)) : null,
+  };
+  let currentKey = keyFor(sets[0]);
   for (let i = 1; i < sets.length; i++) {
     const s = sets[i];
-    const reps = s?.reps ?? '?';
-    const weight = s?.weight ?? (useRir ? 0 : null);
-    if (String(reps) === String(current.reps) && String(weight) === String(current.weight)) {
+    const k = keyFor(s);
+    if (k === currentKey) {
       current.count++;
     } else {
       groups.push(current);
-      current = { count: 1, reps, weight };
+      current = {
+        count: 1,
+        reps: showReps ? (s?.reps ?? '?') : '',
+        weight: showCharge ? (s?.weight ?? (useRir ? 0 : null)) : null,
+      };
+      currentKey = k;
     }
   }
   groups.push(current);
   return groups;
+}
+
+/** Partie reps / hold dans le libellé d’agencement (hold numérique → « 12s »). */
+function formatArrangementRepsSegment(reps, repType) {
+  const r = reps == null || reps === '' ? '?' : String(reps);
+  if (repType !== 'hold') return r;
+  if (r !== '?' && /[0-9]/.test(r) && !/[a-zA-Z]/.test(r)) return `${r}s`;
+  return r;
 }
 
 const ExerciseArrangementModal = ({
@@ -66,17 +91,30 @@ const ExerciseArrangementModal = ({
   onReorder,
   onLinkSuperset,
   /** While reordering, keep the matching exercise card in view in the main session modal (left column). */
-  scrollMainToExerciseId
+  scrollMainToExerciseId,
+  /** Notify parent when drag is active so it can lock its own scroll to prevent layout-shift scroll jumps. */
+  onDragActiveChange
 }) => {
   const [hoveredId, setHoveredId] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const arrangementScrollRef = useRef(null);
+  /**
+   * During drag, we keep a local copy of the exercise order so that
+   * the parent's setExercises is NOT called on every micro-move.
+   * This prevents the center column from re-rendering (and scroll-jumping)
+   * while the user is still dragging.
+   */
+  const [localExercises, setLocalExercises] = useState(null);
+  const pendingReorderRef = useRef(null);
+
+  // Use local exercises during drag, parent exercises otherwise
+  const activeExercises = localExercises ?? exercises;
 
   const groupedExercises = React.useMemo(() => {
     const groups = [];
     let currentGroup = [];
-    for (let i = 0; i < exercises.length; i++) {
-      const exercise = exercises[i];
+    for (let i = 0; i < activeExercises.length; i++) {
+      const exercise = activeExercises[i];
       if (currentGroup.length === 0) {
         currentGroup.push(exercise);
       } else {
@@ -97,11 +135,17 @@ const ExerciseArrangementModal = ({
       groups.push(currentGroup);
     }
     return groups;
-  }, [exercises]);
+  }, [activeExercises]);
 
   const handleGroupReorder = (newGroups) => {
-    if (onReorder) {
-      onReorder(newGroups.flat());
+    const flat = newGroups.flat();
+    if (draggingId != null) {
+      // During drag: only update local state (arrangement panel visual)
+      setLocalExercises(flat);
+      pendingReorderRef.current = flat;
+    } else if (onReorder) {
+      // Not dragging (e.g. keyboard reorder): commit immediately
+      onReorder(flat);
     }
   };
 
@@ -136,8 +180,11 @@ const ExerciseArrangementModal = ({
               default: { duration: 0.3 }
             }}
             onDragStart={(e) => {
+              // Snapshot the current exercises into local state for drag
+              setLocalExercises(exercises);
+              pendingReorderRef.current = null;
               setDraggingId(groupKey);
-              scrollMainToExerciseId?.(groupKey);
+              onDragActiveChange?.(true);
               if (e?.clientY != null) {
                 scrollContainerByPointerEdge(arrangementScrollRef.current, e.clientY);
               }
@@ -146,11 +193,18 @@ const ExerciseArrangementModal = ({
               if (e?.clientY != null) {
                 scrollContainerByPointerEdge(arrangementScrollRef.current, e.clientY);
               }
-              scrollMainToExerciseId?.(groupKey);
             }}
             onDragEnd={() => {
               setDraggingId(null);
               setHoveredId(null);
+              // Commit the final order to the parent now that drag is done
+              const pending = pendingReorderRef.current;
+              setLocalExercises(null);
+              pendingReorderRef.current = null;
+              if (pending && onReorder) {
+                onReorder(pending);
+              }
+              onDragActiveChange?.(false);
             }}
             onPointerEnter={() => setHoveredId(groupKey)}
             onPointerLeave={() => setHoveredId(null)}
@@ -178,7 +232,50 @@ const ExerciseArrangementModal = ({
                         <span className="text-xs font-extralight text-white/50">Tempo {exercise.tempo}</span>
                       )}
                       {exercise.sets && exercise.sets.length > 0 && (() => {
-                        const groups = getSetGroups(exercise.sets, exercise.useRir);
+                        const vis = getExerciseTableVisibility(exercise);
+                        if (!vis.repsHold && !vis.chargeRpe) {
+                          return (
+                            <span key="sets-both-cols-hidden" className="text-sm font-extralight text-white/50">
+                              {exercise.sets.length} série{exercise.sets.length > 1 ? 's' : ''}
+                            </span>
+                          );
+                        }
+                        const groups = getSetGroups(exercise.sets, exercise.useRir, vis);
+                        const chargeStyle = { color: 'var(--kaiylo-primary-hex)', fontWeight: 400 };
+                        const kgSuffix = (w) =>
+                          w !== null && w !== '' && !/[a-zA-Z]/.test(String(w)) ? 'kg' : '';
+                        const repType = exercise.sets[0]?.repType || 'reps';
+
+                        if (!vis.repsHold && vis.chargeRpe) {
+                          return groups.map((g, i) => (
+                            <span key={i} className="text-sm font-extralight text-white/50 flex items-center gap-1.5">
+                              {groups.length > 1 && (
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3 w-3 flex-shrink-0" fill="currentColor" style={{ color: 'rgba(255,255,255,0.5)' }} aria-hidden>
+                                  <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                                </svg>
+                              )}
+                              {g.count} série{g.count > 1 ? 's' : ''}
+                              {exercise.useRir ? (
+                                <>
+                                  {' '}
+                                  <span style={chargeStyle}>RPE {g.weight ?? 0}</span>
+                                </>
+                              ) : (
+                                g.weight != null &&
+                                g.weight !== '' && (
+                                  <>
+                                    {' '}
+                                    <span style={chargeStyle}>
+                                      @{g.weight}
+                                      {kgSuffix(g.weight)}
+                                    </span>
+                                  </>
+                                )
+                              )}
+                            </span>
+                          ));
+                        }
+
                         return groups.map((g, i) => (
                           <span key={i} className="text-sm font-extralight text-white/50 flex items-center gap-1.5">
                             {groups.length > 1 && (
@@ -186,11 +283,21 @@ const ExerciseArrangementModal = ({
                                 <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                               </svg>
                             )}
-                            {g.count}×{g.reps} {exercise.useRir ? (
-                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>RPE {g.weight}</span>
-                            ) : (
-                              <span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>
-                                @{g.weight ?? 0}{g.weight !== null && g.weight !== '' && !/[a-zA-Z]/.test(g.weight) ? 'kg' : ''}
+                            {vis.repsHold && vis.chargeRpe && (
+                              <>
+                                {g.count}×{formatArrangementRepsSegment(g.reps, repType)}{' '}
+                                {exercise.useRir ? (
+                                  <span style={chargeStyle}>RPE {g.weight}</span>
+                                ) : (
+                                  <span style={chargeStyle}>
+                                    @{g.weight ?? 0}{kgSuffix(g.weight)}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {vis.repsHold && !vis.chargeRpe && (
+                              <span>
+                                {g.count}×{formatArrangementRepsSegment(g.reps, repType)}
                               </span>
                             )}
                           </span>

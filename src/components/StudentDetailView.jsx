@@ -5396,7 +5396,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         </h3>
                       </div>
                       {/* Grid for exercise cards */}
-                      <div className="grid grid-cols-2 gap-3 relative">
+                      <div className="grid grid-cols-2 gap-3 relative max-md:grid-cols-1">
                         {Array.from({ length: 4 }).map((_, i) => {
                           const stat = dashboardMovementStats[i];
                           if (!stat) {
@@ -7223,6 +7223,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               onSessionCreated={handleSessionCreated}
               studentId={student.id}
               existingSession={selectedSession}
+              oneRmRecords={oneRmRecords}
               onCopySession={(sessionForCopy, fromDate) => {
                 setCopiedSession({ session: sessionForCopy, fromDate });
               }}

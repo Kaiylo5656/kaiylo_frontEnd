@@ -12,7 +12,7 @@ import BaseModal from './ui/modal/BaseModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const PeriodizationTab = ({ studentId, onUpdate }) => {
+const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
   const { isTopMost } = useModalManager();
   const navigate = useNavigate();
   const location = useLocation();
@@ -189,6 +189,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   // Navigation removed since we show all weeks of 2026
 
   const handleCreateBlock = (weekDate) => {
+    if (readOnly) return;
     setSelectedWeek(weekDate);
     setCreationDuration(4);
     setBlockToEdit(null);
@@ -199,6 +200,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleCreateBlockClick = () => {
+    if (readOnly) return;
     // Use the current week as default
     setSelectedWeek(startOfWeek(new Date(), { weekStartsOn: 1 }));
     setCreationDuration(0);
@@ -210,6 +212,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleMouseDown = (weekDate, e) => {
+    if (readOnly) return;
     if (e.button !== 0) return; // Only left click
     e.preventDefault(); // Prevent text selection
     setIsSelecting(true);
@@ -224,6 +227,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleMouseUp = (weekDate, e) => {
+    if (readOnly) return;
     if (isSelecting && selectionStart) {
       e.stopPropagation(); // Prevent global cancel
       setIsSelecting(false);
@@ -273,6 +277,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleEditBlock = (block, e) => {
+    if (readOnly) return;
     e.stopPropagation();
     setBlockToEdit(block);
     const params = new URLSearchParams(location.search);
@@ -282,6 +287,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleOpenNotes = (weekDate) => {
+    if (readOnly) return;
     setSelectedWeekForNotes(weekDate);
     setIsNotesModalOpen(true);
   };
@@ -309,6 +315,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const handleDeleteBlock = async (blockId, e) => {
+    if (readOnly) return;
     e.stopPropagation();
     const block = blocks.find(b => b.id === blockId);
     setBlockToDelete(block);
@@ -316,6 +323,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
   };
 
   const confirmDeleteBlock = async () => {
+    if (readOnly) return;
     if (!blockToDelete) return;
 
     try {
@@ -338,6 +346,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
 
   // Drag & Drop handlers
   const handleBlockDragStart = (block, weekDate, e) => {
+    if (readOnly) return;
     // Only start drag if clicking on the block itself, not on buttons or resize handles
     if (e.target.closest('button') || e.target.closest('.resize-handle')) {
       return;
@@ -362,6 +371,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
 
   // Resize handlers
   const handleResizeStart = (block, type, weekDate, e) => {
+    if (readOnly) return;
     e.preventDefault();
     e.stopPropagation();
     // Prevent text selection during resize
@@ -378,6 +388,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
 
   // Global mouse handlers for drag and resize
   useEffect(() => {
+    if (readOnly) return;
     if (!draggedBlock && !resizingBlock) return;
 
     let animationFrameId = null;
@@ -709,7 +720,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [draggedBlock, resizingBlock, dragStartWeek, dragOffset, dragAnchorOffset, resizeStartWeek, resizeType, resizeStartDuration, blocks]);
+  }, [draggedBlock, resizingBlock, dragStartWeek, dragOffset, dragAnchorOffset, resizeStartWeek, resizeType, resizeStartDuration, blocks, readOnly]);
 
   // Navigation functions for year
   const changeYear = (direction) => {
@@ -889,17 +900,19 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
               </button>
             </div>
           </div>
-          <button
-            onClick={handleCreateBlockClick}
-            className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-4 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground"
-            style={{
-              backgroundColor: 'rgba(212, 132, 90, 1)',
-              color: 'white',
-              fontWeight: '400'
-            }}
-          >
-            <span className="text-xs md:text-sm">Créer un bloc</span>
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleCreateBlockClick}
+              className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-4 rounded-[50px] transition-colors flex items-center gap-2 text-primary-foreground"
+              style={{
+                backgroundColor: 'rgba(212, 132, 90, 1)',
+                color: 'white',
+                fontWeight: '400'
+              }}
+            >
+              <span className="text-xs md:text-sm">Créer un bloc</span>
+            </button>
+          )}
         </div>
         <div className="border-b border-white/10 mb-3"></div>
       </div>
@@ -982,12 +995,11 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                   borderColor: '#373736'
                 };
 
-                // Always use first tag's color via tagColorMap to ensure consistency with PeriodizationTagTypeahead
-                // Ignore activeBlock.color to always match the tag color
+                // Prefer backend block color when available (coach parity), then fallback to tag color.
                 const primaryTag = activeBlock.tags && activeBlock.tags.length > 0 ? activeBlock.tags[0] : null;
-                let tagHexColor = null;
+                let tagHexColor = activeBlock.color || null;
 
-                if (primaryTag) {
+                if (!tagHexColor && primaryTag) {
                   // Extract tag name (could be string or object with name property)
                   const tagName = typeof primaryTag === 'string' ? primaryTag : (primaryTag?.name || primaryTag);
                   // Get the hex color from tagColorMap
@@ -1015,6 +1027,9 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                     tagHexColor = NOTION_COLORS[colorIndex];
                   }
 
+                }
+
+                if (tagHexColor) {
                   // Use 25% opacity for background, 100% for border
                   blockStyle = {
                     backgroundColor: hexToRgba(tagHexColor, 0.25),
@@ -1091,11 +1106,11 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
 
                 content = (
                   <div
-                    className="h-full w-full relative group cursor-move min-h-[100px] flex flex-col transition-all shadow-sm"
-                    onMouseDown={(e) => handleBlockDragStart(displayBlock, weekDate, e)}
+                    className={`h-full w-full relative group min-h-[100px] flex flex-col transition-all shadow-sm ${readOnly ? 'cursor-default' : 'cursor-move'}`}
+                    onMouseDown={readOnly ? undefined : (e) => handleBlockDragStart(displayBlock, weekDate, e)}
                     onMouseEnter={() => !isDragging && !isResizing && setHoveredBlockId(activeBlock.id)}
                     onMouseLeave={() => !isDragging && !isResizing && setHoveredBlockId(null)}
-                    onClick={(e) => {
+                    onClick={readOnly ? undefined : (e) => {
                       // Only open edit modal if not dragging/resizing
                       if (!isDragging && !isResizing && !e.target.closest('.resize-handle')) {
                         handleEditBlock(activeBlock, e);
@@ -1115,14 +1130,14 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                         ? 'none'
                         : 'background-color 0.2s ease, border-radius 0.15s ease, border-width 0.15s ease, box-shadow 0.2s ease',
                       opacity: isBlockFullyPast ? 0.4 : (isDragging || isResizing ? 0.8 : 1),
-                      cursor: isDragging || isResizing ? 'grabbing' : 'grab',
+                      cursor: readOnly ? 'default' : (isDragging || isResizing ? 'grabbing' : 'grab'),
                       transform: isDragging || isResizing ? 'scale(1.01)' : 'scale(1)',
                       willChange: isDragging || isResizing ? 'transform, opacity' : 'auto',
                       boxShadow: isHovered ? '0 2px 8px rgba(0, 0, 0, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1)'
                     }}
                   >
                     {/* Resize handle - left (start) */}
-                    {isStart && (
+                    {!readOnly && isStart && (
                       <div
                         className="resize-handle absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-10"
                         onMouseDown={(e) => handleResizeStart(displayBlock, 'start', weekDate, e)}
@@ -1134,7 +1149,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                     )}
 
                     {/* Resize handle - right (end) */}
-                    {!hasNextWeekSameBlock && (
+                    {!readOnly && !hasNextWeekSameBlock && (
                       <div
                         className="resize-handle absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-10"
                         onMouseDown={(e) => handleResizeStart(displayBlock, 'end', weekDate, e)}
@@ -1223,7 +1238,7 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                       </div>
 
                       {/* Delete button (only visible on last week and when block is hovered) */}
-                      {!hasNextWeekSameBlock && (
+                      {!readOnly && !hasNextWeekSameBlock && (
                         <button
                           onClick={(e) => handleDeleteBlock(activeBlock.id, e)}
                           className={`absolute top-2 right-2 text-white/50 hover:text-white transition-colors shrink-0 ${isHovered ? 'opacity-100' : 'opacity-0'
@@ -1251,11 +1266,13 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                       <div className="absolute bottom-1 left-1 flex items-center gap-0 max-w-[calc(100%-8px)]" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
                         <button
                           onClick={(e) => {
+                            if (readOnly) return;
                             e.stopPropagation();
                             handleOpenNotes(weekDate);
                           }}
-                          className="p-1 rounded transition-colors flex-shrink-0"
+                          className={`p-1 rounded transition-colors flex-shrink-0 ${readOnly ? 'cursor-default opacity-70' : ''}`}
                           title="Notes de la semaine"
+                          disabled={readOnly}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -1293,12 +1310,15 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                 content = (
                   <div className="h-full w-full rounded-md relative min-h-[100px]" style={{ opacity: isPastWeek ? 0.4 : 1 }}>
                     <button
-                      onClick={() => handleCreateBlock(weekDate)}
-                      onMouseDown={(e) => handleMouseDown(weekDate, e)}
-                      onMouseEnter={() => handleMouseEnter(weekDate)}
-                      onMouseUp={(e) => handleMouseUp(weekDate, e)}
+                      onClick={readOnly ? undefined : () => handleCreateBlock(weekDate)}
+                      onMouseDown={readOnly ? undefined : (e) => handleMouseDown(weekDate, e)}
+                      onMouseEnter={readOnly ? undefined : () => handleMouseEnter(weekDate)}
+                      onMouseUp={readOnly ? undefined : (e) => handleMouseUp(weekDate, e)}
+                      disabled={readOnly}
                       className={`h-full w-full rounded-lg md:rounded-xl transition-colors flex items-center justify-center group min-h-[100px] relative ${isSelected
-                          ? 'bg-white/10'
+                        ? 'bg-white/10'
+                        : readOnly
+                          ? 'bg-[rgba(255,255,255,0.05)]'
                           : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)]'
                         }`}
                     >
@@ -1312,11 +1332,13 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                     <div className="absolute bottom-1 left-1 flex items-center gap-0 max-w-[calc(100%-8px)]" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
                       <button
                         onClick={(e) => {
+                          if (readOnly) return;
                           e.stopPropagation();
                           handleOpenNotes(weekDate);
                         }}
-                        className="p-1 rounded transition-colors flex-shrink-0 group"
+                        className={`p-1 rounded transition-colors flex-shrink-0 group ${readOnly ? 'cursor-default opacity-70' : ''}`}
                         title="Notes de la semaine"
+                        disabled={readOnly}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -1357,8 +1379,8 @@ const PeriodizationTab = ({ studentId, onUpdate }) => {
                 <div key={weekDate.toISOString()} className="flex flex-col gap-0" data-week-date={normalizedWeekDate.toISOString()}>
                   <div
                     className={`text-sm font-light flex items-center justify-between h-9 min-h-[2.25rem] transition-colors relative group/week-header ${isCurrentWeek
-                        ? 'text-white'
-                        : 'text-white/50'
+                      ? 'text-white'
+                      : 'text-white/50'
                       }`}
                     style={isCurrentWeek ? {
                       paddingLeft: '8px',

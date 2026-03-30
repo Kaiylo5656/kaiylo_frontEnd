@@ -285,6 +285,7 @@ const PerformanceTrendChart = ({
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [hoveredLineIdx, setHoveredLineIdx] = useState(null);
   const [hoveredMovementId, setHoveredMovementId] = useState(null);
+  const [hasPointInteracted, setHasPointInteracted] = useState(false);
   const svgRef = useRef(null);
   const [svgRect, setSvgRect] = useState({ width: VIEW_W, height });
 
@@ -795,24 +796,47 @@ const PerformanceTrendChart = ({
                         if (v === null || v === undefined || !isFiniteNumber(v)) return null;
                         const x = getBucketCenterX(i, n);
                         const y = height - v;
+                        const pointKey = buckets[i]?.key ?? `${i}`;
+                        const isPointHovered = hoveredPoint?.key === pointKey;
                         const secPointDimmed =
                           hasMovementLineHighlight && !bucketMovementContributesSecondary(i);
-                        const pointOpacity = secPointDimmed ? 0.14 : 0.95;
+                        const pointOpacity = secPointDimmed ? 0.14 : isPointHovered ? 1 : 0.95;
                         return (
                           <React.Fragment key={i}>
                             <motion.ellipse
                               cx={x}
                               cy={y}
+                              rx={pointRx * 2}
+                              ry={pointRy * 2}
+                              fill={`url(#${lineGradientId})`}
+                              animate={{ opacity: isPointHovered && !secPointDimmed ? 0.34 : 0 }}
+                              transition={{ duration: 0.2, ease: 'easeOut' }}
+                              style={{ pointerEvents: 'none' }}
+                            />
+                            <motion.ellipse
+                              cx={x}
+                              cy={y}
                               initial={{ rx: 0, ry: 0, opacity: 0 }}
-                              animate={{ rx: pointRx, ry: pointRy, opacity: pointOpacity }}
+                              animate={{
+                                rx: isPointHovered ? pointRx * 1.35 : pointRx,
+                                ry: isPointHovered ? pointRy * 1.35 : pointRy,
+                                opacity: pointOpacity,
+                              }}
                               transition={
                                 instantSeriesUpdate
                                   ? { duration: 0 }
-                                  : { type: 'spring', bounce: 0.5, duration: 0.6, delay: 0.4 + i * 0.04 }
+                                  : hasPointInteracted
+                                    ? { type: 'tween', duration: 0.14, ease: 'easeOut' }
+                                  : {
+                                      type: 'spring',
+                                      bounce: 0.5,
+                                      duration: 0.6,
+                                      delay: 0.4 + i * 0.04,
+                                    }
                               }
                               fill={`url(#${lineGradientId})`}
                               stroke="rgba(0,0,0,0.35)"
-                              strokeWidth="1"
+                              strokeWidth={isPointHovered ? '1.35' : '1'}
                               vectorEffect="non-scaling-stroke"
                             />
                             <ellipse
@@ -823,13 +847,14 @@ const PerformanceTrendChart = ({
                               fill="transparent"
                               style={{ cursor: 'pointer' }}
                               onMouseEnter={() => {
+                                setHasPointInteracted(true);
                                 const rawSecondary = secVals[i];
                                 if (rawSecondary === null || rawSecondary === undefined || !isFiniteNumber(rawSecondary)) return;
                                 const valueText = secondaryUnit
                                   ? `${formatAxisValue(rawSecondary)} ${secondaryUnit}`
                                   : formatAxisValue(rawSecondary);
                                 setHoveredPoint({
-                                  key: buckets[i]?.key ?? `${i}`,
+                                  key: pointKey,
                                   label: formatTooltipDateLabel(buckets[i], groupBy),
                                   subLabel: formatTooltipDateSubLabel(buckets[i], groupBy),
                                   metricLabel: secondaryLabel || 'Mesure',
@@ -853,34 +878,48 @@ const PerformanceTrendChart = ({
           </svg>
           {hoveredBar && (
             <div
-              className="absolute pointer-events-none z-20 rounded-xl border border-white/10 bg-black/80 backdrop-blur px-3 py-2 shadow-xl min-w-[130px]"
+              className="absolute pointer-events-none z-20 min-w-[150px] overflow-hidden rounded-[14px] border border-white/10 bg-[rgba(10,10,12,0.78)] px-3 py-2.5 backdrop-blur-[10px]"
               style={{
                 left: `${(hoveredBar.x / VIEW_W) * 100}%`,
                 top: `${Math.max(6, hoveredBar.y - 10)}px`,
                 transform: 'translate(-50%, -100%)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
               }}
             >
-              <div className="text-[10px] text-white/70 font-light">{hoveredBar.label}</div>
+              <div className="text-[11px] text-white/75 font-light">{hoveredBar.label}</div>
               {hoveredBar.subLabel ? (
-                <div className="text-[10px] text-white/55 font-light mt-0.5">{hoveredBar.subLabel}</div>
+                <div className="mt-0.5 text-[10px] text-white/45 font-light">{hoveredBar.subLabel}</div>
               ) : null}
-              <div className="text-[12px] text-white/95 font-medium mt-0.5">{hoveredBar.valueText}</div>
+              <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: primaryColor }} />
+                  <span className="text-[14px] text-white font-medium tabular-nums">{hoveredBar.valueText}</span>
+                </div>
+              </div>
             </div>
           )}
           {hoveredPoint && (
             <div
-              className="absolute pointer-events-none z-20 rounded-xl border border-white/10 bg-black/80 backdrop-blur px-3 py-2 shadow-xl min-w-[130px]"
+              className="absolute pointer-events-none z-20 min-w-[150px] overflow-hidden rounded-[14px] border border-white/10 bg-[rgba(10,10,12,0.78)] px-3 py-2.5 backdrop-blur-[10px]"
               style={{
                 left: `${(hoveredPoint.x / VIEW_W) * 100}%`,
                 top: `${Math.max(6, hoveredPoint.y - 12)}px`,
                 transform: 'translate(-50%, -100%)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
               }}
             >
-              <div className="text-[10px] text-white/70 font-light">{hoveredPoint.label}</div>
-              {hoveredPoint.subLabel ? (
-                <div className="text-[10px] text-white/55 font-light mt-0.5">{hoveredPoint.subLabel}</div>
-              ) : null}
-              <div className="text-[12px] text-white/95 font-medium mt-0.5">{hoveredPoint.valueText}</div>
+              <div className="min-w-0">
+                <div className="text-[11px] text-white/75 font-light">{hoveredPoint.label}</div>
+                {hoveredPoint.subLabel ? (
+                  <div className="mt-0.5 text-[10px] text-white/45 font-light">{hoveredPoint.subLabel}</div>
+                ) : null}
+              </div>
+              <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: secondaryColor }} />
+                  <span className="text-[14px] text-white font-medium tabular-nums">{hoveredPoint.valueText}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

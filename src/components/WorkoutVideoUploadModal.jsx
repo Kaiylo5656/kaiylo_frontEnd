@@ -1,7 +1,7 @@
 import logger from '../utils/logger';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
+import { ImageIcon, Loader2, VideoIcon, VideoOff } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
 import VideoTrimEditor from './VideoTrimEditor';
 
@@ -382,7 +382,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           {videoFile === 'processing' && !videoPreviewUrl && (
             <div className="px-[28px] pt-[12px]">
               <div className="bg-white/5 border border-white/10 rounded-[5px] w-full h-[80px] flex items-center justify-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#d4845a]" />
+                <Loader2 className="h-5 w-5 animate-smooth-spin text-[#d4845a]" aria-hidden="true" />
                 <p className="text-[11px] font-light text-white/60">Vidéo en cours de traitement...</p>
               </div>
             </div>
@@ -413,7 +413,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
                           if (isProcessing) {
                             return (
                               <div className="w-full h-[200px] bg-black/50 flex items-center justify-center flex-col gap-2">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d4845a]"></div>
+                                <Loader2 className="h-8 w-8 animate-smooth-spin text-[#d4845a]" aria-hidden="true" />
                                 <p className="text-[11px] font-light text-white/60">Vidéo en cours de traitement...</p>
                               </div>
                             );

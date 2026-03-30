@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import TagTypeahead from '../ui/TagTypeahead';
 import ExerciseEditor from './ExerciseEditor';
 import { getTagColor, getTagColorMap } from '../../utils/tagColors';
+import { compareExercisesAlphabetically } from '../../utils/exerciseLibrarySort';
 
 const ExerciseLibraryPanel = ({ 
   exercises = [], 
@@ -110,7 +111,7 @@ const ExerciseLibraryPanel = ({
       );
     }
 
-    setFilteredExercises(filtered);
+    setFilteredExercises([...filtered].sort(compareExercisesAlphabetically));
   }, [exercises, searchTerm, selectedTagFilters]);
 
   const handleExerciseSelect = (exercise) => {

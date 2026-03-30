@@ -28,6 +28,30 @@ function toNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Nombre seul (y compris négatif) ou plage "a-b" / "a - b" → moyenne (ex. 3-5 → 4, -10--5 → -7.5).
+ * Utilisé pour charge / reps / RPE dans l’agrégation performance.
+ */
+function parseNumericOrRangeAverage(v) {
+  if (v === null || v === undefined) return null;
+  if (v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+
+  const s = String(v).trim();
+  if (s === '') return null;
+
+  const rangeMatch = s.match(/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/);
+  if (rangeMatch) {
+    const a = Number(rangeMatch[1]);
+    const b = Number(rangeMatch[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return (a + b) / 2;
+    return null;
+  }
+
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 function toExerciseKey(name) {
   const normalized = String(name || '')
     .normalize('NFD')
@@ -52,6 +76,80 @@ export function getMovementIdFromOneRmRecord(record) {
   return getMovementIdFromExerciseName(candidate);
 }
 
+/** Mouvements du suivi 1RM (alignés sur OneRmModal / movementOptions). */
+export const ONE_RM_TRACKED_LIFT_IDS = ['muscle-up', 'pull-up', 'dips', 'squat'];
+
+/**
+ * Associe le nom d’un exercice catalogue à un lift 1RM canonique (id), ou null.
+ * Ex. « Traction », « Pull-up » → pull-up ; « Squat », « Dips », « Muscle-up ».
+ */
+export function resolveCanonicalOneRmLiftIdFromExerciseName(exerciseName) {
+  const n = String(exerciseName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (!n.trim()) return null;
+  if (/muscle\s*-?\s*up|muscleup/.test(n)) return 'muscle-up';
+  if (/\btraction\b|pull\s*-?\s*up|pullup|\btirage\b/.test(n)) return 'pull-up';
+  if (/\bdips?\b/.test(n)) return 'dips';
+  if (/\bsquat\b/.test(n)) return 'squat';
+  return null;
+}
+
+function toPositiveNumberOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * La fiche 1RM correspond au lift canonique (ex. id pull-up, ou nom « Traction » mappé sur pull-up).
+ * Les enregistrements API n’ont pas toujours id = pull-up alors que le nom est « Traction ».
+ */
+function oneRmRecordMatchesCanonicalLift(rec, canonicalLiftId) {
+  if (!canonicalLiftId || !rec) return false;
+  const want = `exercise:${canonicalLiftId}`;
+  if (rec.id === canonicalLiftId) return true;
+  if (getMovementIdFromOneRmRecord(rec) === want) return true;
+  const fromName = resolveCanonicalOneRmLiftIdFromExerciseName(rec.name || '');
+  if (fromName === canonicalLiftId) return true;
+  const fromExercise = resolveCanonicalOneRmLiftIdFromExerciseName(rec.exercise || '');
+  if (fromExercise === canonicalLiftId) return true;
+  return false;
+}
+
+/** 1RM (kg) pour un lift canonique à partir des fiches 1RM élève. */
+export function getOneRmKgForCanonicalLift(canonicalLiftId, oneRmRecords) {
+  if (!canonicalLiftId || !Array.isArray(oneRmRecords)) return null;
+  for (const rec of oneRmRecords) {
+    if (!oneRmRecordMatchesCanonicalLift(rec, canonicalLiftId)) continue;
+    const c = toPositiveNumberOrNull(rec?.current);
+    if (c !== null) return c;
+    const b = toPositiveNumberOrNull(rec?.best);
+    if (b !== null) return b;
+  }
+  return null;
+}
+
+export function getOneRmKgForExerciseName(exerciseName, oneRmRecords) {
+  const id = resolveCanonicalOneRmLiftIdFromExerciseName(exerciseName);
+  return id ? getOneRmKgForCanonicalLift(id, oneRmRecords) : null;
+}
+
+/** Charge saisie → nombre (kg) pour le % 1RM ; moyenne si plage « a-b ». */
+export function parseChargeKgForOneRmPercent(weightStr) {
+  if (weightStr == null || weightStr === '') return null;
+  const s = String(weightStr).trim().replace(/\s/g, '').replace(',', '.');
+  const rangeMatch = s.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/);
+  if (rangeMatch) {
+    const a = Number(rangeMatch[1]);
+    const b = Number(rangeMatch[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return (a + b) / 2;
+    return null;
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function isCompletedSet(set) {
   return set?.validation_status === 'completed';
 }
@@ -60,23 +158,29 @@ function isFailedSet(set) {
   return set?.validation_status === 'failed';
 }
 
-function getKgFromSet(set) {
-  // Prefer student-entered charge fields, then fall back to generic weight fields.
+function getKgFromSet(set, exercise) {
+  // Toujours prioriser la charge saisie par l’élève.
+  const fromStudent =
+    parseNumericOrRangeAverage(set?.student_weight) ??
+    parseNumericOrRangeAverage(set?.studentWeight);
+  if (fromStudent != null) return fromStudent;
+
+  // En mode RIR, weight / target sur la séance = cible RPE (voir getRpeFromSet), pas des kg.
+  if (exercise?.useRir) return null;
+
   return (
-    toNumberOrNull(set?.student_weight) ??
-    toNumberOrNull(set?.studentWeight) ??
-    toNumberOrNull(set?.weight) ??
-    toNumberOrNull(set?.target_weight) ??
-    toNumberOrNull(set?.requested_weight) ??
+    parseNumericOrRangeAverage(set?.weight) ??
+    parseNumericOrRangeAverage(set?.target_weight) ??
+    parseNumericOrRangeAverage(set?.requested_weight) ??
     null
   );
 }
 
 function getRepsFromSet(set) {
   return (
-    toNumberOrNull(set?.reps) ??
-    toNumberOrNull(set?.target_reps) ??
-    toNumberOrNull(set?.requested_reps) ??
+    parseNumericOrRangeAverage(set?.reps) ??
+    parseNumericOrRangeAverage(set?.target_reps) ??
+    parseNumericOrRangeAverage(set?.requested_reps) ??
     null
   );
 }
@@ -84,14 +188,14 @@ function getRepsFromSet(set) {
 function getRpeFromSet(set, exercise) {
   // Real RPE entered by student (normal mode)
   const rpe =
-    toNumberOrNull(set?.rpe_rating) ??
-    toNumberOrNull(set?.rpeRating) ??
-    toNumberOrNull(set?.rpe) ??
+    parseNumericOrRangeAverage(set?.rpe_rating) ??
+    parseNumericOrRangeAverage(set?.rpeRating) ??
+    parseNumericOrRangeAverage(set?.rpe) ??
     null;
 
   // Fallback for `useRir` mode: the UI displays `RPE {set.weight}` when useRir=true.
   if (rpe === null && exercise?.useRir) {
-    return toNumberOrNull(set?.weight);
+    return parseNumericOrRangeAverage(set?.weight);
   }
 
   return rpe;
@@ -328,7 +432,7 @@ export function computePerformanceAggregation({
             const failed = isFailedSet(set);
             if (!completed && !failed) return;
 
-            const kg = getKgFromSet(set);
+            const kg = getKgFromSet(set, exercise);
             const reps = getRepsFromSet(set);
             const rpe = getRpeFromSet(set, exercise);
 

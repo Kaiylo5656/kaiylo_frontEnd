@@ -1490,7 +1490,7 @@ const PerformanceAnalysisModal = ({
       closeOnEsc={true}
       closeOnBackdrop={true}
       size="2xl"
-      className="max-w-5xl"
+      className="max-w-5xl max-md:!w-[calc(100vw-2rem)] max-md:!max-w-none max-md:!h-[calc(100dvh-3.5rem)] max-md:!max-h-[calc(100dvh-3.5rem)] max-md:!mt-4 max-md:!mb-10 max-md:!min-w-0 max-md:!rounded-2xl"
       title={
         <span className="inline-flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-5 h-5" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor" aria-hidden>
@@ -1504,7 +1504,7 @@ const PerformanceAnalysisModal = ({
       <div className="space-y-5">
         {/* Selections */}
         <div
-          className="rounded-2xl p-5 space-y-6"
+          className="rounded-2xl p-5 space-y-6 max-md:p-3 max-md:space-y-4"
           style={{ background: 'rgba(0, 0, 0, 0.5)', border: 'none' }}
         >
             <div
@@ -1554,7 +1554,7 @@ const PerformanceAnalysisModal = ({
 
               <div className="w-full">
                 <div className="text-xs font-extralight tracking-wider text-white/50 mb-2 ml-1">Période</div>
-                <div className="flex gap-2 w-full min-w-0">
+                <div className="flex gap-2 w-full min-w-0 max-md:flex-col">
                   <div className="flex-1 min-w-0">
                     {renderPeriodDropdown()}
                   </div>
@@ -1573,8 +1573,8 @@ const PerformanceAnalysisModal = ({
             </div>
           </div>
 
-            <div className="flex flex-wrap justify-between items-center gap-4">
-              <div className="w-full md:w-auto flex items-center gap-3">
+            <div className="flex flex-wrap justify-between items-center gap-4 max-md:flex-col max-md:items-start max-md:gap-3">
+              <div className="w-full md:w-auto flex items-center gap-3 max-md:justify-between max-md:w-full">
                 <div className="text-xs font-extralight text-white/50">Vue principale</div>
                 <div className="flex items-center bg-black/50 rounded-full p-1 relative">
                 <div
@@ -1634,7 +1634,7 @@ const PerformanceAnalysisModal = ({
             />
 
             {hasPeriodData ? (
-              <div className="grid grid-cols-2 gap-3 w-full">
+              <div className="grid grid-cols-2 gap-3 w-full max-md:grid-cols-1">
                 {periodMetricSummary.map(({ metricId, value, pctChange }) => (
                   <div
                     key={metricId}
@@ -1840,21 +1840,23 @@ const PerformanceAnalysisModal = ({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 pt-2">
-          {saveFeedback && (
-            <span className="text-xs text-white/60 font-extralight mr-auto">{saveFeedback}</span>
-          )}
+        <div className="flex items-center justify-end gap-3 pt-2 max-md:flex-col-reverse max-md:items-stretch">
+          <div className="flex items-center md:mr-auto justify-center">
+            {saveFeedback && (
+              <span className="text-xs text-white/60 font-extralight">{saveFeedback}</span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+            className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors max-md:w-full"
           >
             Fermer
           </button>
           <button
             type="button"
             onClick={handleSaveAndClose}
-            className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors"
+            className="px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors max-md:w-full"
           >
             Enregistrer & fermer
           </button>

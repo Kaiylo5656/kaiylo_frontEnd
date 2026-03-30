@@ -7,6 +7,61 @@ import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import ExerciseCommentModal from './ExerciseCommentModal';
 import ExerciseInfoModal from './ExerciseInfoModal';
+import { getExerciseTableVisibility } from '../utils/sessionExerciseTableVisibility';
+
+/** Colonne prescription charge/RPE par le coach : masquée si colonne masquée ou rien de prescrit. La saisie élève (RPE / charge) reste toujours affichée. */
+function shouldShowCoachPrescribedChargeColumn(exercise, setsList) {
+  const vis = getExerciseTableVisibility(exercise);
+  if (!vis.chargeRpe) return false;
+  const list = setsList ?? exercise?.sets ?? [];
+  return list.some((s) => s?.weight != null && String(s.weight).trim() !== '');
+}
+
+/** Colonne prescription reps/hold : masquée si le coach a masqué la colonne ou seule la charge est renseignée (sans reps). */
+function shouldShowCoachPrescribedRepsColumn(exercise, setsList) {
+  const vis = getExerciseTableVisibility(exercise);
+  if (!vis.repsHold) return false;
+  const list = setsList ?? exercise?.sets ?? [];
+  const hasMeaningfulReps = list.some((s) => s?.reps != null && String(s.reps).trim() !== '');
+  const hasCoachCharge = list.some((s) => s?.weight != null && String(s.weight).trim() !== '');
+  if (hasCoachCharge && !hasMeaningfulReps) return false;
+  return true;
+}
+
+/** Largeurs charge coach + saisie élève : plus larges quand la colonne reps/hold est masquée (colonne case RPE élève inchangée). */
+function studentValidationChargeColumnClasses(repsColumnVisible, useRir) {
+  const wide = !repsColumnVisible;
+  const coach = wide
+    ? 'min-w-[96px] w-[96px] flex justify-center items-center flex-shrink-0'
+    : 'w-[50px] flex justify-center items-center flex-shrink-0';
+  const student = useRir
+    ? wide
+      ? 'min-w-[96px] w-[96px] flex justify-center items-center flex-shrink-0'
+      : 'w-[55px] flex justify-center items-center flex-shrink-0'
+    : 'w-[24px] flex justify-center items-center flex-shrink-0';
+  const coachBarClass = wide ? 'w-[96px] h-[17px] flex-shrink-0' : 'w-[50px] h-[17px] flex-shrink-0';
+  const studentBarClass = useRir
+    ? wide
+      ? 'w-[96px] h-[17px] flex-shrink-0'
+      : 'w-[55px] h-[17px] flex-shrink-0'
+    : 'w-[24px] h-[17px] flex-shrink-0';
+  return { coachClass: coach, studentClass: student, coachBarClass, studentBarClass };
+}
+
+/** Colonne reps/hold : plus large quand la colonne charge (prescription coach) est masquée. */
+function studentValidationRepsHoldColumnClasses(coachChargePrescriptionColumnVisible) {
+  const narrow = coachChargePrescriptionColumnVisible;
+  const headerClass = narrow
+    ? 'w-[42px] flex justify-center items-center flex-shrink-0'
+    : 'min-w-[88px] w-[96px] flex justify-center items-center flex-shrink-0';
+  const cellClass = narrow
+    ? 'w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden'
+    : 'min-w-[88px] w-[96px] flex justify-center items-center flex-shrink-0 overflow-hidden';
+  const barClass = narrow
+    ? 'w-[42px] h-[17px] flex-shrink-0'
+    : 'min-w-[88px] w-[96px] h-[17px] flex-shrink-0';
+  return { headerClass, cellClass, barClass };
+}
 
 const ExerciseValidationModal = ({
   isOpen,
@@ -689,6 +744,64 @@ const ExerciseValidationModal = ({
       .filter(({ ex }) => ex.supersetGroup && ex.supersetGroup === exercise.supersetGroup)
     : [];
 
+  const showCoachPrescribedChargeColumn = shouldShowCoachPrescribedChargeColumn(exercise, sets);
+  const showCoachPrescribedRepsColumn = shouldShowCoachPrescribedRepsColumn(exercise, sets);
+  const supersetShowsCoachPrescribedCharge =
+    isInSuperset && supersetMembers.some((m) => shouldShowCoachPrescribedChargeColumn(m.ex, m.ex.sets));
+  const supersetShowsAnyRepsColumn =
+    isInSuperset && supersetMembers.some((m) => shouldShowCoachPrescribedRepsColumn(m.ex, m.ex.sets));
+
+  const restColumnVisible = getExerciseTableVisibility(exercise).rest;
+
+  const normalChargeWidths = studentValidationChargeColumnClasses(showCoachPrescribedRepsColumn, exercise.useRir);
+  const normalRepsWidths = studentValidationRepsHoldColumnClasses(showCoachPrescribedChargeColumn);
+  const supersetHeaderChargeWidths = studentValidationChargeColumnClasses(
+    supersetShowsAnyRepsColumn,
+    supersetMembers.some((m) => m.ex.useRir),
+  );
+  const supersetRepsWidths = studentValidationRepsHoldColumnClasses(supersetShowsCoachPrescribedCharge);
+  const supersetHasCoachRpePrescription =
+    isInSuperset && supersetMembers.some((m) => shouldShowCoachPrescribedChargeColumn(m.ex, m.ex.sets) && m.ex.useRir);
+  const supersetHasCoachChargePrescription =
+    isInSuperset && supersetMembers.some((m) => shouldShowCoachPrescribedChargeColumn(m.ex, m.ex.sets) && !m.ex.useRir);
+  const supersetCoachHeaderChargeLabel =
+    supersetHasCoachRpePrescription && supersetHasCoachChargePrescription
+      ? 'RPE/Charge'
+      : (supersetHasCoachRpePrescription ? 'RPE' : 'Charge');
+  const supersetHasWeightInput = isInSuperset && supersetMembers.some((m) => m.ex.useRir);
+  const supersetHasRpeInput = isInSuperset && supersetMembers.some((m) => !m.ex.useRir);
+  const supersetHasMixedInputTypes = supersetHasWeightInput && supersetHasRpeInput;
+  const supersetStudentInputHeaderLabel = supersetHasMixedInputTypes
+    ? 'RPE/Charge'
+    : (supersetHasWeightInput ? 'Charge' : 'RPE');
+  const supersetVisibleRestExercises = isInSuperset
+    ? supersetMembers.filter((m) => getExerciseTableVisibility(m.ex).rest)
+    : [];
+  const supersetAllRestValues = supersetVisibleRestExercises.flatMap((m) =>
+    (m.ex.sets || []).map((s) => s?.rest).filter(Boolean),
+  );
+  const supersetUniqueRestValues = [...new Set(supersetAllRestValues)];
+  const supersetUnifiedRestText = supersetUniqueRestValues.length === 1
+    ? `Repos entre chaque série : ${supersetUniqueRestValues[0]}`
+    : null;
+  const supersetRestLines = supersetUnifiedRestText ? [] : (
+    supersetVisibleRestExercises
+      .map((m, memberIndex) => {
+        const rests = (m.ex.sets || []).map((s) => s?.rest).filter(Boolean);
+        if (rests.length === 0) return null;
+        const uniqueRests = [...new Set(rests)];
+        const label = m.ex?.name || `Exercice ${memberIndex + 1}`;
+        if (uniqueRests.length === 1) {
+          return `${label} : ${uniqueRests[0]}`;
+        }
+        return `${label} : ${(m.ex.sets || [])
+          .map((s, i) => (s?.rest ? `série ${i + 1} : ${s.rest}` : null))
+          .filter(Boolean)
+          .join(' · ')}`;
+      })
+      .filter(Boolean)
+  );
+
   const getSetStatusFor = (exIdx, setIdx) => {
     const key = `${exIdx}-${setIdx}`;
     const setData = completedSets[key];
@@ -872,7 +985,7 @@ const ExerciseValidationModal = ({
                     >
                       <div className="px-6 pb-8 pt-2">
                         <div className="flex flex-col gap-[15px] items-center w-full">
-                          {/* Tempo et Charge par main - Affichés si définis par le coach */}
+                          {/* Tempo et Charge par côté - Affichés si définis par le coach */}
                           {isInSuperset ? (
                             // En Super Set : on affiche les infos de chaque membre qui a un tempo ou per_side
                             supersetMembers.some(m => m.ex.tempo || m.ex.per_side) && (
@@ -881,7 +994,7 @@ const ExerciseValidationModal = ({
                                   <p key={idx} className="text-[11px] font-light text-white/50 text-center leading-tight">
                                     <span>{idx + 1}.</span> {m.ex.tempo ? `Tempo ${m.ex.tempo}` : ''}
                                     {m.ex.tempo && m.ex.per_side ? ' | ' : ''}
-                                    {m.ex.per_side ? 'Charge par main' : ''}
+                                    {m.ex.per_side ? 'Charge par côté' : ''}
                                   </p>
                                 ))}
                               </div>
@@ -893,7 +1006,7 @@ const ExerciseValidationModal = ({
                                 <p className="text-[12px] font-light text-white/50">
                                   {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
                                   {exercise.tempo && exercise.per_side ? ' | ' : ''}
-                                  {exercise.per_side ? 'Charge par main' : ''}
+                                  {exercise.per_side ? 'Charge par côté' : ''}
                                 </p>
                               </div>
                             )
@@ -1041,27 +1154,31 @@ const ExerciseValidationModal = ({
                             <div className="w-[20px] flex-shrink-0 mr-1" />
                             <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]">
                               <div className="flex items-center w-full gap-3">
-                                <div className="w-[42px] flex justify-center items-center flex-shrink-0">
-                                  <p className="text-[8px] font-normal text-white/25 leading-none">
-                                    {(() => {
-                                      const repType = sets[0]?.repType || 'reps';
-                                      if (repType === 'amrap') {
-                                        return 'AMRAP';
-                                      } else if (repType === 'hold') {
-                                        return 'Hold';
-                                      }
-                                      return 'Rep.';
-                                    })()}
-                                  </p>
-                                </div>
-                                <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                                  <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RPE' : 'Charge'}</p>
-                                </div>
+                                {showCoachPrescribedRepsColumn && (
+                                  <div className={normalRepsWidths.headerClass}>
+                                    <p className="text-[8px] font-normal text-white/25 leading-none">
+                                      {(() => {
+                                        const repType = sets[0]?.repType || sets[0]?.rep_type || 'reps';
+                                        if (repType === 'amrap') {
+                                          return 'AMRAP';
+                                        } else if (repType === 'hold') {
+                                          return 'Hold';
+                                        }
+                                        return 'Rep.';
+                                      })()}
+                                    </p>
+                                  </div>
+                                )}
+                                {showCoachPrescribedChargeColumn && (
+                                  <div className={normalChargeWidths.coachClass}>
+                                    <p className="text-[8px] font-normal text-white/25 leading-none">{exercise.useRir ? 'RPE' : 'Charge'}</p>
+                                  </div>
+                                )}
                                 <div className="flex-1 flex justify-center items-center gap-[15px]">
                                   <div className="w-[17px] h-[17px]" />
                                   <div className="w-[17px] h-[17px]" />
                                 </div>
-                                <div className={`${exercise.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                <div className={normalChargeWidths.studentClass}>
                                   <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
                                     {exercise.useRir ? 'Charge' : 'RPE'}
                                   </p>
@@ -1081,7 +1198,7 @@ const ExerciseValidationModal = ({
                             const hasVideoOrNoVideo = hasVideo || videoChoice === 'no-video'; // True si vidéo uploadée OU "pas de vidéo" choisi
                             const setNumber = setIndex + 1;
                             const weight = set.weight ?? 0;
-                            const repType = set.repType || 'reps';
+                            const repType = set.repType || set.rep_type || 'reps';
                             // Handle different rep types
                             let reps = '?';
                             if (repType === 'amrap') {
@@ -1111,24 +1228,24 @@ const ExerciseValidationModal = ({
                                     style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
                                   >
                                     <div className="flex items-center w-full gap-3">
-                                      {/* Colonne Rep - Centrée */}
-                                      <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
-                                        <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
-                                      </div>
-                                      {/* Colonne Charge/RPE - Centrée */}
-                                      <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                                        {exercise.useRir ? (
-                                          // Mode RPE : afficher le RPE demandé (stocké dans set.weight en mode RPE)
-                                          <span className="text-[15px] text-[#d4845a] leading-none">
-                                            {weight || '-'}
-                                          </span>
-                                        ) : (
-                                          // Mode Charge : afficher le poids en kg
-                                          <span className="text-[15px] text-[#d4845a] leading-none flex items-center">
-                                            {weight}{!/[a-zA-Z]/.test(String(weight)) && <span className="text-[12px] font-normal">kg</span>}
-                                          </span>
-                                        )}
-                                      </div>
+                                      {showCoachPrescribedRepsColumn && (
+                                        <div className={normalRepsWidths.cellClass}>
+                                          <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: reps.length > 8 ? '10px' : reps.length > 6 ? '11px' : reps === 'AMRAP' ? '12px' : '15px' }}>{reps}</span>
+                                        </div>
+                                      )}
+                                      {showCoachPrescribedChargeColumn && (
+                                        <div className={normalChargeWidths.coachClass}>
+                                          {exercise.useRir ? (
+                                            <span className="text-[15px] text-[#d4845a] leading-none">
+                                              {weight || '-'}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[15px] text-[#d4845a] leading-none flex items-center">
+                                              {weight}{!/[a-zA-Z]/.test(String(weight)) && <span className="text-[12px] font-normal">kg</span>}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
                                       {/* Boutons de validation - Centrés */}
                                       <div className="flex-1 flex justify-center items-center gap-[15px]">
                                         <button
@@ -1172,76 +1289,86 @@ const ExerciseValidationModal = ({
                                           </svg>
                                         </button>
                                       </div>
-                                      {/* Bouton RPE / Input Charge - Centré */}
-                                      <div className={`${exercise.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
+                                      <div className={normalChargeWidths.studentClass}>
                                         <div className="flex justify-center items-center w-full">
-                                          {exercise.useRir ? (
-                                            // Si coach demande RPE : l'élève saisit une charge
-                                            <div className="relative flex items-center">
-                                              <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={getStudentWeightForSet(setIndex) || ''}
-                                                onChange={(e) => {
-                                                  let raw = e.target.value.replace(',', '.');
-                                                  const isNeg = raw.startsWith('-');
-                                                  raw = raw.replace(/[^\d.]/g, '');
-                                                  const parts = raw.split('.');
-                                                  if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
-                                                  if (parts.length >= 2) {
-                                                    raw = parts[0].slice(0, 3) + '.' + parts[1].slice(0, 1);
-                                                  } else {
-                                                    raw = raw.slice(0, 3);
-                                                  }
-                                                  // Garder le "-" seul pour permettre de taper "-" puis les chiffres
-                                                  if (isNeg) raw = (raw === '' ? '-' : '-' + raw);
-                                                  const displayValue = raw.replace('.', ',');
-                                                  handleWeightUpdate(setIndex, displayValue || '');
-                                                }}
-                                                onKeyDown={(e) => {
-                                                  const v = e.target.value;
-                                                  const hasComma = /,/.test(v);
-                                                  // Allow minus only at start (for negative charge)
-                                                  if (e.key === '-') {
-                                                    if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
-                                                    return;
-                                                  }
-                                                  // Allow digits
-                                                  if (/^\d$/.test(e.key)) {
-                                                    if (hasComma) {
-                                                      const afterComma = v.split(',')[1] || '';
-                                                      if (afterComma.length >= 1) e.preventDefault();
-                                                    } else {
-                                                      const digitsOnly = v.replace(/\D/g, '');
-                                                      if (digitsOnly.length >= 3) e.preventDefault();
-                                                    }
-                                                    return;
-                                                  }
-                                                  if (e.key === ',' || e.key === '.') {
-                                                    if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
-                                                    return;
-                                                  }
-                                                  const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
-                                                  if (allowedKeys.includes(e.key)) return;
-                                                  e.preventDefault();
-                                                }}
-                                                disabled={!isCompleted}
-                                                className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isCompleted
-                                                  ? 'opacity-50 cursor-not-allowed text-white/50'
-                                                  : 'cursor-text text-[#d4845a]'
+                                              {exercise.useRir ? (
+                                              <div className="relative flex items-center">
+                                                <div
+                                                  className={`relative group flex items-center justify-center ${
+                                                    !showCoachPrescribedRepsColumn ? 'w-[56px] min-w-[56px]' : 'w-[38px] min-w-[38px]'
                                                   }`}
-                                                style={{
-                                                  padding: '0',
-                                                  lineHeight: 1
-                                                }}
-                                                placeholder=""
-                                                maxLength={3}
-                                                title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 caractères max (le - compte). Virgule pour décimales, négatif possible (ex. -15 ou 21)"}
-                                              />
-                                              {!/[a-zA-Z]/.test(String(getStudentWeightForSet(setIndex) || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}
-                                            </div>
-                                          ) : (
-                                            // Si coach demande charge : l'élève saisit un RPE
+                                                >
+                                                  {/* Sous-trait centré, volontairement plus court que la largeur de l'input */}
+                                                  <span
+                                                    aria-hidden
+                                                    className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[0.5px] transition-colors bg-white/25 group-focus-within:bg-[#d4845a] ${
+                                                      !showCoachPrescribedRepsColumn ? 'w-[36px]' : 'w-[24px]'
+                                                    }`}
+                                                  />
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    value={getStudentWeightForSet(setIndex) || ''}
+                                                    onChange={(e) => {
+                                                      let raw = e.target.value.replace(',', '.');
+                                                      const isNeg = raw.startsWith('-');
+                                                      raw = raw.replace(/[^\d.]/g, '');
+                                                      const parts = raw.split('.');
+                                                      if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+                                                      if (parts.length >= 2) {
+                                                        raw = parts[0].slice(0, 3) + '.' + parts[1].slice(0, 1);
+                                                      } else {
+                                                        raw = raw.slice(0, 3);
+                                                      }
+                                                      if (isNeg) raw = (raw === '' ? '-' : '-' + raw);
+                                                      const displayValue = raw.replace('.', ',');
+                                                      handleWeightUpdate(setIndex, displayValue || '');
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                      const v = e.target.value;
+                                                      const hasComma = /,/.test(v);
+                                                      if (e.key === '-') {
+                                                        if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
+                                                        return;
+                                                      }
+                                                      if (/^\d$/.test(e.key)) {
+                                                        if (hasComma) {
+                                                          const afterComma = v.split(',')[1] || '';
+                                                          if (afterComma.length >= 1) e.preventDefault();
+                                                        } else {
+                                                          const digitsOnly = v.replace(/\D/g, '');
+                                                          if (digitsOnly.length >= 3) e.preventDefault();
+                                                        }
+                                                        return;
+                                                      }
+                                                      if (e.key === ',' || e.key === '.') {
+                                                        if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
+                                                        return;
+                                                      }
+                                                      const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
+                                                      if (allowedKeys.includes(e.key)) return;
+                                                      e.preventDefault();
+                                                    }}
+                                                    disabled={!isCompleted}
+                                                    className={`bg-transparent border-0 rounded-none w-full ${!showCoachPrescribedRepsColumn ? 'h-[18px] text-[15px]' : 'h-[22px] text-[16px]'} font-semibold text-center transition-colors focus:outline-none ${
+                                                      !isCompleted
+                                                        ? 'opacity-50 cursor-not-allowed text-white/50'
+                                                        : 'cursor-text text-[#d4845a]'
+                                                    }`}
+                                                    style={{
+                                                      padding: '0',
+                                                      lineHeight: 1
+                                                    }}
+                                                    placeholder=""
+                                                    maxLength={3}
+                                                    title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 caractères max (le - compte). Virgule pour décimales, négatif possible (ex. -15 ou 21)"}
+                                                  />
+                                                </div>
+                                                {!/[a-zA-Z]/.test(String(getStudentWeightForSet(setIndex) || '')) && (
+                                                  <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
+                                                )}
+                                              </div>
+                                            ) : (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -1261,7 +1388,7 @@ const ExerciseValidationModal = ({
                                                 {rpeRating || ''}
                                               </span>
                                             </button>
-                                          )}
+                                            )}
                                         </div>
                                       </div>
                                     </div>
@@ -1360,7 +1487,7 @@ const ExerciseValidationModal = ({
                             );
                           })}
                           {/* Repos - affiché sous les séries : "Repos entre chaque série" si identique, sinon "Repos série 1 : XX · série 2 : XX" */}
-                          {restTimeInfo.hasRest && (
+                          {restTimeInfo.hasRest && restColumnVisible && (
                             <div className="flex items-center justify-center mt-[8px] pl-6 pr-12">
                               <span className="text-[10px] font-light text-white/40">
                                 {restTimeInfo.isUnique
@@ -1392,18 +1519,34 @@ const ExerciseValidationModal = ({
                                   <div className="w-[20px] flex-shrink-0 mr-1" />
                                   <div className="rounded-[5px] flex items-center px-[15px] pr-[25px] flex-1 min-w-[200px] max-w-[400px]">
                                     <div className="flex items-center w-full gap-3">
-                                      <div className="w-[42px] flex justify-center items-center flex-shrink-0">
-                                        <p className="text-[8px] font-normal text-white/25 leading-none">Rep.</p>
-                                      </div>
-                                      <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                                        <p className="text-[8px] font-normal text-white/25 leading-none">Charge</p>
-                                      </div>
+                                      {supersetShowsAnyRepsColumn && (() => {
+                                        const m = supersetMembers.find((x) => shouldShowCoachPrescribedRepsColumn(x.ex, x.ex.sets));
+                                        const st = m?.ex.sets?.[setIndex];
+                                        const repType = st?.repType || st?.rep_type || m?.ex.sets?.[0]?.repType || m?.ex.sets?.[0]?.rep_type || 'reps';
+                                        let label = 'Rep.';
+                                        if (repType === 'amrap') label = 'AMRAP';
+                                        else if (repType === 'hold') label = 'Hold';
+                                        return (
+                                          <div className={supersetRepsWidths.headerClass}>
+                                            <p className="text-[8px] font-normal text-white/25 leading-none">{label}</p>
+                                          </div>
+                                        );
+                                      })()}
+                                      {supersetShowsCoachPrescribedCharge && (
+                                        <div className={supersetHeaderChargeWidths.coachClass}>
+                                          <p className="text-[8px] font-normal text-white/25 leading-none">
+                                            {supersetCoachHeaderChargeLabel}
+                                          </p>
+                                        </div>
+                                      )}
                                       <div className="flex-1 flex justify-center items-center gap-[15px]">
                                         <div className="w-[17px] h-[17px]" />
                                         <div className="w-[17px] h-[17px]" />
                                       </div>
-                                      <div className="w-[24px] flex justify-center items-center flex-shrink-0">
-                                        <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">RPE</p>
+                                      <div className={supersetHeaderChargeWidths.studentClass}>
+                                        <p className="text-[8px] font-normal text-white/25 leading-none text-center w-full">
+                                          {supersetStudentInputHeaderLabel}
+                                        </p>
                                       </div>
                                     </div>
                                   </div>
@@ -1411,26 +1554,35 @@ const ExerciseValidationModal = ({
                                 </div>
                                 {supersetMembers.map(({ ex: exObj, idx: exIdx }, memberIndex) => {
                                   const s = exObj.sets?.[setIndex];
-                                  if (!s) return (
-                                    <div key={exIdx} className="flex items-center mt-2">
-                                      <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
-                                      <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
-                                        <div className="flex items-center w-full gap-3">
-                                          <div className="w-[42px] h-[17px] flex-shrink-0" />
-                                          <div className="w-[50px] h-[17px] flex-shrink-0" />
-                                          <div className="flex-1 h-[17px]" />
-                                          <div className="w-[24px] h-[17px] flex-shrink-0" />
+                                  if (!s) {
+                                    const showCoachEmpty = shouldShowCoachPrescribedChargeColumn(exObj, exObj.sets);
+                                    const ssRowWidths = studentValidationChargeColumnClasses(
+                                      supersetShowsAnyRepsColumn,
+                                      supersetHasMixedInputTypes ? supersetHasWeightInput : exObj.useRir,
+                                    );
+                                    return (
+                                      <div key={exIdx} className="flex items-center mt-2">
+                                        <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
+                                        <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
+                                          <div className="flex items-center w-full gap-3">
+                                            {supersetShowsAnyRepsColumn && <div className={supersetRepsWidths.barClass} />}
+                                            {supersetShowsCoachPrescribedCharge && (
+                                              showCoachEmpty ? <div className={ssRowWidths.coachBarClass} /> : <div className={ssRowWidths.coachBarClass} aria-hidden />
+                                            )}
+                                            <div className="flex-1 h-[17px]" />
+                                            <div className={ssRowWidths.studentBarClass} />
+                                          </div>
                                         </div>
+                                        <div className="w-[24px] flex-shrink-0 ml-[10px]" />
                                       </div>
-                                      <div className="w-[24px] flex-shrink-0 ml-[10px]" />
-                                    </div>
-                                  );
+                                    );
+                                  }
                                   const st = getSetStatusFor(exIdx, setIndex);
                                   const isComp = st === 'completed';
                                   const isFail = st === 'failed';
                                   const rpeVal = getRpeForSetOf(exIdx, setIndex);
                                   const wVal = getStudentWeightForSetOf(exIdx, setIndex);
-                                  const repType = s.repType || 'reps';
+                                  const repType = s.repType || s.rep_type || 'reps';
                                   let repsDisplay = s.reps || '?';
                                   if (repType === 'hold') {
                                     const rv = s.reps || '';
@@ -1442,22 +1594,40 @@ const ExerciseValidationModal = ({
                                   const videoEnabled = s.video === true || s.video === 1 || s.video === 'true';
                                   const hasVid = hasVideoForSetOf(exIdx, setIndex);
                                   const videoChoice = hasVideoChoiceForSetOf(exIdx, setIndex);
+                                  const showCoachRow = shouldShowCoachPrescribedChargeColumn(exObj, exObj.sets);
+                                  const showCoachRepsRow = shouldShowCoachPrescribedRepsColumn(exObj, exObj.sets);
+                                  const ssRowWidths = studentValidationChargeColumnClasses(
+                                    supersetShowsAnyRepsColumn,
+                                    supersetHasMixedInputTypes ? supersetHasWeightInput : exObj.useRir,
+                                  );
 
                                   return (
                                     <div key={exIdx} className="flex items-center mt-2">
                                       <span className="text-[10px] text-white/50 w-[20px] flex-shrink-0 mr-1">{memberIndex + 1}</span>
                                       <div className="bg-white/10 rounded-[5px] flex items-center pl-[15px] pr-[25px] py-[13px] flex-1 min-w-[200px] max-w-[400px] hover:bg-white/10 transition-colors" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
                                         <div className="flex items-center w-full gap-3">
-                                          <div className="w-[42px] flex justify-center items-center flex-shrink-0 overflow-hidden">
-                                            <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '15px' }}>{repsDisplay}</span>
-                                          </div>
-                                          <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                                            {exObj.useRir ? (
-                                              <span className="text-[15px] text-[#d4845a] leading-none">{weightVal || '-'}</span>
+                                          {supersetShowsAnyRepsColumn && (
+                                            showCoachRepsRow ? (
+                                              <div className={supersetRepsWidths.cellClass}>
+                                                <span className="text-white leading-none whitespace-nowrap" style={{ fontSize: repsDisplay.length > 8 ? '10px' : repsDisplay.length > 6 ? '11px' : repsDisplay === 'AMRAP' ? '12px' : '15px' }}>{repsDisplay}</span>
+                                              </div>
                                             ) : (
-                                              <span className="text-[15px] text-[#d4845a] leading-none flex items-center">{weightVal}{!/[a-zA-Z]/.test(String(weightVal)) && <span className="text-[12px] font-normal">kg</span>}</span>
-                                            )}
-                                          </div>
+                                              <div className={supersetRepsWidths.barClass} aria-hidden />
+                                            )
+                                          )}
+                                          {supersetShowsCoachPrescribedCharge && (
+                                            showCoachRow ? (
+                                              <div className={ssRowWidths.coachClass}>
+                                                {exObj.useRir ? (
+                                                  <span className="text-[15px] text-[#d4845a] leading-none">{weightVal || '-'}</span>
+                                                ) : (
+                                                  <span className="text-[15px] text-[#d4845a] leading-none flex items-center">{weightVal}{!/[a-zA-Z]/.test(String(weightVal)) && <span className="text-[12px] font-normal">kg</span>}</span>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div className={ssRowWidths.coachBarClass} aria-hidden />
+                                            )
+                                          )}
                                           <div className="flex-1 flex justify-center items-center gap-[15px]">
                                             <button
                                               onClick={(e) => { e.stopPropagation(); onValidateSet(exIdx, isComp ? 'pending' : 'completed', setIndex); }}
@@ -1474,21 +1644,35 @@ const ExerciseValidationModal = ({
                                               <svg width="17" height="17" viewBox="0 0 17 17" fill="none" className="flex-shrink-0"><path d="M5 12L12 5M5 5L12 12" stroke="white" strokeOpacity={isFail ? "1" : "0.25"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                             </button>
                                           </div>
-                                          <div className={`${exObj.useRir ? 'w-[55px]' : 'w-[24px]'} flex justify-center items-center flex-shrink-0`}>
-                                            <div className="flex justify-center items-center w-full">
+                                          <div className={ssRowWidths.studentClass}>
+                                            <div className="flex justify-center items-center w-full h-[18px]">
                                               {exObj.useRir ? (
                                                 <div className="relative flex items-center">
-                                                  <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    value={wVal || ''}
-                                                    onChange={(e) => { if (onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
-                                                    disabled={!isComp}
-                                                    placeholder=""
-                                                    className={`bg-transparent border-0 border-b-[0.5px] border-white/25 rounded-none w-[38px] min-w-[38px] h-[22px] text-[16px] font-semibold text-center transition-colors focus:outline-none focus:border-[#d4845a] ${!isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'}`}
-                                                    style={{ padding: '0', lineHeight: 1 }}
-                                                    maxLength={3}
-                                                  />
+                                                  <div
+                                                    className={`relative group flex items-center justify-center ${
+                                                      !supersetShowsAnyRepsColumn ? 'w-[56px] min-w-[56px]' : 'w-[38px] min-w-[38px]'
+                                                    }`}
+                                                  >
+                                                    <span
+                                                      aria-hidden
+                                                      className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[0.5px] transition-colors bg-white/25 group-focus-within:bg-[#d4845a] ${
+                                                        !supersetShowsAnyRepsColumn ? 'w-[36px]' : 'w-[24px]'
+                                                      }`}
+                                                    />
+                                                    <input
+                                                      type="text"
+                                                      inputMode="decimal"
+                                                      value={wVal || ''}
+                                                      onChange={(e) => { if (onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
+                                                      disabled={!isComp}
+                                                      placeholder=""
+                                                      className={`bg-transparent border-0 rounded-none w-full h-[18px] text-[15px] font-semibold text-center transition-colors focus:outline-none ${
+                                                        !isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'
+                                                      }`}
+                                                      style={{ padding: '0', lineHeight: 1 }}
+                                                      maxLength={3}
+                                                    />
+                                                  </div>
                                                   {!/[a-zA-Z]/.test(String(wVal || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}
                                                 </div>
                                               ) : (
@@ -1548,6 +1732,13 @@ const ExerciseValidationModal = ({
 
                               </React.Fragment>
                             ))}
+                            {(supersetUnifiedRestText || supersetRestLines.length > 0) && (
+                              <div className="flex items-center justify-center mt-[10px] px-2">
+                                <span className="text-[10px] font-light text-white/40 text-center">
+                                  {supersetUnifiedRestText || `Repos ${supersetRestLines.join(' · ')}`}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
 
