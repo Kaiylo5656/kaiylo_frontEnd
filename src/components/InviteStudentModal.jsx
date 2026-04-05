@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
+import ClientLimitModal from '@/components/billing/ClientLimitModal';
 
 const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   const { user } = useAuth();
@@ -22,6 +23,17 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   const [error, setError] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
+  const [clientLimitData, setClientLimitData] = useState(null);
+
+  // Reset internal state when modal is closed externally
+  useEffect(() => {
+    if (!isOpen) {
+      setError('');
+      setShowSuccessModal(false);
+      setSentEmail('');
+      setClientLimitData(null);
+    }
+  }, [isOpen]);
   
   const successGreenColor = '#22c55e';
 
@@ -53,10 +65,19 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
       }
     } catch (err) {
       logger.error('Error sending invitation:', err);
-      setError(
-        err.response?.data?.message || 
-        'Erreur lors de l\'envoi de l\'invitation. Veuillez réessayer.'
-      );
+      const data = err.response?.data;
+      if (data?.error === 'client_limit_reached' && data.plan && data.limit != null) {
+        setClientLimitData({
+          plan: data.plan,
+          limit: data.limit,
+          count: data.count ?? data.limit
+        });
+      } else {
+        setError(
+          err.response?.data?.message ||
+          'Erreur lors de l\'envoi de l\'invitation. Veuillez réessayer.'
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -67,6 +88,7 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
     setError('');
     setShowSuccessModal(false);
     setSentEmail('');
+    setClientLimitData(null);
     onClose();
   };
 
@@ -84,6 +106,19 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
   };
 
   if (!isOpen) return null;
+
+  // Client Limit Modal
+  if (clientLimitData) {
+    return (
+      <ClientLimitModal
+        isOpen={true}
+        onClose={handleClose}
+        plan={clientLimitData.plan}
+        limit={clientLimitData.limit}
+        count={clientLimitData.count}
+      />
+    );
+  }
 
   // Success Modal
   if (showSuccessModal) {
