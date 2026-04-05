@@ -638,7 +638,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
         </div>
         <div
           ref={contentRef}
-          className={`relative mx-auto w-full ${isMobile ? 'mt-4 mb-10 w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)] rounded-2xl' : 'max-w-5xl max-h-[92vh] rounded-2xl'} overflow-visible shadow-2xl flex flex-col`}
+          className={`relative mx-auto min-w-0 w-full ${isMobile ? 'mt-4 mb-10 w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-3.5rem)] max-h-[calc(100dvh-3.5rem)] rounded-2xl' : 'max-w-[1080px] max-h-[92vh] rounded-2xl'} overflow-hidden shadow-2xl flex flex-col`}
           style={{
             background: 'linear-gradient(90deg, rgba(19, 20, 22, 1) 0%, rgba(43, 44, 48, 1) 61%, rgba(65, 68, 72, 0.75) 100%)',
             opacity: 0.95
@@ -717,30 +717,25 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
           <div className="border-b border-white/10 mx-6"></div>
 
           {/* Main Content */}
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 pt-3 pb-6 space-y-5">
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain modal-scrollable-body px-6 pt-3 pb-6 space-y-5">
             {/* Difficulty and Comment Section */}
-            <div className="flex flex-col gap-3 mb-[12px]">
+            <div className="flex flex-col gap-3 mb-[12px] min-w-0">
               {/* Headings row */}
-              <div className={`flex gap-[22px] items-start ${isMobile ? 'flex-col gap-1' : ''}`}>
+              <div className={`flex gap-[22px] items-start ${isMobile ? 'flex-col gap-1' : 'w-full'}`}>
                 <h3 className="text-[14px] font-extralight text-white/50 leading-tight mb-0">Commentaire global :</h3>
-                {!isMobile && (
-                  <div className="flex-shrink-0 w-[111px]">
-                    <h3 className="text-[14px] font-extralight text-white/50 leading-tight mb-0 text-center"></h3>
-                  </div>
-                )}
               </div>
 
-              <div className={`flex gap-[18px] items-stretch ${isMobile ? 'flex-col' : ''}`}>
-                {/* Global Comment Section */}
-                <div className="flex-1 flex">
-                  <div className={`bg-[rgba(0,0,0,0.25)] border-0 rounded-[10px] px-[12px] py-[12px] h-[102px] text-[14px] font-light leading-tight whitespace-pre-wrap break-words overflow-y-auto ${sessionComment ? 'text-white' : 'text-white/25'
-                    } ${isMobile ? 'w-full' : 'w-[507px]'}`}>
+              <div className={`flex gap-3 md:gap-4 items-stretch min-w-0 w-full ${isMobile ? 'flex-col' : 'flex-row'}`}>
+                {/* Global comment: max width on desktop for wrapping; no flex-grow so ml-auto can push difficulty to the right */}
+                <div className="flex min-w-0 w-full md:flex-[0_1_540px] md:max-w-[540px]">
+                  <div className={`bg-[rgba(0,0,0,0.25)] border-0 rounded-[10px] px-[12px] py-[12px] h-[102px] text-[14px] font-light leading-tight whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0 max-w-full overflow-x-hidden overflow-y-auto ${sessionComment ? 'text-white' : 'text-white/25'
+                    } w-full`}>
                     {sessionComment ? (sessionComment.charAt(0).toUpperCase() + sessionComment.slice(1)) : 'Aucun commentaire de l\'élève'}
                   </div>
                 </div>
 
-                {/* Difficulty buttons column */}
-                <div className="flex-shrink-0">
+                {/* Difficulty buttons — flush right of the row on desktop */}
+                <div className="flex-shrink-0 md:ml-auto">
                   <div className={`flex ${isMobile ? 'flex-row w-full justify-between' : 'flex-col'} gap-[6px]`}>
                     {['Facile', 'Moyen', 'Difficile'].map((level) => {
                       const isSelected = sessionDifficulty?.toLowerCase() === level.toLowerCase();
@@ -836,7 +831,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             {/* Exercise and Sets Section */}
             <div className={`flex gap-[20px] mb-[20px] ${isMobile ? 'flex-col' : ''}`}>
               {/* Left: Exercise Sets */}
-              <div className={`${isMobile ? 'w-full' : 'w-[320px]'} flex-shrink-0 flex flex-col`}>
+              <div className={`${isMobile ? 'w-full' : 'w-[340px]'} flex-shrink-0 flex flex-col`}>
                 <div className={`overflow-y-auto space-y-[7px] pr-2 scrollbar-transparent ${isMobile ? 'h-auto max-h-[171px]' : 'h-[171px]'}`}>
                   {(() => {
                     const exGroup = selectedExerciseGroup ?? [];
@@ -1206,12 +1201,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     </div>
 
                     {/* Comment Display Section - In gray container, not in black video box */}
-                    <div className="flex flex-col gap-[8px] mb-[12px] flex-shrink-0">
+                    <div className="flex w-full min-w-0 flex-col gap-[8px] mb-[12px] flex-shrink-0">
                       <div className="text-[10px] font-normal text-[var(--kaiylo-primary-hex)] flex-shrink-0">Commentaire coach :</div>
 
                       {/* Audio feedback display */}
                       {currentSetVideo?.coach_feedback_audio_url && (
-                        <div className="mb-2">
+                        <div className="mb-2 w-full min-w-0">
                           <VoiceMessage
                             message={{
                               file_url: currentSetVideo.coach_feedback_audio_url,
@@ -1225,21 +1220,21 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                       {/* Text feedback display */}
                       {currentSetVideo?.coach_feedback && (
-                        <div className={`text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] ${isMobile ? 'w-full' : 'w-[272px]'} min-h-[45px]`}>
+                        <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[300px] min-w-[300px] max-w-[300px] min-h-[45px]">
                           {currentSetVideo.coach_feedback}
                         </div>
                       )}
 
                       {/* No feedback message */}
                       {!currentSetVideo?.coach_feedback && !currentSetVideo?.coach_feedback_audio_url && (
-                        <div className={`text-[13px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] ${isMobile ? 'w-full' : 'w-[272px]'} h-[45px]`}>
+                        <div className="text-[13px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-full min-w-0 h-[45px]">
                           Aucun commentaire
                         </div>
                       )}
                     </div>
 
                     {/* Coach Comment Input - Below video box */}
-                    <div className="w-full min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
+                    <div className="w-full min-w-0 min-h-[48px] bg-[#121214] rounded-[10px] px-[14px] py-[10px] flex items-center gap-1.5 flex-shrink-0 mt-auto">
                       {isRecordingVoice ? (
                         <VoiceRecorder
                           onSend={handleVoiceMessageSend}

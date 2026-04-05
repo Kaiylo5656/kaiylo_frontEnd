@@ -9,8 +9,10 @@ import ExerciseDetailModal from '../components/ExerciseDetailModal';
 import SortControl from '../components/SortControl';
 import TagFilterDropdown from '../components/ui/TagFilterDropdown';
 import useSortParams from '../hooks/useSortParams';
+import useMediaQuery from '../hooks/useMediaQuery';
 import { sortExercises, getSortDescription } from '../utils/exerciseSorting';
 import { getTagColor, getTagColorMap } from '../utils/tagColors';
+import { normalizeTagName } from '../utils/tagNormalization';
 import { Search, Check } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -25,6 +27,8 @@ const ExerciseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [selectedTagFilters, setSelectedTagFilters] = useState([]);
+  const [isTagFilterDropdownOpen, setIsTagFilterDropdownOpen] = useState(false);
+  const isMdUp = useMediaQuery('(min-width: 768px)');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
   const [hoveredExerciseId, setHoveredExerciseId] = useState(null);
@@ -95,9 +99,11 @@ const ExerciseManagement = () => {
           group.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
-      // Tag filter - exercise must have ALL selected tags
+      // Tag filter - exercise must have ALL selected tags (match normalized names like TagFilterDropdown)
       const matchesTag = selectedTagFilters.length === 0 ||
-        (exercise.tags && selectedTagFilters.every(tag => exercise.tags.includes(tag)));
+        (exercise.tags && selectedTagFilters.every(filterTag =>
+          exercise.tags.some(exTag => normalizeTagName(exTag) === normalizeTagName(filterTag))
+        ));
 
       return matchesSearch && matchesTag;
     });
@@ -401,7 +407,7 @@ const ExerciseManagement = () => {
   };
 
   return (
-    <div className="h-full min-h-0 text-foreground flex flex-col relative">
+    <div className="flex-1 min-h-0 w-full text-foreground flex flex-col relative">
       {/* Mobile Background Elements (Hidden on Desktop) */}
       <div className="md:hidden">
         {/* Image de fond */}
@@ -525,7 +531,7 @@ const ExerciseManagement = () => {
           />
         </div>
       )}
-      <div className="flex-shrink-0 pt-3 px-6 pb-0 relative z-10">
+      <div className="flex-shrink-0 pt-3 px-6 pb-0 relative z-30">
         {/* Search and Filter Bar */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-3">
           {/* Mobile: Search + Action Buttons on same line */}
@@ -581,12 +587,16 @@ const ExerciseManagement = () => {
           <div className="flex md:hidden flex-row items-center gap-3">
             {/* Filters Button */}
             <div className="flex-1 [&_button]:w-full [&_button]:justify-center">
-              <TagFilterDropdown
-                tags={availableTags}
-                selectedTags={selectedTagFilters}
-                onTagsChange={handleTagSelection}
-                placeholder="Rechercher un tag..."
-              />
+              {!isMdUp && (
+                <TagFilterDropdown
+                  tags={availableTags}
+                  selectedTags={selectedTagFilters}
+                  onTagsChange={handleTagSelection}
+                  placeholder="Rechercher un tag..."
+                  isOpen={isTagFilterDropdownOpen}
+                  onOpenChange={setIsTagFilterDropdownOpen}
+                />
+              )}
             </div>
 
             {/* Sort Control */}
@@ -595,6 +605,7 @@ const ExerciseManagement = () => {
                 sort={sort}
                 dir={dir}
                 onChange={handleSortChange}
+                onTriggerClick={() => setIsTagFilterDropdownOpen(false)}
               />
             </div>
           </div>
@@ -619,19 +630,24 @@ const ExerciseManagement = () => {
 
             {/* Filters and Sort - Desktop only, inline with search */}
             <div className="flex flex-row items-center gap-3">
-              {/* Filters Button */}
-              <TagFilterDropdown
-                tags={availableTags}
-                selectedTags={selectedTagFilters}
-                onTagsChange={handleTagSelection}
-                placeholder="Rechercher un tag..."
-              />
+              {/* Filters Button — single instance (see mobile row) to avoid duplicate click-outside handlers */}
+              {isMdUp && (
+                <TagFilterDropdown
+                  tags={availableTags}
+                  selectedTags={selectedTagFilters}
+                  onTagsChange={handleTagSelection}
+                  placeholder="Rechercher un tag..."
+                  isOpen={isTagFilterDropdownOpen}
+                  onOpenChange={setIsTagFilterDropdownOpen}
+                />
+              )}
 
               {/* Sort Control */}
               <SortControl
                 sort={sort}
                 dir={dir}
                 onChange={handleSortChange}
+                onTriggerClick={() => setIsTagFilterDropdownOpen(false)}
               />
 
               {/* Delete Button - appears when exercises are selected */}
@@ -670,8 +686,8 @@ const ExerciseManagement = () => {
       </div>
 
       {/* Exercise List Container - Scrollable */}
-      <div className="flex-1 min-h-0 min-w-0 px-4 md:px-6 pb-0 md:pb-6 relative z-10 overflow-x-hidden">
-        <div className="rounded-lg flex flex-col overflow-hidden h-full min-w-0" style={{ backgroundColor: 'unset', border: 'none' }}>
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 px-4 md:px-6 pb-0 relative z-10 overflow-x-hidden">
+        <div className="rounded-lg flex flex-col overflow-hidden flex-1 min-h-0 min-w-0" style={{ backgroundColor: 'unset', border: 'none' }}>
           {/* Header - fixed at top, same grid as rows; only the list below scrolls */}
           {!loading && filteredExercises.length > 0 && (
             <div className="px-4 md:px-6 py-3 shrink-0 min-w-0" style={{ borderBottom: 'none' }}>

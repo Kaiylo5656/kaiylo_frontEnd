@@ -1,7 +1,7 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Bell, Zap, Search, User, CreditCard, Menu } from 'lucide-react';
+import { Bell, Zap, Search, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
@@ -558,19 +558,15 @@ const Header = ({ onOpenFeedback }) => {
 
   const renderStudentHeader = () => (
     <div className="flex items-center justify-between gap-3 w-full">
-      {/* Hamburger menu (mobile only) */}
+      {/* Menu latéral (MobileNavigationDrawer) : mobile + tablette — pas de sidebar élève, donc toujours ce bouton */}
       <Button
         variant="ghost"
         size="icon"
-        className="md:hidden text-muted-foreground hover:text-foreground h-9 w-9"
+        className="shrink-0 text-muted-foreground hover:text-foreground h-9 w-9"
         onClick={() => setIsMobileMenuOpen(true)}
         aria-label="Ouvrir le menu"
       >
         <Menu style={{ width: '18px', height: '18px', color: 'rgba(255, 255, 255, 0.7)' }} />
-      </Button>
-
-      <Button variant="ghost" size="icon" className="hidden md:flex text-muted-foreground hover:text-foreground h-9 w-9">
-        <User style={{ width: '18px', height: '18px', color: 'rgba(255, 255, 255, 0.7)' }} />
       </Button>
       <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" style={{ width: '18px', height: '18px', color: 'rgba(255, 255, 255, 0.7)' }} />

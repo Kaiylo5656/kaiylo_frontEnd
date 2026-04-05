@@ -167,9 +167,13 @@ const BottomNavBar = ({ relative = false }) => {
     return null;
   }
 
+  // Mobile inchangé (< md : toujours visible). À partir de md : coach masque la barre (sidebar) ; élève la garde.
+  const hideBottomNavFromMdUp = user?.role !== 'student';
+  const navHideClass = hideBottomNavFromMdUp ? 'md:hidden' : '';
+
   return (
     <nav
-      className={relative ? "md:hidden relative bg-background" : "md:hidden fixed bottom-0 left-0 right-0 bg-background z-50"}
+      className={relative ? `${navHideClass} relative bg-background` : `${navHideClass} fixed bottom-0 left-0 right-0 bg-background z-50`}
       style={{
         backgroundColor: 'rgba(13, 13, 13, 1)',
         borderTopWidth: '0px',

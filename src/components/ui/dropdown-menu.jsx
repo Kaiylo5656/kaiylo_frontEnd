@@ -90,7 +90,12 @@ const DropdownMenuCheckboxItem = React.forwardRef(({ className, children, checke
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
+      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
+      "data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459]",
+      "focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459]",
+      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light",
+      "data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
       className
     )}
     checked={checked}
@@ -110,7 +115,12 @@ const DropdownMenuRadioItem = React.forwardRef(({ className, children, ...props 
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md gap-0.5 py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
+      "relative flex cursor-default select-none items-center rounded-md gap-0.5 py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
+      "data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459]",
+      "focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459]",
+      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light",
+      "data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459]",
       className
     )}
     {...props}>

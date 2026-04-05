@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Calendar, TrendingUp, Clock, CheckCircle, PlayCircle, PauseCircle, Plus, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Loader2, Eye, EyeOff, MoreHorizontal, Save, X, Video, RefreshCw, FileText } from 'lucide-react';
-import { getApiBaseUrlWithApi } from '../config/api';
+import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import axios from 'axios';
 import CreateWorkoutSessionModal from './CreateWorkoutSessionModal';
 import WorkoutSessionDetailsModal from './WorkoutSessionDetailsModal';
@@ -20,9 +20,36 @@ import { format, addDays, startOfWeek, subDays, isValid, parseISO, startOfMonth,
 import { fr } from 'date-fns/locale';
 import useSocket from '../hooks/useSocket'; // Import the socket hook
 import useSortParams from '../hooks/useSortParams';
+import { motion, AnimatePresence } from 'framer-motion';
 import logger from '../utils/logger';
 import { getSetGroups } from '../utils/setGroups';
 import PeriodizationTab from './PeriodizationTab';
+import PerformanceAnalysisModal from './PerformanceAnalysisModal';
+import { getTagColor, getTagColorMap, hexToRgba } from '../utils/tagColors';
+import {
+  computePerformanceAggregation,
+  resolvePerformancePeriodBounds,
+  metricOptions,
+  getMovementIdFromExerciseName,
+  movementOptions
+} from '../utils/performanceMetrics';
+
+function formatMetricValue(metricId, value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const formatNumber = (n, d) => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: d });
+  switch (metricId) {
+    case 'tonnage': return `${formatNumber(value, 0)} kg`;
+    case 'reps': return `${formatNumber(value, 0)}`;
+    case 'series': return `${formatNumber(value, 0)}`;
+    case 'failed_series': return `${formatNumber(value, 0)}`;
+    case 'intensity': return `${formatNumber(value, 1)}%`;
+    case 'rpe_avg': return `${formatNumber(value, 1)}`;
+    case 'avg_charge': return `${formatNumber(value, 1)} kg`;
+    case 'utilization': return `${formatNumber(value, 0)}`;
+    default: return formatNumber(value, 2);
+  }
+}
+
 
 /** Affiche 0 quand la valeur est absente ou vide (évite "5× @kg" → "5×0 @0kg"). */
 function toDisplayNum(v) {
@@ -86,6 +113,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [dragOverSessionId, setDragOverSessionId] = useState(null); // Session currently being hovered during drag
   const [isRescheduling, setIsRescheduling] = useState(false); // Prevent concurrent rescheduling calls
   const [overviewWeekDate, setOverviewWeekDate] = useState(new Date()); // For overview weekly calendar
+  const [overviewWeekDirection, setOverviewWeekDirection] = useState(0); // For week transition direction
   const [trainingWeekDate, setTrainingWeekDate] = useState(new Date()); // For training weekly calendar (starts with current week)
   const [workoutSessions, setWorkoutSessions] = useState({}); // Will store arrays of sessions per date
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -108,6 +136,110 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
   const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5, 8 or 10
+
+  // Performance analysis modal (opened from the “Evolution des Kg/Reps” cards)
+  const [isPerformanceAnalysisModalOpen, setIsPerformanceAnalysisModalOpen] = useState(false);
+  const [performanceInitialMovementIds, setPerformanceInitialMovementIds] = useState([]);
+  const [performanceActiveCardIndex, setPerformanceActiveCardIndex] = useState(0);
+
+  const openPerformanceAnalysis = (movementId, index) => {
+    setPerformanceActiveCardIndex(index);
+    setPerformanceInitialMovementIds(movementId ? [movementId] : []);
+    setIsPerformanceAnalysisModalOpen(true);
+  };
+
+  const loadDashboardPrefs = () => {
+    return Array.from({ length: 4 }).map((_, i) => {
+      try {
+        const raw = localStorage.getItem(`performanceAnalysisModalPreferences_${i}`);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return null;
+    });
+  };
+
+  const [dashboardPrefs, setDashboardPrefs] = useState(loadDashboardPrefs);
+
+  useEffect(() => {
+    if (!isPerformanceAnalysisModalOpen) {
+      setDashboardPrefs(loadDashboardPrefs());
+    }
+  }, [isPerformanceAnalysisModalOpen]);
+
+  const dashboardMovementStats = useMemo(() => {
+    return dashboardPrefs.map((pref) => {
+      if (!pref || !pref.selectedMovementIds || pref.selectedMovementIds.length === 0) {
+        return null;
+      }
+      
+      const singleMovementId = pref.selectedMovementIds[0];
+      
+      const agg = computePerformanceAggregation({
+        workoutSessions,
+        blocks,
+        oneRmRecords: studentData?.one_rm_records || [],
+        selectedMovementIds: [singleMovementId],
+        selectedMetricIds: pref.selectedMetricIds || ['tonnage', 'reps'],
+        groupBy: pref.groupBy || 'bloc',
+        periodType: pref.periodType || 'block',
+        lastMonths: pref.lastMonths || 3,
+        specificMonthValue: pref.specificMonthValue || '',
+        selectedBlockNumber: pref.selectedBlockNumber || 3,
+      });
+
+      const bounds = resolvePerformancePeriodBounds({
+        periodType: pref.periodType || 'block',
+        lastMonths: pref.lastMonths || 3,
+        specificMonthValue: pref.specificMonthValue || '',
+        blocks,
+        selectedBlockNumber: pref.selectedBlockNumber || 3,
+        workoutSessions,
+      });
+
+      let periodLabel = '';
+      if (bounds?.periodStart && bounds?.periodEnd) {
+        try {
+          const start = format(bounds.periodStart, 'd MMM', { locale: fr });
+          const end = format(bounds.periodEnd, 'd MMM yyyy', { locale: fr });
+          periodLabel = `${start} - ${end}`;
+        } catch { periodLabel = ''; }
+      }
+
+      const metricIds = (pref.selectedMetricIds || []).slice(0, 2);
+      const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
+
+      const metrics = metricIds.map(metricId => {
+        let firstBucketVal = null;
+        let lastBucketVal = null;
+        const values = [];
+
+        agg.buckets.forEach(b => {
+          const v = agg.metricsByBucketMovement?.[b.key]?.[singleMovementId]?.[metricId];
+          if (v !== null && v !== undefined && Number.isFinite(Number(v))) {
+            values.push(Number(v));
+            if (firstBucketVal === null) firstBucketVal = Number(v);
+            lastBucketVal = Number(v);
+          }
+        });
+
+        let totalValue = null;
+        if (values.length > 0) {
+          totalValue = sumMetricIds.has(metricId)
+            ? values.reduce((a, b) => a + b, 0)
+            : values.reduce((a, b) => a + b, 0) / values.length;
+        }
+
+        let evolution = null;
+        if (firstBucketVal !== null && lastBucketVal !== null && firstBucketVal !== 0 && values.length > 1) {
+          evolution = ((lastBucketVal - firstBucketVal) / firstBucketVal) * 100;
+        }
+
+        return { id: metricId, value: totalValue, evolution };
+      });
+
+      return { movementId: singleMovementId, periodLabel, metrics };
+    });
+  }, [dashboardPrefs, workoutSessions, blocks, studentData?.one_rm_records]);
 
   // Refs pour le scroll horizontal des séances multiples par jour (comme vue entrainement)
   const dayScrollRefs = useRef({});
@@ -167,6 +299,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [blockNumber, setBlockNumber] = useState(3);
   const [totalBlocks, setTotalBlocks] = useState(3);
   const [blockName, setBlockName] = useState('Prépa Force');
+
+  // Avoid overwriting periodization blocks (with tags) by the fallback "coach/student" blocks response.
+  const periodizationBlocksWithTagsLoadedRef = useRef(false);
+
+  // Periodization tags -> used to render colored tag "pills" (e.g. Technique)
+  const [periodizationTagColorMap, setPeriodizationTagColorMap] = useState(null);
 
   // Notes state
   const [notes, setNotes] = useState([]);
@@ -414,6 +552,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   }, []);
 
   const changeOverviewWeek = (direction) => {
+    setOverviewWeekDirection(direction === 'next' ? 1 : -1);
     const newDate = direction === 'next' ? addDays(overviewWeekDate, 7) : subDays(overviewWeekDate, 7);
     setOverviewWeekDate(newDate);
   };
@@ -2016,7 +2155,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       setStudentData(data);
       if (data.blocks) {
-        setBlocks(data.blocks);
+        // Keep the blocks already loaded from /periodization/blocks/student/:id if available.
+        if (!periodizationBlocksWithTagsLoadedRef.current) {
+          setBlocks(data.blocks);
+        }
       }
 
       // Load block information from student data (use defaults if not set)
@@ -2464,6 +2606,51 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   useEffect(() => {
     fetchStudentDetails();
+  }, [student.id]);
+
+  useEffect(() => {
+    // Used for consistent tag pill colors (same logic as PeriodizationTagTypeahead)
+    const fetchPeriodizationTags = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.get(buildApiUrl('/periodization/tags'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.success) {
+          const tags = Array.isArray(response.data.data) ? response.data.data : [];
+          const tagNames = tags.map(t => t?.name).filter(Boolean);
+          setPeriodizationTagColorMap(getTagColorMap(tagNames));
+        }
+      } catch (err) {
+        logger.error('Error fetching periodization tags for color mapping:', err);
+      }
+    };
+
+    fetchPeriodizationTags();
+  }, [student.id]);
+
+  useEffect(() => {
+    // PeriodizationTab récupère les blocs "avec tags" via /periodization/blocks/student/:id.
+    // Ici on surcharge les `blocks` pour que l'entête d'entraînement puisse afficher le tag (Technique, etc.).
+    const fetchPeriodizationBlocksWithTags = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await axios.get(
+          `${getApiBaseUrlWithApi()}/periodization/blocks/student/${student.id}?t=${new Date().getTime()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data?.success && Array.isArray(response.data.data)) {
+          setBlocks(response.data.data);
+          periodizationBlocksWithTagsLoadedRef.current = true;
+        }
+      } catch (err) {
+        logger.error('Error fetching periodization blocks with tags:', err);
+      }
+    };
+
+    fetchPeriodizationBlocksWithTags();
   }, [student.id]);
 
   useEffect(() => {
@@ -4901,9 +5088,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               const weekDiff = differenceInCalendarWeeks(currentWeekStart, bStart, { weekStartsOn: 1 });
                               // Calculate current week in block (1-indexed) and total weeks
                               const currentWeekInBlock = weekDiff + 1;
-                              const totalWeeksInBlock = active.duration;
-                              // Calculate block number by sorting blocks by start date
-                              const sortedBlocks = [...blocks].sort((a, b) => {
+                                const totalWeeksInBlock = Number(active.duration);
+                                const isSingleWeekBlock = totalWeeksInBlock <= 1;
+
+                                // Calculate block number by sorting only multi-week blocks
+                                const sortedBlocksForNumbering = [...blocks].filter(b => Number(b.duration) > 1).sort((a, b) => {
                                 const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
                                 if (dateDiff !== 0) return dateDiff;
                                 if (a.created_at && b.created_at) {
@@ -4911,15 +5100,112 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                 }
                                 return String(a.id).localeCompare(String(b.id));
                               });
-                              const currentIndex = sortedBlocks.findIndex(b => b.id === active.id);
+                                const currentIndex = sortedBlocksForNumbering.findIndex(b => b.id === active.id);
                               const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
+
+                                const blockName = active.name || '';
+                                const blockLabel = isSingleWeekBlock
+                                  ? (blockName ? `Bloc - ${blockName}` : 'Bloc')
+                                  : `Bloc ${blockNumber} - Semaine ${currentWeekInBlock}/${totalWeeksInBlock}`;
+                              const extractTagName = (block) => {
+                                const candidates = [];
+
+                                if (Array.isArray(block?.tags)) {
+                                  if (block.tags.length > 0) candidates.push(block.tags[0]);
+                                } else if (block?.tags != null && block.tags !== '') {
+                                  // Backend may return a single tag object/string instead of an array
+                                  candidates.push(block.tags);
+                                }
+
+                                // Fallbacks if backend doesn't return `tags`
+                                if (block?.tag) candidates.push(block.tag);
+                                if (block?.tag_name) candidates.push(block.tag_name);
+                                if (block?.tagName) candidates.push(block.tagName);
+                                if (block?.objective) candidates.push(block.objective);
+                                if (block?.tag_label) candidates.push(block.tag_label);
+                                if (block?.tagLabel) candidates.push(block.tagLabel);
+
+                                const firstCandidate = candidates.find(
+                                  c => c != null && c !== '' && (typeof c !== 'object' || Object.keys(c).length > 0)
+                                ) || null;
+
+                                if (!firstCandidate) return '';
+                                if (typeof firstCandidate === 'string') return firstCandidate.trim();
+
+                                const name =
+                                  firstCandidate?.name ??
+                                  firstCandidate?.tag ??
+                                  firstCandidate?.tag_name ??
+                                  firstCandidate?.tagName ??
+                                  firstCandidate?.objective ??
+                                  firstCandidate?.objective_name ??
+                                  firstCandidate?.objectiveName ??
+                                  firstCandidate?.object ??
+                                  firstCandidate?.label ??
+                                  firstCandidate?.label_name ??
+                                  firstCandidate?.value ??
+                                  firstCandidate?.text ??
+                                  firstCandidate?.libelle ??
+                                  firstCandidate?.libelle_name ??
+                                  firstCandidate?.objectif ??
+                                  '';
+
+                                if (typeof name === 'string' && name.trim() !== '') return name.trim();
+
+                                // Final fallback: pick the first string value in the object.
+                                if (typeof firstCandidate === 'object' && firstCandidate) {
+                                  const found = Object.values(firstCandidate).find(
+                                    v => typeof v === 'string' && v.trim() !== ''
+                                  );
+                                  return found ? found.trim() : '';
+                                }
+
+                                return '';
+                              };
+
+                              const primaryTagName = extractTagName(active);
+
                               return (
-                                <span className="text-sm text-[#D4845A] font-normal flex items-center gap-1.5">
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3.5 h-3.5" fill="currentColor">
-                                    <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z" />
-                                  </svg>
-                                  Bloc {blockNumber} - Semaine {currentWeekInBlock}/{totalWeeksInBlock}
-                                </span>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  {primaryTagName && (
+                                    <span
+                                      className="inline-flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-full text-xs font-medium focus:outline-none flex-shrink-0"
+                                      style={{
+                                        backgroundColor: (() => {
+                                          const normalized = String(primaryTagName).toLowerCase().trim();
+                                          const hex = periodizationTagColorMap?.get(normalized);
+                                          if (hex) return hexToRgba(hex, 0.25);
+
+                                          // Fallback: convert rgba(r,g,b,a) -> rgba(r,g,b,0.25)
+                                          const baseStyle = getTagColor(primaryTagName, periodizationTagColorMap);
+                                          if (typeof baseStyle?.backgroundColor === 'string') {
+                                            const m = baseStyle.backgroundColor.match(/rgba\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\)/);
+                                            if (m) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.25)`;
+                                          }
+                                          return baseStyle?.backgroundColor;
+                                        })(),
+                                        // Text in the same tag color (alpha 1)
+                                        color: (() => {
+                                          const normalized = String(primaryTagName).toLowerCase().trim();
+                                          const hex = periodizationTagColorMap?.get(normalized);
+                                          if (hex) return hex;
+                                          // Fallback: keep readable
+                                          return 'rgba(255, 255, 255, 1)';
+                                        })()
+                                      }}
+                                      title={primaryTagName}
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 shrink-0" fill="currentColor">
+                                        <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z" />
+                                      </svg>
+                                      {primaryTagName}
+                                    </span>
+                                  )}
+
+                                  <span className="text-sm text-[#D4845A] font-normal flex items-center gap-1.5">
+                                    {blockLabel}
+                                  </span>
+                                </div>
                               );
                             }
                             return (
@@ -4992,90 +5278,107 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </div>
 
                       {/* Weekly Schedule */}
-                      <div className="grid grid-cols-7 gap-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '8px', paddingRight: '8px', paddingBottom: '4px', marginBottom: '4px' }}>
-                        {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
-                          const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
-                          const dayKey = format(dayDate, 'yyyy-MM-dd');
-                          const isToday = dayKey === format(new Date(), 'yyyy-MM-dd');
-                          const isDropTarget = dragOverDate === dayKey;
+                      <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', paddingLeft: '8px', paddingRight: '8px', paddingBottom: '4px', marginBottom: '4px', overflow: 'hidden' }}>
+                        <AnimatePresence mode="popLayout" custom={overviewWeekDirection} initial={false}>
+                          <motion.div
+                            key={format(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), 'yyyy-MM-dd')}
+                            custom={overviewWeekDirection}
+                            variants={{
+                              enter: (direction) => ({ x: direction > 0 ? 15 : -15, opacity: 0 }),
+                              center: { x: 0, opacity: 1 },
+                              exit: (direction) => ({ x: direction < 0 ? 15 : -15, opacity: 0 })
+                            }}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            className="grid grid-cols-7 gap-2 w-full"
+                          >
+                            {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map((day, i) => {
+                              const dayDate = addDays(startOfWeek(overviewWeekDate, { weekStartsOn: 1 }), i);
+                              const dayKey = format(dayDate, 'yyyy-MM-dd');
+                              const isToday = dayKey === format(new Date(), 'yyyy-MM-dd');
+                              const isDropTarget = dragOverDate === dayKey;
 
-                          // Calculate minimum height for the day container based on visible exercises
-                          const calculateDayMinHeight = () => {
-                            const dateHeaderHeight = 30; // Date header height
-                            const paddingHeight = 8; // Top and bottom padding (pt-1 pb-2)
-                            const baseHeight = dateHeaderHeight + paddingHeight;
+                              // Calculate minimum height for the day container based on visible exercises
+                              const calculateDayMinHeight = () => {
+                                const dateHeaderHeight = 30; // Date header height
+                                const paddingHeight = 8; // Top and bottom padding (pt-1 pb-2)
+                                const baseHeight = dateHeaderHeight + paddingHeight;
 
-                            // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
-                            // Base height: ~100px (header + padding + footer)
-                            // Each exercise: ~20px + gap: ~6px
-                            const sessionBaseHeight = 100; // Header, padding, footer
-                            const exerciseHeight = 20; // Height per exercise line
-                            const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
-                            const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
-                            const sessionHeight = sessionBaseHeight + exercisesHeight;
+                                // Use the same calculation as calculateContainerHeight in renderOverviewDayContent
+                                // Base height: ~100px (header + padding + footer)
+                                // Each exercise: ~20px + gap: ~6px
+                                const sessionBaseHeight = 100; // Header, padding, footer
+                                const exerciseHeight = 20; // Height per exercise line
+                                const gapHeight = 6; // Gap between exercises (gap-1.5 = 6px)
+                                const exercisesHeight = visibleExercisesCount * exerciseHeight + (visibleExercisesCount - 1) * gapHeight;
+                                const sessionHeight = sessionBaseHeight + exercisesHeight;
 
-                            // When in 5/8/10 exercises view: minimum 240 / 300 / 360px for session
-                            const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : visibleExercisesCount === 8 ? Math.max(sessionHeight, 300) : Math.max(sessionHeight, 360);
-                            const totalHeight = baseHeight + minSessionHeight;
+                                // When in 5/8/10 exercises view: minimum 240 / 300 / 360px for session
+                                const minSessionHeight = visibleExercisesCount === 5 ? Math.max(sessionHeight, 240) : visibleExercisesCount === 8 ? Math.max(sessionHeight, 300) : Math.max(sessionHeight, 360);
+                                const totalHeight = baseHeight + minSessionHeight;
 
-                            return totalHeight;
-                          };
+                                return totalHeight;
+                              };
 
-                          const dayMinHeight = calculateDayMinHeight();
-                          // In 5 exercises view, use height instead of minHeight to match child container height exactly
-                          const useFixedHeight = visibleExercisesCount === 5;
-                          const dayStyle = {
-                            backgroundColor: copiedSession && hoveredPasteDate === dayKey ? 'rgba(212, 132, 90, 0.08)' : 'unset',
-                            border: 'none',
-                            width: '100%',
-                            transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s ease-out, height 0.3s ease-out'
-                          };
-                          if (useFixedHeight) {
-                            dayStyle.height = `${dayMinHeight}px`;
-                          } else {
-                            dayStyle.minHeight = `${dayMinHeight}px`;
-                          }
+                              const dayMinHeight = calculateDayMinHeight();
+                              // In 5 exercises view, use height instead of minHeight to match child container height exactly
+                              const useFixedHeight = visibleExercisesCount === 5;
+                              const dayStyle = {
+                                backgroundColor: copiedSession && hoveredPasteDate === dayKey ? 'rgba(212, 132, 90, 0.08)' : 'unset',
+                                border: 'none',
+                                width: '100%',
+                                transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-height 0.3s ease-out, height 0.3s ease-out'
+                              };
+                              if (useFixedHeight) {
+                                dayStyle.height = `${dayMinHeight}px`;
+                              } else {
+                                dayStyle.minHeight = `${dayMinHeight}px`;
+                              }
 
-                          return (
-                            <div
-                              key={day}
-                              className="rounded-xl px-1 pt-1 pb-2 cursor-pointer transition-all duration-300 relative group overflow-hidden"
-                              style={dayStyle}
-                              onClick={() => handleDayClick(dayDate)}
-                              onDragOver={(event) => handleDayDragOver(event, dayDate)}
-                              onDragEnter={(event) => handleDayDragOver(event, dayDate)}
-                              onDragLeave={(event) => handleDragLeave(event, dayDate)}
-                              onDrop={(event) => handleDayDrop(event, dayDate)}
-                              onMouseEnter={() => {
-                                // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
-                                if (!isPastingSession) {
-                                  setHoveredPasteDate(dayKey);
-                                }
-                              }}
-                              onMouseLeave={(event) => {
-                                // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
-                                if (!isPastingSession) {
-                                  // Check if relatedTarget is a valid node before calling contains
-                                  const relatedTarget = event.relatedTarget;
-                                  if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
-                                    setHoveredPasteDate((current) => (current === dayKey ? null : current));
-                                  }
-                                }
-                              }}
-                            >
-                              <div className="text-sm text-white/75 mb-1.5 flex justify-end items-center gap-1">
-                                <button className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95">
-                                  <Plus className="h-4 w-4 text-[#BFBFBF] opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </button>
-                                <span className={`text-[12px] font-extralight ${isToday ? 'text-white rounded-full w-6 h-6 flex items-center justify-center bg-[var(--kaiylo-primary-hover)]' : 'text-white/75'}`}>
-                                  {format(dayDate, 'dd')}
-                                </span>
-                              </div>
+                              return (
+                                <div
+                                  key={day}
+                                  className="rounded-xl px-1 pt-1 pb-2 cursor-pointer transition-all duration-300 relative group overflow-hidden"
+                                  style={dayStyle}
+                                  onClick={() => handleDayClick(dayDate)}
+                                  onDragOver={(event) => handleDayDragOver(event, dayDate)}
+                                  onDragEnter={(event) => handleDayDragOver(event, dayDate)}
+                                  onDragLeave={(event) => handleDragLeave(event, dayDate)}
+                                  onDrop={(event) => handleDayDrop(event, dayDate)}
+                                  onMouseEnter={() => {
+                                    // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                                    if (!isPastingSession) {
+                                      setHoveredPasteDate(dayKey);
+                                    }
+                                  }}
+                                  onMouseLeave={(event) => {
+                                    // Ne pas mettre à jour hoveredPasteDate si on est en train de coller
+                                    if (!isPastingSession) {
+                                      // Check if relatedTarget is a valid node before calling contains
+                                      const relatedTarget = event.relatedTarget;
+                                      if (!relatedTarget || !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget)) {
+                                        setHoveredPasteDate((current) => (current === dayKey ? null : current));
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <div className="text-sm text-white/75 mb-1.5 flex justify-end items-center gap-1">
+                                    <button className="p-1 rounded-[8px] transition-all duration-200 opacity-0 group-hover:opacity-100 group-hover:bg-white/10 group-hover:hover:bg-white/25 hover:scale-105 active:scale-95">
+                                      <Plus className="h-4 w-4 text-[#BFBFBF] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </button>
+                                    <span className={`text-[12px] font-extralight ${isToday ? 'text-white rounded-full w-6 h-6 flex items-center justify-center bg-[var(--kaiylo-primary-hover)]' : 'text-white/75'}`}>
+                                      {format(dayDate, 'dd')}
+                                    </span>
+                                  </div>
 
-                              {renderOverviewDayContent(dayDate, dayKey, isDropTarget, draggedSession)}
-                            </div>
-                          );
-                        })}
+                                  {renderOverviewDayContent(dayDate, dayKey, isDropTarget, draggedSession)}
+                                </div>
+                              );
+                            })}
+                          </motion.div>
+                        </AnimatePresence>
                       </div>
                     </div>
                   </div>
@@ -5084,288 +5387,132 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   <div className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 mb-0 mt-3 items-stretch">
                     {/* Evolution des Kg/Reps - Left Section (2/3 width) */}
                     <div className="bg-white/5 rounded-2xl pt-4 px-4 pb-4 border border-white/10 h-full">
-                      <div className="mb-4 border-b border-white/10 pb-2">
+                      <div className="mb-4 border-b border-white/10 pb-2 flex justify-between items-center">
                         <h3 className="text-sm font-medium flex items-center gap-[10px] text-[#d4845a]" style={{ fontWeight: 400 }}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-4 h-4 flex-shrink-0" fill="currentColor">
-                            <path d="M128 128C128 110.3 113.7 96 96 96C78.3 96 64 110.3 64 128L64 464C64 508.2 99.8 544 144 544L544 544C561.7 544 576 529.7 576 512C576 494.3 561.7 480 544 480L144 480C135.2 480 128 472.8 128 464L128 128zM534.6 214.6C547.1 202.1 547.1 181.8 534.6 169.3C522.1 156.8 501.8 156.8 489.3 169.3L384 274.7L326.6 217.4C314.1 204.9 293.8 204.9 281.3 217.4L185.3 313.4C172.8 325.9 172.8 346.2 185.3 358.7C197.8 371.2 218.1 371.2 230.6 358.7L304 285.3L361.4 342.7C373.9 355.2 394.2 355.2 406.7 342.7L534.7 214.7z" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-4 h-4 flex-shrink-0" fill="currentColor">
+                            <path d="M192 80c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 352c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-352zM0 272c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 160c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48L0 272zM432 96l32 0c26.5 0 48 21.5 48 48l0 288c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-288c0-26.5 21.5-48 48-48z" />
                           </svg>
-                          Evolution des Kg/Reps
+                          Analyse de performance
                         </h3>
                       </div>
-                      {/* Grid 2x2 for exercise cards */}
+                      {/* Grid for exercise cards */}
                       <div className="grid grid-cols-2 gap-3 relative">
-                        {/* Overlay avec blur et icône "En développement" */}
-                        <div className="absolute inset-0 flex items-center justify-center z-10 backdrop-blur-sm bg-black/20 rounded-2xl">
-                          <div className="flex flex-col items-center gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="w-16 h-16" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                              <path d="M415.9 274.5C428.1 271.2 440.9 277 446.4 288.3L465 325.9C475.3 327.3 485.4 330.1 494.9 334L529.9 310.7C540.4 303.7 554.3 305.1 563.2 314L582.4 333.2C591.3 342.1 592.7 356.1 585.7 366.5L562.4 401.4C564.3 406.1 566 411 567.4 416.1C568.8 421.2 569.7 426.2 570.4 431.3L608.1 449.9C619.4 455.5 625.2 468.3 621.9 480.4L614.9 506.6C611.6 518.7 600.3 526.9 587.7 526.1L545.7 523.4C539.4 531.5 532.1 539 523.8 545.4L526.5 587.3C527.3 599.9 519.1 611.3 507 614.5L480.8 621.5C468.6 624.8 455.9 619 450.3 607.7L431.7 570.1C421.4 568.7 411.3 565.9 401.8 562L366.8 585.3C356.3 592.3 342.4 590.9 333.5 582L314.3 562.8C305.4 553.9 304 540 311 529.5L334.3 494.5C332.4 489.8 330.7 484.9 329.3 479.8C327.9 474.7 327 469.6 326.3 464.6L288.6 446C277.3 440.4 271.6 427.6 274.8 415.5L281.8 389.3C285.1 377.2 296.4 369 309 369.8L350.9 372.5C357.2 364.4 364.5 356.9 372.8 350.5L370.1 308.7C369.3 296.1 377.5 284.7 389.6 281.5L415.8 274.5zM448.4 404C424.1 404 404.4 423.7 404.5 448.1C404.5 472.4 424.2 492 448.5 492C472.8 492 492.5 472.3 492.5 448C492.4 423.6 472.7 404 448.4 404zM224.9 18.5L251.1 25.5C263.2 28.8 271.4 40.2 270.6 52.7L267.9 94.5C276.2 100.9 283.5 108.3 289.8 116.5L331.8 113.8C344.3 113 355.7 121.2 359 133.3L366 159.5C369.2 171.6 363.5 184.4 352.2 190L314.5 208.6C313.8 213.7 312.8 218.8 311.5 223.8C310.2 228.8 308.4 233.8 306.5 238.5L329.8 273.5C336.8 284 335.4 297.9 326.5 306.8L307.3 326C298.4 334.9 284.5 336.3 274 329.3L239 306C229.5 309.9 219.4 312.7 209.1 314.1L190.5 351.7C184.9 363 172.1 368.7 160 365.5L133.8 358.5C121.6 355.2 113.5 343.8 114.3 331.3L117 289.4C108.7 283 101.4 275.6 95.1 267.4L53.1 270.1C40.6 270.9 29.2 262.7 25.9 250.6L18.9 224.4C15.7 212.3 21.4 199.5 32.7 193.9L70.4 175.3C71.1 170.2 72.1 165.2 73.4 160.1C74.8 155 76.4 150.1 78.4 145.4L55.1 110.5C48.1 100 49.5 86.1 58.4 77.2L77.6 58C86.5 49.1 100.4 47.7 110.9 54.7L145.9 78C155.4 74.1 165.5 71.3 175.8 69.9L194.4 32.3C200 21 212.7 15.3 224.9 18.5zM192.4 148C168.1 148 148.4 167.7 148.4 192C148.4 216.3 168.1 236 192.4 236C216.7 236 236.4 216.3 236.4 192C236.4 167.7 216.7 148 192.4 148z" />
-                            </svg>
-                            <span className="text-sm font-medium" style={{ color: 'var(--kaiylo-primary-hex)' }}>En développement</span>
-                          </div>
-                        </div>
-                        {/* Muscle-up Card */}
-                        <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Muscle-up</div>
-                              <div className="flex items-center gap-2 mb-2 ml-2">
-                                <span className="text-lg font-normal text-white">26,1 kg</span>
-                                <div className="flex items-center gap-1 text-green-500">
-                                  <TrendingUp className="h-3 w-3" />
-                                  <span className="text-xs font-normal">13%</span>
+                        {Array.from({ length: 4 }).map((_, i) => {
+                          const stat = dashboardMovementStats[i];
+                          if (!stat) {
+                            return (
+                              <button
+                                key={`empty-${i}`}
+                                type="button"
+                                className="bg-[rgba(0,0,0,0.2)] border border-dashed border-white/10 rounded-2xl p-3 text-center cursor-pointer transition-colors duration-200 hover:bg-[rgba(255,255,255,0.05)] flex flex-col items-center justify-center min-h-[140px] group"
+                                onClick={() => openPerformanceAnalysis('', i)}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center mb-2 group-hover:bg-white/10 transition-colors">
+                                  <Plus className="w-4 h-4 text-white/40 group-hover:text-white/60" />
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">522</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
-                                  </p>
-                                </div>
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">20</span>
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            {/* Mini chart */}
-                            <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
-                              <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
-                                <defs>
-                                  <linearGradient id="gradient-muscleup" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="rgba(212,132,89,0.5)" />
-                                    <stop offset="70%" stopColor="rgba(212,132,89,0.15)" />
-                                    <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
-                                    <stop offset="100%" stopColor="rgba(212,132,89,0)" />
-                                  </linearGradient>
-                                  <mask id="fade-mask-muscleup">
-                                    <linearGradient id="fade-gradient-muscleup" x1="0%" y1="0%" x2="0%" y2="100%">
-                                      <stop offset="0%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="60%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="80%" stopColor="white" stopOpacity="0.6" />
-                                      <stop offset="95%" stopColor="white" stopOpacity="0.2" />
-                                      <stop offset="100%" stopColor="white" stopOpacity="0" />
-                                    </linearGradient>
-                                    <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-muscleup)" />
-                                  </mask>
-                                </defs>
-                                <g mask="url(#fade-mask-muscleup)">
-                                  <path
-                                    d="M 0,44 Q 12,40 20,34 T 40,25 T 60,19 T 80,13 T 100,8 L 100,44 Z"
-                                    fill="url(#gradient-muscleup)"
-                                  />
-                                  <path
-                                    d="M 0,44 Q 12,40 20,34 T 40,25 T 60,19 T 80,13 T 100,8"
-                                    stroke="#d4845a"
-                                    strokeWidth="1.5"
-                                    fill="none"
-                                    opacity="0.8"
-                                  />
-                                </g>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
+                              </button>
+                            );
+                          }
 
-                        {/* Pull-up Card */}
-                        <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Pull-up</div>
-                              <div className="flex items-center gap-2 mb-2 ml-2">
-                                <span className="text-lg font-normal text-white">72 kg</span>
-                                <div className="flex items-center gap-1 text-green-500">
-                                  <TrendingUp className="h-3 w-3" />
-                                  <span className="text-xs font-normal">19%</span>
+                          const mLabel = movementOptions.find(o => o.id === stat.movementId)?.label || stat.movementId.replace('exercise:', '');
+                          const primary = stat.metrics[0];
+                          const hasNoData = stat.metrics.every(m => m.value === null);
+                          
+                          return (
+                            <button
+                              key={stat.movementId + '-' + i}
+                              type="button"
+                              className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3 text-left cursor-pointer transition-colors duration-200 hover:bg-[rgba(255,255,255,0.08)] flex flex-col min-h-[140px] group relative overflow-hidden focus:outline-none focus:ring-0"
+                              onClick={() => openPerformanceAnalysis(stat.movementId, i)}
+                            >
+                              <div className="flex items-center justify-between gap-3 w-full mb-3 relative z-10">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[14px] text-[#d4845a] font-medium mb-1 ml-1 truncate capitalize transition-colors group-hover:text-[#e29a76]">{mLabel.replace(/-/g, ' ')}</div>
+                                  {stat.periodLabel && (
+                                    <div className="flex items-center gap-1 text-[10px] text-white/50 font-normal ml-1 truncate">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-2.5 w-2.5 shrink-0 fill-current" aria-hidden="true">
+                                        <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                                      </svg>
+                                      <span className="truncate text-xs font-light text-white/50">{stat.periodLabel}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">864</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
-                                  </p>
-                                </div>
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">12</span>
-                                  </p>
-                                </div>
+                              <div className="flex items-stretch gap-2 mt-auto w-full relative z-10">
+                                {hasNoData && (
+                                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(30,30,30,0.8)] backdrop-blur-[2px] rounded-xl">
+                                    <span className="text-[11px] font-medium text-white/60 text-center px-1">Aucune donnée sur la période</span>
+                                  </div>
+                                )}
+                                {stat.metrics.map((m, idx) => {
+                                  const metricLabelInfo = metricOptions.find(opt => opt.id === m.id)?.label || m.id;
+                                  const shortLabel = metricLabelInfo.split(' ')[0];
+                                  if (m.value !== null) {
+                                    const formatted = formatMetricValue(m.id, m.value);
+                                    const valParts = formatted.split(' ');
+                                    const valNumber = valParts[0];
+                                    const valUnit = valParts.slice(1).join(' ');
+                                    return (
+                                      <div key={m.id + '-' + idx} className="relative min-w-0 overflow-hidden rounded-xl px-3 py-2 bg-[rgba(255,255,255,0.05)] text-white flex-1 w-0">
+                                        {m.evolution !== null && Number.isFinite(Number(m.evolution)) && (
+                                          <div 
+                                            className="absolute -top-6 -right-6 w-16 h-16 rounded-full blur-[14px] opacity-25 pointer-events-none"
+                                            style={{ background: m.evolution > 0 ? '#10b981' : m.evolution < 0 ? '#f43f5e' : 'transparent' }}
+                                          />
+                                        )}
+                                        <div className="text-[12px] font-light truncate text-white/40 relative z-10">
+                                          {shortLabel}
+                                        </div>
+                                        <div className="mt-0.5 flex items-center justify-between gap-2 relative z-10">
+                                          <p className="text-[15px] font-light truncate flex items-baseline gap-1 min-w-0">
+                                            <span className="font-normal truncate">{valNumber}</span>
+                                            {valUnit && <span className="text-[11px] text-white/75 font-extralight truncate min-w-0 flex-1">{valUnit}</span>}
+                                          </p>
+                                          {m.evolution !== null && Number.isFinite(Number(m.evolution)) ? (
+                                            <div
+                                              className={`shrink-0 flex items-center gap-1 font-semibold tabular-nums text-[13px] ${
+                                                m.evolution > 0
+                                                  ? 'text-emerald-400'
+                                                  : m.evolution < 0
+                                                    ? 'text-rose-400'
+                                                    : 'text-white/50'
+                                              }`}
+                                            >
+                                              {m.evolution > 0 ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="w-[1em] h-[1em] shrink-0" fill="currentColor">
+                                                  <path d="M384 160c-17.7 0-32-14.3-32-32s14.3-32 32-32l160 0c17.7 0 32 14.3 32 32l0 160c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-82.7-169.4 169.4c-12.5 12.5-32.8 12.5-45.3 0L192 269.3 54.6 406.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160c12.5-12.5 32.8-12.5 45.3 0L320 306.7 466.7 160 384 160z" />
+                                                </svg>
+                                              ) : m.evolution < 0 ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="w-[1em] h-[1em] shrink-0" fill="currentColor">
+                                                  <path d="M384 352c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0c17.7 0 32-14.3 32-32l0-160c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 82.7-169.4-169.4c-12.5-12.5-32.8-12.5-45.3 0L192 242.7 54.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0L320 205.3 466.7 352 384 352z" />
+                                                </svg>
+                                              ) : null}
+                                              {m.evolution > 0 ? '+' : ''}{m.evolution.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}%
+                                            </div>
+                                          ) : (
+                                            <div className="shrink-0 text-[10px] text-white/20">—</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  } else {
+                                    return (
+                                      <div key={m.id + '-' + idx} className="relative min-w-0 overflow-hidden rounded-xl px-3 py-2 bg-[rgba(14,22,30,0.72)] border border-white/[0.03] text-white opacity-50 flex-1 w-0">
+                                        <div className="text-[12px] font-light truncate text-white/40">
+                                          {shortLabel}
+                                        </div>
+                                        <div className="mt-0.5 flex items-center justify-between gap-2">
+                                          <p className="text-[15px] font-light truncate">—</p>
+                                          <div className="shrink-0 text-[10px] text-white/20">—</div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                })}
                               </div>
-                            </div>
-                            {/* Mini chart */}
-                            <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
-                              <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
-                                <defs>
-                                  <linearGradient id="gradient-pullup" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="rgba(212,132,89,0.6)" />
-                                    <stop offset="70%" stopColor="rgba(212,132,89,0.2)" />
-                                    <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
-                                    <stop offset="100%" stopColor="rgba(212,132,89,0)" />
-                                  </linearGradient>
-                                  <mask id="fade-mask-pullup">
-                                    <linearGradient id="fade-gradient-pullup" x1="0%" y1="0%" x2="0%" y2="100%">
-                                      <stop offset="0%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="60%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="80%" stopColor="white" stopOpacity="0.6" />
-                                      <stop offset="95%" stopColor="white" stopOpacity="0.2" />
-                                      <stop offset="100%" stopColor="white" stopOpacity="0" />
-                                    </linearGradient>
-                                    <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-pullup)" />
-                                  </mask>
-                                </defs>
-                                <g mask="url(#fade-mask-pullup)">
-                                  <path
-                                    d="M 0,44 Q 15,42 25,38 T 50,26 T 75,11 T 100,5 L 100,44 Z"
-                                    fill="url(#gradient-pullup)"
-                                  />
-                                  <path
-                                    d="M 0,44 Q 15,42 25,38 T 50,26 T 75,11 T 100,5"
-                                    stroke="#d4845a"
-                                    strokeWidth="1.5"
-                                    fill="none"
-                                    opacity="0.9"
-                                  />
-                                </g>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Dips Card */}
-                        <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Dips</div>
-                              <div className="flex items-center gap-2 mb-2 ml-2">
-                                <span className="text-lg font-normal text-white">88 kg</span>
-                                <div className="flex items-center gap-1 text-red-500">
-                                  <TrendingUp className="h-3 w-3 rotate-180" />
-                                  <span className="text-xs font-normal">19%</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">880</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
-                                  </p>
-                                </div>
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">10</span>
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            {/* Mini chart */}
-                            <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
-                              <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
-                                <defs>
-                                  <linearGradient id="gradient-dips" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="rgba(212,132,89,0.5)" />
-                                    <stop offset="70%" stopColor="rgba(212,132,89,0.15)" />
-                                    <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
-                                    <stop offset="100%" stopColor="rgba(212,132,89,0)" />
-                                  </linearGradient>
-                                  <mask id="fade-mask-dips">
-                                    <linearGradient id="fade-gradient-dips" x1="0%" y1="0%" x2="0%" y2="100%">
-                                      <stop offset="0%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="60%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="80%" stopColor="white" stopOpacity="0.6" />
-                                      <stop offset="95%" stopColor="white" stopOpacity="0.2" />
-                                      <stop offset="100%" stopColor="white" stopOpacity="0" />
-                                    </linearGradient>
-                                    <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-dips)" />
-                                  </mask>
-                                </defs>
-                                <g mask="url(#fade-mask-dips)">
-                                  <path
-                                    d="M 0,36 Q 10,34 20,32 Q 30,30 40,32 Q 50,34 60,30 Q 70,32 80,34 Q 90,36 100,38 L 100,44 L 0,44 Z"
-                                    fill="url(#gradient-dips)"
-                                  />
-                                  <path
-                                    d="M 0,36 Q 10,34 20,32 Q 30,30 40,32 Q 50,34 60,30 Q 70,32 80,34 Q 90,36 100,38"
-                                    stroke="#d4845a"
-                                    strokeWidth="1.5"
-                                    fill="none"
-                                    opacity="0.8"
-                                  />
-                                </g>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Squat Card */}
-                        <div className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs text-white/75 font-extralight mb-1 ml-2">Squat</div>
-                              <div className="flex items-center gap-2 mb-2 ml-2">
-                                <span className="text-lg font-normal text-white">163 kg</span>
-                                <div className="flex items-center gap-1 text-red-500">
-                                  <TrendingUp className="h-3 w-3 rotate-180" />
-                                  <span className="text-xs font-normal">24%</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Tonnage</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">815</span> <span className="text-[14px] text-white/75 font-extralight">kg</span>
-                                  </p>
-                                </div>
-                                <div className="flex-shrink-0 p-2 bg-[rgba(255,255,255,0.05)] rounded-[10px] text-white">
-                                  <div className="text-[12px] font-medium" style={{ color: 'var(--kaiylo-primary-hover)' }}>Reps</div>
-                                  <p className="text-[18px] font-light mt-0.5">
-                                    <span style={{ color: 'rgba(255, 255, 255, 1)' }} className="font-normal">5</span>
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            {/* Mini chart */}
-                            <div className="w-28 h-16 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center py-1 -mr-[-75px]">
-                              <svg className="w-full h-full" viewBox="0 0 100 48" preserveAspectRatio="none">
-                                <defs>
-                                  <linearGradient id="gradient-squat" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" stopColor="rgba(212,132,89,0.55)" />
-                                    <stop offset="70%" stopColor="rgba(212,132,89,0.18)" />
-                                    <stop offset="85%" stopColor="rgba(212,132,89,0.08)" />
-                                    <stop offset="100%" stopColor="rgba(212,132,89,0)" />
-                                  </linearGradient>
-                                  <mask id="fade-mask-squat">
-                                    <linearGradient id="fade-gradient-squat" x1="0%" y1="0%" x2="0%" y2="100%">
-                                      <stop offset="0%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="60%" stopColor="white" stopOpacity="1" />
-                                      <stop offset="80%" stopColor="white" stopOpacity="0.6" />
-                                      <stop offset="95%" stopColor="white" stopOpacity="0.2" />
-                                      <stop offset="100%" stopColor="white" stopOpacity="0" />
-                                    </linearGradient>
-                                    <rect x="0" y="0" width="100" height="48" fill="url(#fade-gradient-squat)" />
-                                  </mask>
-                                </defs>
-                                <g mask="url(#fade-mask-squat)">
-                                  <path
-                                    d="M 0,40 Q 8,38 16,36 Q 24,34 32,32 Q 40,30 48,32 Q 56,34 64,31 Q 72,32 80,34 Q 88,36 100,36 L 100,44 L 0,44 Z"
-                                    fill="url(#gradient-squat)"
-                                  />
-                                  <path
-                                    d="M 0,40 Q 8,38 16,36 Q 24,34 32,32 Q 40,30 48,32 Q 56,34 64,31 Q 72,32 80,34 Q 88,36 100,36"
-                                    stroke="#d4845a"
-                                    strokeWidth="1.5"
-                                    fill="none"
-                                    opacity="0.85"
-                                  />
-                                </g>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -5653,7 +5800,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       <div className="flex items-center gap-2">
                         <label
                           htmlFor="detailed-view-filter"
-                          className="text-[10px] md:text-xs text-white/50 font-light cursor-pointer select-none"
+                          className="text-sm text-white/50 font-extralight cursor-pointer select-none"
                           style={{ fontFamily: "'Inter', sans-serif" }}
                         >
                           Vue détaillée
@@ -5706,37 +5853,43 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
-                      {/* Status Filter - Using buttons instead of select for better Kaiylo theme */}
-                      <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
+                      {/* Status Filter — même rendu qu'avant (fond léger + orange actif) + pastille animée */}
+                      <div className="relative flex items-center gap-0.5 bg-white/5 rounded-full p-0.5 md:p-1">
+                        <div
+                          className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 md:top-1 md:bottom-1 w-[73px] rounded-full bg-[var(--kaiylo-primary-hex)] shadow-sm transition-transform duration-300 ease-in-out ${
+                            trainingFilter === 'all'
+                              ? 'translate-x-0'
+                              : trainingFilter === 'assigned'
+                                ? 'translate-x-[calc(73px+0.125rem)] md:translate-x-[calc(73px+0.25rem)]'
+                                : 'translate-x-[calc(146px+0.25rem)] md:translate-x-[calc(146px+0.5rem)]'
+                          }`}
+                        />
                         <button
+                          type="button"
                           onClick={() => setTrainingFilter('all')}
-                          className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${trainingFilter === 'all'
-                            ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                            : 'text-white/50 hover:text-white/75'
-                            }`}
-                          style={{ fontWeight: trainingFilter === 'all' ? 400 : 200, width: '73px' }}
+                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
+                            trainingFilter === 'all' ? 'text-white' : 'text-white/50 hover:text-white/75'
+                          }`}
                         >
                           <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Tous</span>
                           <span>Tous</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => setTrainingFilter('assigned')}
-                          className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${trainingFilter === 'assigned'
-                            ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                            : 'text-white/50 hover:text-white/75'
-                            }`}
-                          style={{ fontWeight: trainingFilter === 'assigned' ? 400 : 200, width: '73px' }}
+                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
+                            trainingFilter === 'assigned' ? 'text-white' : 'text-white/50 hover:text-white/75'
+                          }`}
                         >
                           <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Assigné</span>
                           <span>Assigné</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => setTrainingFilter('completed')}
-                          className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${trainingFilter === 'completed'
-                            ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                            : 'text-white/50 hover:text-white/75'
-                            }`}
-                          style={{ fontWeight: trainingFilter === 'completed' ? 400 : 200, width: '73px' }}
+                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
+                            trainingFilter === 'completed' ? 'text-white' : 'text-white/50 hover:text-white/75'
+                          }`}
                         >
                           <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Terminé</span>
                           <span>Terminé</span>
@@ -5745,26 +5898,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
-                      {/* Week View Filter - Using buttons instead of select */}
-                      <div className="flex items-center gap-0.5 md:gap-1 bg-white/5 rounded-full p-0.5 md:p-1">
+                      {/* Week View Filter — pastille glissante (même principe que le filtre séances) */}
+                      <div className="relative flex items-center gap-0.5 bg-white/5 rounded-full p-0.5 md:p-1">
+                        <div
+                          className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 md:top-1 md:bottom-1 w-[89px] rounded-full bg-[var(--kaiylo-primary-hex)] shadow-sm transition-transform duration-300 ease-in-out ${
+                            weekViewFilter === 4 ? 'translate-x-0' : 'translate-x-[calc(89px+0.125rem)]'
+                          }`}
+                        />
                         <button
+                          type="button"
                           onClick={() => setWeekViewFilter(4)}
-                          className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${weekViewFilter === 4
-                            ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                            : 'text-white/50 hover:text-white/75'
-                            }`}
-                          style={{ fontWeight: weekViewFilter === 4 ? 400 : 200, width: '89px' }}
+                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[89px] ${
+                            weekViewFilter === 4 ? 'text-white' : 'text-white/50 hover:text-white/75'
+                          }`}
                         >
                           <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
                           <span>4 sem.</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => setWeekViewFilter(8)}
-                          className={`text-[10px] md:text-xs font-light px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-all ${weekViewFilter === 8
-                            ? 'bg-[var(--kaiylo-primary-hex)] text-white'
-                            : 'text-white/50 hover:text-white/75'
-                            }`}
-                          style={{ fontWeight: weekViewFilter === 8 ? 400 : 200, width: '89px' }}
+                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[89px] ${
+                            weekViewFilter === 8 ? 'text-white' : 'text-white/50 hover:text-white/75'
+                          }`}
                         >
                           <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 mois</span>
                           <span>2 mois</span>
@@ -5820,18 +5976,81 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
                               const weekDiff = differenceInCalendarWeeks(weekStart, bStart, { weekStartsOn: 1 });
                               const currentWeekInBlock = weekDiff + 1;
-                              const totalWeeksInBlock = activeBlock.duration;
-                              // Calculate block number by sorting blocks by start date
-                              const sortedBlocks = [...blocks].sort(
-                                (a, b) => new Date(a.start_week_date) - new Date(b.start_week_date)
-                              );
-                              const currentIndex = sortedBlocks.findIndex(b => b.id === activeBlock.id);
+                              const totalWeeksInBlock = Number(activeBlock.duration);
+
+                              const extractTagName = (block) => {
+                                const candidates = [];
+
+                                if (Array.isArray(block?.tags)) {
+                                  if (block.tags.length > 0) candidates.push(block.tags[0]);
+                                } else if (block?.tags != null && block.tags !== '') {
+                                  // Backend may return a single tag object/string instead of an array
+                                  candidates.push(block.tags);
+                                }
+
+                                // Fallbacks if backend doesn't return `tags`
+                                if (block?.tag) candidates.push(block.tag);
+                                if (block?.tag_name) candidates.push(block.tag_name);
+                                if (block?.tagName) candidates.push(block.tagName);
+                                if (block?.objective) candidates.push(block.objective);
+                                if (block?.tag_label) candidates.push(block.tag_label);
+                                if (block?.tagLabel) candidates.push(block.tagLabel);
+
+                                const firstCandidate = candidates.find(c => c != null && c !== '' && (typeof c !== 'object' || Object.keys(c).length > 0)) || null;
+                                if (!firstCandidate) return '';
+
+                                if (typeof firstCandidate === 'string') return firstCandidate.trim();
+
+                                const name =
+                                  firstCandidate?.name ??
+                                  firstCandidate?.tag ??
+                                  firstCandidate?.tag_name ??
+                                  firstCandidate?.tagName ??
+                                  firstCandidate?.objective ??
+                                  firstCandidate?.objective_name ??
+                                  firstCandidate?.objectiveName ??
+                                  firstCandidate?.object ??
+                                  firstCandidate?.label ??
+                                  firstCandidate?.label_name ??
+                                  firstCandidate?.value ??
+                                  firstCandidate?.text ??
+                                  firstCandidate?.libelle ??
+                                  firstCandidate?.libelle_name ??
+                                  firstCandidate?.objectif ??
+                                  '';
+
+                                if (typeof name === 'string' && name.trim() !== '') return name.trim();
+
+                                // Final fallback: pick the first string value in the object.
+                                if (typeof firstCandidate === 'object' && firstCandidate) {
+                                  const found = Object.values(firstCandidate).find(v => typeof v === 'string' && v.trim() !== '');
+                                  return found ? found.trim() : '';
+                                }
+
+                                return '';
+                              };
+
+                              const primaryTagName = extractTagName(activeBlock);
+
+                              // Calculate block number by sorting only multi-week blocks
+                              const sortedBlocksForNumbering = [...blocks]
+                                .filter(b => Number(b.duration) > 1)
+                                .sort((a, b) => {
+                                  const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                                  if (dateDiff !== 0) return dateDiff;
+                                  if (a.created_at && b.created_at) {
+                                    return new Date(a.created_at) - new Date(b.created_at);
+                                  }
+                                  return String(a.id).localeCompare(String(b.id));
+                                });
+                              const currentIndex = sortedBlocksForNumbering.findIndex(b => b.id === activeBlock.id);
                               const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
                               weekBlockInfo = {
                                 name: activeBlock.name || '',
                                 currentWeek: currentWeekInBlock,
                                 totalWeeks: totalWeeksInBlock,
-                                blockNumber: blockNumber
+                                blockNumber: blockNumber,
+                                primaryTagName
                               };
                             }
                           }
@@ -5854,14 +6073,50 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           return (
                             <div key={weekKey} className="relative week-group group/week">
                               {/* Week Block Info - Display block name and week number at the top left */}
-                              <div className="mb-2 px-1 flex items-center justify-start gap-2">
+                              <div className="mb-2 px-1 flex items-center gap-2 flex-wrap w-full">
                                 {weekBlockInfo ? (
-                                  <span className="text-xs md:text-sm text-[#D4845A] font-normal flex items-center gap-1.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5" fill="currentColor">
-                                      <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z" />
-                                    </svg>
-                                    Bloc {weekBlockInfo.blockNumber} - Semaine {weekBlockInfo.currentWeek}/{weekBlockInfo.totalWeeks}
-                                  </span>
+                                  <>
+                                    {weekBlockInfo.primaryTagName && (
+                                      <span
+                                        className="inline-flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-full text-xs font-medium focus:outline-none flex-shrink-0"
+                                        style={{
+                                          backgroundColor: (() => {
+                                            const normalized = String(weekBlockInfo.primaryTagName).toLowerCase().trim();
+                                            const hex = periodizationTagColorMap?.get(normalized);
+                                            if (hex) return hexToRgba(hex, 0.25);
+
+                                            // Fallback: convert rgba(r,g,b,a) -> rgba(r,g,b,0.5)
+                                            const baseStyle = getTagColor(weekBlockInfo.primaryTagName, periodizationTagColorMap);
+                                            if (typeof baseStyle?.backgroundColor === 'string') {
+                                              const m = baseStyle.backgroundColor.match(/rgba\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\)/);
+                                              if (m) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.25)`;
+                                            }
+                                            return baseStyle?.backgroundColor;
+                                          })(),
+                                          // Text in the same tag color (alpha 1)
+                                          color: (() => {
+                                            const normalized = String(weekBlockInfo.primaryTagName).toLowerCase().trim();
+                                            const hex = periodizationTagColorMap?.get(normalized);
+                                            if (hex) return hex;
+
+                                            // Fallback: keep readable
+                                            return 'rgba(255, 255, 255, 1)';
+                                          })()
+                                        }}
+                                        title={weekBlockInfo.primaryTagName}
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 shrink-0" fill="currentColor">
+                                          <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z" />
+                                        </svg>
+                                        {weekBlockInfo.primaryTagName}
+                                      </span>
+                                    )}
+                                    <span className="text-xs md:text-sm text-[#D4845A] font-normal flex items-center min-w-0 gap-1.5">
+                                      {Number(weekBlockInfo.totalWeeks) <= 1
+                                        ? (weekBlockInfo.name ? `Bloc - ${weekBlockInfo.name}` : 'Bloc')
+                                        : `Bloc ${weekBlockInfo.blockNumber} - Semaine ${weekBlockInfo.currentWeek}/${weekBlockInfo.totalWeeks}`}
+                                    </span>
+                                  </>
                                 ) : (
                                   <span className="text-xs md:text-sm text-white/25 font-normal flex items-center gap-1.5">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="w-3 h-3 md:w-3.5 md:h-3.5" fill="currentColor">
@@ -6948,6 +7203,16 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             </div>
 
             {/* Modals */}
+            <PerformanceAnalysisModal
+              isOpen={isPerformanceAnalysisModalOpen}
+              onClose={() => setIsPerformanceAnalysisModalOpen(false)}
+              initialMovementIds={performanceInitialMovementIds}
+              workoutSessions={workoutSessions}
+              blocks={blocks}
+              oneRmRecords={oneRmRecords}
+              totalBlocks={totalBlocks}
+              preferencesKey={'performanceAnalysisModalPreferences_' + performanceActiveCardIndex}
+            />
             <CreateWorkoutSessionModal
               isOpen={isCreateModalOpen}
               onClose={() => {

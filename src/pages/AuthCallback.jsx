@@ -13,6 +13,10 @@ const AuthCallback = () => {
   const { checkAuthStatus } = useAuth();
   const [error, setError] = useState(null);
   const sessionProcessedRef = useRef(false);
+  
+  // Students are allowed only on mobile/tablet.
+  // The "desktop" heuristic lives in `src/utils/device.js` and should exclude touch tablets.
+  const ALLOW_STUDENT_ON_DESKTOP = false;
 
   useEffect(() => {
     logger.debug('🔄 AuthCallback mounted, checking OAuth callback...');
@@ -106,7 +110,7 @@ const AuthCallback = () => {
               // --- BETA TEST: Block new Google OAuth users (403 from backend) ---
               if (profileError?.response?.status === 403) {
                 logger.debug('🚫 Beta test: new OAuth user blocked by backend');
-                await supabase.auth.signOut();
+                await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
                 try { localStorage.removeItem('authToken'); localStorage.removeItem('supabaseRefreshToken'); localStorage.removeItem('sb-auth-token'); } catch (e) { /* ignore */ }
                 const msg = encodeURIComponent(profileError?.response?.data?.message || 'Les inscriptions publiques sont temporairement fermées.');
                 navigate(`/login?error=${msg}`, { replace: true });
@@ -121,8 +125,8 @@ const AuthCallback = () => {
 
             let targetPath;
             // Bloquer uniquement si le backend a explicitement retourné role === 'student' (pas si rôle inconnu / nouveau compte)
-            if (userRole === 'student' && isDesktopViewport()) {
-              await supabase.auth.signOut();
+            if (userRole === 'student' && isDesktopViewport() && !ALLOW_STUDENT_ON_DESKTOP) {
+              await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
               try {
                 if (typeof localStorage !== 'undefined') {
                   localStorage.removeItem('authToken');
@@ -130,7 +134,7 @@ const AuthCallback = () => {
                   localStorage.removeItem('sb-auth-token');
                 }
               } catch (e) { /* ignore */ }
-              const msg = encodeURIComponent('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+              const msg = encodeURIComponent('L\'accès élève n\'est disponible que sur mobile ou tablette. Utilisez un appareil mobile pour vous connecter.');
               navigate(`/login?error=${msg}`, { replace: true });
               return;
             }

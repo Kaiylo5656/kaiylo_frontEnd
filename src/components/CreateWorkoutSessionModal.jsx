@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2, Link } from 'lucide-react';
@@ -19,7 +19,7 @@ import ModalPortal from './ui/modal/ModalPortal';
 import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
-import { getTagColor } from '../utils/tagColors';
+import { getTagColor, getTagColorMap } from '../utils/tagColors';
 
 const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession, onCopySession }) => {
   const { registerModalOpen, registerModalClose } = useOverlayModal();
@@ -1349,6 +1349,12 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     }
   };
 
+  // Same tag→color mapping as ExerciseManagement / ExerciseLibraryPanel (not hash-only fallback)
+  const exerciseTagColorMap = useMemo(() => {
+    const allTags = availableExercises.flatMap((exercise) => exercise.tags || []);
+    return getTagColorMap(allTags);
+  }, [availableExercises]);
+
   const filteredExercises = availableExercises.filter(exercise =>
     exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2134,9 +2140,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                             </svg>
                             <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
-                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px]">
+                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px] mr-2">
                               {exercise.tags && exercise.tags.map((tag, tagIndex) => {
-                                const tagStyle = getTagColor(tag);
+                                const tagStyle = getTagColor(tag, exerciseTagColorMap);
                                 return (
                                   <span
                                     key={tagIndex}
@@ -2905,7 +2911,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             {exercise.tags && exercise.tags.length > 0 && (
                               <div className="flex gap-1.5">
                                 {exercise.tags.map(tag => {
-                                  const tagStyle = getTagColor(tag);
+                                  const tagStyle = getTagColor(tag, exerciseTagColorMap);
                                   return (
                                     <span
                                       key={tag}

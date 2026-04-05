@@ -266,6 +266,11 @@ const Navigation = () => {
 
   const navItems = getNavItems();
 
+  // Élève : pas de sidebar (déjà hidden < md ; au-delà la colonne était vide). N’impacte pas le mobile.
+  if (user?.role === 'student') {
+    return null;
+  }
+
   return (
     <aside 
       className={`hidden md:flex ${isCollapsed ? 'w-20' : 'w-64'} flex-shrink-0 bg-card border-r border-white/10 flex-col relative transition-all duration-300 ease-in-out`} 

@@ -107,6 +107,46 @@ export const AuthProvider = ({ children }) => {
   // Get API base URL dynamically
   const API_BASE_URL = getApiBaseUrlWithApi();
 
+  // Safely sign out from Supabase without surfacing noisy 403 global logout errors.
+  const safeSupabaseSignOut = useCallback(async ({ preferGlobal = true } = {}) => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        logger.warn('⚠️ Could not read Supabase session before signOut:', sessionError.message);
+      }
+
+      const hasSession = Boolean(session?.access_token || session?.refresh_token);
+      if (!hasSession) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        return;
+      }
+
+      if (preferGlobal) {
+        const { error: globalSignOutError } = await supabase.auth.signOut({ scope: 'global' });
+        if (globalSignOutError) {
+          const isForbidden =
+            globalSignOutError?.status === 403 ||
+            String(globalSignOutError?.message || '').includes('403');
+
+          if (isForbidden) {
+            logger.debug('ℹ️ Global signOut forbidden (403), falling back to local signOut');
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+            return;
+          }
+
+          logger.warn('⚠️ Global signOut failed, falling back to local signOut:', globalSignOutError.message);
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        }
+        return;
+      }
+
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    } catch (signOutError) {
+      logger.warn('⚠️ Unexpected signOut error, forcing local signOut fallback:', signOutError);
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+  }, []);
+
   // Logout function (optimized with useCallback)
   const logout = useCallback((skipSignOut = false) => {
     // Éviter les appels multiples
@@ -145,7 +185,7 @@ export const AuthProvider = ({ children }) => {
     if (!skipSignOut) {
       // Use await if possible, but since logout is not async in signature (to be safe with UI),
       // we just fire and forget, but we CLEARED local tokens first so UI is safe.
-      supabase.auth.signOut().catch(err => logger.error('SignOut error:', err)).finally(() => {
+      safeSupabaseSignOut({ preferGlobal: true }).catch(err => logger.error('SignOut error:', err)).finally(() => {
         isLoggingOutRef.current = false;
       });
     } else {
@@ -156,7 +196,7 @@ export const AuthProvider = ({ children }) => {
     if (typeof navigate === 'function' && window.location.pathname !== '/login') {
       navigate('/login');
     }
-  }, [navigate, resolveRefreshQueue]);
+  }, [navigate, resolveRefreshQueue, safeSupabaseSignOut]);
 
   // Refresh auth token function (optimized with refreshSession)
   const refreshAuthToken = useCallback(async () => {
@@ -452,15 +492,15 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         setUser(userData);
         lastAuthCheckTimeRef.current = Date.now();
-        // Compte élève : autorisé uniquement sur mobile
+        // Compte élève : autorisé sur mobile et tablette uniquement
         if (userData?.role === 'student' && isDesktopViewport()) {
           safeRemoveItem('authToken');
           safeRemoveItem('supabaseRefreshToken');
           safeRemoveItem('sb-auth-token');
           delete axios.defaults.headers.common['Authorization'];
-          await supabase.auth.signOut().catch(() => {});
+          await safeSupabaseSignOut({ preferGlobal: false });
           setUser(null);
-          setError('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+          setError('L\'accès élève n\'est disponible que sur mobile ou tablette. Utilisez un appareil mobile pour vous connecter.');
           return;
         }
         logger.debug('✅ Auth check successful');
@@ -484,9 +524,9 @@ export const AuthProvider = ({ children }) => {
               safeRemoveItem('supabaseRefreshToken');
               safeRemoveItem('sb-auth-token');
               delete axios.defaults.headers.common['Authorization'];
-              await supabase.auth.signOut().catch(() => {});
+              await safeSupabaseSignOut({ preferGlobal: false });
               setUser(null);
-              setError('L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.');
+              setError('L\'accès élève n\'est disponible que sur mobile ou tablette. Utilisez un appareil mobile pour vous connecter.');
             } else {
               setUser({
                 id: currentSession.user.id,
@@ -677,9 +717,9 @@ export const AuthProvider = ({ children }) => {
       logger.debug('🔐 Login response received:', response.status);
       const { token, refreshToken, user } = response.data;
 
-      // Compte élève : autorisé uniquement sur mobile
+      // Compte élève : autorisé sur mobile et tablette uniquement
       if (user?.role === 'student' && isDesktopViewport()) {
-        const msg = 'L\'accès élève n\'est disponible que sur mobile. Utilisez votre téléphone pour vous connecter.';
+        const msg = 'L\'accès élève n\'est disponible que sur mobile ou tablette. Utilisez un appareil mobile pour vous connecter.';
         setError(msg);
         clearTimeout(loadingTimeout);
         setLoading(false);
