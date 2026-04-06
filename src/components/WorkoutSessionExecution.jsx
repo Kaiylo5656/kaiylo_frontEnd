@@ -2348,7 +2348,10 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
       </div>
 
       {/* Exercise List - Tous les exercices visibles, format compact */}
-      <div className={`relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 ${!isSessionStarted ? 'pb-5' : 'pb-0'}`}>
+      <div
+        className={`relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 ${!isSessionStarted ? 'pb-0 md:pb-5' : 'pb-0'}`}
+        style={!isSessionStarted ? { paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' } : undefined}
+      >
         {/* Ligne verticale pointillée à gauche (comme dans Figma) */}
         {exercises && exercises.length > 0 && (() => {
           // Calculer la position du premier et du dernier point

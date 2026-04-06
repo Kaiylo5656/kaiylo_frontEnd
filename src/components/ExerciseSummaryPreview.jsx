@@ -1,68 +1,70 @@
-import React from 'react';
-import { getExerciseSummaryForDisplay } from '../utils/studentExerciseSummary';
-
-function GroupArrow() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 512"
-      className="flex-shrink-0 inline"
-      style={{ width: '6px', height: '6px', fill: 'rgba(255,255,255,0.5)', marginRight: '3px', verticalAlign: 'middle' }}
-      aria-hidden
-    >
-      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
-    </svg>
-  );
-}
+import React, { useMemo } from 'react';
 
 /**
- * Affiche le résumé séries/reps/charge (même logique et style que sous le nom d’exercice en séance).
- * @param {{ exercise: object, alignEnd?: boolean }} props — alignEnd : texte aligné à droite (cartes dashboard).
+ * Compact preview of an exercise "scheme" under the exercise name.
+ * Example: "4x8 @35kg" or "2x10 RPE 8"
  */
-export function ExerciseSummaryPreview({ exercise, alignEnd = false }) {
-  const exerciseSummary = getExerciseSummaryForDisplay(exercise);
-  if (!exerciseSummary) return null;
+export const ExerciseSummaryPreview = ({ exercise, alignEnd = false }) => {
+  const label = useMemo(() => {
+    const sets = exercise?.sets || [];
+    if (!Array.isArray(sets) || sets.length === 0) return '';
 
-  const line =
-    'text-[11px] font-light text-white/50 leading-tight whitespace-nowrap max-w-full overflow-hidden text-ellipsis';
-  const accent = 'text-[#d4845a] font-medium';
-  const wrapSingleAlignEnd =
-    'flex flex-col gap-[2px] items-end text-right min-w-0 max-w-full';
-  const wrapGroupsAlignEnd =
-    'flex flex-col gap-[2px] items-start text-left min-w-0 max-w-full';
-  const wrapDefault = 'flex flex-col gap-[2px] mt-[1px] min-w-0 max-w-full';
+    // RPE mode: coach targets RPE in `set.weight`, reps in `set.reps`
+    if (exercise?.useRir) {
+      const firstReps = sets[0]?.reps ?? '?';
+      const firstRpe = sets[0]?.weight ?? 0;
+      const allSameReps = sets.every(s => String(s?.reps ?? '?') === String(firstReps));
+      const allSameRpe = sets.every(s => String(s?.weight ?? 0) === String(firstRpe));
 
-  if (exerciseSummary.groups) {
-    const wrapCls = alignEnd ? wrapGroupsAlignEnd : wrapDefault;
-    return (
-      <div className={wrapCls}>
-        {exerciseSummary.groups.map((g, gi) => (
-          <p key={gi} className={line}>
-            {exerciseSummary.groups.length > 1 && <GroupArrow />}
-            <span>{g.scheme}</span>
-            {g.weight && (
-              <>
-                <span> </span>
-                <span className={accent}>{g.weight}</span>
-              </>
-            )}
-          </p>
-        ))}
-      </div>
-    );
-  }
+      if (allSameReps && allSameRpe) {
+        return `${sets.length}x${firstReps} RPE ${firstRpe}`;
+      }
+
+      return sets.map(s => `${s?.reps ?? '?'} RPE ${s?.weight ?? 0}`).join(', ');
+    }
+
+    // Charge mode: `set.reps` + optional `set.weight`
+    const withWeight = sets.every(s => s?.weight != null && s?.weight !== '');
+    const firstReps = sets[0]?.reps ?? '?';
+    const firstWeight = sets[0]?.weight;
+    const allSameReps = sets.every(s => String(s?.reps ?? '?') === String(firstReps));
+    const allSameWeight = !withWeight || sets.every(s => String(s?.weight) === String(firstWeight));
+
+    if (withWeight && allSameReps && allSameWeight && firstWeight != null) {
+      // If weight already includes units (e.g. "35kg") keep it as-is.
+      const showKg = !/[a-zA-Z]/.test(String(firstWeight));
+      return `${sets.length}x${firstReps} @${firstWeight}${showKg ? 'kg' : ''}`;
+    }
+
+    if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
+
+    return sets
+      .map(s => {
+        if (s?.weight) {
+          const w = s.weight;
+          const showKg = !/[a-zA-Z]/.test(String(w));
+          return `${s?.reps ?? '?'}@${w}${showKg ? 'kg' : ''}`;
+        }
+        return `${s?.reps ?? '?'}reps`;
+      })
+      .join(', ');
+  }, [exercise]);
 
   return (
-    <div className={alignEnd ? wrapSingleAlignEnd : wrapDefault}>
-      <p className={line}>
-        <span>{exerciseSummary.scheme}</span>
-        {exerciseSummary.weight ? (
-          <>
-            {' '}
-            <span className={accent}>{exerciseSummary.weight}</span>
-          </>
-        ) : null}
-      </p>
-    </div>
+    <p
+      className={`text-white/70 text-[12px] font-light leading-none ${alignEnd ? 'text-right' : 'text-left'}`}
+      style={{
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontWeight: 300,
+        margin: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+      }}
+      title={label}
+    >
+      {label}
+    </p>
   );
-}
+};
+
