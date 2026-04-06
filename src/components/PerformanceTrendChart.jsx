@@ -951,7 +951,7 @@ const PerformanceTrendChart = ({
             const shouldShow =
               isMonthlyRangeWeeklyView && weekLabelStep > 1
                 ? i % weekLabelStep === 0 || i === buckets.length - 1
-                : groupBy === 'week' || groupBy === 'month'
+                : groupBy === 'week' || groupBy === 'month' || groupBy === 'bloc'
                   ? true
                   : i === 0 ||
                     i === buckets.length - 1 ||

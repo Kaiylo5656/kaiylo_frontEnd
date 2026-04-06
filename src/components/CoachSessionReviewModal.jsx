@@ -529,10 +529,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     ? Math.round((new Date(session.endTime) - new Date(session.startTime)) / 60000)
     : null;
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  // Fermer uniquement sur mousedown direct sur le backdrop (pas sur click) : évite de fermer
+  // quand l’utilisateur sélectionne du texte dans la modale et relâche le clic en dehors.
+  const handleBackdropMouseDown = (e) => {
+    if (e.target !== e.currentTarget) return;
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -541,9 +542,12 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center p-4"
       style={{ zIndex: 100 }}
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
     >
-      <div className={`relative ${isMobile ? 'w-full h-full' : ''}`}>
+      <div
+        className={`relative ${isMobile ? 'w-full h-full' : ''}`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {/* Exercises button and modal container - positioned outside modal to the right */}
         <div
           className="absolute flex flex-col gap-2.5"
@@ -644,6 +648,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
             opacity: 0.95
           }}
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header Section */}
           <div className="shrink-0 px-6 pt-6 pb-3">
@@ -1220,14 +1225,14 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
 
                       {/* Text feedback display */}
                       {currentSetVideo?.coach_feedback && (
-                        <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-full min-w-0 min-h-[45px]">
+                        <div className="text-[14px] font-light text-white overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[280px] min-w-[280px] max-w-[280px] min-h-[45px]">
                           {currentSetVideo.coach_feedback}
                         </div>
                       )}
 
                       {/* No feedback message */}
                       {!currentSetVideo?.coach_feedback && !currentSetVideo?.coach_feedback_audio_url && (
-                        <div className="text-[13px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-full min-w-0 h-[45px]">
+                        <div className="text-[13px] font-light text-white/50 overflow-y-auto pr-1 break-words bg-[rgba(0,0,0,0.25)] rounded-[10px] px-[12px] py-[12px] w-[280px] min-w-[280px] max-w-[280px] h-[45px]">
                           Aucun commentaire
                         </div>
                       )}

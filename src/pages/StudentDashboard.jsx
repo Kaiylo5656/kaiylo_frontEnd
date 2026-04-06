@@ -268,12 +268,6 @@ const StudentDashboard = () => {
 
 
   const handleStartSession = (assignment) => {
-    // Prevent starting already completed sessions
-    if (assignment.status === 'completed') {
-      alert('Cette séance est déjà terminée ! Vous ne pouvez pas la recommencer.');
-      return;
-    }
-
     setExecutingSession(assignment);
     setCurrentView('execution');
   };
@@ -529,6 +523,7 @@ const StudentDashboard = () => {
             onBack={handleBackToPlanning}
             onCompleteSession={handleCompleteSession}
             shouldCloseCompletionModal={shouldCloseCompletionModal}
+            readOnly={executingSession?.status === 'completed'}
             omitAmbientBackground
           />
         </div>
@@ -892,13 +887,12 @@ const StudentDashboard = () => {
                             </p>
                             <Button
                               className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                                ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                                ? 'bg-white/10 text-white/75 hover:bg-white/10'
                                 : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                                 }`}
                               onClick={() => handleStartSession(assignment)}
-                              disabled={assignment.status === 'completed'}
                             >
-                              {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                              {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
                             </Button>
                           </CardContent>
                         </Card>
@@ -962,13 +956,12 @@ const StudentDashboard = () => {
                           </p>
                           <Button
                             className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                              ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                              ? 'bg-white/10 text-white/75 hover:bg-white/10'
                               : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                               }`}
                             onClick={() => handleStartSession(assignment)}
-                            disabled={assignment.status === 'completed'}
                           >
-                            {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                            {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
                           </Button>
                         </CardContent>
                       </Card>

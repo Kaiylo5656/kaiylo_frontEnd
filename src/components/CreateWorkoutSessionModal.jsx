@@ -634,6 +634,38 @@ const CreateWorkoutSessionModal = ({
     setSearchTerm('');
   };
 
+  const handleAddQuickExercise = () => {
+    const newExercise = {
+      id: Date.now(),
+      name: '',
+      tags: [],
+      description: '',
+      sets: [
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
+      ],
+      notes: '',
+      isExpanded: true,
+      tempo: '',
+      per_side: false,
+      useRir: false,
+      supersetGroup: null,
+      isQuickExercise: true,
+    };
+
+    setExercises((prev) => [...prev, newExercise]);
+  };
+
+  const handleQuickExerciseNameChange = (exerciseIndex, value) => {
+    setExercises((prev) => {
+      const next = [...prev];
+      next[exerciseIndex] = {
+        ...next[exerciseIndex],
+        name: value,
+      };
+      return next;
+    });
+  };
+
   const handleRemoveExercise = (id) => {
     const updated = exercises.filter(ex => ex.id !== id);
     validateSupersets(updated);
@@ -2247,11 +2279,40 @@ const CreateWorkoutSessionModal = ({
                               : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
                               }`}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                              <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
-                            </svg>
-                            <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 min-w-0 flex-1 break-words">{exercise.name}</span>
-                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px] mr-2">
+                            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                              </svg>
+                              {exercise.isQuickExercise && (
+                                <span
+                                  className="inline-flex items-center justify-center flex-shrink-0"
+                                  title="Exercice rapide"
+                                  aria-label="Exercice rapide"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-3.5 md:w-3.5" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                    <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
+                                  </svg>
+                                </span>
+                              )}
+                              {exercise.isQuickExercise ? (
+                                <textarea
+                                  value={exercise.name || ''}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleQuickExerciseNameChange(exerciseIndex, e.target.value)}
+                                  onInput={(e) => {
+                                    e.currentTarget.style.height = 'auto';
+                                    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                                  }}
+                                  placeholder="Nom de l'exercice"
+                                  rows={1}
+                                  className="min-w-0 flex-1 bg-transparent text-[var(--tw-ring-offset-color)] text-base md:text-lg font-normal outline-none border-none placeholder:text-white/35 resize-none overflow-hidden leading-6"
+                                />
+                              ) : (
+                                <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg min-w-0 flex-1 break-words">{exercise.name}</span>
+                              )}
+                            </div>
+                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-1 md:ml-2 mr-1">
                               {exercise.tags && exercise.tags.map((tag, tagIndex) => {
                                 const tagStyle = getTagColor(tag, exerciseTagColorMap);
                                 return (
@@ -2272,12 +2333,32 @@ const CreateWorkoutSessionModal = ({
                                 e.stopPropagation();
                                 if (!columnVisibility.chargeRpe) return;
                                 const updatedExercises = [...exercises];
-                                updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                                // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
-                                updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
-                                  ...set,
-                                  weight: ''
-                                }));
+                                const prevEx = updatedExercises[exerciseIndex];
+                                const switchingToRpe = !prevEx.useRir;
+                                updatedExercises[exerciseIndex] = {
+                                  ...prevEx,
+                                  useRir: !prevEx.useRir,
+                                  sets: prevEx.sets.map((set) => {
+                                    if (switchingToRpe) {
+                                      // Mémoriser la charge saisie ; réafficher le dernier RPE si l’utilisateur revient ensuite en mode RPE
+                                      return {
+                                        ...set,
+                                        chargeWeightBackup: set.weight ?? '',
+                                        weight: set.rpeTextBackup ?? '',
+                                      };
+                                    }
+                                    // Retour mode charge : restaurer la charge mémorisée (pas le texte RPE affiché)
+                                    const storedCharge = set.chargeWeightBackup;
+                                    return {
+                                      ...set,
+                                      rpeTextBackup: set.weight ?? '',
+                                      weight:
+                                        storedCharge !== undefined && storedCharge !== null
+                                          ? String(storedCharge)
+                                          : '',
+                                    };
+                                  }),
+                                };
                                 setExercises(updatedExercises);
                               }}
                               className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 disabled:pointer-events-none ${!columnVisibility.chargeRpe
@@ -3189,14 +3270,24 @@ const CreateWorkoutSessionModal = ({
               {/* Add Exercise Button */}
               {!showExerciseSelector && (
                 <div className="pt-0 flex justify-center">
+                  <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowExerciseSelector(true)}
-                    className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                    className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-medium text-xs md:text-sm focus:outline-none focus-visible:ring-0"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
                     Ajouter exercice
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleAddQuickExercise}
+                    className="w-full sm:w-[195px] px-6 md:px-8 bg-white/[0.06] hover:bg-white/[0.12] text-white/80 py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                  >
+                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    Exercice rapide
+                  </button>
+                  </div>
                 </div>
               )}
 

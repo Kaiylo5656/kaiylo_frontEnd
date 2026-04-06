@@ -15,6 +15,7 @@ export const metricOptions = [
   { id: 'reps', label: 'Reps (total)' },
   { id: 'series', label: 'Séries (réussies)' },
   { id: 'failed_series', label: 'Séries (échouées)' },
+  { id: 'time_under_tension', label: 'Temps sous tension (hold)' },
   { id: 'intensity', label: 'Intensité (%)' },
   { id: 'rpe_avg', label: 'RPE moyen' },
   { id: 'avg_charge', label: 'Charge moyenne (kg)' },
@@ -185,6 +186,26 @@ function getRepsFromSet(set) {
   );
 }
 
+function parseHoldSecondsFromReps(repsValue) {
+  if (repsValue === null || repsValue === undefined || repsValue === '') return null;
+  if (typeof repsValue === 'number') return Number.isFinite(repsValue) && repsValue >= 0 ? repsValue : null;
+
+  const raw = String(repsValue).trim().toLowerCase();
+  if (!raw) return null;
+
+  if (raw.includes(':')) {
+    const parts = raw.split(':').map((p) => Number(p));
+    if (!parts.length || parts.some((p) => !Number.isFinite(p) || p < 0)) return null;
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return null;
+  }
+
+  const normalized = raw.endsWith('s') ? raw.slice(0, -1).trim() : raw;
+  const n = Number(normalized);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function getRpeFromSet(set, exercise) {
   // Real RPE entered by student (normal mode)
   const rpe =
@@ -254,7 +275,43 @@ function findBlockIntervalForDate(blockIntervals, date) {
   );
 }
 
-export function computePeriodRange({ periodType, lastMonths, specificMonthValue, blocks, selectedBlockNumber }) {
+/**
+ * Numéros de bloc (1…N, ordre multi-semaines) à inclure dans la période « Bloc ».
+ * Prend en charge `selectedBlockNumbers` (tableau) ou l’ancien `selectedBlockNumber` (nombre).
+ */
+function resolveSelectedBlockNumbersForPeriod(selectedBlockNumbers, selectedBlockNumberLegacy, multiWeekSorted) {
+  const len = multiWeekSorted.length;
+  if (len === 0) return [];
+
+  const valid = new Set();
+  if (Array.isArray(selectedBlockNumbers) && selectedBlockNumbers.length > 0) {
+    selectedBlockNumbers.forEach((raw) => {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 1 && n <= len) valid.add(Math.floor(n));
+    });
+  } else if (selectedBlockNumberLegacy != null && selectedBlockNumberLegacy !== '') {
+    const n = Number(selectedBlockNumberLegacy);
+    if (Number.isFinite(n) && n >= 1 && n <= len) valid.add(Math.floor(n));
+  }
+
+  let nums = Array.from(valid).sort((a, b) => a - b);
+  if (nums.length === 0) {
+    const idx = Math.max(0, Number(selectedBlockNumberLegacy) - 1);
+    const picked = multiWeekSorted[idx] || multiWeekSorted[len - 1];
+    const fallbackNum = multiWeekSorted.indexOf(picked) + 1;
+    nums = [fallbackNum > 0 ? fallbackNum : len];
+  }
+  return nums;
+}
+
+export function computePeriodRange({
+  periodType,
+  lastMonths,
+  specificMonthValue,
+  blocks,
+  selectedBlockNumbers,
+  selectedBlockNumber,
+}) {
   const now = new Date();
 
   if (periodType === 'allTime') {
@@ -286,10 +343,23 @@ export function computePeriodRange({ periodType, lastMonths, specificMonthValue,
     const intervals = computeBlockIntervals(blocks);
     const multiWeekSorted = intervals.filter(b => b.durationWeeks > 1);
 
-    const idx = Math.max(0, Number(selectedBlockNumber) - 1);
-    const picked = multiWeekSorted[idx] || multiWeekSorted[multiWeekSorted.length - 1] || null;
-    if (!picked) return { start: subMonths(now, 3), end: now };
-    return { start: picked.start, end: picked.end };
+    if (!multiWeekSorted.length) return { start: subMonths(now, 3), end: now };
+
+    const nums = resolveSelectedBlockNumbersForPeriod(
+      selectedBlockNumbers,
+      selectedBlockNumber,
+      multiWeekSorted,
+    );
+    const pickedList = nums.map(n => multiWeekSorted[n - 1]).filter(Boolean);
+    if (!pickedList.length) return { start: subMonths(now, 3), end: now };
+
+    const minStartTs = Math.min(...pickedList.map(b => b.start.getTime()));
+    const maxEndExclusiveTs = Math.max(...pickedList.map(b => b.end.getTime()));
+    const start = new Date(minStartTs);
+    const end = new Date(maxEndExclusiveTs);
+    end.setDate(end.getDate() - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   // default fallback
@@ -305,6 +375,7 @@ export function resolvePerformancePeriodBounds({
   lastMonths,
   specificMonthValue,
   blocks,
+  selectedBlockNumbers,
   selectedBlockNumber,
   workoutSessions,
 }) {
@@ -313,6 +384,7 @@ export function resolvePerformancePeriodBounds({
     lastMonths,
     specificMonthValue,
     blocks,
+    selectedBlockNumbers,
     selectedBlockNumber,
   });
 
@@ -380,6 +452,7 @@ export function computePerformanceAggregation({
   periodType,
   lastMonths,
   specificMonthValue,
+  selectedBlockNumbers,
   selectedBlockNumber,
 }) {
   const movementIds =
@@ -396,9 +469,30 @@ export function computePerformanceAggregation({
     lastMonths,
     specificMonthValue,
     blocks,
+    selectedBlockNumbers,
     selectedBlockNumber,
     workoutSessions,
   });
+
+  const multiWeekSortedForBlockFilter = blockIntervals.filter(b => b.durationWeeks > 1);
+  const resolvedBlockNums = resolveSelectedBlockNumbersForPeriod(
+    selectedBlockNumbers,
+    selectedBlockNumber,
+    multiWeekSortedForBlockFilter,
+  );
+  const selectedBlockPickedIntervals = resolvedBlockNums
+    .map(n => multiWeekSortedForBlockFilter[n - 1])
+    .filter(Boolean);
+
+  const dateInSelectedPerformancePeriod = (d) => {
+    const t = d.getTime();
+    if (periodType === 'block' && selectedBlockPickedIntervals.length > 0) {
+      return selectedBlockPickedIntervals.some(
+        b => t >= b.start.getTime() && t < b.end.getTime(),
+      );
+    }
+    return t >= periodStart.getTime() && t <= periodEnd.getTime();
+  };
 
   // Map 1RM values per movement.
   const oneRmByMovement = {};
@@ -415,8 +509,7 @@ export function computePerformanceAggregation({
     Object.keys(workoutSessions).forEach(dateKey => {
       const date = parseISO(dateKey);
       if (!date || Number.isNaN(date.getTime())) return;
-      // Only keep sets inside the selected period
-      if (date.getTime() < periodStart.getTime() || date.getTime() > periodEnd.getTime()) return;
+      if (!dateInSelectedPerformancePeriod(date)) return;
 
       const sessions = workoutSessions[dateKey] || [];
       sessions.forEach(session => {
@@ -435,8 +528,13 @@ export function computePerformanceAggregation({
             const kg = getKgFromSet(set, exercise);
             const reps = getRepsFromSet(set);
             const rpe = getRpeFromSet(set, exercise);
+            const repType = set?.repType || set?.rep_type || 'reps';
+            const holdSeconds =
+              repType === 'hold'
+                ? parseHoldSecondsFromReps(set?.reps ?? set?.target_reps ?? set?.requested_reps)
+                : null;
 
-            if (completed && kg === null && reps === null && rpe === null) return;
+            if (completed && kg === null && reps === null && rpe === null && holdSeconds === null) return;
 
             sets.push({
               movementId: mid,
@@ -447,6 +545,7 @@ export function computePerformanceAggregation({
               kg,
               reps,
               rpe,
+              holdSeconds,
             });
           });
         });
@@ -462,6 +561,7 @@ export function computePerformanceAggregation({
     reps: 0,
     series: 0,
     failed_series: 0,
+    time_under_tension: 0,
     // Averages
     rpe_sum: 0,
     rpe_count: 0,
@@ -528,6 +628,9 @@ export function computePerformanceAggregation({
     }
 
     agg.series += 1;
+    if (s.holdSeconds !== null && s.holdSeconds !== undefined) {
+      agg.time_under_tension += s.holdSeconds;
+    }
 
     const reps = s.reps ?? 0;
     const kg = s.kg ?? 0;
@@ -569,6 +672,7 @@ export function computePerformanceAggregation({
           reps: null,
           series: null,
           failed_series: null,
+          time_under_tension: null,
           intensity: null,
           rpe_avg: null,
           avg_charge: null,
@@ -582,6 +686,7 @@ export function computePerformanceAggregation({
         reps: agg.series > 0 ? agg.reps : null,
         series: agg.series,
         failed_series: agg.failed_series,
+        time_under_tension: agg.time_under_tension > 0 ? agg.time_under_tension : null,
         intensity: agg.intensity_count > 0 ? agg.intensity_sum / agg.intensity_count : null,
         rpe_avg: agg.rpe_count > 0 ? agg.rpe_sum / agg.rpe_count : null,
         avg_charge: agg.avg_charge_count > 0 ? agg.avg_charge_sum / agg.avg_charge_count : null,

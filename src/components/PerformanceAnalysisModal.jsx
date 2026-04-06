@@ -110,6 +110,8 @@ function formatMetricValue(metricId, value) {
       return `${formatNumber(value, 1)} kg`;
     case 'utilization':
       return `${formatNumber(value, 0)} séances`;
+    case 'time_under_tension':
+      return `${formatNumber(value, 0)} s`;
     default:
       return formatNumber(value, 2);
   }
@@ -181,8 +183,9 @@ const PerformanceAnalysisModal = ({
   const [selectedMetricIds, setSelectedMetricIds] = useState(['tonnage', 'reps']);
 
   const [groupBy, setGroupBy] = useState('bloc'); // 'week' | 'month' | 'bloc'
-  const [periodType, setPeriodType] = useState('block'); // 'block' | 'lastMonths' | 'specificMonth' | 'allTime'
-  const [selectedBlockNumber, setSelectedBlockNumber] = useState(3);
+  const [periodType, setPeriodType] = useState('block'); // 'block' | 'lastMonths' | 'allTime'
+  /** Numéros de bloc (1…N) inclus dans la période lorsque « Bloc » est choisi — sélection multiple. */
+  const [selectedBlockNumbers, setSelectedBlockNumbers] = useState(() => [3]);
   const [lastMonths, setLastMonths] = useState(3);
   const [isMovementDropdownOpen, setIsMovementDropdownOpen] = useState(false);
   const [isMetricDropdownOpen, setIsMetricDropdownOpen] = useState(false);
@@ -233,10 +236,22 @@ const PerformanceAnalysisModal = ({
     });
   }, [blocks]);
 
-  const activeSelectedBlockOption = useMemo(
-    () => blockOptions.find((opt) => opt.number === Number(selectedBlockNumber)) || null,
-    [blockOptions, selectedBlockNumber],
+  const sortedSelectedBlockNumbers = useMemo(
+    () => [...selectedBlockNumbers].sort((a, b) => a - b),
+    [selectedBlockNumbers],
   );
+
+  const blockPeriodTriggerLabel = useMemo(() => {
+    if (!sortedSelectedBlockNumbers.length || !blockOptions.length) return '';
+    const opts = sortedSelectedBlockNumbers
+      .map((n) => blockOptions.find((o) => o.number === n))
+      .filter(Boolean);
+    if (opts.length === 1) {
+      const o = opts[0];
+      return o.title ? `Bloc ${o.number} : ${o.title}` : `Bloc ${o.number}`;
+    }
+    return `Blocs (${opts.length})`;
+  }, [sortedSelectedBlockNumbers, blockOptions]);
 
   const currentBlockNumber = useMemo(() => {
     if (!blockOptions.length) return '';
@@ -251,11 +266,13 @@ const PerformanceAnalysisModal = ({
 
   useEffect(() => {
     if (!blockOptions.length) return;
-    const hasSelectedBlock = blockOptions.some((opt) => opt.number === Number(selectedBlockNumber));
-    if (!hasSelectedBlock) {
-      setSelectedBlockNumber(blockOptions[0].number);
-    }
-  }, [blockOptions, selectedBlockNumber]);
+    const valid = new Set(blockOptions.map((o) => o.number));
+    setSelectedBlockNumbers((prev) => {
+      const next = prev.filter((n) => valid.has(n)).sort((a, b) => a - b);
+      if (next.length) return next;
+      return [blockOptions[0].number];
+    });
+  }, [blockOptions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -280,11 +297,21 @@ const PerformanceAnalysisModal = ({
         }
 
         if (typeof saved?.periodType === 'string') {
-          setPeriodType(saved.periodType);
+          const pt = saved.periodType === 'lastWeek' ? 'lastMonths' : saved.periodType;
+          setPeriodType(pt);
         }
 
-        if (Number.isFinite(Number(saved?.selectedBlockNumber))) {
-          setSelectedBlockNumber(Number(saved.selectedBlockNumber));
+        if (Array.isArray(saved?.selectedBlockNumbers) && saved.selectedBlockNumbers.length) {
+          const nums = [
+            ...new Set(
+              saved.selectedBlockNumbers
+                .map((n) => Number(n))
+                .filter((n) => Number.isFinite(n) && n >= 1),
+            ),
+          ].sort((a, b) => a - b);
+          if (nums.length) setSelectedBlockNumbers(nums);
+        } else if (Number.isFinite(Number(saved?.selectedBlockNumber))) {
+          setSelectedBlockNumbers([Number(saved.selectedBlockNumber)]);
         }
 
         if (Number.isFinite(Number(saved?.lastMonths))) {
@@ -319,7 +346,7 @@ const PerformanceAnalysisModal = ({
       periodType,
       lastMonths,
       specificMonthValue,
-      selectedBlockNumber,
+      selectedBlockNumbers: sortedSelectedBlockNumbers,
     });
   }, [
     workoutSessions,
@@ -331,7 +358,7 @@ const PerformanceAnalysisModal = ({
     periodType,
     lastMonths,
     specificMonthValue,
-    selectedBlockNumber,
+    sortedSelectedBlockNumbers,
   ]);
 
   const performancePeriodBounds = useMemo(
@@ -341,7 +368,7 @@ const PerformanceAnalysisModal = ({
         lastMonths,
         specificMonthValue,
         blocks,
-        selectedBlockNumber,
+        selectedBlockNumbers: sortedSelectedBlockNumbers,
         workoutSessions,
       }),
     [
@@ -349,12 +376,12 @@ const PerformanceAnalysisModal = ({
       periodType,
       lastMonths,
       specificMonthValue,
-      selectedBlockNumber,
+      sortedSelectedBlockNumbers,
       blocks,
     ],
   );
 
-  const availableMovementOptions = useMemo(() => {
+  const periodMovementOptions = useMemo(() => {
     const dynamicById = new Map();
     const { periodStart, periodEnd } = performancePeriodBounds;
 
@@ -395,6 +422,53 @@ const PerformanceAnalysisModal = ({
 
     return Array.from(dynamicById.values()).sort((a, b) => a.label.localeCompare(b.label, 'fr'));
   }, [workoutSessions, performancePeriodBounds]);
+
+  const movementIdsWithSelectedMetrics = useMemo(() => {
+    if (!periodMovementOptions.length || !selectedMetricIds.length) return new Set();
+
+    const movementIds = periodMovementOptions.map((opt) => opt.id);
+    const metricScopedAggregation = computePerformanceAggregation({
+      workoutSessions,
+      blocks,
+      oneRmRecords,
+      selectedMovementIds: movementIds,
+      selectedMetricIds,
+      groupBy,
+      periodType,
+      lastMonths,
+      specificMonthValue,
+      selectedBlockNumbers: sortedSelectedBlockNumbers,
+    });
+
+    const eligibleMovementIds = new Set();
+    (metricScopedAggregation?.buckets || []).forEach((bucket) => {
+      movementIds.forEach((movementId) => {
+        const hasAnySelectedMetricValue = selectedMetricIds.some((metricId) => {
+          const v = metricScopedAggregation.metricsByBucketMovement?.[bucket.key]?.[movementId]?.[metricId];
+          return v !== null && v !== undefined && Number.isFinite(Number(v));
+        });
+        if (hasAnySelectedMetricValue) eligibleMovementIds.add(movementId);
+      });
+    });
+
+    return eligibleMovementIds;
+  }, [
+    periodMovementOptions,
+    selectedMetricIds,
+    workoutSessions,
+    blocks,
+    oneRmRecords,
+    groupBy,
+    periodType,
+    lastMonths,
+    specificMonthValue,
+    sortedSelectedBlockNumbers,
+  ]);
+
+  const availableMovementOptions = useMemo(
+    () => periodMovementOptions.filter((opt) => movementIdsWithSelectedMetrics.has(opt.id)),
+    [periodMovementOptions, movementIdsWithSelectedMetrics],
+  );
 
   useEffect(() => {
     if (!availableMovementOptions.length) {
@@ -459,6 +533,8 @@ const PerformanceAnalysisModal = ({
         return 'séries';
       case 'utilization':
         return 'séances';
+      case 'time_under_tension':
+        return 's';
       case 'intensity':
         return '%';
       case 'avg_charge':
@@ -484,7 +560,7 @@ const PerformanceAnalysisModal = ({
 
       if (!values.length) return null;
 
-      const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
+      const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization', 'time_under_tension']);
       if (sumMetricIds.has(metricId)) {
         return values.reduce((acc, n) => acc + n, 0);
       }
@@ -543,7 +619,7 @@ const PerformanceAnalysisModal = ({
   const periodMetricSummary = useMemo(() => {
     if (!aggregation?.buckets?.length) return [];
 
-    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
+    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization', 'time_under_tension']);
     const rows = [];
     const buckets = aggregation.buckets || [];
 
@@ -610,7 +686,7 @@ const PerformanceAnalysisModal = ({
   const tablePeriodTotalsByMovement = useMemo(() => {
     if (!aggregation || !tableBucketsWithValues.length) return {};
 
-    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
+    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization', 'time_under_tension']);
     const totals = {};
 
     selectedMovementIds.forEach((movementId) => {
@@ -1123,7 +1199,6 @@ const PerformanceAnalysisModal = ({
 
   const renderPeriodDropdown = () => {
     const periodOptions = [
-      { id: 'lastWeek', label: 'Dernière semaine' },
       { id: 'lastMonths', label: 'Derniers mois' },
       { id: 'block', label: 'Bloc', disabled: blockOptions.length === 0 },
       { id: 'allTime', label: 'Depuis le début' },
@@ -1133,8 +1208,6 @@ const PerformanceAnalysisModal = ({
       switch (periodType) {
         case 'allTime':
           return 'Depuis le début';
-        case 'lastWeek':
-          return 'Dernière semaine';
         case 'lastMonths':
           return `Les ${lastMonths} derniers mois`;
         case 'block':
@@ -1269,11 +1342,6 @@ const PerformanceAnalysisModal = ({
         </div>
       );
     }
-    const currentOption = activeSelectedBlockOption || blockOptions[0];
-    const activeLabel = currentOption?.title
-      ? `Bloc ${currentOption.number} : ${currentOption.title}`
-      : `Bloc ${currentOption?.number ?? 1}`;
-
     return (
       <div className="w-full min-w-0">
       <DropdownMenu
@@ -1298,11 +1366,11 @@ const PerformanceAnalysisModal = ({
               }`}
               aria-hidden
             />
-            <span className="relative z-10" style={{ fontSize: '14px', fontWeight: '400', flex: '1', whiteSpace: 'nowrap' }}>
-              {activeLabel}
+            <span className="relative z-10 min-w-0 truncate" style={{ fontSize: '14px', fontWeight: '400', flex: '1' }}>
+              {blockPeriodTriggerLabel}
             </span>
             <ChevronDown
-              className="h-4 w-4 transition-transform relative z-10"
+              className="h-4 w-4 shrink-0 transition-transform relative z-10"
               style={{ transform: isBlockDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
               aria-hidden="true"
             />
@@ -1314,53 +1382,65 @@ const PerformanceAnalysisModal = ({
           side="bottom"
           sideOffset={8}
           disablePortal={true}
-          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl [&_span.absolute.left-2]:hidden transition-all duration-200 ease-out"
+          className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)] rounded-xl p-1"
           style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255, 255, 255, 0.1)' }}
         >
-          <DropdownMenuRadioGroup
-            value={String(selectedBlockNumber)}
-            onValueChange={(value) => {
-              setSelectedBlockNumber(Number(value));
-              setIsBlockDropdownOpen(false);
-            }}
-          >
+          <div className="px-2.5 pb-2 pt-1.5 text-[10px] font-light text-white/40">
+            Un ou plusieurs blocs
+          </div>
+          <div className="max-h-56 overflow-y-auto flex flex-col gap-[2px] -mr-1 pr-1">
             {blockOptions.map((opt) => {
-              const isSelected = selectedBlockNumber === opt.number;
+              const isChecked = selectedBlockNumbers.includes(opt.number);
               const isCurrent = currentBlockNumber === opt.number;
               return (
-                <DropdownMenuRadioItem
+                <DropdownMenuCheckboxItem
                   key={opt.id}
-                  value={String(opt.number)}
-                  className={`w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer ${
-                    isSelected
-                      ? 'bg-primary/20 text-primary font-normal'
-                      : 'text-foreground font-light'
-                  }`}
-                  style={isSelected ? { backgroundColor: 'rgba(212, 132, 89, 0.2)', color: '#D48459' } : {}}
+                  checked={isChecked}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(checked) => {
+                    const nextChecked = Boolean(checked);
+                    setSelectedBlockNumbers((prev) => {
+                      if (nextChecked) {
+                        if (prev.includes(opt.number)) return prev;
+                        return [...prev, opt.number].sort((a, b) => a - b);
+                      }
+                      const next = prev.filter((x) => x !== opt.number);
+                      return next.length ? next : prev;
+                    });
+                  }}
+                  className="[&>span:first-child]:hidden w-full px-2.5 py-2 pl-2.5 pr-2 text-left text-sm text-white transition-colors flex items-start gap-3 cursor-pointer rounded-md font-light data-[state=checked]:text-[#D48459] data-[state=checked]:font-normal"
+                  style={
+                    isChecked
+                      ? { backgroundColor: 'rgba(212, 132, 89, 0.2)' }
+                      : undefined
+                  }
                 >
-                  <span className="flex flex-col items-start leading-tight">
-                    <span>{opt.label}</span>
+                  <div
+                    className={`w-4 h-4 min-w-4 min-h-4 shrink-0 mt-0.5 rounded border flex items-center justify-center transition-colors ${
+                      isChecked
+                        ? 'bg-[#d4845a] border-[#d4845a]'
+                        : 'bg-transparent border-white/20'
+                    }`}
+                    aria-hidden
+                  >
+                    {isChecked && (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-2.5 h-2.5 text-white" fill="currentColor">
+                        <path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.2 0z" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="flex min-w-0 flex-col items-start leading-tight">
+                    <span className="font-normal">{opt.label}</span>
                     {isCurrent && (
                       <span className="text-[#D48459] text-[11px] font-normal mt-0.5">
                         bloc en cours
                       </span>
                     )}
                   </span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 448 512"
-                    className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${
-                      isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                    }`}
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z"/>
-                  </svg>
-                </DropdownMenuRadioItem>
+                </DropdownMenuCheckboxItem>
               );
             })}
-          </DropdownMenuRadioGroup>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
       </div>
@@ -1463,7 +1543,8 @@ const PerformanceAnalysisModal = ({
         selectedMetricIds,
         groupBy,
         periodType,
-        selectedBlockNumber,
+        selectedBlockNumbers: sortedSelectedBlockNumbers,
+        selectedBlockNumber: sortedSelectedBlockNumbers[0],
         lastMonths,
         viewMode,
       };

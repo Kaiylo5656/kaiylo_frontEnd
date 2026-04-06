@@ -271,7 +271,7 @@ const TagFilterDropdown = ({
               : 'left-0 origin-top-left max-h-[70vh]'
           }`}
           style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             backdropFilter: 'blur(10px)',
             borderColor: 'rgba(255, 255, 255, 0.1)'
           }}

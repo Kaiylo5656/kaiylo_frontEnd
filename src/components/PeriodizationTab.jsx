@@ -995,11 +995,11 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
                   borderColor: '#373736'
                 };
 
-                // Prefer backend block color when available (coach parity), then fallback to tag color.
+                // Always prioritize first tag color for block tinting.
                 const primaryTag = activeBlock.tags && activeBlock.tags.length > 0 ? activeBlock.tags[0] : null;
-                let tagHexColor = activeBlock.color || null;
+                let tagHexColor = null;
 
-                if (!tagHexColor && primaryTag) {
+                if (primaryTag) {
                   // Extract tag name (could be string or object with name property)
                   const tagName = typeof primaryTag === 'string' ? primaryTag : (primaryTag?.name || primaryTag);
                   // Get the hex color from tagColorMap
@@ -1027,6 +1027,11 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
                     tagHexColor = NOTION_COLORS[colorIndex];
                   }
 
+                }
+
+                // Fallback only if there is no tag color.
+                if (!tagHexColor && activeBlock.color) {
+                  tagHexColor = activeBlock.color;
                 }
 
                 if (tagHexColor) {

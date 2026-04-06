@@ -17,7 +17,7 @@ import axios from 'axios';
 import logger from '../utils/logger';
 import { ExerciseSummaryPreview } from './ExerciseSummaryPreview';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
@@ -46,6 +46,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const [sessionVideos, setSessionVideos] = useState([]); // Store videos from API to get coach feedback
   const [dotPositions, setDotPositions] = useState({});
   const [isSessionStarted, setIsSessionStarted] = useState(false); // Track if the session has been started
+  const isReadOnlySession = readOnly || session?.status === 'completed';
   const exerciseCardRefs = useRef([]);
   const exerciseListRef = useRef(null);
   const hasRestoredProgress = useRef(false); // Flag to track if progress has been restored
@@ -54,6 +55,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
   const lastFetchedVideosAssignmentId = useRef(null); // Guard against duplicate video fetches
   const historyEntryAdded = useRef(false); // Track if history entry was added for back button interception
+  const hasHydratedReadOnlyData = useRef(false);
 
   // Show/hide Header and BottomNavBar when component mounts/unmounts
   useEffect(() => {
@@ -110,6 +112,59 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return sessionId ? `workout_progress_${sessionId}` : null;
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!isReadOnlySession || !sessionId || hasHydratedReadOnlyData.current) {
+      return;
+    }
+
+    const hydratedCompletedSets = {};
+    const hydratedComments = {};
+
+    exercises.forEach((exercise, exerciseIndex) => {
+      const studentComment = exercise?.student_comment ?? exercise?.comment;
+      if (studentComment) {
+        hydratedComments[exerciseIndex] = studentComment;
+      }
+
+      (exercise?.sets || []).forEach((set, setIndex) => {
+        const key = `${exerciseIndex}-${setIndex}`;
+        const nextSetData = {};
+
+        const status = set?.validation_status;
+        if (status === 'completed' || status === 'failed') {
+          nextSetData.status = status;
+        }
+
+        const rpeRating = set?.rpe_rating ?? set?.rpeRating ?? set?.rpe;
+        if (rpeRating !== null && rpeRating !== undefined && rpeRating !== '') {
+          nextSetData.rpeRating = rpeRating;
+        }
+
+        const studentWeight = set?.student_weight ?? set?.studentWeight;
+        if (studentWeight !== null && studentWeight !== undefined && studentWeight !== '') {
+          nextSetData.studentWeight = studentWeight;
+        }
+
+        if (Object.keys(nextSetData).length > 0) {
+          hydratedCompletedSets[key] = nextSetData;
+        }
+      });
+    });
+
+    setCompletedSets(hydratedCompletedSets);
+    setExerciseComments(hydratedComments);
+    setIsSessionStarted(true);
+    setSessionStatus('completed');
+    setCurrentExerciseIndex(0);
+    setCurrentSetIndex({ 0: 0 });
+    setSelectedSetIndex({ 0: 0 });
+    hasHydratedReadOnlyData.current = true;
+  }, [isReadOnlySession, sessionId, exercises]);
+
+  useEffect(() => {
+    hasHydratedReadOnlyData.current = false;
+  }, [sessionId]);
+
   // Helper function to save progress to localStorage
   const saveProgressToStorage = React.useCallback((progressData) => {
     if (!storageKey) return;
@@ -155,6 +210,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer l'avertissement avant de quitter la page (fermeture d'onglet, navigation)
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     // Ne pas afficher l'avertissement si on est encore sur la page aperçu
     if (!isSessionStarted) {
       return;
@@ -181,10 +239,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
+  }, [isReadOnlySession, isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
 
   // Load saved progress on mount or when session changes (only once per session)
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     if (!sessionId || !storageKey) {
       return;
     }
@@ -390,7 +451,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         }, 300);
       }
     }
-  }, [sessionId, storageKey, session, exercises]);
+  }, [isReadOnlySession, sessionId, storageKey, session, exercises]);
+
+  useEffect(() => {
+    if (!isReadOnlySession || !sessionId || !exercises || exercises.length === 0) {
+      return;
+    }
+    const assignmentId = session?.assignment_id || session?.id;
+    if (assignmentId && lastFetchedVideosAssignmentId.current !== assignmentId) {
+      lastFetchedVideosAssignmentId.current = assignmentId;
+      fetchSessionVideosFromAPI(assignmentId);
+    }
+  }, [isReadOnlySession, sessionId, session, exercises]);
 
   // Function to fetch videos from API for this session
   const fetchSessionVideosFromAPI = React.useCallback(async (assignmentId) => {
@@ -921,6 +993,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Handle start session button click
   const handleStartSession = () => {
+    if (isReadOnlySession) {
+      return;
+    }
     setIsSessionStarted(true);
     // Sélectionner automatiquement la première série du premier exercice
     if (exercises && exercises.length > 0) {
@@ -997,6 +1072,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleSetValidation = (exerciseIndex, status, setIndex = null) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1079,6 +1157,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer la mise à jour du RPE pour une série
   const handleRpeUpdate = (exerciseIndex, setIndex, rpeRating) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1108,6 +1189,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer la mise à jour de la charge saisie par l'élève (quand coach demande RPE)
   const handleWeightUpdate = (exerciseIndex, setIndex, weight) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1269,6 +1353,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleCompleteSession = () => {
+    if (isReadOnlySession) {
+      return;
+    }
     if (!isAllExercisesCompleted()) {
       alert('Veuillez compléter tous les exercices avant de terminer la séance');
       return;
@@ -2014,6 +2101,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Handle back button - show warning modal before leaving
   const handleBack = () => {
+    if (isReadOnlySession) {
+      if (onBack) {
+        onBack();
+      }
+      return;
+    }
     // Si on est encore sur la page aperçu (séance non commencée), quitter directement sans modale
     if (!isSessionStarted) {
       if (onBack) {
@@ -2050,6 +2143,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Intercepter le bouton retour arrière d'Android/iOS pour afficher la modale
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     // Ne pas intercepter si la séance n'est pas commencée
     if (!isSessionStarted) {
       historyEntryAdded.current = false;
@@ -2075,7 +2171,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos, setIsLeaveWarningModalOpen, onBack]);
+  }, [isReadOnlySession, isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos, setIsLeaveWarningModalOpen, onBack]);
 
   // Early return if no session data
   if (!session) {
@@ -2471,7 +2567,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
       {/* Complete Session Button - Style Figma */}
       {/* Always show the button when session is started, but enable it only when all exercises are completed */}
-      {isSessionStarted && (
+      {isSessionStarted && !isReadOnlySession && (
         <div className="relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 pb-5">
           <div className="mt-[10px] mb-[20px] ml-[-5px] w-full">
             <button
@@ -2631,10 +2727,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           exerciseIndex={selectedExerciseForValidation}
           sets={exercises[selectedExerciseForValidation]?.sets || []}
           completedSets={completedSets}
+          readOnly={isReadOnlySession}
           onValidateSet={handleSetValidation}
           onRpeUpdate={handleRpeUpdate}
           onWeightUpdate={handleWeightUpdate}
           onVideoUpload={(exerciseIndex, setIndex) => {
+            if (isReadOnlySession) return;
             const exercise = exercises[exerciseIndex];
             if (exercise && exercise.sets && exercise.sets[setIndex] && exercise.sets[setIndex].video === true) {
               setSelectedSetForVideo(prev => ({
@@ -2657,6 +2755,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           allExercises={exercises}
           studentComment={exerciseComments[selectedExerciseForValidation] || exercises[selectedExerciseForValidation]?.student_comment || exercises[selectedExerciseForValidation]?.comment || ''}
           onStudentComment={(exerciseIndex, comment) => {
+            if (isReadOnlySession) return;
             setExerciseComments(prev => ({
               ...prev,
               [exerciseIndex]: comment
