@@ -1,5 +1,6 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import { Virtuoso } from 'react-virtuoso';
 import { useAuth } from '../contexts/AuthContext';
 import useSocket from '../hooks/useSocket';
@@ -1024,38 +1025,73 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     }
   }, [messages]);
 
-  const handleVideoClick = (videoData) => {
-    // Construct video object for the modal
+  const handleVideoClick = useCallback(async (videoData) => {
+    if (!videoData?.videoId) {
+      logger.warn('Chat video click: missing videoId');
+      return;
+    }
+
+    // Chat messages store metadata.videoUrl as a signed Supabase URL that expires (e.g. 7d).
+    // Always refresh via API like notifications (Header.jsx) so playback matches the library.
+    let apiVideo = null;
+    try {
+      const token = await getAuthToken();
+      const { data } = await axios.get(buildApiUrl(`/videos/${videoData.videoId}`), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (data?.success && data.video) {
+        apiVideo = data.video;
+      }
+    } catch (err) {
+      logger.error('Failed to refresh video URL for chat:', err);
+    }
+
+    const meta = apiVideo?.metadata || {};
+    const freshUrl = (apiVideo?.video_url && String(apiVideo.video_url).trim())
+      ? apiVideo.video_url
+      : (videoData.videoUrl || '');
+
+    const resolvedStatus = (() => {
+      if (!apiVideo) return 'completed';
+      if (apiVideo.status === 'READY') {
+        return (apiVideo.coach_feedback || apiVideo.coach_feedback_audio_url) ? 'completed' : 'pending';
+      }
+      if (['completed', 'reviewed', 'pending'].includes(apiVideo.status)) {
+        return apiVideo.status;
+      }
+      return 'pending';
+    })();
+
     const videoObj = {
+      ...(apiVideo || {}),
       id: videoData.videoId,
-      video_url: videoData.videoUrl,
-      video_filename: `video_${videoData.videoId}.mp4`,
-      exercise_name: videoData.exerciseName,
-      created_at: videoData.videoDate,
-      set_number: videoData.setNumber,
+      video_url: freshUrl,
+      video_filename: apiVideo?.video_filename || `video_${videoData.videoId}.mp4`,
+      exercise_name: apiVideo?.exercise_name || meta.exercise_name || videoData.exerciseName,
+      created_at: videoData.videoDate || apiVideo?.created_at,
+      set_number: apiVideo?.set_number ?? meta.set_number ?? videoData.setNumber,
       total_sets: videoData.totalSets,
-      weight: videoData.weight,
-      reps: videoData.reps,
-      coach_rating: videoData.rating,
-      coach_feedback: videoData.feedback,
-      coach_feedback_audio_url: videoData.audioUrl,
-      status: 'completed', // Assuming feedback exists
+      weight: apiVideo?.weight ?? meta.weight ?? videoData.weight,
+      reps: apiVideo?.reps ?? meta.reps ?? videoData.reps,
+      coach_rating: videoData.rating ?? apiVideo?.coach_rating,
+      coach_feedback: videoData.feedback ?? apiVideo?.coach_feedback,
+      coach_feedback_audio_url: videoData.audioUrl ?? apiVideo?.coach_feedback_audio_url,
+      status: resolvedStatus,
       student: {
-        id: conversation.other_participant_id, // Assuming other participant is student if current user is coach
+        id: conversation.other_participant_id,
         raw_user_meta_data: {
           full_name: conversation.other_participant_name || 'Student'
         }
       }
     };
-    
-    // If current user is student, we need to adjust the student object
+
     if (currentUser.role === 'student') {
-        videoObj.student = {
-            id: currentUser.id,
-            raw_user_meta_data: {
-                full_name: currentUser.user_metadata?.full_name || currentUser.email
-            }
-        };
+      videoObj.student = {
+        id: currentUser.id,
+        raw_user_meta_data: {
+          full_name: currentUser.user_metadata?.full_name || currentUser.email
+        }
+      };
     }
 
     setSelectedVideo(videoObj);
@@ -1063,7 +1099,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
     params.set('videoId', videoData.videoId);
     navigate(`?${params.toString()}`);
     setIsVideoModalOpen(true);
-  };
+  }, [conversation, currentUser, getAuthToken, navigate]);
 
   // Close video modal when videoId leaves the URL (browser back)
   useEffect(() => {
