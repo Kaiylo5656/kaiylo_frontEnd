@@ -163,10 +163,13 @@ export const AuthProvider = ({ children }) => {
     }
     safeRemoveItem('supabaseRefreshToken');
     // Ensure the main Supabase persistance token is also removed
+    // Supabase v2 stores under sb-{project_ref}-auth-token — sweep all matching keys
     safeRemoveItem('sb-auth-token');
     if (typeof localStorage !== 'undefined') {
       try {
-        localStorage.removeItem('sb-auth-token');
+        Object.keys(localStorage)
+          .filter(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+          .forEach(k => localStorage.removeItem(k));
       } catch (e) {
         // Ignore localStorage errors
       }
@@ -422,9 +425,14 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
 
       // 1. Check if we have any auth-related data in storage at all
+      // Also check the real Supabase v2 key (sb-{project_ref}-auth-token)
+      const supabaseStorageKey = typeof localStorage !== 'undefined'
+        ? Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        : null;
       const hasAuthData = safeGetItem('authToken') ||
                          safeGetItem('supabaseRefreshToken') ||
-                         safeGetItem('sb-auth-token');
+                         safeGetItem('sb-auth-token') ||
+                         supabaseStorageKey;
 
       if (!hasAuthData) {
         logger.debug('ℹ️ No auth data in storage, skipping Supabase check');
