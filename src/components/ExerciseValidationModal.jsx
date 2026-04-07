@@ -54,6 +54,7 @@ const ExerciseValidationModal = ({
       const hasDirectInstructions = exercise.instructions && exercise.instructions.trim().length > 0;
       const hasDirectDescription = exercise.description && exercise.description.trim().length > 0;
       const hasDirectVideo = (exercise.demoVideoURL && exercise.demoVideoURL.trim().length > 0) ||
+        (exercise.youtubeDemoURL && exercise.youtubeDemoURL.trim().length > 0) ||
         (exercise.demo_video_url && exercise.demo_video_url.trim().length > 0) ||
         (exercise.videoUrl && exercise.videoUrl.trim().length > 0) ||
         (exercise.video_url && exercise.video_url.trim().length > 0);
@@ -132,6 +133,9 @@ const ExerciseValidationModal = ({
     const hasDirectVideo = (exercise.demoVideoURL &&
       typeof exercise.demoVideoURL === 'string' &&
       exercise.demoVideoURL.trim().length > 0) ||
+      (exercise.youtubeDemoURL &&
+        typeof exercise.youtubeDemoURL === 'string' &&
+        exercise.youtubeDemoURL.trim().length > 0) ||
       (exercise.demo_video_url &&
         typeof exercise.demo_video_url === 'string' &&
         exercise.demo_video_url.trim().length > 0) ||
@@ -159,6 +163,9 @@ const ExerciseValidationModal = ({
       const hasFetchedVideo = (fetchedDetails.demoVideoURL &&
         typeof fetchedDetails.demoVideoURL === 'string' &&
         fetchedDetails.demoVideoURL.trim().length > 0) ||
+        (fetchedDetails.youtubeDemoURL &&
+          typeof fetchedDetails.youtubeDemoURL === 'string' &&
+          fetchedDetails.youtubeDemoURL.trim().length > 0) ||
         (fetchedDetails.demoVideoUrl &&
           typeof fetchedDetails.demoVideoUrl === 'string' &&
           fetchedDetails.demoVideoUrl.trim().length > 0);

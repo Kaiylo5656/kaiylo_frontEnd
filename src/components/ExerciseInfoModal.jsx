@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import ExerciseYoutubeEmbed from './ExerciseYoutubeEmbed';
+import { parseYoutubeVideoId } from '../utils/youtube';
 
 const ExerciseInfoCard = ({ exercise, onClose }) => {
   const { getAuthToken, refreshAuthToken } = useAuth();
@@ -19,7 +21,10 @@ const ExerciseInfoCard = ({ exercise, onClose }) => {
         setExerciseDetails(null);
         return;
       }
-      if (exercise.instructions && exercise.demoVideoURL) {
+      const hasInstr = exercise.instructions && exercise.instructions.trim();
+      const hasFileDemo = exercise.demoVideoURL && exercise.demoVideoURL.trim();
+      const hasYtDemo = exercise.youtubeDemoURL && exercise.youtubeDemoURL.trim();
+      if (hasInstr && (hasFileDemo || hasYtDemo)) {
         setExerciseDetails(exercise);
         return;
       }
@@ -43,6 +48,7 @@ const ExerciseInfoCard = ({ exercise, onClose }) => {
                 ...exercise,
                 instructions: data.exercise.instructions || exercise.instructions,
                 demoVideoURL: data.exercise.demoVideoURL || exercise.demoVideoURL,
+                youtubeDemoURL: data.exercise.youtubeDemoURL || exercise.youtubeDemoURL,
                 title: data.exercise.title || exercise.title || exercise.name,
                 name: data.exercise.title || exercise.name || exercise.title
               });
@@ -95,8 +101,19 @@ const ExerciseInfoCard = ({ exercise, onClose }) => {
       </div>
 
       <div className="px-[25px] py-0 space-y-4 flex-1 overflow-y-auto">
-        {exerciseDetails?.demoVideoURL ? (
-          (() => {
+        {(() => {
+          const ytId = exerciseDetails?.youtubeDemoURL
+            ? parseYoutubeVideoId(exerciseDetails.youtubeDemoURL)
+            : null;
+          if (ytId) {
+            return (
+              <ExerciseYoutubeEmbed
+                videoId={ytId}
+                title={`Démo — ${exerciseDetails?.title || exerciseDetails?.name || 'exercice'}`}
+              />
+            );
+          }
+          if (exerciseDetails?.demoVideoURL) {
             const url = exerciseDetails.demoVideoURL;
             const isImage = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(url) || (url.includes('/files/') && !url.includes('/videos/'));
             if (isImage) {
@@ -145,18 +162,22 @@ const ExerciseInfoCard = ({ exercise, onClose }) => {
                   <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
                     <div className="text-red-400 text-center px-4">
                       <p className="text-sm mb-3">{videoError}</p>
-                      <button onClick={() => { setVideoError(null); setIsVideoLoading(true); if (videoRef.current) videoRef.current.load(); }} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors">Réessayer</button>
+                      <button type="button" onClick={() => { setVideoError(null); setIsVideoLoading(true); if (videoRef.current) videoRef.current.load(); }} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors">Réessayer</button>
                     </div>
                   </div>
                 )}
               </div>
             );
-          })()
-        ) : loading ? (
-          <div className="bg-[#262626] rounded-lg border border-white/10 h-[125px] flex items-center justify-center text-gray-400 text-xs font-light">
-            Chargement vidéo...
-          </div>
-        ) : null}
+          }
+          if (loading) {
+            return (
+              <div className="bg-[#262626] rounded-lg border border-white/10 h-[125px] flex items-center justify-center text-gray-400 text-xs font-light">
+                Chargement vidéo...
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         <div>
           <p className="text-gray-400 text-xs font-light leading-relaxed mb-3 text-center">Instruction</p>

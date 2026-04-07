@@ -188,7 +188,8 @@ const ExerciseManagement = () => {
         description: formData.description,
         instructions: formData.instructions,
         tags: formData.tags,
-        demoVideoURL: formData.demoVideoURL
+        demoVideoURL: formData.demoVideoURL,
+        youtubeDemoURL: formData.youtubeDemoURL ?? null
       };
 
       logger.debug('📦 Frontend sending exerciseData:', exerciseData);
@@ -227,7 +228,8 @@ const ExerciseManagement = () => {
         description: formData.description,
         instructions: formData.instructions,
         tags: formData.tags,
-        demoVideoURL: formData.demoVideoURL
+        demoVideoURL: formData.demoVideoURL,
+        youtubeDemoURL: formData.youtubeDemoURL ?? null
       };
 
       logger.debug('📦 Frontend updating exerciseData:', exerciseData);
@@ -859,13 +861,13 @@ const ExerciseManagement = () => {
                                 </svg>
                               </div>
                               {/* Video Indicator */}
-                              <div className="flex items-center shrink-0" title={exercise.demoVideoURL ? "Vidéo renseignée" : "Aucune vidéo"}>
+                              <div className="flex items-center shrink-0" title={(exercise.demoVideoURL || exercise.youtubeDemoURL) ? "Vidéo renseignée" : "Aucune vidéo"}>
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
                                   viewBox="0 0 640 640"
                                   className="h-4 w-4"
                                   style={{
-                                    fill: exercise.demoVideoURL
+                                    fill: (exercise.demoVideoURL || exercise.youtubeDemoURL)
                                       ? 'rgba(212, 132, 89, 0.8)'
                                       : 'rgba(255, 255, 255, 0.2)'
                                   }}
@@ -938,13 +940,13 @@ const ExerciseManagement = () => {
                               </svg>
                             </div>
                             {/* Video Indicator */}
-                            <div className="flex items-center" title={exercise.demoVideoURL ? "Vidéo renseignée" : "Aucune vidéo"}>
+                            <div className="flex items-center" title={(exercise.demoVideoURL || exercise.youtubeDemoURL) ? "Vidéo renseignée" : "Aucune vidéo"}>
                               <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 640 640"
                                 className="h-4 w-4"
                                 style={{
-                                  fill: exercise.demoVideoURL
+                                  fill: (exercise.demoVideoURL || exercise.youtubeDemoURL)
                                     ? 'rgba(212, 132, 89, 0.8)'
                                     : 'rgba(255, 255, 255, 0.2)'
                                 }}
