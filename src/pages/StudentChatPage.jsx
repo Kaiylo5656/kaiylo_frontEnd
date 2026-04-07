@@ -30,6 +30,7 @@ const StudentChatPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConversationList, setShowConversationList] = useState(true);
   const [coachNamesMap, setCoachNamesMap] = useState({});
+  const [isActive, setIsActive] = useState(true);
 
   // Get studentId from URL parameters (for coaches linking to chat)
   const studentId = searchParams.get('studentId');
@@ -135,6 +136,9 @@ const StudentChatPage = () => {
         const coachData = Array.isArray(data.data) ? data.data[0] : (data.data || {});
         if (coachData?.id && coachData?.name) {
           setCoachNamesMap({ [coachData.id]: coachData.name, 'coach': coachData.name });
+        }
+        if (data.is_active !== undefined) {
+          setIsActive(data.is_active);
         }
       }
     } catch (error) {
@@ -697,6 +701,7 @@ const StudentChatPage = () => {
                 onNewMessage={handleNewMessage}
                 onMessageSent={handleMessageSent}
                 onBack={handleBackToList}
+                isActive={isActive}
               />
             </div>
           )}

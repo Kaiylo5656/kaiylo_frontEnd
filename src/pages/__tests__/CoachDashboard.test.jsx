@@ -9,6 +9,17 @@ import { AuthProvider } from '../../contexts/AuthContext';
 // Mock axios
 vi.mock('axios');
 
+// Mock ModalManager (required by CoachDashboard sub-components)
+vi.mock('../../components/ui/modal/ModalManager', () => ({
+  useModalManager: () => ({ openModal: vi.fn(), closeModal: vi.fn() }),
+  ModalManagerProvider: ({ children }) => children,
+}));
+
+// Mock useSocket
+vi.mock('../../hooks/useSocket', () => ({
+  default: () => ({ socket: null, onVideoUpload: vi.fn() }),
+}));
+
 // Mock AuthContext
 vi.mock('../../contexts/AuthContext', async (importOriginal) => {
   const mod = await importOriginal();
@@ -17,6 +28,7 @@ vi.mock('../../contexts/AuthContext', async (importOriginal) => {
     useAuth: () => ({
       user: { name: 'Test Coach', role: 'coach' },
       logout: vi.fn(),
+      getAuthToken: vi.fn().mockResolvedValue('fake-token'),
     }),
   };
 });
@@ -45,9 +57,9 @@ Object.defineProperty(navigator, 'clipboard', { value: mockClipboard });
 
 const renderWithProviders = (ui) => {
   return render(
-    <AuthProvider>
-      <BrowserRouter>{ui}</BrowserRouter>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>{ui}</AuthProvider>
+    </BrowserRouter>
   );
 };
 
@@ -480,6 +492,93 @@ describe('CoachDashboard', () => {
       expect(screen.getByText('Coach Dashboard')).toBeInTheDocument();
     }, { timeout: 10000 });
   }, 15000);
+
+  // ─── Billing Banner Tests (Story 4.3) ────────────────────────
+
+  describe('Billing banners', () => {
+    const mockStudentsWithInactive = [
+      { id: '1', name: 'John Doe', email: 'john@test.com', is_active: true },
+      { id: '2', name: 'Jane Smith', email: 'jane@test.com', is_active: false }
+    ];
+
+    function setupAxios(billingData = null) {
+      global.fetch = vi.fn().mockImplementation((url) => {
+        if (url.includes('/api/billing/status')) {
+          if (billingData === null) return Promise.reject(new Error('Network error'));
+          return Promise.resolve({
+            json: () => Promise.resolve({ success: true, data: billingData })
+          });
+        }
+        return Promise.resolve({ json: () => Promise.resolve({ success: false }) });
+      });
+
+      axios.get.mockImplementation((url) => {
+        if (url.includes('/coach/students')) {
+          return Promise.resolve({ data: { success: true, data: mockStudentsWithInactive } });
+        }
+        return Promise.resolve({ data: { success: true, data: [] } });
+      });
+    }
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('shows cancelling banner when billing status is cancelling', async () => {
+      setupAxios({ plan: 'pro', status: 'cancelling', currentPeriodEnd: '2026-05-01T00:00:00Z', clientCount: 2, clientLimit: 10 });
+
+      renderWithProviders(<CoachDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Votre abonnement Pro se termine le/)).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      expect(screen.getByText('Gérer mon abonnement')).toBeInTheDocument();
+    }, 15000);
+
+    it('shows downgrade banner when plan is free and students are restricted', async () => {
+      setupAxios({ plan: 'free', status: 'active', clientCount: 1, clientLimit: 3 });
+
+      renderWithProviders(<CoachDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/mode lecture seule/)).toBeInTheDocument();
+      }, { timeout: 10000 });
+
+      expect(screen.getByText('Se réabonner')).toBeInTheDocument();
+    }, 15000);
+
+    it('shows no banner when subscription is active pro', async () => {
+      setupAxios({ plan: 'pro', status: 'active', clientCount: 2, clientLimit: 10 });
+
+      renderWithProviders(<CoachDashboard />);
+
+      await waitFor(() => {
+        expect(axios.get).toHaveBeenCalled();
+      }, { timeout: 5000 });
+
+      // Wait a tick for billing fetch to resolve
+      await new Promise(r => setTimeout(r, 100));
+
+      expect(screen.queryByText(/Votre abonnement Pro se termine/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/mode lecture seule/)).not.toBeInTheDocument();
+    }, 15000);
+
+    it('does not crash and shows no banner when billing fetch fails', async () => {
+      setupAxios(null); // fetch will reject
+
+      renderWithProviders(<CoachDashboard />);
+
+      await waitFor(() => {
+        expect(axios.get).toHaveBeenCalled();
+      }, { timeout: 5000 });
+
+      await new Promise(r => setTimeout(r, 100));
+
+      expect(screen.queryByText(/Votre abonnement Pro se termine/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/mode lecture seule/)).not.toBeInTheDocument();
+    }, 15000);
+  });
 
   it('handles invitation creation error', async () => {
     axios.get.mockResolvedValue({

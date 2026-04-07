@@ -59,7 +59,7 @@ const ReplyIcon = ({ className, style }) => (
   </svg>
 );
 
-const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack }) => {
+const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, onBack, isActive = true }) => {
   const { getAuthToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -466,6 +466,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   const sendMessage = useCallback(async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
+    if (!isActive && currentUser?.role === 'student') return;
 
     // Debug logging (reduced)
     logger.debug('🔍 sendMessage called for conversation:', conversation?.id);
@@ -615,7 +616,7 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
   }, [
     newMessage, sending, replyingTo, conversation?.id, editingMessageId,
     currentUser, isConnected, socket, sendSocketMessage,
-    stopTyping, onMessageSent, getAuthToken
+    stopTyping, onMessageSent, getAuthToken, isActive
   ]);
 
   useEffect(() => {
@@ -1607,7 +1608,6 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                 type="text"
                 value={newMessage}
                 onChange={handleInputChange}
-                placeholder={editingMessageId ? 'Modifier le message…' : 'Tapez un message ici...'}
                 className="flex-1 text-xs md:text-sm border-none focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground rounded-none ml-2 mr-2 md:ml-3 md:mr-3 pl-3 pr-3 md:pl-0 md:pr-0 font-normal text-white"
                 style={{ 
                   borderStyle: 'none',
@@ -1618,11 +1618,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                   background: 'unset',
                   fontWeight: currentUser?.role === 'student' ? 400 : undefined
                 }}
-                disabled={sending || uploadingFile}
+                disabled={sending || uploadingFile || (!isActive && currentUser?.role === 'student')}
+                placeholder={(!isActive && currentUser?.role === 'student') ? 'Accès limité — contactez votre coach' : (editingMessageId ? 'Modifier le message…' : 'Tapez un message ici...')}
               />
               <Button
                 type="submit"
-                disabled={!newMessage.trim() || sending || uploadingFile}
+                disabled={!newMessage.trim() || sending || uploadingFile || (!isActive && currentUser?.role === 'student')}
                 size="icon"
                 className="flex-shrink-0 bg-transparent rounded-full w-8 h-8 md:w-10 md:h-10 disabled:opacity-100 disabled:text-white/50"
                 style={{

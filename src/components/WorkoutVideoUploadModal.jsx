@@ -5,7 +5,7 @@ import { ImageIcon, VideoIcon, VideoOff } from 'lucide-react';
 import { useBackgroundUpload } from '../contexts/BackgroundUploadContext';
 import VideoTrimEditor from './VideoTrimEditor';
 
-const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVideo, exerciseInfo, setInfo, existingVideo }) => {
+const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVideo, exerciseInfo, setInfo, existingVideo, isActive = true }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -168,6 +168,8 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
 
   // Handle gallery selection — opens file picker, modal stays open until "Terminer"
   const handleGallerySelect = () => {
+    // Block upload for inactive (read-only) students
+    if (!isActive) return;
     // If there's already an active upload for this set, don't start another
     if (activeUpload && (activeUpload.status === 'UPLOADING' || activeUpload.status === 'PENDING')) {
       logger.debug('⚠️ Upload already in progress for this set, not starting another');
@@ -356,7 +358,7 @@ const WorkoutVideoUploadModal = ({ isOpen, onClose, onUploadSuccess, onDeleteVid
           </div>
 
           <div className="px-[28px] pt-[15px] flex gap-[8px]">
-            <button type="button" onClick={handleGallerySelect} className={`flex-1 h-[35px] rounded-[5px] flex items-center justify-center gap-[9px] text-white text-[12px] font-normal transition-colors ${videoFile && videoFile !== 'no-video' ? 'bg-[#d4845a]' : 'bg-[#2d2d2d]'}`}>
+            <button type="button" onClick={handleGallerySelect} disabled={!isActive} className={`flex-1 h-[35px] rounded-[5px] flex items-center justify-center gap-[9px] text-white text-[12px] font-normal transition-colors ${!isActive ? 'opacity-50 cursor-not-allowed' : ''} ${videoFile && videoFile !== 'no-video' ? 'bg-[#d4845a]' : 'bg-[#2d2d2d]'}`} title={!isActive ? 'Accès limité — contactez votre coach' : undefined}>
               <ImageIcon className="w-[18px] h-[18px]" />
               <span>Galerie</span>
             </button>

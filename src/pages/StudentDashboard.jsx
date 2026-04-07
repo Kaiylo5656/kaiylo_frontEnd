@@ -1,7 +1,8 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
+import { AlertTriangle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format, addDays, startOfWeek, subDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -54,8 +55,31 @@ const StudentDashboard = () => {
   const [dayDirection, setDayDirection] = useState(0); // Direction for day animation
   const [isAnimating, setIsAnimating] = useState(false);
   const [isDayAnimating, setIsDayAnimating] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const scrollContainerRef = useRef(null);
   const weekSwipeRef = useRef({ startX: null, startY: null });
+
+  // Fetch student access state from coach relationship
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+    const fetchAccessState = async () => {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/coach'), {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.is_active !== undefined) {
+            setIsActive(data.is_active);
+          }
+        }
+      } catch (error) {
+        logger.error('Error fetching access state:', error);
+      }
+    };
+    fetchAccessState();
+  }, [user, getAuthToken]);
 
   // Update dates when URL parameter changes
   useEffect(() => {
@@ -530,6 +554,7 @@ const StudentDashboard = () => {
             onCompleteSession={handleCompleteSession}
             shouldCloseCompletionModal={shouldCloseCompletionModal}
             omitAmbientBackground
+            isActive={isActive}
           />
         </div>
       </div>
@@ -657,6 +682,19 @@ const StudentDashboard = () => {
           color: 'rgba(255, 255, 255, 0)'
         }}
       >
+        {/* Read-only access banner */}
+        {!isActive && (
+          <div className="w-full mb-4 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-400/20 text-blue-200 text-sm text-center">
+            <div className="flex items-center justify-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">Accès limité</span>
+            </div>
+            <p className="mt-1 text-blue-300/80 text-xs">
+              Votre accès a été limité. Le plan de votre coach a changé. Contactez votre coach pour plus de détails.
+            </p>
+          </div>
+        )}
+
         {/* Titre du mois */}
         <div className="flex items-center justify-center gap-4 mb-4 md:mb-6">
           <h1 className="text-2xl md:text-[28px] font-light text-center text-white">

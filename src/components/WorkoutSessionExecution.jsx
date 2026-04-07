@@ -16,7 +16,7 @@ import { safeGetItem, safeSetItem, safeRemoveItem, isStorageAvailable } from '..
 import axios from 'axios';
 import logger from '../utils/logger';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, isActive = true }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
@@ -1337,6 +1337,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleCompleteSession = () => {
+    if (!isActive) return;
     if (!isAllExercisesCompleted()) {
       alert('Veuillez compléter tous les exercices avant de terminer la séance');
       return;
@@ -2375,7 +2376,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           {exercises && exercises.length > 0 ? (
             exercises.map((exercise, exerciseIndex) => {
               const { start: sStart, end: sEnd } = getSupersetRange(exercises, exerciseIndex);
-              const isActive = currentExerciseIndex >= sStart && currentExerciseIndex <= sEnd;
+              const isExerciseInFocus = currentExerciseIndex >= sStart && currentExerciseIndex <= sEnd;
               const isCompleted = isExerciseFullyComplete(exerciseIndex);
               const exerciseSummary = getExerciseSummary(exercise);
               
@@ -2449,11 +2450,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                             variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
                           } else if (status === 'failed') {
                             variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[rgba(255,255,255,0.08)]';
-                          } else if (isSelected && isActive) {
+                          } else if (isSelected && isExerciseInFocus) {
                             variantClasses = 'bg-[rgba(0,0,0,0.35)] border-[#d4845a]';
                           }
 
-                          const isButtonDimmed = !isActive || !isSessionStarted;
+                          const isButtonDimmed = !isExerciseInFocus || !isSessionStarted;
 
                           return (
                             <button
@@ -2464,11 +2465,11 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                               }}
                               disabled={isButtonDimmed}
                               className={`
-                                w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid 
+                                w-[17px] h-[17px] rounded-[3px] border-[0.5px] border-solid
                                 flex items-center justify-center relative p-0 box-border
                                 transition-all duration-150
                                 ${variantClasses}
-                                ${isActive && isSessionStarted
+                                ${isExerciseInFocus && isSessionStarted
                                   ? 'cursor-pointer hover:opacity-80'
                                   : 'cursor-default'
                                 }
@@ -2477,7 +2478,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                                 backgroundColor: 'rgba(0,0,0,0.21)',
                                 borderColor: 'rgba(255,255,255,0.048)'
                               } : {}}
-                              title={isActive && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
+                              title={isExerciseInFocus && isSessionStarted ? `Sélectionner la série ${setIndex + 1}` : isSessionStarted ? 'Sélectionnez cet exercice pour modifier les séries' : 'Commencez la séance pour accéder aux séries'}
                             >
                               {status === 'completed' && (
                                 <svg
@@ -2548,12 +2549,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
             return (
               <button
                 onClick={handleStartSession}
+                disabled={!isActive}
                 className="
-                  inline-flex items-center justify-center gap-2 whitespace-nowrap text-[13px] 
-                  transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring 
-                  disabled:pointer-events-none disabled:opacity-50 
-                  [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 
-                  shadow h-9 px-4 w-full py-2 rounded-lg font-normal 
+                  inline-flex items-center justify-center gap-2 whitespace-nowrap text-[13px]
+                  transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring
+                  disabled:pointer-events-none disabled:opacity-50
+                  [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0
+                  shadow h-9 px-4 w-full py-2 rounded-lg font-normal
                   bg-[#e87c3e] hover:bg-[#d66d35] text-white
                 "
               >
@@ -2688,6 +2690,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               ...(activeExercise?.useRir ? { rpe: activeSet?.weight || 0 } : {})
             }}
             existingVideo={existingVideoForSet}
+            isActive={isActive}
           />
         );
       })()}

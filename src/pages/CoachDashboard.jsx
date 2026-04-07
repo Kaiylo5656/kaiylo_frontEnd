@@ -2,9 +2,9 @@ import logger from '../utils/logger';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getApiBaseUrlWithApi } from '../config/api';
+import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import axios from 'axios';
-import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check, AlertTriangle, AlertCircle } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import DeleteStudentModal from '../components/DeleteStudentModal';
@@ -20,7 +20,7 @@ import {
 } from '../components/ui/dropdown-menu';
 
 const CoachDashboard = () => {
-  const { user } = useAuth();
+  const { user, getAuthToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { onVideoUpload } = useSocket();
@@ -39,6 +39,10 @@ const CoachDashboard = () => {
   const [studentMessageCounts, setStudentMessageCounts] = useState({}); // Track unread messages per student
   const [studentNextSessions, setStudentNextSessions] = useState({}); // Track next planned session per student
   const [error, setError] = useState('');
+  const [billing, setBilling] = useState(null);
+  const [billingError, setBillingError] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [filterPendingFeedback, setFilterPendingFeedback] = useState(false);
   const [filterPendingMessages, setFilterPendingMessages] = useState(false);
   const [filterNoUpcomingSessions, setFilterNoUpcomingSessions] = useState(false);
@@ -56,6 +60,7 @@ const CoachDashboard = () => {
 
   useEffect(() => {
     fetchCoachData();
+    fetchBillingStatus();
   }, []);
 
   // Effect for polling and WebSocket updates (initial fetch is done in fetchCoachData)
@@ -251,7 +256,8 @@ const CoachDashboard = () => {
             feedbackCount: student.pending_feedback_count || 0,
             status: student.status === 'active' ? 'Actif' : 'Inactif',
             email: student.email,
-            joinedAt: student.joined_at
+            joinedAt: student.joined_at,
+            is_active: student.is_active !== false // default true if field absent
           };
         });
 
@@ -332,6 +338,59 @@ const CoachDashboard = () => {
       }
     } catch (error) {
       logger.error('Error fetching next sessions:', error);
+    }
+  };
+
+  const fetchBillingStatus = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/status'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        setBilling(result.data);
+      }
+    } catch {
+      setBillingError(true);
+    }
+  };
+
+  const handleResubscribe = async () => {
+    try {
+      setCheckoutLoading(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/create-checkout-session'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      if (result.success && result.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl;
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      setPortalLoading(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/create-portal-session'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      if (result.success && result.data?.portalUrl) {
+        window.location.href = result.data.portalUrl;
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setPortalLoading(false);
     }
   };
 
@@ -599,6 +658,44 @@ const CoachDashboard = () => {
           }}
         />
       </div>
+
+      {/* Cancelling subscription banner (AC1) */}
+      {!billingError && billing?.status === 'cancelling' && (
+        <div className="relative z-10 mx-4 mt-3 flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-400" />
+          <div className="flex-1 text-sm text-yellow-200">
+            Votre abonnement Pro se termine le{' '}
+            <span className="font-medium">
+              {new Date(billing.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            . Vos étudiants conservent leur accès jusqu'à cette date.
+          </div>
+          <button
+            onClick={handleManageSubscription}
+            disabled={portalLoading}
+            className="shrink-0 rounded-lg bg-yellow-500/20 px-3 py-1.5 text-xs font-medium text-yellow-200 transition-colors hover:bg-yellow-500/30 disabled:opacity-50"
+          >
+            {portalLoading ? '...' : 'Gérer mon abonnement'}
+          </button>
+        </div>
+      )}
+
+      {/* Downgraded state banner (AC2) */}
+      {!billingError && billing?.plan === 'free' && students.filter(s => s.is_active === false).length > 0 && (
+        <div className="relative z-10 mx-4 mt-3 flex items-start gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
+          <div className="flex-1 text-sm text-orange-200">
+            <span className="font-medium">{students.filter(s => s.is_active === false).length} étudiant(s)</span> sont en mode lecture seule suite à votre changement de plan. Réabonnez-vous pour restaurer leur accès complet.
+          </div>
+          <button
+            onClick={handleResubscribe}
+            disabled={checkoutLoading}
+            className="shrink-0 rounded-lg bg-orange-500/20 px-3 py-1.5 text-xs font-medium text-orange-200 transition-colors hover:bg-orange-500/30 disabled:opacity-50"
+          >
+            {checkoutLoading ? '...' : 'Se réabonner'}
+          </button>
+        </div>
+      )}
 
       <div className="flex-shrink-0 pt-3 px-6 pb-0 relative z-10">
         {/* Search and Filter Bar */}

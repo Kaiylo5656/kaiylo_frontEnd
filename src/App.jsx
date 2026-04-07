@@ -38,6 +38,7 @@ const LandingPage = lazyImport(() => import('./pages/LandingPage'));
 const MentionsLegalesPage = lazyImport(() => import('./pages/MentionsLegalesPage'));
 const CGUPage = lazyImport(() => import('./pages/CGUPage'));
 const PolitiqueConfidentialitePage = lazyImport(() => import('./pages/PolitiqueConfidentialitePage'));
+const FacturationPage = lazyImport(() => import('./pages/FacturationPage'));
 
 import './App.css';
 
