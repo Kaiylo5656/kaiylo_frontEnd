@@ -20,6 +20,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [duplicateNameError, setDuplicateNameError] = useState(false);
+  /** Existing server demo marked for removal; on submit we DELETE /exercises/:id/demo-video then save. */
+  const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -39,6 +41,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         // Set video preview if editing exercise has a demo video
         logger.debug('Editing exercise:', editingExercise);
         logger.debug('Demo video URL:', editingExercise.demoVideoURL);
+        setDemoVideoRemoved(false);
         if (editingExercise.demoVideoURL) {
           setVideoPreview(editingExercise.demoVideoURL);
           logger.debug('Video preview set to:', editingExercise.demoVideoURL);
@@ -56,6 +59,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         setVideoFile(null);
         setVideoPreview(null);
         setVideoError('');
+        setDemoVideoRemoved(false);
         setDuplicateNameError(false); // Reset duplicate error when creating new
       }
     } else {
@@ -126,6 +130,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
 
       setVideoFile(file);
       setVideoError('');
+      setDemoVideoRemoved(false);
       const previewUrl = URL.createObjectURL(file);
       setVideoPreview(previewUrl);
     }
@@ -134,6 +139,9 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const removeVideo = () => {
     if (videoPreview && videoPreview.startsWith('blob:')) {
       URL.revokeObjectURL(videoPreview);
+    }
+    if (editingExercise?.demoVideoURL && !videoFile) {
+      setDemoVideoRemoved(true);
     }
     setVideoFile(null);
     setVideoPreview(null);
@@ -228,6 +236,27 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('authToken');
+      if (
+        editingExercise?.id &&
+        demoVideoRemoved &&
+        !videoFile &&
+        editingExercise.demoVideoURL
+      ) {
+        try {
+          await axios.delete(buildApiUrl(`/exercises/${editingExercise.id}/demo-video`), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (err) {
+          if (err.response?.status !== 400) {
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Impossible de supprimer la vidéo.';
+            setVideoError(msg);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       let exerciseData = { ...formData };
       
       // Handle video URL - either upload new video or preserve existing one
@@ -240,10 +269,12 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
           setLoading(false);
           return; // Don't proceed if video upload failed
         }
-      } else if (editingExercise && editingExercise.demoVideoURL) {
+      } else if (editingExercise && editingExercise.demoVideoURL && !demoVideoRemoved) {
         // Preserve existing video URL when editing
         logger.debug('Preserving existing video URL:', editingExercise.demoVideoURL);
         exerciseData.demoVideoURL = editingExercise.demoVideoURL;
+      } else if (editingExercise) {
+        exerciseData.demoVideoURL = '';
       }
       
       logger.debug('Final exercise data being sent:', exerciseData);
@@ -265,6 +296,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       setVideoFile(null);
       setVideoPreview(null);
       setVideoError('');
+      setDemoVideoRemoved(false);
       
       onClose();
     } catch (error) {
@@ -284,6 +316,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setVideoFile(null);
     setVideoPreview(null);
     setVideoError('');
+    setDemoVideoRemoved(false);
     setUploadProgress(0);
     onClose();
   };
