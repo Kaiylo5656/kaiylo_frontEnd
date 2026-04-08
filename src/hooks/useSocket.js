@@ -443,6 +443,40 @@ const useSocket = () => {
     };
   }, []);
 
+  // Function to listen for access change notifications (for students)
+  const onAccessChange = useCallback((callback) => {
+    let connectHandler = null;
+
+    const setupListener = () => {
+      if (socketRef.current) {
+        socketRef.current.on('access_change_notification', callback);
+        return true;
+      }
+      return false;
+    };
+
+    if (!setupListener()) {
+      connectHandler = () => {
+        setupListener();
+        if (socketRef.current && connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      };
+      if (socketRef.current) {
+        socketRef.current.on('connect', connectHandler);
+      }
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('access_change_notification', callback);
+        if (connectHandler) {
+          socketRef.current.off('connect', connectHandler);
+        }
+      }
+    };
+  }, []);
+
   const disconnect = useCallback(() => {
     if (socketRef.current) {
       logger.debug('🔌 Manually disconnecting WebSocket...');
@@ -491,6 +525,7 @@ const useSocket = () => {
     markMessagesAsRead,
     onVideoUpload,
     onFeedback,
+    onAccessChange,
     disconnect,
     checkConnection,
     reconnect

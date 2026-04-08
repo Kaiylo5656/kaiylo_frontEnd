@@ -245,6 +245,9 @@ const NotificationSidebar = ({ isOpen, onClose, onNotificationClick, onMarkAllAs
                     ? `${sessionName} - ${exerciseDisplay}`
                     : exerciseDisplay;
                 }
+              } else if (notif.type === 'access_change') {
+                // For access change notifications, display message (title is already shown as displayName header)
+                fullDisplay = notif.message || '';
               } else {
                 // For other notification types, use simple format
                 const exerciseName = notif.exerciseName || 'Exercice';
@@ -252,12 +255,15 @@ const NotificationSidebar = ({ isOpen, onClose, onNotificationClick, onMarkAllAs
                 exerciseDisplay = setNumber ? `${exerciseName} ${setNumber}/${setNumber}` : exerciseName;
                 fullDisplay = exerciseDisplay;
               }
-              
+
               // Get initial for avatar and display name based on notification type
+              const isAccessChangeNotification = notif.type === 'access_change';
               const isFeedbackNotification = notif.type === 'video_feedback';
-              const displayName = isFeedbackNotification 
-                ? (notif.coachName || 'Coach')
-                : (notif.studentName || 'Client');
+              const displayName = isAccessChangeNotification
+                ? (notif.title || 'Accès')
+                : isFeedbackNotification
+                  ? (notif.coachName || 'Coach')
+                  : (notif.studentName || 'Client');
               const initial = displayName ? displayName.charAt(0).toUpperCase() : (isFeedbackNotification ? 'C' : 'E');
               const isUnread = notif.read === false;
 
@@ -305,11 +311,11 @@ const NotificationSidebar = ({ isOpen, onClose, onNotificationClick, onMarkAllAs
                   <div className="flex flex-col gap-1 min-w-0 flex-1">
                     <div className="text-[13px] text-white/90 leading-tight">
                       <span className="font-normal text-white block mb-0.5">{displayName}</span>
-                      {isFeedbackNotification ? (
-                        // Display only the format: "sessionName - exerciseName setNumber/totalSets"
+                      {isAccessChangeNotification ? (
+                        <span className="text-white/70 font-normal">{fullDisplay}</span>
+                      ) : isFeedbackNotification ? (
                         <span className="text-white font-normal">{fullDisplay}</span>
                       ) : (
-                        // Display only the format: "sessionName - exerciseName setNumber/totalSets"
                         <span className="font-normal" style={{ color: 'rgba(212, 132, 90, 1)' }}>{fullDisplay}</span>
                       )}
                     </div>

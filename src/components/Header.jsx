@@ -53,7 +53,7 @@ const Header = ({ onOpenFeedback }) => {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const settingsRef = useRef(null);
   const location = useLocation();
-  const { onVideoUpload, onFeedback } = useSocket();
+  const { onVideoUpload, onFeedback, onAccessChange } = useSocket();
   
   // Check if any modal is open by looking for backdrop elements in the DOM
   // This works for all modals, not just those registered in ModalManager
@@ -146,6 +146,18 @@ const Header = ({ onOpenFeedback }) => {
                 // Include message and title for parsing the format
                 message: notif.message || '',
                 title: notif.title || ''
+              };
+            } else if (notif.type === 'access_change') {
+              // Student notification (access downgraded or restored by coach)
+              return {
+                id: notif.id,
+                type: 'access_change',
+                title: notif.title || '',
+                message: notif.message || '',
+                event: notif.data?.event || '',
+                timestamp: notif.created_at || new Date().toISOString(),
+                read: notif.read || false,
+                data: notif.data || {}
               };
             }
             return null;
@@ -250,6 +262,36 @@ const Header = ({ onOpenFeedback }) => {
       if (unsubscribe) unsubscribe();
     };
   }, [user?.role, onFeedback]);
+
+  // Listen for access change events (student side)
+  useEffect(() => {
+    if (user?.role !== 'student' || !onAccessChange) return;
+
+    const unsubscribe = onAccessChange((payload) => {
+      setNotifications((prev) => {
+        const newNotification = {
+          id: payload?.id || `${Date.now()}-${Math.random()}`,
+          type: 'access_change',
+          title: payload?.title || '',
+          message: payload?.message || '',
+          event: payload?.data?.event || '',
+          timestamp: payload?.created_at || new Date().toISOString(),
+          read: false,
+          data: payload?.data || {}
+        };
+
+        // Avoid duplicates by ID
+        const exists = prev.some(n => n.id === newNotification.id && n.type === 'access_change');
+        if (exists) return prev;
+
+        return [newNotification, ...prev].slice(0, 50);
+      });
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.role, onAccessChange]);
 
   // Close settings dropdown when clicking outside
   useEffect(() => {
