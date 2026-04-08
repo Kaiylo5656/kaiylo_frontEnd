@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseISO } from 'date-fns';
 import { ChevronDown } from 'lucide-react';
+import axios from 'axios';
+import { getApiBaseUrlWithApi } from '../config/api';
 import BaseModal from './ui/modal/BaseModal';
 import PerformanceTrendChart from './PerformanceTrendChart';
 import {
@@ -176,6 +178,11 @@ const PerformanceAnalysisModal = ({
   oneRmRecords,
   totalBlocks = 3,
   preferencesKey = 'performanceAnalysisModalPreferences',
+  /** Sync cross-navigateurs : préférences chargées depuis l’API (prioritaires sur localStorage). */
+  remoteSlotPreference = null,
+  studentId = null,
+  slotIndex = 0,
+  onRemotePreferencesSynced,
 }) => {
   const [selectedMovementIds, setSelectedMovementIds] = useState(() =>
     normalizeMovementSelection(initialMovementIds),
@@ -278,10 +285,19 @@ const PerformanceAnalysisModal = ({
     if (!isOpen) return;
 
     try {
-      const raw = localStorage.getItem(preferencesKey);
-      if (raw) {
-        const saved = JSON.parse(raw);
+      let saved = null;
+      if (
+        remoteSlotPreference &&
+        typeof remoteSlotPreference === 'object' &&
+        Object.keys(remoteSlotPreference).length > 0
+      ) {
+        saved = remoteSlotPreference;
+      } else {
+        const raw = localStorage.getItem(preferencesKey);
+        if (raw) saved = JSON.parse(raw);
+      }
 
+      if (saved) {
         if (Array.isArray(saved?.selectedMovementIds) && saved.selectedMovementIds.length) {
           setSelectedMovementIds(normalizeMovementSelection(saved.selectedMovementIds));
         } else if (initialMovementIds?.length) {
@@ -322,6 +338,10 @@ const PerformanceAnalysisModal = ({
           setViewMode(saved.viewMode);
         }
 
+        if (typeof saved?.specificMonthValue === 'string' && saved.specificMonthValue) {
+          setSpecificMonthValue(saved.specificMonthValue);
+        }
+
         return;
       }
     } catch {
@@ -331,7 +351,7 @@ const PerformanceAnalysisModal = ({
     if (initialMovementIds?.length) {
       setSelectedMovementIds(normalizeMovementSelection(initialMovementIds));
     }
-  }, [isOpen, initialMovementIds]);
+  }, [isOpen, initialMovementIds, preferencesKey, remoteSlotPreference]);
 
   const aggregation = useMemo(() => {
     if (!workoutSessions) return null;
@@ -1536,7 +1556,7 @@ const PerformanceAnalysisModal = ({
     );
   };
 
-  const handleSavePreferences = () => {
+  const handleSavePreferences = async () => {
     try {
       const payload = {
         selectedMovementIds,
@@ -1547,8 +1567,20 @@ const PerformanceAnalysisModal = ({
         selectedBlockNumber: sortedSelectedBlockNumbers[0],
         lastMonths,
         viewMode,
+        specificMonthValue,
       };
       localStorage.setItem(preferencesKey, JSON.stringify(payload));
+
+      if (studentId != null && studentId !== '') {
+        const token = localStorage.getItem('authToken');
+        await axios.put(
+          `${getApiBaseUrlWithApi()}/coach/student/${studentId}/performance-analysis-preferences`,
+          { slotIndex, preferences: payload },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        onRemotePreferencesSynced?.(slotIndex, payload);
+      }
+
       setSaveFeedback('Préférences sauvegardées');
       setTimeout(() => setSaveFeedback(''), 2000);
     } catch {
@@ -1557,8 +1589,8 @@ const PerformanceAnalysisModal = ({
     }
   };
 
-  const handleSaveAndClose = () => {
-    handleSavePreferences();
+  const handleSaveAndClose = async () => {
+    await handleSavePreferences();
     onClose?.();
   };
 

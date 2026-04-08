@@ -79,6 +79,29 @@ const SET_LINE_ICON = (
   </svg>
 );
 
+const ASSIGNMENTS_FETCH_PAGE = 200;
+const ASSIGNMENTS_FETCH_MAX_OFFSET = 80000;
+
+/** Borne temporelle couvrant tous les blocs de périodisation (pour élargir le fetch séances / analyse perf). */
+function getPeriodizationBlocksDateSpanMs(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  let minMs = null;
+  let maxMs = null;
+  for (const b of list) {
+    if (!b?.start_week_date) continue;
+    const start = startOfWeek(parseISO(String(b.start_week_date)), { weekStartsOn: 1 });
+    if (!isValid(start)) continue;
+    const durationWeeks = Number(b.duration) || 1;
+    const end = addWeeks(start, durationWeeks);
+    const s = start.getTime();
+    const e = end.getTime();
+    if (minMs === null || s < minMs) minMs = s;
+    if (maxMs === null || e > maxMs) maxMs = e;
+  }
+  if (minMs === null || maxMs === null) return null;
+  return { minMs, maxMs };
+}
+
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange, initialStudentVideoCounts = {}, initialStudentMessageCounts = {}, initialStudentNextSessions = {} }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -153,23 +176,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     setIsPerformanceAnalysisModalOpen(true);
   };
 
-  const loadDashboardPrefs = () => {
+  const [performanceAnalysisRemoteBySlot, setPerformanceAnalysisRemoteBySlot] = useState(null);
+  const [performanceAnalysisPrefsTick, setPerformanceAnalysisPrefsTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await axios.get(
+          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/performance-analysis-preferences`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!cancelled && res.data?.success && res.data?.data?.slots) {
+          setPerformanceAnalysisRemoteBySlot(res.data.data.slots);
+        }
+      } catch (e) {
+        logger.warn('Performance analysis preferences (server):', e?.message || e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id]);
+
+  const dashboardPrefs = useMemo(() => {
     return Array.from({ length: 4 }).map((_, i) => {
+      const key = String(i);
+      const remote = performanceAnalysisRemoteBySlot?.[key] ?? performanceAnalysisRemoteBySlot?.[i];
+      if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
+        return remote;
+      }
       try {
         const raw = localStorage.getItem(`performanceAnalysisModalPreferences_${i}`);
         if (raw) return JSON.parse(raw);
       } catch (e) {}
       return null;
     });
-  };
-
-  const [dashboardPrefs, setDashboardPrefs] = useState(loadDashboardPrefs);
-
-  useEffect(() => {
-    if (!isPerformanceAnalysisModalOpen) {
-      setDashboardPrefs(loadDashboardPrefs());
-    }
-  }, [isPerformanceAnalysisModalOpen]);
+  }, [performanceAnalysisRemoteBySlot, performanceAnalysisPrefsTick]);
 
   const dashboardMovementStats = useMemo(() => {
     return dashboardPrefs.map((pref) => {
@@ -364,6 +408,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   }, [selectedHistoryWeeks]);
 
   const isHistoryMode = normalizedHistoryWeekKeys.length > 0;
+
+  const workoutSessionsBlockSpanKey = useMemo(() => {
+    const span = getPeriodizationBlocksDateSpanMs(blocks);
+    return span ? `${span.minMs}-${span.maxMs}` : '';
+  }, [blocks]);
 
   const historyWeekCandidates = useMemo(() => {
     const anchorYear = historyPanelAnchorDate.getFullYear();
@@ -2042,35 +2091,54 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       // Use a much wider range to ensure we get all sessions needed for progress calculation
       // Go back 2 months and forward 2 months to be sure we have all data
-      const extendedStart = subDays(new Date(minRangeTime), 60);
-      const extendedEnd = addDays(new Date(maxRangeTime), 60);
+      let extendedStart = subDays(new Date(minRangeTime), 60);
+      let extendedEnd = addDays(new Date(maxRangeTime), 60);
+
+      const blockSpan = getPeriodizationBlocksDateSpanMs(blocks);
+      if (blockSpan) {
+        const blockPaddedStart = subDays(new Date(blockSpan.minMs), 60);
+        const blockPaddedEnd = addDays(new Date(blockSpan.maxMs), 60);
+        if (blockPaddedStart.getTime() < extendedStart.getTime()) extendedStart = blockPaddedStart;
+        if (blockPaddedEnd.getTime() > extendedEnd.getTime()) extendedEnd = blockPaddedEnd;
+      }
 
       const rangeStart = format(extendedStart, 'yyyy-MM-dd');
       const rangeEnd = format(extendedEnd, 'yyyy-MM-dd');
 
-      // Fetch assignments and drafts in parallel
+      const assignmentsUrl = `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`;
+
+      // Fetch all assignment pages in range (API default limit 200 would truncate long histories)
       const [assignmentsRes, draftsRes] = await Promise.allSettled([
-        axios.get(
-          `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              startDate: rangeStart,
-              endDate: rangeEnd,
-              limit: 200
-            }
+        (async () => {
+          const allRows = [];
+          let offset = 0;
+          while (offset <= ASSIGNMENTS_FETCH_MAX_OFFSET) {
+            const res = await axios.get(assignmentsUrl, {
+              headers: { Authorization: `Bearer ${token}` },
+              params: {
+                startDate: rangeStart,
+                endDate: rangeEnd,
+                limit: ASSIGNMENTS_FETCH_PAGE,
+                offset,
+              },
+            });
+            const batch = Array.isArray(res.data?.data) ? res.data.data : [];
+            allRows.push(...batch);
+            if (batch.length < ASSIGNMENTS_FETCH_PAGE) break;
+            offset += ASSIGNMENTS_FETCH_PAGE;
           }
-        ),
-        axios.get(
-          `${getApiBaseUrlWithApi()}/workout-sessions`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              student_id: student.id,
-              status: 'draft'
-            }
+          if (offset > ASSIGNMENTS_FETCH_MAX_OFFSET) {
+            logger.warn('fetchWorkoutSessions: assignment pagination stopped at safety cap', { offset });
           }
-        )
+          return { data: { data: allRows } };
+        })(),
+        axios.get(`${getApiBaseUrlWithApi()}/workout-sessions`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            student_id: student.id,
+            status: 'draft',
+          },
+        }),
       ]);
 
       // Process assignments (critical)
@@ -2080,7 +2148,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       }
 
       const response = assignmentsRes.value;
-      logger.debug('Fetched assignments:', response.data);
+      logger.debug('Fetched assignments:', response.data?.data?.length, 'rows');
       logger.debug('Date range:', { rangeStart, rangeEnd });
 
       // Convert array to object with date as key, storing arrays of sessions
@@ -2729,7 +2797,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   useEffect(() => {
     fetchWorkoutSessions();
-  }, [student.id, overviewWeekDate, trainingWeekDate, weekViewFilter, isHistoryMode, normalizedHistoryWeekKeys]);
+  }, [
+    student.id,
+    overviewWeekDate,
+    trainingWeekDate,
+    weekViewFilter,
+    isHistoryMode,
+    normalizedHistoryWeekKeys,
+    workoutSessionsBlockSpanKey,
+  ]);
 
   // Sync sidebar counts from parent props (CoachDashboard already fetches these)
   useEffect(() => {
@@ -7651,13 +7727,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             {/* Modals */}
             <PerformanceAnalysisModal
               isOpen={isPerformanceAnalysisModalOpen}
-              onClose={() => setIsPerformanceAnalysisModalOpen(false)}
+              onClose={() => {
+                setIsPerformanceAnalysisModalOpen(false);
+                setPerformanceAnalysisPrefsTick((t) => t + 1);
+              }}
               initialMovementIds={performanceInitialMovementIds}
               workoutSessions={workoutSessions}
               blocks={blocks}
               oneRmRecords={oneRmRecords}
               totalBlocks={totalBlocks}
               preferencesKey={'performanceAnalysisModalPreferences_' + performanceActiveCardIndex}
+              studentId={student.id}
+              slotIndex={performanceActiveCardIndex}
+              remoteSlotPreference={
+                performanceAnalysisRemoteBySlot?.[String(performanceActiveCardIndex)] ??
+                performanceAnalysisRemoteBySlot?.[performanceActiveCardIndex]
+              }
+              onRemotePreferencesSynced={(idx, payload) => {
+                setPerformanceAnalysisRemoteBySlot((prev) => ({
+                  ...(prev || {}),
+                  [String(idx)]: payload,
+                }));
+                setPerformanceAnalysisPrefsTick((t) => t + 1);
+              }}
             />
             <CreateWorkoutSessionModal
               isOpen={isCreateModalOpen}
