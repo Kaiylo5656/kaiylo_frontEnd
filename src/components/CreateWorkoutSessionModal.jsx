@@ -267,6 +267,7 @@ const CreateWorkoutSessionModal = ({
           per_side: ex.per_side || false,
           useRir: ex.useRir || false,
           supersetGroup: ex.supersetGroup || null,
+          tableColumnVisibility: ex.tableColumnVisibility ?? ex.table_column_visibility,
           studentComment: ex.comment || ex.student_comment || ex.studentComment || ex.previous_student_comment || ''
         };
       }) || [];
@@ -1121,7 +1122,8 @@ const CreateWorkoutSessionModal = ({
         tempo: ex.tempo,
         per_side: ex.per_side || false,
         useRir: ex.useRir || false,
-        supersetGroup: ex.supersetGroup || null
+        supersetGroup: ex.supersetGroup || null,
+        tableColumnVisibility: getExerciseTableVisibility(ex)
       })),
       scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,
@@ -1193,7 +1195,8 @@ const CreateWorkoutSessionModal = ({
         tempo: ex.tempo,
         per_side: ex.per_side || false,
         useRir: ex.useRir || false,
-        supersetGroup: ex.supersetGroup || null
+        supersetGroup: ex.supersetGroup || null,
+        tableColumnVisibility: getExerciseTableVisibility(ex)
       })),
       status: existingSession?.status || 'published'
     };
