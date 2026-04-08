@@ -5,14 +5,16 @@ import { fr } from 'date-fns/locale';
 import { Plus, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
-import { getTagColor, hexToRgba, getTagColorMap } from '../utils/tagColors';
+import { hexToRgba, buildPeriodizationTagColorMap, getFallbackTagHexByName } from '../utils/tagColors';
 import CreateBlockModal from './CreateBlockModal';
 import WeekNotesModal from './WeekNotesModal';
 import BaseModal from './ui/modal/BaseModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
+const PeriodizationTab = ({ studentId, onUpdate, readOnly = false, readOnlyWeekNotes }) => {
+  /** When readOnly (student calendar), blocks are locked; pass readOnlyWeekNotes={false} to allow week notes like the coach. */
+  const weekNotesLocked = readOnlyWeekNotes !== undefined ? readOnlyWeekNotes : readOnly;
   const { isTopMost } = useModalManager();
   const navigate = useNavigate();
   const location = useLocation();
@@ -287,17 +289,17 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
   };
 
   const handleOpenNotes = (weekDate) => {
-    if (readOnly) return;
+    if (weekNotesLocked) return;
     setSelectedWeekForNotes(weekDate);
     setIsNotesModalOpen(true);
   };
 
   const handleNotesSaved = (notes) => {
-    // Update weekNotesMap
     const weekKey = format(selectedWeekForNotes, 'yyyy-MM-dd');
     const newMap = new Map(weekNotesMap);
     newMap.set(weekKey, notes);
     setWeekNotesMap(newMap);
+    if (onUpdate) onUpdate();
   };
 
   const hasNotes = (weekDate) => {
@@ -740,11 +742,11 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
     return weekList;
   }, [currentDate, WEEKS_TO_SHOW]);
 
-  // Create a tagColorMap from all available tags (same as PeriodizationTagTypeahead) to ensure consistent colors
-  const tagColorMap = useMemo(() => {
-    const tagNames = allTags.map(tag => tag.name).filter(Boolean);
-    return getTagColorMap(tagNames);
-  }, [allTags]);
+  // DB colors first (coach /tags + embedded tags on blocks for students), then hash fallback per tag name
+  const tagColorMap = useMemo(
+    () => buildPeriodizationTagColorMap(allTags, blocks),
+    [allTags, blocks]
+  );
 
   // Calculate block numbers by sorting blocks by start date.
   // One-week blocks are excluded from numbering.
@@ -1000,36 +1002,21 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
                 let tagHexColor = null;
 
                 if (primaryTag) {
-                  // Extract tag name (could be string or object with name property)
                   const tagName = typeof primaryTag === 'string' ? primaryTag : (primaryTag?.name || primaryTag);
-                  // Get the hex color from tagColorMap
-                  const normalizedTagName = tagName.toLowerCase().trim();
+                  const normalizedTagName =
+                    tagName && typeof tagName === 'string' ? tagName.toLowerCase().trim() : '';
 
-                  if (tagColorMap && tagColorMap.has(normalizedTagName)) {
+                  if (typeof primaryTag === 'object' && primaryTag.color) {
+                    tagHexColor = primaryTag.color;
+                  } else if (activeBlock.color) {
+                    tagHexColor = activeBlock.color;
+                  } else if (normalizedTagName && tagColorMap && tagColorMap.has(normalizedTagName)) {
                     tagHexColor = tagColorMap.get(normalizedTagName);
-                  } else {
-                    // Fallback: calculate hash-based color (same logic as getTagColor)
-                    const hashString = (str) => {
-                      let hash = 0;
-                      for (let i = 0; i < str.length; i++) {
-                        const char = str.charCodeAt(i);
-                        hash = ((hash << 5) - hash) + char;
-                        hash = hash & hash;
-                      }
-                      return Math.abs(hash);
-                    };
-                    const NOTION_COLORS = [
-                      '#373736', '#686762', '#745a48', '#8e5835', '#896a2c',
-                      '#3e6e54', '#3b6591', '#6e5482', '#824e67', '#9d5650'
-                    ];
-                    const hash = hashString(normalizedTagName);
-                    const colorIndex = hash % NOTION_COLORS.length;
-                    tagHexColor = NOTION_COLORS[colorIndex];
+                  } else if (normalizedTagName) {
+                    tagHexColor = getFallbackTagHexByName(normalizedTagName);
                   }
-
                 }
 
-                // Fallback only if there is no tag color.
                 if (!tagHexColor && activeBlock.color) {
                   tagHexColor = activeBlock.color;
                 }
@@ -1271,13 +1258,13 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
                       <div className="absolute bottom-1 left-1 flex items-center gap-0 max-w-[calc(100%-8px)]" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
                         <button
                           onClick={(e) => {
-                            if (readOnly) return;
+                            if (weekNotesLocked) return;
                             e.stopPropagation();
                             handleOpenNotes(weekDate);
                           }}
-                          className={`p-1 rounded transition-colors flex-shrink-0 ${readOnly ? 'cursor-default opacity-70' : ''}`}
+                          className={`p-1 rounded transition-colors flex-shrink-0 ${weekNotesLocked ? 'cursor-default opacity-70' : ''}`}
                           title="Notes de la semaine"
-                          disabled={readOnly}
+                          disabled={weekNotesLocked}
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -1337,13 +1324,13 @@ const PeriodizationTab = ({ studentId, onUpdate, readOnly = false }) => {
                     <div className="absolute bottom-1 left-1 flex items-center gap-0 max-w-[calc(100%-8px)]" style={{ paddingTop: '2px', paddingBottom: '2px' }}>
                       <button
                         onClick={(e) => {
-                          if (readOnly) return;
+                          if (weekNotesLocked) return;
                           e.stopPropagation();
                           handleOpenNotes(weekDate);
                         }}
-                        className={`p-1 rounded transition-colors flex-shrink-0 group ${readOnly ? 'cursor-default opacity-70' : ''}`}
+                        className={`p-1 rounded transition-colors flex-shrink-0 group ${weekNotesLocked ? 'cursor-default opacity-70' : ''}`}
                         title="Notes de la semaine"
-                        disabled={readOnly}
+                        disabled={weekNotesLocked}
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"

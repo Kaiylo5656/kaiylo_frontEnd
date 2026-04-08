@@ -737,7 +737,7 @@ const StudentHistoryPage = () => {
         </>
       ) : (
         <div className="relative z-10 px-[8px] pb-[95px]">
-          <PeriodizationTab studentId={user?.id} readOnly />
+          <PeriodizationTab studentId={user?.id} readOnly readOnlyWeekNotes={false} />
         </div>
       )}
     </div>
