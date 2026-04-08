@@ -8,7 +8,7 @@ const DashboardCoachCard = () => {
       icon: LayoutDashboard,
       title: "Dashboard Coach",
       description: "Vue claire sur les progressions de chaque élève, filtres et alertes intelligentes",
-      highlight: "Pilote 3x plus d'élèves avec le même effort"
+      highlight: "Gère 3x plus d'élèves avec le même effort"
     },
     {
       icon: Camera,

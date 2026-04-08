@@ -57,7 +57,7 @@ const LegalFooter = () => {
         onMouseEnter={e => { e.currentTarget.style.color = 'rgba(212,132,90,0.8)'; }}
         onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
       >
-        Politique de confidentialité
+        Politique de confidentialité (RGPD)
       </Link>
     </footer>
   );

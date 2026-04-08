@@ -93,7 +93,7 @@ const DashboardShowcase = ({ isActive, children }) => {
 
             <div className="container mx-auto px-4 z-10 flex flex-col items-center">
                 {React.Children.toArray(children)[0]}
-                <div className="w-full flex flex-col items-center pt-20 pb-20">
+                <div id="interface-showcase" className="w-full flex flex-col items-center pt-20 pb-20">
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -145,20 +145,22 @@ const DashboardShowcase = ({ isActive, children }) => {
                             </div>
 
                             {/* Carousel Container */}
-                            <div className="relative w-full h-auto group/carousel bg-[#050505]">
-                                <AnimatePresence mode="wait">
+                            <div className="relative w-full aspect-[1144/596] group/carousel bg-[#050505] overflow-hidden">
+                                <AnimatePresence mode="sync">
                                     <motion.div
                                         key={currentIndex}
-                                        className="w-full flex items-center justify-center p-0"
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -20 }}
-                                        transition={{ duration: 0.3 }}
+                                        className="absolute inset-0 w-full h-full flex items-center justify-center p-0"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.25, ease: 'easeOut' }}
                                     >
                                         <img
                                             src={views[currentIndex]}
                                             alt="Kaiylo Dashboard Interface"
-                                            className="w-full h-auto object-contain"
+                                            className="w-full h-full object-contain [transform:translateZ(0)] [backface-visibility:hidden]"
+                                            loading="eager"
+                                            decoding="async"
                                         />
                                     </motion.div>
                                 </AnimatePresence>
