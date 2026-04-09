@@ -19,7 +19,8 @@ const BaseModal = forwardRef(({
   footer,
   titleClassName = 'text-xl font-semibold text-white',
   externalContent,
-  borderRadius
+  borderRadius,
+  onModalBodyScroll
 }, ref) => {
   const { isTopMost } = useRegisterModal(modalId);
   const { registerModalOpen, registerModalClose } = useOverlayModal();
@@ -195,6 +196,7 @@ const BaseModal = forwardRef(({
                     ? 'calc(92vh - 80px)' 
                     : '92vh'
             }}
+            onScroll={onModalBodyScroll}
           >
             {children}
           </div>

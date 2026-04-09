@@ -25,6 +25,8 @@ const ExerciseEditor = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [tagInput, setTagInput] = useState('');
+  /** User removed an existing server-side demo; on save we DELETE /exercises/:id/demo-video then PATCH. */
+  const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
 
   // Initialize form data when exercise changes
   useEffect(() => {
@@ -34,6 +36,7 @@ const ExerciseEditor = ({
         instructions: exercise.instructions || '',
         tags: exercise.tags || []
       });
+      setDemoVideoRemoved(false);
       
       // Set video preview if exercise has a demo video
       if (exercise.demoVideoURL) {
@@ -92,6 +95,7 @@ const ExerciseEditor = ({
 
       setVideoFile(file);
       setVideoError('');
+      setDemoVideoRemoved(false);
       
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
@@ -102,6 +106,9 @@ const ExerciseEditor = ({
   const removeVideo = () => {
     if (videoPreview && videoPreview.startsWith('blob:')) {
       URL.revokeObjectURL(videoPreview);
+    }
+    if (exercise?.demoVideoURL && !videoFile) {
+      setDemoVideoRemoved(true);
     }
     setVideoFile(null);
     setVideoPreview(null);
@@ -173,6 +180,22 @@ const ExerciseEditor = ({
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('authToken');
+      if (demoVideoRemoved && !videoFile && exercise?.demoVideoURL) {
+        try {
+          await axios.delete(buildApiUrl(`/exercises/${exercise.id}/demo-video`), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (err) {
+          if (err.response?.status !== 400) {
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Impossible de supprimer la vidéo.';
+            setVideoError(msg);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       let exerciseData = { ...formData };
       
       // Handle video URL - either upload new video or preserve existing one
@@ -185,9 +208,11 @@ const ExerciseEditor = ({
           setLoading(false);
           return; // Don't proceed if video upload failed
         }
-      } else if (exercise && exercise.demoVideoURL) {
+      } else if (exercise && exercise.demoVideoURL && !demoVideoRemoved) {
         // Preserve existing video URL when editing
         exerciseData.demoVideoURL = exercise.demoVideoURL;
+      } else {
+        exerciseData.demoVideoURL = '';
       }
       
       await onSave(exercise.id, exerciseData);

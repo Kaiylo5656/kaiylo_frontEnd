@@ -6,12 +6,22 @@ import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2,
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from './ui/dropdown-menu';
 import ContainedSideSheet from './ui/ContainedSideSheet';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import AddExerciseModal from './AddExerciseModal';
 import ExerciseArrangementModal from './ExerciseArrangementModal';
 import ExerciseLibraryModal from './ExerciseLibraryModal';
+import { ExerciseSummaryPreview } from './ExerciseSummaryPreview';
 import UnsavedChangesWarningModal from './UnsavedChangesWarningModal';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
@@ -20,8 +30,85 @@ import WorkoutVideoUploadModal from './WorkoutVideoUploadModal';
 import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import { getTagColor, getTagColorMap } from '../utils/tagColors';
+import { compareExercisesAlphabetically } from '../utils/exerciseLibrarySort';
+import { getOneRmKgForExerciseName, parseChargeKgForOneRmPercent } from '../utils/performanceMetrics';
+import {
+  DEFAULT_SESSION_TABLE_COLUMNS,
+  getExerciseTableVisibility,
+} from '../utils/sessionExerciseTableVisibility';
 
-const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCreated, studentId, existingSession, onCopySession }) => {
+function exerciseHasPreviousRpeOrCharge(exercise) {
+  return exercise.sets?.some(
+    set =>
+      (set.previousRpe != null && set.previousRpe !== undefined) ||
+      (set.previousCharge != null && set.previousCharge !== undefined),
+  );
+}
+
+function exerciseShowPreviousColumn(exercise, visibility) {
+  if (!visibility.previous) return false;
+  return exerciseHasPreviousRpeOrCharge(exercise);
+}
+
+/** Largeur min (px) pour Reps/Hold ou Charge/RPE quand l’autre colonne est masquée (~15 car.) */
+const SESSION_REPS_CHARGE_WIDE_COL_PX = 160;
+
+function computeExerciseTableMinWidthPx(visibility, showPrevious) {
+  let w = 56;
+  const wideReps = visibility.repsHold && !visibility.chargeRpe;
+  const wideCharge = visibility.chargeRpe && !visibility.repsHold;
+  if (visibility.repsHold) w += visibility.chargeRpe ? 96 : SESSION_REPS_CHARGE_WIDE_COL_PX;
+  if (visibility.chargeRpe) w += visibility.repsHold ? 88 : SESSION_REPS_CHARGE_WIDE_COL_PX;
+  if (showPrevious) w += 100;
+  if (visibility.rest) w += 88;
+  w += 72 + 40;
+  return Math.max(w, 240);
+}
+
+function sessionRepsChargeLayout(visibility) {
+  const wideReps = visibility.repsHold && !visibility.chargeRpe;
+  const wideCharge = visibility.chargeRpe && !visibility.repsHold;
+  return {
+    wideReps,
+    wideCharge,
+    repsMaxLen: wideReps ? 15 : 8,
+    chargeMaxLen: wideCharge ? 15 : 5,
+    colMinClass: 'min-w-[160px]',
+    narrowColClass: 'min-w-24',
+    wideInputClass: 'w-[160px]',
+    narrowHoldWrapClass: 'w-20',
+    narrowRepsWrapClass: 'w-[82px]',
+    narrowChargeWrapClass: 'w-20',
+  };
+}
+
+function canShowOneRmPercentForExerciseName(exerciseName) {
+  const normalized = String(exerciseName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, ' ');
+
+  return new Set([
+    'dips',
+    'traction',
+    'muscle up',
+    'muscule up',
+    'squat',
+  ]).has(normalized);
+}
+
+const CreateWorkoutSessionModal = ({
+  isOpen,
+  onClose,
+  selectedDate,
+  onSessionCreated,
+  studentId,
+  existingSession,
+  onCopySession,
+  oneRmRecords = [],
+}) => {
   const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
@@ -44,6 +131,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const [editingExercise, setEditingExercise] = useState(null);
   const [replacingExerciseIndex, setReplacingExerciseIndex] = useState(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [columnVisibilityMenuOpenIndex, setColumnVisibilityMenuOpenIndex] = useState(null);
 
   // Exercise Arrangement Modal State
   const [arrangementPosition, setArrangementPosition] = useState({
@@ -74,6 +162,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   const dateInputRef = useRef(null);
   const backdropRef = useRef(null);
   const arrangementButtonRef = useRef(null);
+  /** Tracks scroll-lock state during arrangement drag. */
+  const arrangementDragScrollLock = useRef({ active: false, scrollTop: 0 });
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -127,6 +217,10 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) setColumnVisibilityMenuOpenIndex(null);
+  }, [isOpen]);
+
   // Pre-fill form when editing existing session and store initial state
   useEffect(() => {
     if (isOpen && existingSession) {
@@ -173,7 +267,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
           per_side: ex.per_side || false,
           useRir: ex.useRir || false,
           supersetGroup: ex.supersetGroup || null,
-          studentComment: ex.comment || ex.student_comment || ex.studentComment || ex.previous_student_comment || ''
+          tableColumnVisibility: ex.tableColumnVisibility ?? ex.table_column_visibility,
+          studentComment: ex.comment || ex.student_comment || ex.studentComment || ex.previous_student_comment || '',
+          isQuickExercise: ex.isQuickExercise === true || ex.is_quick_exercise === true
         };
       }) || [];
 
@@ -540,6 +636,38 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setSearchTerm('');
   };
 
+  const handleAddQuickExercise = () => {
+    const newExercise = {
+      id: Date.now(),
+      name: '',
+      tags: [],
+      description: '',
+      sets: [
+        { serie: 1, weight: '', reps: '', rest: '03:00', video: false, repType: 'reps' }
+      ],
+      notes: '',
+      isExpanded: true,
+      tempo: '',
+      per_side: false,
+      useRir: false,
+      supersetGroup: null,
+      isQuickExercise: true,
+    };
+
+    setExercises((prev) => [...prev, newExercise]);
+  };
+
+  const handleQuickExerciseNameChange = (exerciseIndex, value) => {
+    setExercises((prev) => {
+      const next = [...prev];
+      next[exerciseIndex] = {
+        ...next[exerciseIndex],
+        name: value,
+      };
+      return next;
+    });
+  };
+
   const handleRemoveExercise = (id) => {
     const updated = exercises.filter(ex => ex.id !== id);
     validateSupersets(updated);
@@ -690,16 +818,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     setSupersetMismatchDialog(null);
   };
 
-  // Helper function to check if session was copied from a completed session (charge ou RPE précédent)
-  const hasPreviousRpeData = () => {
-    return exercises.some(exercise =>
-      exercise.sets?.some(set =>
-        (set.previousRpe != null && set.previousRpe !== undefined) ||
-        (set.previousCharge != null && set.previousCharge !== undefined)
-      )
-    );
-  };
-
   const handleSetChange = (exerciseIndex, setIndex, field, value) => {
     const updatedExercises = [...exercises];
     updatedExercises[exerciseIndex].sets[setIndex][field] = value;
@@ -712,7 +830,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       set.repType = repType;
       // Reset reps and weight if switching to hold
       if (repType === 'hold') {
-        set.reps = '0s';
+        set.reps = '';
         set.weight = '';
       }
       // Reset reps value if switching to reps
@@ -920,6 +1038,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     const scrollEl = modalRef.current?.querySelector('.modal-scrollable-body');
     const el = exerciseRefs.current[exerciseId];
     if (!scrollEl || !el) return;
+    // Skip if scroll is locked during arrangement drag
+    if (arrangementDragScrollLock.current.active) return;
     const elRect = el.getBoundingClientRect();
     const spRect = scrollEl.getBoundingClientRect();
     const pad = 80;
@@ -927,6 +1047,27 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       scrollEl.scrollTop += elRect.top - spRect.top - pad;
     } else if (elRect.bottom > spRect.bottom - pad) {
       scrollEl.scrollTop += elRect.bottom - spRect.bottom + pad;
+    }
+  }, []);
+
+  /**
+   * Track when arrangement drag is active so we can preserve scroll
+   * position across exercise reorders triggered from the arrangement panel.
+   */
+  const handleArrangementDragActiveChange = useCallback((active) => {
+    const scrollEl = modalRef.current?.querySelector('.modal-scrollable-body');
+    if (!scrollEl) return;
+
+    if (active) {
+      arrangementDragScrollLock.current = { active: true, scrollTop: scrollEl.scrollTop };
+    } else {
+      // Restore scroll position after drag ends (layout animations may still shift it)
+      const saved = arrangementDragScrollLock.current.scrollTop;
+      arrangementDragScrollLock.current = { active: false, scrollTop: 0 };
+      // Use rAF to restore after React + Framer Motion finish their DOM updates
+      requestAnimationFrame(() => {
+        scrollEl.scrollTop = saved;
+      });
     }
   }, []);
 
@@ -969,7 +1110,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tags: ex.tags,
         sets: ex.sets.map(set => ({
           serie: set.serie,
-          weight: ex.useRir ? (parseFloat(set.weight) || 0) : (set.weight || ''),
+          // In RPE mode (useRir), keep raw text so coach can enter free-form values.
+          weight: set.weight ?? '',
           reps: set.repType === 'hold' ? set.reps : (set.reps || ''),
           rest: set.rest,
           video: set.video,
@@ -981,7 +1123,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tempo: ex.tempo,
         per_side: ex.per_side || false,
         useRir: ex.useRir || false,
-        supersetGroup: ex.supersetGroup || null
+        supersetGroup: ex.supersetGroup || null,
+        tableColumnVisibility: getExerciseTableVisibility(ex),
+        ...(ex.isQuickExercise === true ? { isQuickExercise: true } : {})
       })),
       scheduled_date: format(sessionDate, 'yyyy-MM-dd'),
       student_id: studentId,
@@ -1040,7 +1184,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tags: ex.tags,
         sets: ex.sets.map(set => ({
           serie: set.serie,
-          weight: ex.useRir ? (parseFloat(set.weight) || 0) : (set.weight || ''),
+          // In RPE mode (useRir), keep raw text so coach can enter free-form values.
+          weight: set.weight ?? '',
           reps: set.repType === 'hold' ? set.reps : (set.reps || ''),
           rest: set.rest,
           video: set.video === true || set.video === 1 || set.video === 'true', // coach asks for video (included in copy)
@@ -1052,7 +1197,9 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         tempo: ex.tempo,
         per_side: ex.per_side || false,
         useRir: ex.useRir || false,
-        supersetGroup: ex.supersetGroup || null
+        supersetGroup: ex.supersetGroup || null,
+        tableColumnVisibility: getExerciseTableVisibility(ex),
+        ...(ex.isQuickExercise === true ? { isQuickExercise: true } : {})
       })),
       status: existingSession?.status || 'published'
     };
@@ -1096,7 +1243,8 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         current.exerciseId !== initial.exerciseId ||
         current.notes !== initial.notes ||
         current.tempo !== initial.tempo ||
-        current.per_side !== initial.per_side) {
+        current.per_side !== initial.per_side ||
+        !!current.isQuickExercise !== !!initial.isQuickExercise) {
         return true;
       }
 
@@ -1248,9 +1396,14 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
   };
 
   const handleReplaceExercise = (exerciseIndex) => {
-    setReplacingExerciseIndex(exerciseIndex);
-    setOpenSheet(true);
-    setLibraryMode('browse');
+    if (replacingExerciseIndex === exerciseIndex) {
+      setReplacingExerciseIndex(null);
+      setLibraryMode('browse');
+    } else {
+      setReplacingExerciseIndex(exerciseIndex);
+      setOpenSheet(true);
+      setLibraryMode('browse');
+    }
     // Force blur to remove hover state
     if (document.activeElement && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -1355,11 +1508,16 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
     return getTagColorMap(allTags);
   }, [availableExercises]);
 
-  const filteredExercises = availableExercises.filter(exercise =>
-    exercise.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exercise.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    exercise.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredExercises = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const filtered = availableExercises.filter(
+      (exercise) =>
+        exercise.title?.toLowerCase().includes(term) ||
+        exercise.description?.toLowerCase().includes(term) ||
+        exercise.tags?.some((tag) => tag.toLowerCase().includes(term)),
+    );
+    return [...filtered].sort(compareExercisesAlphabetically);
+  }, [availableExercises, searchTerm]);
 
   return (
     <>
@@ -1376,6 +1534,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
         noPadding={true}
         className={`!p-0 relative mx-auto w-full ${isMobile ? 'h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] my-4 w-[calc(100vw-2rem)] rounded-2xl' : 'max-w-[700px] md:max-w-[700px] max-h-[92vh] rounded-2xl'} overflow-visible flex flex-col`}
         borderRadius={openSheet ? "0px 16px 16px 0px" : "16px"}
+        onModalBodyScroll={() => setColumnVisibilityMenuOpenIndex(null)}
         externalContent={
           isOpen ? (
             <div
@@ -1582,11 +1741,25 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       useAbsolute={false}
                       embedded={true}
                       onReorder={(newOrder) => {
+                        // Save scroll position before state update
+                        const scrollEl = modalRef.current?.querySelector('.modal-scrollable-body');
+                        const savedScroll = scrollEl ? scrollEl.scrollTop : 0;
                         validateSupersets(newOrder);
                         setExercises(newOrder);
+                        // Restore scroll after React re-render
+                        if (scrollEl) {
+                          requestAnimationFrame(() => {
+                            scrollEl.scrollTop = savedScroll;
+                            // Double rAF to catch any Framer Motion layout animations
+                            requestAnimationFrame(() => {
+                              scrollEl.scrollTop = savedScroll;
+                            });
+                          });
+                        }
                       }}
                       onLinkSuperset={handleLinkSuperset}
                       scrollMainToExerciseId={scrollMainToExerciseId}
+                      onDragActiveChange={handleArrangementDragActiveChange}
                     />
                   )}
 
@@ -1624,26 +1797,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     const showExpandCollapse = weeks.length > 3;
                     const visibleWeeks = weeks;
                     const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-                    const formatSetsForDisplay = (exercise) => {
-                      const sets = exercise.sets || [];
-                      if (sets.length === 0) return '';
-                      if (exercise.useRir) {
-                        const firstReps = sets[0]?.reps ?? '?';
-                        const firstRpe = sets[0]?.weight ?? 0;
-                        const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-                        const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
-                        if (allSameReps && allSameRpe) return `${sets.length}x${firstReps} RPE ${firstRpe}`;
-                        return sets.map(s => `${s.reps ?? '?'} RPE ${s.weight ?? 0}`).join(', ');
-                      }
-                      const withWeight = sets.every(s => s.weight != null && s.weight !== '');
-                      const firstReps = sets[0]?.reps ?? '?';
-                      const firstWeight = sets[0]?.weight;
-                      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-                      const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
-                      if (withWeight && allSameReps && allSameWeight && firstWeight != null) return `${sets.length}x${firstReps} @${firstWeight}kg`;
-                      if (!withWeight && allSameReps) return `${sets.length}x${firstReps} reps`;
-                      return sets.map(s => s.weight ? `${s.reps ?? '?'}@${s.weight}kg` : `${s.reps ?? '?'}reps`).join(', ');
-                    };
                     return (
                       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollable-body flex flex-col">
                         {/* Calendrier mensuel */}
@@ -1818,21 +1971,20 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       onClick={toggleExpanded}
                                       className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left bg-black/50 hover:bg-black/60 transition-colors"
                                     >
-                                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                                      <div className="flex items-center gap-3 min-w-0 flex-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                                           <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z" />
                                         </svg>
-                                        <span className="text-[14px] font-medium text-white min-w-0 truncate" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                                          {session.title || session.workout_sessions?.title || 'Séance'}
-                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                          <span className="block text-[14px] font-medium text-white min-w-0 truncate leading-tight" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                            {session.title || session.workout_sessions?.title || 'Séance'}
+                                          </span>
                                         {blockInfo && (
-                                          <>
-                                            <span className="text-[14px] text-white/50 flex-shrink-0"> : </span>
-                                            <span className="text-[12px] text-white/50 flex-shrink-0 whitespace-nowrap pt-0.5 pb-0.5">
-                                              Bloc {blockInfo.blockNumber} - S {blockInfo.weekInBlock}/{blockInfo.totalWeeks}
+                                            <span className="block text-[11px] text-white/50 leading-tight pt-0.5 truncate">
+                                              Bloc {blockInfo.blockNumber} Semaine {blockInfo.weekInBlock}/{blockInfo.totalWeeks}
                                             </span>
-                                          </>
                                         )}
+                                        </div>
                                       </div>
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`h-4 w-4 flex-shrink-0 text-white/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-90'}`} fill="currentColor">
                                         <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
@@ -1842,7 +1994,6 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                       <div className="px-3 pb-3 pt-1.5 bg-black/50">
                                         <div className="relative flex flex-col">
                                           {exercisesList.map((exercise, exIdx) => {
-                                            const setsStr = formatSetsForDisplay(exercise);
                                             const setCount = exercise.sets?.length || 0;
                                             return (
                                               <div key={exIdx} className="flex items-center gap-2 py-1.5">
@@ -1854,17 +2005,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                                 <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
                                                   <div className="min-w-0 flex-1">
                                                     <div className="text-[14px] font-normal text-white truncate">{exercise.name}</div>
-                                                    {setsStr && (
-                                                      <div className="text-[10px] text-white/75 font-normal truncate">
-                                                        {setsStr.split(/(@[\d.]+kg|RPE\s*[\d.]+)/g).map((part, i) =>
-                                                          part.match(/@[\d.]+kg|RPE\s*[\d.]+/) ? (
-                                                            <span key={i} style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{part}</span>
-                                                          ) : (
-                                                            <span key={i}>{part}</span>
-                                                          )
-                                                        )}
-                                                      </div>
-                                                    )}
+                                                    <ExerciseSummaryPreview exercise={exercise} />
                                                   </div>
                                                   {setCount > 0 && (
                                                     <span className="text-[12px] text-white/75 flex-shrink-0">x{setCount}</span>
@@ -2101,6 +2242,15 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                     ? exercises[exerciseIndex + 1]?.supersetGroup !== exercise.supersetGroup
                     : exerciseIndex === exercises.length - 1;
 
+                  const columnVisibility = getExerciseTableVisibility(exercise);
+                  const showPreviousRpeColumn = exerciseShowPreviousColumn(exercise, columnVisibility);
+                  const repsChargeLayout = sessionRepsChargeLayout(columnVisibility);
+                  const sessionSetsTableMinWidthPx = computeExerciseTableMinWidthPx(
+                    columnVisibility,
+                    showPreviousRpeColumn,
+                  );
+                  const exerciseOneRmKg = getOneRmKgForExerciseName(exercise.name, oneRmRecords);
+
                   return (
                     <React.Fragment key={exercise.id}>
                       <div
@@ -2136,11 +2286,40 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               : 'bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.10)]'
                               }`}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
-                              <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
-                            </svg>
-                            <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg ml-2 md:ml-3 truncate">{exercise.name}</span>
-                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-2 md:ml-[14px] mr-2">
+                            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-3.5 w-3.5 md:h-4 md:w-4 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
+                                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                              </svg>
+                              {exercise.isQuickExercise && (
+                                <span
+                                  className="inline-flex items-center justify-center flex-shrink-0"
+                                  title="Exercice rapide"
+                                  aria-label="Exercice rapide"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-3.5 md:w-3.5" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                                    <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
+                                  </svg>
+                                </span>
+                              )}
+                              {exercise.isQuickExercise ? (
+                                <textarea
+                                  value={exercise.name || ''}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleQuickExerciseNameChange(exerciseIndex, e.target.value)}
+                                  onInput={(e) => {
+                                    e.currentTarget.style.height = 'auto';
+                                    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                                  }}
+                                  placeholder="Nom de l'exercice"
+                                  rows={1}
+                                  className="min-w-0 flex-1 bg-transparent text-[var(--tw-ring-offset-color)] text-base md:text-lg font-normal outline-none border-none placeholder:text-white/35 resize-none overflow-hidden leading-6"
+                                />
+                              ) : (
+                                <span className="text-[var(--tw-ring-offset-color)] font-normal text-base md:text-lg min-w-0 flex-1 break-words">{exercise.name}</span>
+                              )}
+                            </div>
+                            <div className="hidden sm:flex gap-1 md:gap-1.5 flex-wrap ml-1 md:ml-2 mr-1">
                               {exercise.tags && exercise.tags.map((tag, tagIndex) => {
                                 const tagStyle = getTagColor(tag, exerciseTagColorMap);
                                 return (
@@ -2156,22 +2335,52 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                             </div>
                             <button
                               type="button"
+                              disabled={!columnVisibility.chargeRpe}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if (!columnVisibility.chargeRpe) return;
                                 const updatedExercises = [...exercises];
-                                updatedExercises[exerciseIndex].useRir = !exercise.useRir;
-                                // Réinitialiser uniquement le poids saisi ; garder previousRpe et previousCharge pour réafficher au switch retour
-                                updatedExercises[exerciseIndex].sets = updatedExercises[exerciseIndex].sets.map(set => ({
-                                  ...set,
-                                  weight: ''
-                                }));
+                                const prevEx = updatedExercises[exerciseIndex];
+                                const switchingToRpe = !prevEx.useRir;
+                                updatedExercises[exerciseIndex] = {
+                                  ...prevEx,
+                                  useRir: !prevEx.useRir,
+                                  sets: prevEx.sets.map((set) => {
+                                    if (switchingToRpe) {
+                                      // Mémoriser la charge saisie ; réafficher le dernier RPE si l’utilisateur revient ensuite en mode RPE
+                                      return {
+                                        ...set,
+                                        chargeWeightBackup: set.weight ?? '',
+                                        weight: set.rpeTextBackup ?? '',
+                                      };
+                                    }
+                                    // Retour mode charge : restaurer la charge mémorisée (pas le texte RPE affiché)
+                                    const storedCharge = set.chargeWeightBackup;
+                                    return {
+                                      ...set,
+                                      rpeTextBackup: set.weight ?? '',
+                                      weight:
+                                        storedCharge !== undefined && storedCharge !== null
+                                          ? String(storedCharge)
+                                          : '',
+                                    };
+                                  }),
+                                };
                                 setExercises(updatedExercises);
                               }}
-                              className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 ${exercise.useRir
-                                ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
-                                : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
+                              className={`ml-auto py-1 px-2 md:px-3 rounded-[8px] text-xs md:text-sm font-normal transition-colors flex items-center gap-1 md:gap-1.5 flex-shrink-0 disabled:pointer-events-none ${!columnVisibility.chargeRpe
+                                ? 'bg-white/[0.06] text-white/25 cursor-not-allowed'
+                                : exercise.useRir
+                                  ? 'bg-[rgba(212,132,89,0.2)] text-[#d4845a] hover:bg-[rgba(212,132,89,0.3)]'
+                                  : 'bg-white/10 text-white/50 hover:text-[#d4845a] hover:bg-white/15'
                                 }`}
-                              title={exercise.useRir ? "Passer en mode Charge" : "Passer en mode RPE"}
+                              title={
+                                !columnVisibility.chargeRpe
+                                  ? 'Colonne Charge / RPE masquée — affichez-la pour changer le mode'
+                                  : exercise.useRir
+                                    ? 'Passer en mode Charge'
+                                    : 'Passer en mode RPE'
+                              }
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 fill-current">
                                 <path d="M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9S384 204.9 384 192l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8l-32.4 43.2-40-53.3 21.2-28.3C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM154 296l40 53.3-21.2 28.3C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L154 296zM438.6 470.6c-9.2 9.2-22.9 11.9-34.9 6.9S384 460.9 384 448l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32S14.3 96 32 96l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z" />
@@ -2205,6 +2414,143 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               </button>
                             </div>
                             <div className="w-px h-4 bg-white/10"></div>
+                            <DropdownMenu
+                              modal={false}
+                              open={columnVisibilityMenuOpenIndex === exerciseIndex}
+                              onOpenChange={(open) => {
+                                setColumnVisibilityMenuOpenIndex(open ? exerciseIndex : null);
+                              }}
+                            >
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
+                                  title="Afficher ou masquer des colonnes"
+                                  aria-label="Afficher ou masquer des colonnes du tableau"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 512 512"
+                                    className="h-4 w-4 shrink-0"
+                                    aria-hidden
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M195.1 9.5C198.1-5.3 211.2-16 226.4-16l59.8 0c15.2 0 28.3 10.7 31.3 25.5L332 79.5c14.1 6 27.3 13.7 39.3 22.8l67.8-22.5c14.4-4.8 30.2 1.2 37.8 14.4l29.9 51.8c7.6 13.2 4.9 29.8-6.5 39.9L447 233.3c.9 7.4 1.3 15 1.3 22.7s-.5 15.3-1.3 22.7l53.4 47.5c11.4 10.1 14 26.8 6.5 39.9l-29.9 51.8c-7.6 13.1-23.4 19.2-37.8 14.4l-67.8-22.5c-12.1 9.1-25.3 16.7-39.3 22.8l-14.4 69.9c-3.1 14.9-16.2 25.5-31.3 25.5l-59.8 0c-15.2 0-28.3-10.7-31.3-25.5l-14.4-69.9c-14.1-6-27.2-13.7-39.3-22.8L73.5 432.3c-14.4 4.8-30.2-1.2-37.8-14.4L5.8 366.1c-7.6-13.2-4.9-29.8 6.5-39.9l53.4-47.5c-.9-7.4-1.3-15-1.3-22.7s.5-15.3 1.3-22.7L12.3 185.8c-11.4-10.1-14-26.8-6.5-39.9L35.7 94.1c7.6-13.2 23.4-19.2 37.8-14.4l67.8 22.5c12.1-9.1 25.3-16.7 39.3-22.8L195.1 9.5zM256.3 336a80 80 0 1 0 -.6-160 80 80 0 1 0 .6 160z"
+                                    />
+                                  </svg>
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                side="bottom"
+                                align="end"
+                                sideOffset={8}
+                                className="w-56 rounded-xl p-1 z-[9999]"
+                                style={{
+                                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                  backdropFilter: 'blur(10px)',
+                                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                                }}
+                              >
+                                <DropdownMenuLabel className="px-2.5 py-2 text-xs font-light text-white/50">
+                                  Colonnes visibles sur l'exercice
+                                </DropdownMenuLabel>
+                                <DropdownMenuGroup className="gap-[2px] py-0">
+                                  <DropdownMenuCheckboxItem
+                                    checked={columnVisibility.repsHold}
+                                    onCheckedChange={(v) => {
+                                      setExercises((prev) => {
+                                        const next = [...prev];
+                                        const ex = { ...next[exerciseIndex] };
+                                        const cur = getExerciseTableVisibility(ex);
+                                        const repsHold = v === true;
+                                        ex.tableColumnVisibility = { ...cur, repsHold };
+                                        if (!repsHold && Array.isArray(ex.sets)) {
+                                          ex.sets = ex.sets.map((s) => ({ ...s, reps: '' }));
+                                        }
+                                        next[exerciseIndex] = ex;
+                                        return next;
+                                      });
+                                    }}
+                                    className="rounded-md font-light text-foreground text-sm"
+                                  >
+                                    Reps / Hold
+                                  </DropdownMenuCheckboxItem>
+                                  <DropdownMenuCheckboxItem
+                                    checked={columnVisibility.chargeRpe}
+                                    onCheckedChange={(v) => {
+                                      setExercises((prev) => {
+                                        const next = [...prev];
+                                        const ex = { ...next[exerciseIndex] };
+                                        const cur = getExerciseTableVisibility(ex);
+                                        const chargeRpe = v === true;
+                                        ex.tableColumnVisibility = { ...cur, chargeRpe };
+                                        if (!chargeRpe && Array.isArray(ex.sets)) {
+                                          ex.sets = ex.sets.map((s) => ({ ...s, weight: '' }));
+                                        }
+                                        next[exerciseIndex] = ex;
+                                        return next;
+                                      });
+                                    }}
+                                    className="rounded-md font-light text-foreground text-sm"
+                                  >
+                                    Charge / RPE
+                                  </DropdownMenuCheckboxItem>
+                                  {exerciseHasPreviousRpeOrCharge(exercise) && (
+                                    <DropdownMenuCheckboxItem
+                                      checked={columnVisibility.previous}
+                                      onCheckedChange={(v) => {
+                                        setExercises((prev) => {
+                                          const next = [...prev];
+                                          const ex = { ...next[exerciseIndex] };
+                                          const cur = getExerciseTableVisibility(ex);
+                                          ex.tableColumnVisibility = { ...cur, previous: v === true };
+                                          next[exerciseIndex] = ex;
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded-md font-light text-foreground text-sm"
+                                    >
+                                      Données précédentes
+                                    </DropdownMenuCheckboxItem>
+                                  )}
+                                  <DropdownMenuCheckboxItem
+                                    checked={columnVisibility.rest}
+                                    onCheckedChange={(v) => {
+                                      setExercises((prev) => {
+                                        const next = [...prev];
+                                        const ex = { ...next[exerciseIndex] };
+                                        const cur = getExerciseTableVisibility(ex);
+                                        ex.tableColumnVisibility = { ...cur, rest: v === true };
+                                        next[exerciseIndex] = ex;
+                                        return next;
+                                      });
+                                    }}
+                                    className="rounded-md font-light text-foreground text-sm"
+                                  >
+                                    Repos
+                                  </DropdownMenuCheckboxItem>
+                                </DropdownMenuGroup>
+                                <DropdownMenuSeparator className="bg-white/10" />
+                                <DropdownMenuItem
+                                  className="rounded-md font-light text-foreground text-sm"
+                                  onClick={() => {
+                                    setExercises((prev) => {
+                                      const next = [...prev];
+                                      next[exerciseIndex] = {
+                                        ...next[exerciseIndex],
+                                        tableColumnVisibility: { ...DEFAULT_SESSION_TABLE_COLUMNS },
+                                      };
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  Réinitialiser l&apos;affichage
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <button
                               type="button"
                               onClick={() => handleDuplicateExercise(exerciseIndex)}
@@ -2233,54 +2579,71 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           <div className="bg-transparent p-3 md:p-4">
                             {/* Table Container with Scroll */}
                             <div className="exercise-sets-container overflow-x-auto -mx-3 md:-mx-4 px-3 md:px-4">
-                              <table className="w-full text-xs md:text-sm min-w-[500px]">
+                              <table
+                                className="w-full text-xs md:text-sm"
+                                style={{ minWidth: `${sessionSetsTableMinWidthPx}px` }}
+                              >
                                 <thead className="sticky top-0 z-10" style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}>
                                   <tr className="text-white/50 text-xs font-extralight">
                                     <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
-                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                                      <DropdownMenu modal={false}>
-                                        <DropdownMenuTrigger asChild>
-                                          <button
-                                            type="button"
-                                            className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
-                                            style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                    {columnVisibility.repsHold && (
+                                      <th
+                                        className={`text-center pb-[10px] font-extralight ${repsChargeLayout.wideReps ? repsChargeLayout.colMinClass : repsChargeLayout.narrowColClass}`}
+                                        style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                      >
+                                        <DropdownMenu modal={false}>
+                                          <DropdownMenuTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="flex items-center justify-center gap-1 hover:text-[#d4845a] transition-colors cursor-pointer mx-auto pl-3"
+                                              style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                            >
+                                              <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
+                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
+                                                <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                                              </svg>
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent
+                                            align="start"
+                                            sideOffset={5}
+                                            disablePortal={true}
+                                            className="rounded-lg shadow-2xl z-[9999]"
+                                            style={{
+                                              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                              backdropFilter: 'blur(10px)',
+                                              borderColor: 'rgba(255, 255, 255, 0.15)',
+                                              borderWidth: '1px',
+                                              borderStyle: 'solid',
+                                              marginLeft: '12px'
+                                            }}
                                           >
-                                            <span>{exercise.sets[0]?.repType === 'hold' ? 'Hold' : 'Reps'}</span>
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-3 w-3" fill="currentColor">
-                                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
-                                            </svg>
-                                          </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                          align="start"
-                                          sideOffset={5}
-                                          disablePortal={true}
-                                          className="rounded-lg shadow-2xl z-[9999]"
-                                          style={{
-                                            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                                            backdropFilter: 'blur(10px)',
-                                            borderColor: 'rgba(255, 255, 255, 0.15)',
-                                            borderWidth: '1px',
-                                            borderStyle: 'solid',
-                                            marginLeft: '12px'
-                                          }}
-                                        >
-                                          <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
-                                            Reps
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
-                                            Hold
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    </th>
-                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{exercise.useRir ? 'RPE' : 'Charge'}</th>
-                                    {hasPreviousRpeData() && (
+                                            <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'reps')}>
+                                              Reps
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleChangeAllRepTypes(exerciseIndex, 'hold')}>
+                                              Hold
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      </th>
+                                    )}
+                                    {columnVisibility.chargeRpe && (
+                                      <th
+                                        className={`text-center pb-[10px] font-extralight ${repsChargeLayout.wideCharge ? repsChargeLayout.colMinClass : repsChargeLayout.narrowColClass}`}
+                                        style={{ color: 'rgba(255, 255, 255, 0.25)' }}
+                                      >
+                                        {exercise.useRir ? 'RPE' : 'Charge'}
+                                      </th>
+                                    )}
+                                    {showPreviousRpeColumn && (
                                       <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
                                         {exercise.useRir ? 'Charge précédente' : 'RPE précédent'}
                                       </th>
                                     )}
-                                    <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                                    {columnVisibility.rest && (
+                                      <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                                    )}
                                     <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
                                     <th className="pb-3"></th>
                                   </tr>
@@ -2289,10 +2652,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                   {exercise.sets.map((set, setIndex) => (
                                     <tr key={setIndex} className={`group border-t border-white/5 hover:bg-white/5 transition-colors ${setIndex === exercise.sets.length - 1 ? 'border-b border-white/5' : ''}`}>
                                       <td className="py-1.5 text-sm text-center font-normal text-white/25 w-16">{set.serie}</td>
-                                      <td className="py-1.5 min-w-24">
+                                      {columnVisibility.repsHold && (
+                                      <td className={`py-1.5 ${repsChargeLayout.wideReps ? repsChargeLayout.colMinClass : repsChargeLayout.narrowColClass}`}>
                                         {set.repType === 'hold' ? (
                                           <div
-                                            className="relative flex items-center justify-center mx-auto w-[82px]"
+                                            className={`relative flex items-center justify-center mx-auto ${repsChargeLayout.wideReps ? repsChargeLayout.wideInputClass : repsChargeLayout.narrowHoldWrapClass}`}
                                             onMouseEnter={(e) => {
                                               const input = e.currentTarget.querySelector('input');
                                               if (input) {
@@ -2310,129 +2674,55 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                               }
                                             }}
                                           >
-                                            <Input
-                                              type="text"
-                                              value={set.reps || ''}
-                                              maxLength={8}
-                                              onChange={(e) => {
-                                                const inputValue = e.target.value.slice(0, 8);
-                                                const previousValue = set.reps || '';
-
-                                                // Allow empty string
-                                                if (inputValue === '') {
-                                                  handleSetChange(exerciseIndex, setIndex, 'reps', '');
-                                                  return;
-                                                }
-
-                                                // Prevent deleting 's' at the end - if user tries to delete 's', restore it
-                                                let cleanValue = inputValue.replace(/s/gi, '');
-
-                                                // If previous value was "0s" or "0" and user types a digit, replace the 0
-                                                if ((previousValue === '0s' || previousValue === '0') && /^\d$/.test(cleanValue)) {
-                                                  handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                                  return;
-                                                }
-
-                                                // Check if it contains colon (MM:SS format) - don't add 's' for this format
-                                                if (cleanValue.includes(':')) {
-                                                  const parts = cleanValue.split(':');
-                                                  if (parts.length === 2) {
-                                                    const minutes = parseInt(parts[0], 10);
-                                                    const seconds = parseInt(parts[1], 10);
-                                                    if (!isNaN(minutes) && !isNaN(seconds) && minutes >= 0 && minutes <= 99 && seconds >= 0 && seconds < 60) {
-                                                      handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue);
-                                                    }
-                                                  }
-                                                  return;
-                                                }
-
-                                                // Allow only digits - always add 's' at the end
-                                                if (/^\d+$/.test(cleanValue)) {
-                                                  const numValue = parseInt(cleanValue, 10);
-                                                  if (!isNaN(numValue) && numValue >= 0 && numValue <= 9999) {
-                                                    // Store with 's' appended
-                                                    handleSetChange(exerciseIndex, setIndex, 'reps', cleanValue + 's');
-                                                  }
-                                                }
-                                              }}
-                                              onKeyDown={(e) => {
-                                                const input = e.target;
-                                                const cursorPosition = input.selectionStart;
-                                                const value = input.value;
-
-                                                const allowedKeys = [
-                                                  'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
-                                                  'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
-                                                ];
-
-                                                // Prevent deleting 's' at the end
-                                                if ((e.key === 'Backspace' || e.key === 'Delete') && cursorPosition === value.length && value.endsWith('s')) {
-                                                  e.preventDefault();
-                                                  // Move cursor before 's' to allow deleting the number
-                                                  input.setSelectionRange(value.length - 1, value.length - 1);
-                                                  return;
-                                                }
-
-                                                // Prevent typing at the end if it would overwrite 's'
-                                                if (cursorPosition === value.length && value.endsWith('s') && !value.includes(':')) {
-                                                  if (/^\d$/.test(e.key)) {
-                                                    // Allow digits but insert before 's', limit to 8 characters
-                                                    e.preventDefault();
-                                                    const newValue = (value.slice(0, -1) + e.key + 's').slice(0, 8);
-                                                    handleSetChange(exerciseIndex, setIndex, 'reps', newValue);
-                                                    setTimeout(() => {
-                                                      input.setSelectionRange(newValue.length - 1, newValue.length - 1);
-                                                    }, 0);
-                                                    return;
-                                                  }
-                                                }
-
-                                                if (allowedKeys.includes(e.key)) {
-                                                  return;
-                                                }
-
-                                                // Allow digits and ':' (but not 's')
-                                                if (/^\d$/.test(e.key) || e.key === ':') {
-                                                  return;
-                                                }
-
-                                                e.preventDefault();
-                                              }}
-                                              placeholder="40s"
-                                              className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors"
-                                              onFocus={(e) => {
-                                                const input = e.target;
-                                                const value = input.value;
-                                                // If value is "0s", select the "0" so it can be easily replaced
-                                                if (value === '0s') {
-                                                  setTimeout(() => {
-                                                    input.setSelectionRange(0, 1);
-                                                  }, 0);
-                                                } else if (value.endsWith('s') && !value.includes(':')) {
-                                                  // If value ends with 's' (but not "0s"), position cursor before 's'
-                                                  setTimeout(() => {
-                                                    input.setSelectionRange(value.length - 1, value.length - 1);
-                                                  }, 0);
-                                                }
-                                                e.target.style.borderStyle = 'solid';
-                                                e.target.style.borderWidth = '0.5px';
-                                                e.target.style.borderColor = '#d4845a';
-                                              }}
-                                              onBlur={(e) => {
-                                                e.target.style.borderStyle = 'none';
-                                                e.target.style.borderWidth = '0px';
-                                                e.target.style.borderColor = 'transparent';
-                                                // Ensure 's' is always present when blurring (if not empty and not MM:SS format)
-                                                const value = e.target.value;
-                                                if (value && !value.includes(':') && !value.endsWith('s')) {
-                                                  handleSetChange(exerciseIndex, setIndex, 'reps', value + 's');
-                                                }
-                                              }}
-                                            />
+                                            {(() => {
+                                              const holdVal = set.reps ?? '';
+                                              const showHoldSecondsSuffix =
+                                                holdVal !== '' &&
+                                                /[0-9]/.test(holdVal) &&
+                                                !/[a-zA-Z]/.test(holdVal);
+                                              return (
+                                                <>
+                                                  <Input
+                                                    type="text"
+                                                    value={holdVal}
+                                                    maxLength={repsChargeLayout.repsMaxLen}
+                                                    onChange={(e) => {
+                                                      const value = e.target.value.slice(0, repsChargeLayout.repsMaxLen);
+                                                      handleSetChange(exerciseIndex, setIndex, 'reps', value);
+                                                    }}
+                                                    placeholder=""
+                                                    className={`text-white text-sm text-center h-8 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${
+                                                      showHoldSecondsSuffix
+                                                        ? (repsChargeLayout.wideReps ? '!pl-7' : '!pl-5')
+                                                        : '!pl-1.5'
+                                                    } transition-colors ${repsChargeLayout.wideReps ? repsChargeLayout.wideInputClass : 'w-20'} ${
+                                                      showHoldSecondsSuffix
+                                                        ? (repsChargeLayout.wideReps ? '!pr-7' : '!pr-5')
+                                                        : '!pr-1.5'
+                                                    }`}
+                                                    onFocus={(e) => {
+                                                      e.target.style.borderStyle = 'solid';
+                                                      e.target.style.borderWidth = '0.5px';
+                                                      e.target.style.borderColor = '#d4845a';
+                                                    }}
+                                                    onBlur={(e) => {
+                                                      e.target.style.borderStyle = 'none';
+                                                      e.target.style.borderWidth = '0px';
+                                                      e.target.style.borderColor = 'transparent';
+                                                    }}
+                                                  />
+                                                  {showHoldSecondsSuffix && (
+                                                    <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none select-none">
+                                                      s
+                                                    </span>
+                                                  )}
+                                                </>
+                                              );
+                                            })()}
                                           </div>
                                         ) : (
                                           <div
-                                            className="flex items-center justify-center w-[82px] mx-auto"
+                                            className={`flex items-center justify-center mx-auto ${repsChargeLayout.wideReps ? repsChargeLayout.wideInputClass : repsChargeLayout.narrowRepsWrapClass}`}
                                             onMouseEnter={(e) => {
                                               const input = e.currentTarget.querySelector('input');
                                               if (input) {
@@ -2453,14 +2743,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                             <Input
                                               type="text"
                                               value={set.reps || ''}
-                                              maxLength={8}
+                                              maxLength={repsChargeLayout.repsMaxLen}
                                               onChange={(e) => {
-                                                // Allow any character - free text input, limit to 8 characters
-                                                const value = e.target.value.slice(0, 8);
+                                                const value = e.target.value.slice(0, repsChargeLayout.repsMaxLen);
                                                 handleSetChange(exerciseIndex, setIndex, 'reps', value);
                                               }}
                                               placeholder=""
-                                              className="text-white text-sm text-center h-8 w-[82px] mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors"
+                                              className={`text-white text-sm text-center h-8 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors ${repsChargeLayout.wideReps ? repsChargeLayout.wideInputClass : 'w-[82px]'}`}
                                               onFocus={(e) => {
                                                 e.target.style.borderStyle = 'solid';
                                                 e.target.style.borderWidth = '0.5px';
@@ -2475,53 +2764,86 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                           </div>
                                         )}
                                       </td>
-                                      <td className="py-1.5 min-w-24">
-                                        <div
-                                          className="relative flex items-center justify-center mx-auto w-20"
-                                          onMouseEnter={(e) => {
-                                            const input = e.currentTarget.querySelector('input');
-                                            if (input) {
-                                              input.style.borderStyle = 'solid';
-                                              input.style.borderWidth = '0.5px';
-                                              input.style.borderColor = '#d4845a';
-                                            }
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            const input = e.currentTarget.querySelector('input');
-                                            if (input && document.activeElement !== input) {
-                                              input.style.borderStyle = 'none';
-                                              input.style.borderWidth = '0px';
-                                              input.style.borderColor = 'transparent';
-                                            }
-                                          }}
-                                        >
-                                          <Input
-                                            type="text"
-                                            maxLength={5}
-                                            value={set.weight ?? ''}
-                                            onChange={(e) => {
-                                              // Charge et RPE : texte libre, limité à 5 caractères (comme la charge)
-                                              const value = e.target.value.slice(0, 5);
-                                              handleSetChange(exerciseIndex, setIndex, 'weight', value);
-                                            }}
-                                            className={`text-white text-sm text-center h-8 w-20 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] ${(!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight)) ? 'pr-6' : ''} transition-colors`}
-                                            onFocus={(e) => {
-                                              e.target.style.borderStyle = 'solid';
-                                              e.target.style.borderWidth = '0.5px';
-                                              e.target.style.borderColor = '#d4845a';
-                                            }}
-                                            onBlur={(e) => {
-                                              e.target.style.borderStyle = 'none';
-                                              e.target.style.borderWidth = '0px';
-                                              e.target.style.borderColor = 'transparent';
-                                            }}
-                                          />
-                                          {!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight) && (
-                                            <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
-                                          )}
-                                        </div>
+                                      )}
+                                      {columnVisibility.chargeRpe && (
+                                      <td
+                                        className={`py-1.5 overflow-visible ${repsChargeLayout.wideCharge ? repsChargeLayout.colMinClass : repsChargeLayout.narrowColClass}`}
+                                      >
+                                        {(() => {
+                                          const chargeKg = !exercise.useRir
+                                            ? parseChargeKgForOneRmPercent(set.weight)
+                                            : null;
+                                          const oneRmPct =
+                                            exerciseOneRmKg &&
+                                            chargeKg != null &&
+                                            !exercise.useRir
+                                              ? Math.round((chargeKg / exerciseOneRmKg) * 100)
+                                              : null;
+                                          const showOneRmPct =
+                                            canShowOneRmPercentForExerciseName(exercise.name) &&
+                                            oneRmPct != null &&
+                                            Number.isFinite(oneRmPct) &&
+                                            exerciseOneRmKg > 0;
+                                          return (
+                                            <div className="flex items-center justify-center mx-auto w-full">
+                                              <div
+                                                className={`relative flex items-center justify-center shrink-0 ${repsChargeLayout.wideCharge ? repsChargeLayout.wideInputClass : repsChargeLayout.narrowChargeWrapClass}`}
+                                                onMouseEnter={(e) => {
+                                                  const input = e.currentTarget.querySelector('input');
+                                                  if (input) {
+                                                    input.style.borderStyle = 'solid';
+                                                    input.style.borderWidth = '0.5px';
+                                                    input.style.borderColor = '#d4845a';
+                                                  }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                  const input = e.currentTarget.querySelector('input');
+                                                  if (input && document.activeElement !== input) {
+                                                    input.style.borderStyle = 'none';
+                                                    input.style.borderWidth = '0px';
+                                                    input.style.borderColor = 'transparent';
+                                                  }
+                                                }}
+                                              >
+                                                <Input
+                                                  type="text"
+                                                  maxLength={exercise.useRir ? 20 : repsChargeLayout.chargeMaxLen}
+                                                  value={set.weight ?? ''}
+                                                  onChange={(e) => {
+                                                    const maxLen = exercise.useRir ? 20 : repsChargeLayout.chargeMaxLen;
+                                                    const value = e.target.value.slice(0, maxLen);
+                                                    handleSetChange(exerciseIndex, setIndex, 'weight', value);
+                                                  }}
+                                                  className={`text-white text-sm text-center h-8 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors ${repsChargeLayout.wideCharge ? repsChargeLayout.wideInputClass : 'w-20'} ${(!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight)) ? (repsChargeLayout.wideCharge ? 'pr-8 pl-8' : 'pr-6 pl-6') : ''}`}
+                                                  onFocus={(e) => {
+                                                    e.target.style.borderStyle = 'solid';
+                                                    e.target.style.borderWidth = '0.5px';
+                                                    e.target.style.borderColor = '#d4845a';
+                                                  }}
+                                                  onBlur={(e) => {
+                                                    e.target.style.borderStyle = 'none';
+                                                    e.target.style.borderWidth = '0px';
+                                                    e.target.style.borderColor = 'transparent';
+                                                  }}
+                                                />
+                                                {!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight) && (
+                                                  <span className="absolute right-2 text-white/25 text-sm font-normal pointer-events-none">kg</span>
+                                                )}
+                                                {showOneRmPct && (
+                                                  <span
+                                                    className="pointer-events-none absolute left-full bottom-[7px] ml-1.5 text-[#d4845a]/75 text-[11px] font-medium tabular-nums leading-none whitespace-nowrap"
+                                                    title={`≈ ${oneRmPct}% du 1RM (${exerciseOneRmKg} kg)`}
+                                                  >
+                                                    {oneRmPct}%
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
                                       </td>
-                                      {hasPreviousRpeData() && (
+                                      )}
+                                      {showPreviousRpeColumn && (
                                         <td className="py-1.5 min-w-24">
                                           <div className="flex items-center justify-center">
                                             {(() => {
@@ -2548,6 +2870,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                           </div>
                                         </td>
                                       )}
+                                      {columnVisibility.rest && (
                                       <td className="py-1.5 min-w-24">
                                         <div
                                           className="flex items-center justify-center"
@@ -2611,6 +2934,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                           />
                                         </div>
                                       </td>
+                                      )}
                                       <td className="py-1.5 w-20" style={{ textAlign: 'center' }}>
                                         <div className="flex items-center justify-center">
                                           <button
@@ -2653,11 +2977,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                               </table>
                             </div>
 
-                            {/* Controls Row: Charge par main checkbox, Tempo input, Ajouter une série */}
+                            {/* Controls Row: Charge par côté checkbox, Tempo input, Ajouter une série */}
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mt-4 pt-0">
-                              {/* Left side: Charge par main checkbox and Tempo input */}
+                              {/* Left side: Charge par côté checkbox and Tempo input */}
                               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-[12px] w-full sm:w-auto">
-                                {/* Charge par main checkbox */}
+                                {/* Charge par côté checkbox */}
                                 <div className="flex items-center gap-2 md:gap-[8px] h-[29px]">
                                   <button
                                     type="button"
@@ -2689,7 +3013,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                                     }}
                                     className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
                                   >
-                                    Charge par main
+                                    Charge par côté
                                   </label>
                                 </div>
 
@@ -2953,14 +3277,24 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
               {/* Add Exercise Button */}
               {!showExerciseSelector && (
                 <div className="pt-0 flex justify-center">
+                  <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowExerciseSelector(true)}
-                    className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                    className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-medium text-xs md:text-sm focus:outline-none focus-visible:ring-0"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
                     Ajouter exercice
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleAddQuickExercise}
+                    className="w-full sm:w-[195px] px-6 md:px-8 bg-white/[0.06] hover:bg-white/[0.12] text-white/80 py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
+                  >
+                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    Exercice rapide
+                  </button>
+                  </div>
                 </div>
               )}
 
@@ -3087,6 +3421,11 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
       {showStudentPreview && exercises.length > 0 && (() => {
         const firstExercise = exercises[0];
         const sets = firstExercise.sets || [];
+        const previewHasRpeMode = exercises.some((ex) => ex.useRir);
+        const previewHasChargeMode = exercises.some((ex) => !ex.useRir);
+        const previewCoachChargeHeaderLabel = (previewHasRpeMode && previewHasChargeMode)
+          ? 'RPE/Charge'
+          : (firstExercise.useRir ? 'RPE' : 'Charge');
 
         return (
           <ModalPortal>
@@ -3111,13 +3450,13 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                       </button>
                     </div>
                     <div className="flex flex-col gap-[15px] items-start w-full">
-                      {/* Tempo et Charge par main - Affichés si définis par le coach */}
+                      {/* Tempo et Charge par côté - Affichés si définis par le coach */}
                       {(firstExercise.tempo || firstExercise.per_side) && (
                         <div className="flex flex-col gap-[15px] items-start">
                           <p className="text-[12px] font-light text-white/50">
                             {firstExercise.tempo ? `Tempo : ${firstExercise.tempo}` : ''}
                             {firstExercise.tempo && firstExercise.per_side ? ' | ' : ''}
-                            {firstExercise.per_side ? 'Charge par main' : ''}
+                            {firstExercise.per_side ? 'Charge par côté' : ''}
                           </p>
                         </div>
                       )}
@@ -3203,7 +3542,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                           </p>
                         </div>
                         <div className="w-[50px] flex justify-center items-center flex-shrink-0">
-                          <p className="text-[8px] font-normal text-white/25 leading-none">{firstExercise.useRir ? 'RPE' : 'Charge'}</p>
+                          <p className="text-[8px] font-normal text-white/25 leading-none">{previewCoachChargeHeaderLabel}</p>
                         </div>
                         <div className="flex-1 flex justify-center items-center gap-[15px]">
                           <div className="w-[17px] h-[17px]" />
@@ -3229,18 +3568,7 @@ const CreateWorkoutSessionModal = ({ isOpen, onClose, selectedDate, onSessionCre
                   {sets.map((set, setIndex) => {
                     const setNumber = setIndex + 1;
                     const weight = set.weight ?? '';
-                    const repType = set.repType || 'reps';
-                    let reps = '?';
-                    if (repType === 'hold') {
-                      const repsValue = set.reps || '';
-                      if (repsValue.includes(':')) {
-                        reps = repsValue;
-                      } else {
-                        reps = repsValue ? (repsValue.endsWith('s') ? repsValue : `${repsValue}s`) : '0s';
-                      }
-                    } else {
-                      reps = set.reps || '?';
-                    }
+                    const reps = set.reps || '?';
 
                     return (
                       <div key={setIndex} className="flex items-center">

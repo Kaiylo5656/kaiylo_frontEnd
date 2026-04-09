@@ -26,7 +26,7 @@ const VideoProcessingModal = ({ isOpen, progress, isCompressing, isComplete }) =
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center items-center py-8">
-          <Loader2 className="h-12 w-12 text-[#e87c3e] animate-spin" />
+          <Loader2 className="h-12 w-12 text-[#e87c3e] animate-smooth-spin" />
         </div>
       </DialogContent>
     </Dialog>

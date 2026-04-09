@@ -11,7 +11,7 @@ import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { buildApiUrl } from '../config/api';
 import { getCachedMessages, setCachedMessages, appendCachedMessage, patchCachedMessage } from '../utils/chatCache';
-import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video, Pencil } from 'lucide-react';
+import { Paperclip, ChevronLeft, Check, CheckCheck, Image as ImageIcon, Video } from 'lucide-react';
 import DeleteMessageModal from './DeleteMessageModal';
 import VoiceRecorder from './VoiceRecorder';
 import VideoDetailModal from './VideoDetailModal';
@@ -1341,7 +1341,12 @@ const ChatWindow = ({ conversation, currentUser, onNewMessage, onMessageSent, on
                           onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--kaiylo-primary-hex)'; }}
                           onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; }}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" aria-hidden="true">
+                            <path
+                              fill="currentColor"
+                              d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z"
+                            />
+                          </svg>
                         </button>
                       )}
 

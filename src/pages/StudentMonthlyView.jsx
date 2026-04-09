@@ -6,14 +6,16 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { buildApiUrl } from '../config/api';
+import PeriodizationTab from '../components/PeriodizationTab';
 
 const StudentMonthlyView = () => {
   const navigate = useNavigate();
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('planning');
 
   // Track scroll attempts when at top (forcing scroll)
   const forceScrollAttempts = useRef(0);
@@ -209,6 +211,44 @@ const StudentMonthlyView = () => {
     return dayAssignments.some(a => a.status !== 'completed' && a.status !== 'skipped' && a.status !== 'failed');
   };
 
+  const getCompletedInputIndicators = (day) => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const dayAssignments = assignments.filter(
+      a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr && a.status === 'completed'
+    );
+
+    let hasStudentLoadOnRpeProgramming = false;
+    let hasStudentRpeOnLoadProgramming = false;
+
+    dayAssignments.forEach((assignment) => {
+      const exercises = assignment?.workout_sessions?.exercises || assignment?.exercises || [];
+
+      exercises.forEach((exercise) => {
+        const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+        const isRpeProgramming = Boolean(exercise?.useRir);
+
+        if (isRpeProgramming) {
+          const hasStudentWeight = sets.some((set) => {
+            const studentWeight = set?.student_weight ?? set?.studentWeight;
+            return studentWeight !== null && studentWeight !== undefined && String(studentWeight).trim() !== '';
+          });
+          if (hasStudentWeight) hasStudentLoadOnRpeProgramming = true;
+        } else {
+          const hasStudentRpe = sets.some((set) => {
+            const rpeRating = set?.rpe_rating ?? set?.rpeRating ?? set?.student_rpe;
+            return rpeRating !== null && rpeRating !== undefined && String(rpeRating).trim() !== '';
+          });
+          if (hasStudentRpe) hasStudentRpeOnLoadProgramming = true;
+        }
+      });
+    });
+
+    return {
+      hasStudentLoadOnRpeProgramming,
+      hasStudentRpeOnLoadProgramming
+    };
+  };
+
   const handleDayClick = (day) => {
     if (day) {
       setSelectedDate(day);
@@ -334,103 +374,156 @@ const StudentMonthlyView = () => {
       />
 
       {/* Header */}
-      <div className="px-[47px] pt-[40px] pb-2 relative z-10">
-        {/* Month title and navigation */}
-        <div className="flex items-center justify-center gap-4 mb-1">
-          <button
-            onClick={handlePreviousMonth}
-            className="text-white/60 hover:text-white transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <h1 className="text-[28px] font-light text-center text-white">
-            {capitalizeMonth(currentMonth)}
-          </h1>
-          <button
-            onClick={handleNextMonth}
-            className="text-white/60 hover:text-white transition-colors"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Calendar */}
-      <div className="px-[17px] relative z-10">
-        {/* Day names header */}
-        <div className="flex gap-0 mb-0">
-          {dayNames.map((dayName, index) => (
-            <div
-              key={index}
-              className="flex-1 flex flex-col items-center gap-[5px] px-0 py-[5px] min-w-0"
+      <div className="px-[20px] pt-[26px] pb-2 relative z-10">
+        <div className="mx-auto mb-4 w-full max-w-[340px] rounded-[12px] border border-white/10 bg-white/[0.04] p-1 backdrop-blur-sm">
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setActiveView('planning')}
+              className={`h-9 rounded-[9px] text-[13px] font-normal transition-colors ${activeView === 'planning'
+                ? 'bg-[#d4845a] text-white'
+                : 'text-white/60 hover:text-white'
+                }`}
             >
-              <p className="text-[10px] font-normal text-white/50 leading-normal uppercase">
-                {dayName}
-              </p>
-            </div>
-          ))}
+              Planning
+            </button>
+            <button
+              onClick={() => setActiveView('periodization')}
+              className={`h-9 rounded-[9px] text-[13px] font-normal transition-colors ${activeView === 'periodization'
+                ? 'bg-[#d4845a] text-white'
+                : 'text-white/60 hover:text-white'
+                }`}
+            >
+              Périodisation
+            </button>
+          </div>
         </div>
 
-        {/* Calendar grid */}
-        <div className="flex flex-col gap-[10px] mt-2">
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex gap-0">
-              {week.map((day, dayIndex) => {
-                if (!day) {
-                  // Empty cell for days before month start
-                  return (
-                    <div
-                      key={`empty-${dayIndex}`}
-                      className="flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px]"
-                    />
-                  );
-                }
-
-                const dayStr = format(day, 'yyyy-MM-dd');
-                const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
-                const dayHasAssignments = assignmentsForDay.length > 0;
-                const isToday = isSameDay(day, new Date());
-                const isSelected = isSameDay(day, selectedDate);
-
-                return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => handleDayClick(day)}
-                    className={`flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px] transition-colors ${isSelected
-                      ? 'border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[7.5px]'
-                      : 'hover:bg-white/5'
-                      }`}
-                  >
-                    <div className={`flex flex-col gap-[5px] items-center ${isSelected ? 'bg-[#d4845a] rounded-[5px] w-[19px] shrink-0' : ''
-                      }`}>
-                      <p className={`text-[10px] font-normal leading-normal text-center ${isSelected ? 'text-white' : isToday ? 'text-white' : 'text-white/50'
-                        }`}>
-                        {format(day, 'd')}
-                      </p>
-                    </div>
-                    {/* Indicateur de statut - un point par séance */}
-                    <div className="flex items-center justify-center gap-0.5">
-                      {dayHasAssignments ? (
-                        assignmentsForDay.map((assignment, idx) => (
-                          <div
-                            key={assignment.id || idx}
-                            className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${assignment.status === 'completed'
-                              ? 'bg-[#2fa064]'
-                              : isSelected
-                                ? 'bg-white'
-                                : 'bg-white/60'
-                              }`}
-                          />
-                        ))
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
+        {activeView === 'planning' && (
+          <div className="px-[27px] pt-[6px] pb-1">
+            {/* Month title and navigation */}
+            <div className="flex items-center justify-center gap-4 mb-1">
+              <button
+                onClick={handlePreviousMonth}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <h1 className="text-[28px] font-light text-center text-white">
+                {capitalizeMonth(currentMonth)}
+              </h1>
+              <button
+                onClick={handleNextMonth}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
+
+      {activeView === 'planning' ? (
+        <div className="px-[17px] relative z-10">
+          {/* Day names header */}
+          <div className="flex gap-0 mb-0">
+            {dayNames.map((dayName, index) => (
+              <div
+                key={index}
+                className="flex-1 flex flex-col items-center gap-[5px] px-0 py-[5px] min-w-0"
+              >
+                <p className="text-[10px] font-normal text-white/50 leading-normal uppercase">
+                  {dayName}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="flex flex-col gap-[10px] mt-2">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex gap-0">
+                {week.map((day, dayIndex) => {
+                  if (!day) {
+                    // Empty cell for days before month start
+                    return (
+                      <div
+                        key={`empty-${dayIndex}`}
+                        className="flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px]"
+                      />
+                    );
+                  }
+
+                  const dayStr = format(day, 'yyyy-MM-dd');
+                  const assignmentsForDay = assignments.filter(a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr);
+                  const dayHasAssignments = assignmentsForDay.length > 0;
+                  const isToday = isSameDay(day, new Date());
+                  const isSelected = isSameDay(day, selectedDate);
+                  const completedIndicators = getCompletedInputIndicators(day);
+
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => handleDayClick(day)}
+                      className={`flex-1 flex flex-col gap-[4px] items-center px-0 py-[5px] min-w-0 h-[62px] transition-colors ${isSelected
+                        ? 'border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[7.5px]'
+                        : 'hover:bg-white/5'
+                        }`}
+                    >
+                      <div className={`flex flex-col gap-[5px] items-center ${isSelected ? 'bg-[#d4845a] rounded-[5px] w-[19px] shrink-0' : ''
+                        }`}>
+                        <p className={`text-[10px] font-normal leading-normal text-center ${isSelected ? 'text-white' : isToday ? 'text-white' : 'text-white/50'
+                          }`}>
+                          {format(day, 'd')}
+                        </p>
+                      </div>
+                      {/* Indicateur de statut - un point par séance */}
+                      <div className="flex items-center justify-center gap-0.5">
+                        {dayHasAssignments ? (
+                          assignmentsForDay.map((assignment, idx) => (
+                            <div
+                              key={assignment.id || idx}
+                              className={`rounded-full w-[6px] h-[6px] flex-shrink-0 transition-colors ${assignment.status === 'completed'
+                                ? 'bg-[#2fa064]'
+                                : isSelected
+                                  ? 'bg-white'
+                                  : 'bg-white/60'
+                                }`}
+                            />
+                          ))
+                        ) : null}
+                      </div>
+                      <div className="flex items-center justify-center gap-1 min-h-[12px]">
+                        {completedIndicators.hasStudentLoadOnRpeProgramming && (
+                          <span
+                            className="text-[8px] leading-none px-1 py-[1px] rounded-[3px] font-normal"
+                            style={{ backgroundColor: 'rgba(212, 132, 90, 0.2)', color: '#d4845a' }}
+                            title="Charge élève (séance programmée en RPE)"
+                          >
+                            Charge
+                          </span>
+                        )}
+                        {completedIndicators.hasStudentRpeOnLoadProgramming && (
+                          <span
+                            className="text-[8px] leading-none px-1 py-[1px] rounded-[3px] font-normal"
+                            style={{ backgroundColor: 'rgba(47, 160, 100, 0.2)', color: '#2fa064' }}
+                            title="RPE élève (séance programmée en charge)"
+                          >
+                            RPE
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="relative z-10 px-[8px] pb-[95px]">
+          <PeriodizationTab studentId={user?.id} readOnly readOnlyWeekNotes={false} />
+        </div>
+      )}
     </div>
   );
 };

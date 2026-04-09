@@ -29,6 +29,7 @@ import { getTagColor, getTagColorMap, hexToRgba } from '../utils/tagColors';
 import {
   computePerformanceAggregation,
   resolvePerformancePeriodBounds,
+  formatPerformancePeriodPreferenceLabel,
   metricOptions,
   getMovementIdFromExerciseName,
   movementOptions
@@ -55,6 +56,39 @@ function formatMetricValue(metricId, value) {
 function toDisplayNum(v) {
   return (v != null && v !== '') ? v : 0;
 }
+function toSeriesLabel(v) {
+  const n = Number(toDisplayNum(v));
+  return n <= 1 ? '1 série' : `${n} séries`;
+}
+
+function getExerciseRepType(exercise) {
+  const s = exercise?.sets?.[0];
+  return s?.repType || s?.rep_type || 'reps';
+}
+
+/** Hold numérique → « 122s » ; formats déjà littéraux (ex. MM:SS) inchangés. */
+function formatHoldRepsSegmentForCard(repsRaw) {
+  const v = repsRaw != null && repsRaw !== '' ? String(repsRaw) : '0';
+  if (v !== '0' && /[0-9]/.test(v) && !/[a-zA-Z]/.test(v)) return `${v}s`;
+  return v;
+}
+
+/**
+ * Segment séries × reps sur les cartes planning (vue coach) : aligné sur repType (hold → suffixe s).
+ */
+function formatExerciseCardRepsSegment(row, exercise) {
+  const c = toDisplayNum(row.count);
+  const r = toDisplayNum(row.reps);
+  const repType = getExerciseRepType(exercise);
+  if (row.repsOnly) {
+    if (repType === 'hold') return `${c}x${formatHoldRepsSegmentForCard(row.reps)}`;
+    if (repType === 'amrap') return `${c}x${r}`;
+    return `${c}x${r} reps`;
+  }
+  if (repType === 'hold') return `${c}×${formatHoldRepsSegmentForCard(row.reps)}`;
+  if (repType === 'amrap') return `${c}×${r}`;
+  return `${c}×${r}`;
+}
 import StudentSidebar from './StudentSidebar';
 import {
   DropdownMenu,
@@ -66,10 +100,21 @@ import {
 
 /** Lignes pour la carte séance : nom de l'exercice en premier, puis ses séries en dessous (ex. Traction, 2×5@5kg, 2×5@2.5kg). */
 function getExerciseCardRows(exercise, setsColor = null) {
+  const visibility = exercise?.tableColumnVisibility ?? exercise?.table_column_visibility ?? {};
+  const repsHoldVisible = (visibility.repsHold ?? visibility.reps_hold) !== false;
+  const chargeRpeVisible = (visibility.chargeRpe ?? visibility.charge_rpe) !== false;
+  const repsOnly = repsHoldVisible && !chargeRpeVisible;
+  const chargeOnly = chargeRpeVisible && !repsHoldVisible;
+  const prescriptionHidden = !repsHoldVisible && !chargeRpeVisible;
+
   const groups = getSetGroups(exercise.sets, exercise.useRir);
   if (groups.length === 0) return [{ type: 'name', name: exercise.name }];
   const rows = [{ type: 'name', name: exercise.name }];
-  for (let i = 0; i < groups.length; i++) rows.push({ type: 'sets', ...groups[i], setsColor });
+  if (prescriptionHidden) {
+    rows.push({ type: 'seriesOnly', count: exercise.sets.length, setsColor });
+    return rows;
+  }
+  for (let i = 0; i < groups.length; i++) rows.push({ type: 'sets', ...groups[i], setsColor, chargeOnly, repsOnly });
   return rows;
 }
 
@@ -78,6 +123,29 @@ const SET_LINE_ICON = (
     <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
   </svg>
 );
+
+const ASSIGNMENTS_FETCH_PAGE = 200;
+const ASSIGNMENTS_FETCH_MAX_OFFSET = 80000;
+
+/** Borne temporelle couvrant tous les blocs de périodisation (pour élargir le fetch séances / analyse perf). */
+function getPeriodizationBlocksDateSpanMs(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  let minMs = null;
+  let maxMs = null;
+  for (const b of list) {
+    if (!b?.start_week_date) continue;
+    const start = startOfWeek(parseISO(String(b.start_week_date)), { weekStartsOn: 1 });
+    if (!isValid(start)) continue;
+    const durationWeeks = Number(b.duration) || 1;
+    const end = addWeeks(start, durationWeeks);
+    const s = start.getTime();
+    const e = end.getTime();
+    if (minMs === null || s < minMs) minMs = s;
+    if (maxMs === null || e > maxMs) maxMs = e;
+  }
+  if (minMs === null || maxMs === null) return null;
+  return { minMs, maxMs };
+}
 
 const StudentDetailView = ({ student, onBack, initialTab = 'overview', students = [], onStudentChange, initialStudentVideoCounts = {}, initialStudentMessageCounts = {}, initialStudentNextSessions = {} }) => {
   const navigate = useNavigate();
@@ -125,7 +193,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [weekToDelete, setWeekToDelete] = useState(null); // { weekStart, sessionCount }
   const [isDeletingWeek, setIsDeletingWeek] = useState(false); // Track if week is being deleted
   const [trainingFilter, setTrainingFilter] = useState('all'); // Filter for training view: 'assigned', 'completed', 'all'
-  const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter: 8 (2 months) or 4 weeks
+  const [weekViewFilter, setWeekViewFilter] = useState(4); // Week view filter in weeks: 4, 8 (2 months), 16 (4 months)
+  const [isTrainingFilterOpen, setIsTrainingFilterOpen] = useState(false);
+  const [isWeekViewFilterOpen, setIsWeekViewFilterOpen] = useState(false);
+  const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(false);
+  const [historyPanelAnchorDate, setHistoryPanelAnchorDate] = useState(new Date());
+  const [selectedHistoryWeeks, setSelectedHistoryWeeks] = useState([]); // Array of week-start keys (yyyy-MM-dd)
   const [isDetailedView, setIsDetailedView] = useState(false); // Detailed view mode for training sessions
   const [dropdownOpen, setDropdownOpen] = useState(null); // Track which session dropdown is open: 'sessionId-date'
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Sidebar collapse state
@@ -136,55 +209,184 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
   const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5, 8 or 10
+  const [trainingPrefsLoaded, setTrainingPrefsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          if (!cancelled) setTrainingPrefsLoaded(true);
+          return;
+        }
+        const res = await axios.get(`${getApiBaseUrlWithApi()}/coach/training-view-preferences`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.data?.success || !res.data?.data) {
+          if (!cancelled) setTrainingPrefsLoaded(true);
+          return;
+        }
+        const d = res.data.data;
+        if (['all', 'assigned', 'completed'].includes(d.trainingFilter)) {
+          setTrainingFilter(d.trainingFilter);
+        }
+        if ([4, 8, 16].includes(Number(d.weekViewFilter))) {
+          setWeekViewFilter(Number(d.weekViewFilter));
+        }
+        if (typeof d.isDetailedView === 'boolean') {
+          setIsDetailedView(d.isDetailedView);
+        }
+        if ([5, 8, 10].includes(Number(d.visibleExercisesCount))) {
+          setVisibleExercisesCount(Number(d.visibleExercisesCount));
+        }
+      } catch (e) {
+        logger.warn('Training view preferences (server):', e?.message || e);
+      } finally {
+        if (!cancelled) setTrainingPrefsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!trainingPrefsLoaded) return;
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    const handle = setTimeout(() => {
+      axios
+        .put(
+          `${getApiBaseUrlWithApi()}/coach/training-view-preferences`,
+          {
+            trainingFilter,
+            weekViewFilter,
+            isDetailedView,
+            visibleExercisesCount,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .catch((e) => {
+          logger.warn('Saving training view preferences:', e?.message || e);
+        });
+    }, 450);
+
+    return () => clearTimeout(handle);
+  }, [trainingFilter, weekViewFilter, isDetailedView, visibleExercisesCount, trainingPrefsLoaded]);
 
   // Performance analysis modal (opened from the “Evolution des Kg/Reps” cards)
   const [isPerformanceAnalysisModalOpen, setIsPerformanceAnalysisModalOpen] = useState(false);
   const [performanceInitialMovementIds, setPerformanceInitialMovementIds] = useState([]);
   const [performanceActiveCardIndex, setPerformanceActiveCardIndex] = useState(0);
 
-  const openPerformanceAnalysis = (movementId, index) => {
+  const openPerformanceAnalysis = (movementIdsOrId, index) => {
     setPerformanceActiveCardIndex(index);
-    setPerformanceInitialMovementIds(movementId ? [movementId] : []);
+    const ids = Array.isArray(movementIdsOrId)
+      ? movementIdsOrId.filter(Boolean)
+      : movementIdsOrId
+        ? [movementIdsOrId]
+        : [];
+    setPerformanceInitialMovementIds(ids);
     setIsPerformanceAnalysisModalOpen(true);
   };
 
-  const loadDashboardPrefs = () => {
+  const [performanceAnalysisRemoteBySlot, setPerformanceAnalysisRemoteBySlot] = useState(null);
+  const [performanceAnalysisPrefsTick, setPerformanceAnalysisPrefsTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const res = await axios.get(
+          `${getApiBaseUrlWithApi()}/coach/student/${student.id}/performance-analysis-preferences`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!cancelled && res.data?.success && res.data?.data?.slots) {
+          setPerformanceAnalysisRemoteBySlot(res.data.data.slots);
+        }
+      } catch (e) {
+        logger.warn('Performance analysis preferences (server):', e?.message || e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id]);
+
+  const dashboardPrefs = useMemo(() => {
     return Array.from({ length: 4 }).map((_, i) => {
+      const key = String(i);
+      const remote = performanceAnalysisRemoteBySlot?.[key] ?? performanceAnalysisRemoteBySlot?.[i];
+      if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
+        return remote;
+      }
       try {
         const raw = localStorage.getItem(`performanceAnalysisModalPreferences_${i}`);
         if (raw) return JSON.parse(raw);
       } catch (e) {}
       return null;
     });
-  };
-
-  const [dashboardPrefs, setDashboardPrefs] = useState(loadDashboardPrefs);
-
-  useEffect(() => {
-    if (!isPerformanceAnalysisModalOpen) {
-      setDashboardPrefs(loadDashboardPrefs());
-    }
-  }, [isPerformanceAnalysisModalOpen]);
+  }, [performanceAnalysisRemoteBySlot, performanceAnalysisPrefsTick]);
 
   const dashboardMovementStats = useMemo(() => {
+    const labelByMovementIdFromSessions = new Map();
+    if (workoutSessions && typeof workoutSessions === 'object') {
+      Object.values(workoutSessions).forEach((sessions) => {
+        (sessions || []).forEach((session) => {
+          (session?.exercises || []).forEach((ex) => {
+            const mid = getMovementIdFromExerciseName(ex?.name);
+            if (mid && !labelByMovementIdFromSessions.has(mid)) {
+              const name = String(ex?.name || '').trim();
+              if (name) labelByMovementIdFromSessions.set(mid, name);
+            }
+          });
+        });
+      });
+    }
+
+    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization', 'time_under_tension']);
+
+    const aggregateMetricAcrossMovements = (agg, bucketKey, metricId, movementIdsList) => {
+      if (!agg || !movementIdsList?.length) return null;
+      const parts = [];
+      movementIdsList.forEach((mid) => {
+        const v = agg.metricsByBucketMovement?.[bucketKey]?.[mid]?.[metricId];
+        if (v !== null && v !== undefined && Number.isFinite(Number(v))) parts.push(Number(v));
+      });
+      if (!parts.length) return null;
+      if (sumMetricIds.has(metricId)) return parts.reduce((a, b) => a + b, 0);
+      return parts.reduce((a, b) => a + b, 0) / parts.length;
+    };
+
     return dashboardPrefs.map((pref) => {
       if (!pref || !pref.selectedMovementIds || pref.selectedMovementIds.length === 0) {
         return null;
       }
-      
-      const singleMovementId = pref.selectedMovementIds[0];
-      
+
+      const selectedMovementIds = pref.selectedMovementIds.filter(Boolean);
+
+      const selectedBlockNumbersForPref =
+        Array.isArray(pref.selectedBlockNumbers) && pref.selectedBlockNumbers.length
+          ? pref.selectedBlockNumbers
+          : pref.selectedBlockNumber != null
+            ? [pref.selectedBlockNumber]
+            : [3];
+
       const agg = computePerformanceAggregation({
         workoutSessions,
         blocks,
-        oneRmRecords: studentData?.one_rm_records || [],
-        selectedMovementIds: [singleMovementId],
+        // Aligné sur PerformanceAnalysisModal : 1RM depuis oneRepMaxes (pas one_rm_records, souvent absent)
+        oneRmRecords: studentData?.oneRepMaxes || [],
+        selectedMovementIds,
         selectedMetricIds: pref.selectedMetricIds || ['tonnage', 'reps'],
         groupBy: pref.groupBy || 'bloc',
         periodType: pref.periodType || 'block',
         lastMonths: pref.lastMonths || 3,
         specificMonthValue: pref.specificMonthValue || '',
-        selectedBlockNumber: pref.selectedBlockNumber || 3,
+        selectedBlockNumbers: selectedBlockNumbersForPref,
       });
 
       const bounds = resolvePerformancePeriodBounds({
@@ -192,12 +394,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         lastMonths: pref.lastMonths || 3,
         specificMonthValue: pref.specificMonthValue || '',
         blocks,
-        selectedBlockNumber: pref.selectedBlockNumber || 3,
+        selectedBlockNumbers: selectedBlockNumbersForPref,
         workoutSessions,
       });
 
-      let periodLabel = '';
-      if (bounds?.periodStart && bounds?.periodEnd) {
+      const periodLabelSemantic = formatPerformancePeriodPreferenceLabel({
+        periodType: pref.periodType || 'block',
+        lastMonths: pref.lastMonths ?? 3,
+        specificMonthValue: pref.specificMonthValue || '',
+        selectedBlockNumbers: selectedBlockNumbersForPref,
+        selectedBlockNumber: pref.selectedBlockNumber,
+        blocks,
+      });
+
+      let periodLabel = periodLabelSemantic;
+      if (!periodLabel && bounds?.periodStart && bounds?.periodEnd) {
         try {
           const start = format(bounds.periodStart, 'd MMM', { locale: fr });
           const end = format(bounds.periodEnd, 'd MMM yyyy', { locale: fr });
@@ -206,15 +417,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       }
 
       const metricIds = (pref.selectedMetricIds || []).slice(0, 2);
-      const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
 
-      const metrics = metricIds.map(metricId => {
+      const exerciseLabels = selectedMovementIds.map((id) => {
+        const fromCatalog = movementOptions.find((o) => o.id === id)?.label;
+        if (fromCatalog) return String(fromCatalog).replace(/-/g, ' ');
+        const fromSession = labelByMovementIdFromSessions.get(id);
+        if (fromSession) return fromSession;
+        return String(id.replace(/^exercise:/, '')).replace(/-/g, ' ');
+      });
+
+      const metrics = metricIds.map((metricId) => {
         let firstBucketVal = null;
         let lastBucketVal = null;
         const values = [];
 
-        agg.buckets.forEach(b => {
-          const v = agg.metricsByBucketMovement?.[b.key]?.[singleMovementId]?.[metricId];
+        agg.buckets.forEach((b) => {
+          const v = aggregateMetricAcrossMovements(agg, b.key, metricId, selectedMovementIds);
           if (v !== null && v !== undefined && Number.isFinite(Number(v))) {
             values.push(Number(v));
             if (firstBucketVal === null) firstBucketVal = Number(v);
@@ -237,9 +455,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         return { id: metricId, value: totalValue, evolution };
       });
 
-      return { movementId: singleMovementId, periodLabel, metrics };
+      const primaryMovementId = selectedMovementIds[0];
+
+      return {
+        movementId: primaryMovementId,
+        selectedMovementIds,
+        exerciseLabels,
+        periodLabel,
+        metrics,
+      };
     });
-  }, [dashboardPrefs, workoutSessions, blocks, studentData?.one_rm_records]);
+  }, [dashboardPrefs, workoutSessions, blocks, studentData?.oneRepMaxes]);
 
   // Refs pour le scroll horizontal des séances multiples par jour (comme vue entrainement)
   const dayScrollRefs = useRef({});
@@ -340,6 +566,45 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
     return allDays;
   }, [trainingWeekDate, weekViewFilter]);
+
+  const normalizedHistoryWeekKeys = useMemo(() => {
+    const unique = Array.from(new Set(selectedHistoryWeeks));
+    return unique
+      .filter((key) => {
+        const d = parseISO(key);
+        return isValid(d);
+      })
+      .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
+  }, [selectedHistoryWeeks]);
+
+  const isHistoryMode = normalizedHistoryWeekKeys.length > 0;
+
+  const workoutSessionsBlockSpanKey = useMemo(() => {
+    const span = getPeriodizationBlocksDateSpanMs(blocks);
+    return span ? `${span.minMs}-${span.maxMs}` : '';
+  }, [blocks]);
+
+  const historyWeekCandidates = useMemo(() => {
+    const anchorYear = historyPanelAnchorDate.getFullYear();
+    const yearStart = new Date(anchorYear, 0, 1);
+    const yearEnd = new Date(anchorYear, 11, 31);
+    const firstWeekStart = startOfWeek(yearStart, { weekStartsOn: 1 });
+    const candidates = [];
+    for (let cursor = firstWeekStart; cursor <= yearEnd; cursor = addDays(cursor, 7)) {
+      if (cursor.getFullYear() === anchorYear) {
+        candidates.push(cursor);
+      }
+    }
+    return candidates;
+  }, [historyPanelAnchorDate]);
+
+  const displayedTrainingWeeks = useMemo(() => {
+    if (!isHistoryMode) return trainingWeeks;
+    return normalizedHistoryWeekKeys.flatMap((weekKey) => {
+      const weekStart = startOfWeek(parseISO(weekKey), { weekStartsOn: 1 });
+      return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    });
+  }, [isHistoryMode, normalizedHistoryWeekKeys, trainingWeeks]);
 
   // Listen for real-time session updates
   useEffect(() => {
@@ -561,6 +826,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     // Navigate by one week at a time
     const newDate = direction === 'next' ? addDays(trainingWeekDate, 7) : subDays(trainingWeekDate, 7);
     setTrainingWeekDate(newDate);
+  };
+
+  const toggleHistoryWeekSelection = (weekStartDate) => {
+    const weekKey = format(startOfWeek(weekStartDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    setSelectedHistoryWeeks((prev) => (
+      prev.includes(weekKey) ? prev.filter((k) => k !== weekKey) : [...prev, weekKey]
+    ));
   };
 
   const handleDayClick = (day) => {
@@ -1422,6 +1694,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handlePasteWeek = async (targetWeekStart) => {
+    if (isHistoryMode) return;
     if (!copiedWeek || isPastingWeek) {
       return;
     }
@@ -1443,7 +1716,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
           exercises: mapExercisesForCopy(session.exercises, session.status),
           scheduled_date: format(newDate, 'yyyy-MM-dd'),
           student_id: student.id,
-          status: session.status === 'draft' ? 'draft' : 'published'
+          // Toujours brouillon après collage : le coach publie explicitement si besoin
+          status: 'draft'
         };
 
         return axios.post(
@@ -1648,6 +1922,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Handle copying a single session
   const handleCopySession = async (session, day) => {
+    if (isHistoryMode) return;
     try {
       // Deep clone to avoid mutating original reference
       const sessionClone = JSON.parse(JSON.stringify(session));
@@ -1659,6 +1934,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   const handlePasteCopiedSession = async (targetDay) => {
+    if (isHistoryMode) return;
     if (!copiedSession || isPastingSession) return;
 
     try {
@@ -1678,7 +1954,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         exercises: mapExercisesForCopy(copiedSession.session.exercises || [], originalStatus),
         scheduled_date: scheduledDate,
         student_id: student.id,
-        status: originalStatus === 'draft' ? 'draft' : 'published'
+        // Toujours brouillon après collage : le coach publie explicitement si besoin
+        status: 'draft'
       };
 
       // Optimistic update: show pasted session immediately
@@ -1966,37 +2243,72 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const trainingWeekStart = startOfWeek(trainingWeekDate, { weekStartsOn: 1 });
       const trainingWeekEnd = addDays(trainingWeekStart, (weekViewFilter * 7) - 1);
 
+      let minRangeTime = Math.min(weekStart.getTime(), trainingWeekStart.getTime());
+      let maxRangeTime = Math.max(weekEnd.getTime(), trainingWeekEnd.getTime());
+
+      if (isHistoryMode && normalizedHistoryWeekKeys.length > 0) {
+        const historyStartTimes = normalizedHistoryWeekKeys
+          .map((key) => startOfWeek(parseISO(key), { weekStartsOn: 1 }))
+          .filter((d) => isValid(d))
+          .map((d) => d.getTime());
+
+        if (historyStartTimes.length > 0) {
+          const historyEndTimes = historyStartTimes.map((ts) => addDays(new Date(ts), 6).getTime());
+          minRangeTime = Math.min(minRangeTime, ...historyStartTimes);
+          maxRangeTime = Math.max(maxRangeTime, ...historyEndTimes);
+        }
+      }
+
       // Use a much wider range to ensure we get all sessions needed for progress calculation
       // Go back 2 months and forward 2 months to be sure we have all data
-      const extendedStart = subDays(Math.min(weekStart.getTime(), trainingWeekStart.getTime()), 60);
-      const extendedEnd = addDays(Math.max(weekEnd.getTime(), trainingWeekEnd.getTime()), 60);
+      let extendedStart = subDays(new Date(minRangeTime), 60);
+      let extendedEnd = addDays(new Date(maxRangeTime), 60);
+
+      const blockSpan = getPeriodizationBlocksDateSpanMs(blocks);
+      if (blockSpan) {
+        const blockPaddedStart = subDays(new Date(blockSpan.minMs), 60);
+        const blockPaddedEnd = addDays(new Date(blockSpan.maxMs), 60);
+        if (blockPaddedStart.getTime() < extendedStart.getTime()) extendedStart = blockPaddedStart;
+        if (blockPaddedEnd.getTime() > extendedEnd.getTime()) extendedEnd = blockPaddedEnd;
+      }
 
       const rangeStart = format(extendedStart, 'yyyy-MM-dd');
       const rangeEnd = format(extendedEnd, 'yyyy-MM-dd');
 
-      // Fetch assignments and drafts in parallel
+      const assignmentsUrl = `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`;
+
+      // Fetch all assignment pages in range (API default limit 200 would truncate long histories)
       const [assignmentsRes, draftsRes] = await Promise.allSettled([
-        axios.get(
-          `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              startDate: rangeStart,
-              endDate: rangeEnd,
-              limit: 200
-            }
+        (async () => {
+          const allRows = [];
+          let offset = 0;
+          while (offset <= ASSIGNMENTS_FETCH_MAX_OFFSET) {
+            const res = await axios.get(assignmentsUrl, {
+              headers: { Authorization: `Bearer ${token}` },
+              params: {
+                startDate: rangeStart,
+                endDate: rangeEnd,
+                limit: ASSIGNMENTS_FETCH_PAGE,
+                offset,
+              },
+            });
+            const batch = Array.isArray(res.data?.data) ? res.data.data : [];
+            allRows.push(...batch);
+            if (batch.length < ASSIGNMENTS_FETCH_PAGE) break;
+            offset += ASSIGNMENTS_FETCH_PAGE;
           }
-        ),
-        axios.get(
-          `${getApiBaseUrlWithApi()}/workout-sessions`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              student_id: student.id,
-              status: 'draft'
-            }
+          if (offset > ASSIGNMENTS_FETCH_MAX_OFFSET) {
+            logger.warn('fetchWorkoutSessions: assignment pagination stopped at safety cap', { offset });
           }
-        )
+          return { data: { data: allRows } };
+        })(),
+        axios.get(`${getApiBaseUrlWithApi()}/workout-sessions`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            student_id: student.id,
+            status: 'draft',
+          },
+        }),
       ]);
 
       // Process assignments (critical)
@@ -2006,7 +2318,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       }
 
       const response = assignmentsRes.value;
-      logger.debug('Fetched assignments:', response.data);
+      logger.debug('Fetched assignments:', response.data?.data?.length, 'rows');
       logger.debug('Date range:', { rangeStart, rangeEnd });
 
       // Convert array to object with date as key, storing arrays of sessions
@@ -2655,7 +2967,15 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   useEffect(() => {
     fetchWorkoutSessions();
-  }, [student.id, overviewWeekDate, trainingWeekDate, weekViewFilter]);
+  }, [
+    student.id,
+    overviewWeekDate,
+    trainingWeekDate,
+    weekViewFilter,
+    isHistoryMode,
+    normalizedHistoryWeekKeys,
+    workoutSessionsBlockSpanKey,
+  ]);
 
   // Sync sidebar counts from parent props (CoachDashboard already fetches these)
   useEffect(() => {
@@ -3926,18 +4246,25 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           return (
                             <React.Fragment key={index}>
                               {rows.map((row, ri) =>
-                                row.type === 'sets' ? (
+                                row.type === 'seriesOnly' ? (
                                   <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px] shrink-0">
                                     {SET_LINE_ICON}
                                     <span className={`${row.setsColor || ''} ${(row.setsColor === 'text-[#2FA064]' || row.setsColor === 'text-red-500') ? 'font-normal' : ''}`}>
-                                      {toDisplayNum(row.count)}×{toDisplayNum(row.reps)}
+                                      {toSeriesLabel(row.count)}
+                                    </span>
+                                  </div>
+                                ) : row.type === 'sets' ? (
+                                  <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px] shrink-0">
+                                    {SET_LINE_ICON}
+                                    <span className={`${row.setsColor || ''} ${(row.setsColor === 'text-[#2FA064]' || row.setsColor === 'text-red-500') ? 'font-normal' : ''}`}>
+                                      {row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}
                                     </span>
                                     {' '}
-                                    {exercise.useRir ? (
+                                    {!row.repsOnly && (exercise.useRir ? (
                                       <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                     ) : (
                                       <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                    )}
+                                    ))}
                                   </div>
                                 ) : (
                                   <div key={ri} className="text-[11px] text-white font-extralight shrink-0 flex flex-col gap-0 min-w-0">
@@ -4137,16 +4464,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       {copiedSession.session.exercises?.slice(0, 3).map((exercise, index) => (
                         <React.Fragment key={index}>
                           {getExerciseCardRows(exercise, null).map((row, ri) =>
-                            row.type === 'sets' ? (
+                            row.type === 'seriesOnly' ? (
                               <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px]">
                                 {SET_LINE_ICON}
-                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                              </div>
+                            ) : row.type === 'sets' ? (
+                              <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px]">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                 {' '}
-                                {exercise.useRir ? (
+                                {!row.repsOnly && (exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
                                   <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                )}
+                                ))}
                               </div>
                             ) : (
                               <div key={ri} className="text-[11px] text-white font-extralight flex flex-col gap-0 min-w-0">
@@ -4403,16 +4735,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       {copiedSession.session.exercises?.slice(0, 2).map((exercise, index) => (
                         <React.Fragment key={index}>
                           {getExerciseCardRows(exercise, null).map((row, ri) =>
-                            row.type === 'sets' ? (
+                            row.type === 'seriesOnly' ? (
                               <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
                                 {SET_LINE_ICON}
-                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                              </div>
+                            ) : row.type === 'sets' ? (
+                              <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                 {' '}
-                                {exercise.useRir ? (
+                                {!row.repsOnly && (exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
                                   <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                )}
+                                ))}
                               </div>
                             ) : (
                               <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">
@@ -4730,20 +5067,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         Entraînement
                       </button>
                       <button
-                        className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
-                        data-text="Périodisation"
-                        style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
-                        onClick={() => handleTabChange('periodization')}
-                      >
-                        Périodisation
-                      </button>
-                      <button
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Analyse vidéo"
                         style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
                         onClick={() => handleTabChange('analyse')}
                       >
                         Analyse vidéo
+                      </button>
+                      <button
+                        className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
+                        data-text="Périodisation"
+                        style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
+                        onClick={() => handleTabChange('periodization')}
+                      >
+                        Périodisation
                       </button>
                       <button
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
@@ -5230,6 +5567,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         {/* Toggle exercises view button - aligned to right */}
                         <div className="flex items-center justify-end ml-auto">
                           <button
+                            type="button"
                             onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
                             className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm w-[100px] min-w-[100px] justify-center"
                             style={{
@@ -5247,7 +5585,13 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                               e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
                               e.currentTarget.style.fontWeight = '400';
                             }}
-                            title={visibleExercisesCount === 5 ? 'Agrandir les cartes séance' : visibleExercisesCount === 8 ? 'Agrandir encore les cartes' : 'Réduire les cartes séance'}
+                            title={
+                              visibleExercisesCount === 5
+                                ? 'Agrandir les cartes séance'
+                                : visibleExercisesCount === 8
+                                  ? 'Agrandir encore les cartes'
+                                  : 'Réduire les cartes séance'
+                            }
                           >
                             {visibleExercisesCount === 5 ? 'Compact' : visibleExercisesCount === 8 ? 'Moyen' : 'Étendu'}
                           </button>
@@ -5396,7 +5740,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         </h3>
                       </div>
                       {/* Grid for exercise cards */}
-                      <div className="grid grid-cols-2 gap-3 relative">
+                      <div className="grid grid-cols-2 gap-3 relative max-md:grid-cols-1">
                         {Array.from({ length: 4 }).map((_, i) => {
                           const stat = dashboardMovementStats[i];
                           if (!stat) {
@@ -5414,26 +5758,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             );
                           }
 
-                          const mLabel = movementOptions.find(o => o.id === stat.movementId)?.label || stat.movementId.replace('exercise:', '');
                           const primary = stat.metrics[0];
                           const hasNoData = stat.metrics.every(m => m.value === null);
+                          const titleLine = (stat.exerciseLabels && stat.exerciseLabels.length
+                            ? stat.exerciseLabels
+                            : [movementOptions.find(o => o.id === stat.movementId)?.label || stat.movementId.replace('exercise:', '')]
+                          ).map((s) => String(s).replace(/-/g, ' '));
                           
                           return (
                             <button
-                              key={stat.movementId + '-' + i}
+                              key={(stat.selectedMovementIds || [stat.movementId]).join('-') + '-' + i}
                               type="button"
                               className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3 text-left cursor-pointer transition-colors duration-200 hover:bg-[rgba(255,255,255,0.08)] flex flex-col min-h-[140px] group relative overflow-hidden focus:outline-none focus:ring-0"
-                              onClick={() => openPerformanceAnalysis(stat.movementId, i)}
+                              onClick={() => openPerformanceAnalysis(stat.selectedMovementIds || [stat.movementId], i)}
                             >
                               <div className="flex items-center justify-between gap-3 w-full mb-3 relative z-10">
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[14px] text-[#d4845a] font-medium mb-1 ml-1 truncate capitalize transition-colors group-hover:text-[#e29a76]">{mLabel.replace(/-/g, ' ')}</div>
+                                  <div className="flex items-start gap-2 mb-1 ml-1 text-[#d4845a] transition-colors group-hover:text-[#e29a76]">
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 640 512"
+                                      className="h-4 w-4 shrink-0 mt-0.5 fill-current"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M96 112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 112 256 0 0-112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 16 16 0c26.5 0 48 21.5 48 48l0 48c17.7 0 32 14.3 32 32s-14.3 32-32 32l0 48c0 26.5-21.5 48-48 48l-16 0 0 16c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-112-256 0 0 112c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-16-16 0c-26.5 0-48-21.5-48-48l0-48c-17.7 0-32-14.3-32-32s14.3-32 32-32l0-48c0-26.5 21.5-48 48-48l16 0 0-16z" />
+                                    </svg>
+                                    <div
+                                      className="text-[14px] font-medium leading-snug capitalize break-words flex-1 min-w-0"
+                                      title={titleLine.join(' · ')}
+                                    >
+                                      {titleLine.join(' · ')}
+                                    </div>
+                                  </div>
                                   {stat.periodLabel && (
-                                    <div className="flex items-center gap-1 text-[10px] text-white/50 font-normal ml-1 truncate">
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-2.5 w-2.5 shrink-0 fill-current" aria-hidden="true">
+                                    <div className="flex items-start gap-1 text-[10px] text-white/50 font-normal ml-1 min-w-0">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-2.5 w-2.5 shrink-0 fill-current mt-0.5" aria-hidden="true">
                                         <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                       </svg>
-                                      <span className="truncate text-xs font-light text-white/50">{stat.periodLabel}</span>
+                                      <span className="text-xs font-light text-white/50 leading-snug break-words" title={stat.periodLabel}>{stat.periodLabel}</span>
                                     </div>
                                   )}
                                 </div>
@@ -5829,8 +6191,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         </div>
                       </div>
                       <button
+                        type="button"
+                        disabled={!isDetailedView}
                         onClick={() => setVisibleExercisesCount(visibleExercisesCount === 5 ? 8 : visibleExercisesCount === 8 ? 10 : 5)}
-                        className="bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm w-[100px] min-w-[100px] justify-center"
+                        className={`bg-primary hover:bg-primary/90 font-normal py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors flex items-center gap-1.5 text-primary-foreground text-xs md:text-sm w-[100px] min-w-[100px] justify-center ${
+                          !isDetailedView ? 'opacity-45 cursor-not-allowed hover:bg-primary' : ''
+                        }`}
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           color: 'rgba(250, 250, 250, 0.5)',
@@ -5846,85 +6212,442 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           e.currentTarget.style.color = 'rgba(250, 250, 250, 0.5)';
                           e.currentTarget.style.fontWeight = '400';
                         }}
-                        title={visibleExercisesCount === 5 ? 'Agrandir les cartes séance' : visibleExercisesCount === 8 ? 'Agrandir encore les cartes' : 'Réduire les cartes séance'}
+                        title={
+                          !isDetailedView
+                            ? 'Activez "Vue détaillée" pour modifier la taille'
+                            : visibleExercisesCount === 5
+                              ? 'Agrandir les cartes séance'
+                              : visibleExercisesCount === 8
+                                ? 'Agrandir encore les cartes'
+                                : 'Réduire les cartes séance'
+                        }
                       >
                         {visibleExercisesCount === 5 ? 'Compact' : visibleExercisesCount === 8 ? 'Moyen' : 'Étendu'}
                       </button>
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
-                      {/* Status Filter — même rendu qu'avant (fond léger + orange actif) + pastille animée */}
-                      <div className="relative flex items-center gap-0.5 bg-white/5 rounded-full p-0.5 md:p-1">
-                        <div
-                          className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 md:top-1 md:bottom-1 w-[73px] rounded-full bg-[var(--kaiylo-primary-hex)] shadow-sm transition-transform duration-300 ease-in-out ${
-                            trainingFilter === 'all'
-                              ? 'translate-x-0'
-                              : trainingFilter === 'assigned'
-                                ? 'translate-x-[calc(73px+0.125rem)] md:translate-x-[calc(73px+0.25rem)]'
-                                : 'translate-x-[calc(146px+0.25rem)] md:translate-x-[calc(146px+0.5rem)]'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setTrainingFilter('all')}
-                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
-                            trainingFilter === 'all' ? 'text-white' : 'text-white/50 hover:text-white/75'
-                          }`}
+                      {/* Training Filter — dropdown */}
+                      <DropdownMenu open={isTrainingFilterOpen} onOpenChange={setIsTrainingFilterOpen} modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="group relative w-[132px] font-extralight py-1.5 md:py-2 px-3 rounded-[50px] transition-colors duration-200 flex items-center justify-center gap-1.5 text-primary-foreground text-xs md:text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
+                            style={{
+                              color: (isTrainingFilterOpen || trainingFilter !== 'all') ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                              fontWeight: '400'
+                            }}
+                            title="Filtrer les séances"
+                          >
+                            <span
+                              className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                                (isTrainingFilterOpen || trainingFilter !== 'all')
+                                  ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                                  : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                              }`}
+                              aria-hidden
+                            />
+                            <span className="relative z-10">
+                              {trainingFilter === 'assigned' ? 'Assigné' : trainingFilter === 'completed' ? 'Terminé' : 'Tous'}
+                            </span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 384 512"
+                              className={`relative z-10 h-3.5 w-3.5 transition-transform ${isTrainingFilterOpen ? 'rotate-180' : ''}`}
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                            </svg>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          side="bottom"
+                          align="end"
+                          sideOffset={8}
+                          disablePortal={true}
+                          className="w-48 rounded-xl p-0 [&_span.absolute.left-2]:hidden"
+                          style={{
+                            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                            backdropFilter: 'blur(10px)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)'
+                          }}
                         >
-                          <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Tous</span>
-                          <span>Tous</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTrainingFilter('assigned')}
-                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
-                            trainingFilter === 'assigned' ? 'text-white' : 'text-white/50 hover:text-white/75'
-                          }`}
-                        >
-                          <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Assigné</span>
-                          <span>Assigné</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTrainingFilter('completed')}
-                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[73px] ${
-                            trainingFilter === 'completed' ? 'text-white' : 'text-white/50 hover:text-white/75'
-                          }`}
-                        >
-                          <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>Terminé</span>
-                          <span>Terminé</span>
-                        </button>
-                      </div>
+                          <DropdownMenuRadioGroup value={trainingFilter} onValueChange={setTrainingFilter} className="flex flex-col gap-0.5 px-1 py-1">
+                            <DropdownMenuRadioItem value="all" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>Tous</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${trainingFilter === 'all' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="assigned" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>Assigné</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${trainingFilter === 'assigned' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="completed" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>Terminé</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${trainingFilter === 'completed' ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
                       <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
 
-                      {/* Week View Filter — pastille glissante (même principe que le filtre séances) */}
-                      <div className="relative flex items-center gap-0.5 bg-white/5 rounded-full p-0.5 md:p-1">
-                        <div
-                          className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 md:top-1 md:bottom-1 w-[89px] rounded-full bg-[var(--kaiylo-primary-hex)] shadow-sm transition-transform duration-300 ease-in-out ${
-                            weekViewFilter === 4 ? 'translate-x-0' : 'translate-x-[calc(89px+0.125rem)]'
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setWeekViewFilter(4)}
-                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[89px] ${
-                            weekViewFilter === 4 ? 'text-white' : 'text-white/50 hover:text-white/75'
-                          }`}
+                      {/* Week View Filter — dropdown */}
+                      <DropdownMenu open={isWeekViewFilterOpen} onOpenChange={setIsWeekViewFilterOpen} modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="group relative w-[132px] font-extralight py-1.5 md:py-2 px-3 rounded-[50px] transition-colors duration-200 flex items-center justify-center gap-1.5 text-primary-foreground text-xs md:text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
+                            style={{
+                              color: (isWeekViewFilterOpen || weekViewFilter !== 4) ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                              fontWeight: '400'
+                            }}
+                            title="Choisir la période d'affichage"
+                          >
+                            <span
+                              className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                                (isWeekViewFilterOpen || weekViewFilter !== 4)
+                                  ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                                  : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                              }`}
+                              aria-hidden
+                            />
+                            <span className="relative z-10 whitespace-nowrap">
+                              {weekViewFilter === 4 ? '4 semaines' : weekViewFilter === 8 ? '2 mois' : '4 mois'}
+                            </span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 384 512"
+                              className={`relative z-10 h-3.5 w-3.5 transition-transform ${isWeekViewFilterOpen ? 'rotate-180' : ''}`}
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                            </svg>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          side="bottom"
+                          align="end"
+                          sideOffset={8}
+                          disablePortal={true}
+                          className="w-48 rounded-xl p-0 [&_span.absolute.left-2]:hidden"
+                          style={{
+                            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                            backdropFilter: 'blur(10px)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)'
+                          }}
                         >
-                          <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>4 semaines</span>
-                          <span>4 sem.</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWeekViewFilter(8)}
-                          className={`relative z-10 text-[10px] md:text-xs font-normal px-2 md:px-3 py-1.5 md:py-2 rounded-full transition-colors duration-300 w-[89px] ${
-                            weekViewFilter === 8 ? 'text-white' : 'text-white/50 hover:text-white/75'
-                          }`}
-                        >
-                          <span aria-hidden="true" style={{ fontWeight: 400, visibility: 'hidden', height: 0, display: 'block', overflow: 'hidden' }}>2 mois</span>
-                          <span>2 mois</span>
-                        </button>
+                          <DropdownMenuRadioGroup
+                            value={String(weekViewFilter)}
+                            onValueChange={(value) => setWeekViewFilter(Number(value))}
+                            className="flex flex-col gap-0.5 px-1 py-1"
+                          >
+                            <DropdownMenuRadioItem value="4" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>4 semaines</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${weekViewFilter === 4 ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="8" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>2 mois</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${weekViewFilter === 8 ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="16" className="relative select-none rounded-md gap-0.5 outline-none data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459] focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-light data-[state=checked]:bg-[rgba(212,132,89,0.2)] data-[state=checked]:text-[#D48459] w-full px-5 py-2 pl-5 text-left text-sm transition-all duration-200 ease-in-out flex items-center justify-between cursor-pointer">
+                              <span>4 mois</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 font-normal transition-all duration-200 ease-in-out ${weekViewFilter === 16 ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} fill="currentColor" aria-hidden="true">
+                                <path d="M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z" />
+                              </svg>
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <div className="hidden md:block h-5 w-[1px] bg-white/10"></div>
+
+                      <div className="hidden md:block">
+                        <DropdownMenu open={isHistoryPanelOpen} onOpenChange={setIsHistoryPanelOpen} modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="group relative w-[132px] font-extralight py-1.5 md:py-2 px-3 md:px-[15px] rounded-[50px] transition-colors duration-200 flex items-center justify-center gap-1.5 text-primary-foreground text-xs md:text-sm overflow-hidden focus:outline-none focus-visible:outline-none"
+                              style={{
+                                color: (isHistoryPanelOpen || isHistoryMode) ? '#D48459' : 'rgba(250, 250, 250, 0.75)',
+                                fontWeight: '400'
+                              }}
+                              title="Afficher ou masquer le menu historique"
+                            >
+                              <span
+                                className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${
+                                  (isHistoryPanelOpen || isHistoryMode)
+                                    ? 'bg-[rgba(212,132,89,0.15)] group-hover:bg-[rgba(212,132,89,0.25)]'
+                                    : 'bg-[rgba(255,255,255,0.05)] group-hover:bg-[rgba(255,255,255,0.1)]'
+                                }`}
+                                aria-hidden
+                              />
+                              <span className="relative z-10">Historique</span>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 384 512"
+                                className={`relative z-10 h-3.5 w-3.5 transition-transform ${isHistoryPanelOpen ? 'rotate-180' : ''}`}
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
+                              </svg>
+                            </button>
+                          </DropdownMenuTrigger>
+
+                          <DropdownMenuContent
+                            side="bottom"
+                            align="end"
+                            sideOffset={10}
+                            disablePortal={true}
+                            className="w-[340px] rounded-[14px] p-0 border-[rgba(255,255,255,0.1)]"
+                            style={{
+                              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                              backdropFilter: 'blur(10px)'
+                            }}
+                          >
+                            <div className="px-4 py-3 flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setHistoryPanelAnchorDate((prev) => new Date(prev.getFullYear() - 1, prev.getMonth(), prev.getDate()))}
+                                className="px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition-colors"
+                                title="Année précédente"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 256 512"
+                                  className="h-4 w-4 fill-current"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z" />
+                                </svg>
+                              </button>
+                              <span className="text-sm font-light text-white/75">
+                                Année {historyPanelAnchorDate.getFullYear()}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setHistoryPanelAnchorDate((prev) => new Date(prev.getFullYear() + 1, prev.getMonth(), prev.getDate()))}
+                                className="px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition-colors"
+                                title="Année suivante"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 256 512"
+                                  className="h-4 w-4 fill-current"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="mx-4 border-b border-white/10"></div>
+
+                            <div className="overflow-y-auto px-[6px] py-3 space-y-1 max-h-[46vh]">
+                              {historyWeekCandidates.map((weekStartDate) => {
+                                const weekKey = format(startOfWeek(weekStartDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                                const isSelected = normalizedHistoryWeekKeys.includes(weekKey);
+                                const weekStart = startOfWeek(weekStartDate, { weekStartsOn: 1 });
+
+                                let weekBlockDisplay = null;
+                                if (Array.isArray(blocks) && blocks.length > 0) {
+                                  const matchingBlocks = blocks.filter((b) => {
+                                    const bStart = startOfWeek(new Date(b.start_week_date), { weekStartsOn: 1 });
+                                    const bEnd = addWeeks(bStart, Number(b.duration) || 0);
+                                    return weekStart >= bStart && weekStart < bEnd;
+                                  });
+
+                                  matchingBlocks.sort((a, b) => {
+                                    const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                                    if (dateDiff !== 0) return dateDiff;
+                                    if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
+                                    return String(a.id).localeCompare(String(b.id));
+                                  });
+
+                                  const activeBlock = matchingBlocks.length > 0 ? matchingBlocks[matchingBlocks.length - 1] : null;
+                                  if (activeBlock) {
+                                    const bStart = startOfWeek(new Date(activeBlock.start_week_date), { weekStartsOn: 1 });
+                                    const weekDiff = differenceInCalendarWeeks(weekStart, bStart, { weekStartsOn: 1 });
+                                    const currentWeekInBlock = weekDiff + 1;
+                                    const totalWeeksInBlock = Number(activeBlock.duration) || 1;
+
+                                    const sortedBlocksForNumbering = [...blocks]
+                                      .filter((b) => Number(b.duration) > 1)
+                                      .sort((a, b) => {
+                                        const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+                                        if (dateDiff !== 0) return dateDiff;
+                                        if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
+                                        return String(a.id).localeCompare(String(b.id));
+                                      });
+                                    const currentIndex = sortedBlocksForNumbering.findIndex((b) => b.id === activeBlock.id);
+                                    const blockNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
+
+                                    const extractTagName = (block) => {
+                                      const candidates = [];
+                                      if (Array.isArray(block?.tags)) {
+                                        if (block.tags.length > 0) candidates.push(block.tags[0]);
+                                      } else if (block?.tags != null && block.tags !== '') {
+                                        candidates.push(block.tags);
+                                      }
+                                      if (block?.tag) candidates.push(block.tag);
+                                      if (block?.tag_name) candidates.push(block.tag_name);
+                                      if (block?.tagName) candidates.push(block.tagName);
+                                      if (block?.objective) candidates.push(block.objective);
+                                      if (block?.tag_label) candidates.push(block.tag_label);
+                                      if (block?.tagLabel) candidates.push(block.tagLabel);
+                                      const firstCandidate = candidates.find(c => c != null && c !== '' && (typeof c !== 'object' || Object.keys(c).length > 0)) || null;
+                                      if (!firstCandidate) return '';
+                                      if (typeof firstCandidate === 'string') return firstCandidate.trim();
+                                      const name =
+                                        firstCandidate?.name ??
+                                        firstCandidate?.tag ??
+                                        firstCandidate?.tag_name ??
+                                        firstCandidate?.tagName ??
+                                        firstCandidate?.objective ??
+                                        firstCandidate?.objective_name ??
+                                        firstCandidate?.objectiveName ??
+                                        firstCandidate?.object ??
+                                        firstCandidate?.label ??
+                                        firstCandidate?.label_name ??
+                                        firstCandidate?.value ??
+                                        firstCandidate?.text ??
+                                        firstCandidate?.libelle ??
+                                        firstCandidate?.libelle_name ??
+                                        firstCandidate?.objectif ??
+                                        '';
+                                      if (typeof name === 'string' && name.trim() !== '') return name.trim();
+                                      if (typeof firstCandidate === 'object' && firstCandidate) {
+                                        const found = Object.values(firstCandidate).find(v => typeof v === 'string' && v.trim() !== '');
+                                        return found ? found.trim() : '';
+                                      }
+                                      return '';
+                                    };
+
+                                    weekBlockDisplay = {
+                                      label: totalWeeksInBlock <= 1
+                                        ? (activeBlock.name ? `Bloc - ${activeBlock.name}` : 'Bloc')
+                                        : `Bloc ${blockNumber} - Semaine ${currentWeekInBlock}/${totalWeeksInBlock}`,
+                                      tagName: extractTagName(activeBlock)
+                                    };
+                                  }
+                                }
+
+                                return (
+                                  <label
+                                    key={weekKey}
+                                    className={`group flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                                      isSelected ? 'bg-[rgba(212,132,89,0.2)] text-[#D48459]' : 'text-foreground font-normal hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459]'
+                                    }`}
+                                    onClick={() => toggleHistoryWeekSelection(weekStartDate)}
+                                  >
+                                    <div
+                                      className={`w-4 h-4 min-w-4 min-h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                                        isSelected ? 'bg-[#d4845a] border-[#d4845a]' : 'bg-transparent border-white/20'
+                                      }`}
+                                      aria-hidden="true"
+                                    >
+                                      {isSelected && (
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          className="w-3 h-3 text-white"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <path d="M20 6L9 17l-5-5" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 min-w-0 w-full">
+                                      {weekBlockDisplay?.tagName && (
+                                        <span
+                                          className="shrink-0 text-[10px] font-normal px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                                          style={{
+                                            backgroundColor: (() => {
+                                              const normalized = String(weekBlockDisplay.tagName).toLowerCase().trim();
+                                              const hex = periodizationTagColorMap?.get(normalized);
+                                              if (hex) return hexToRgba(hex, 0.25);
+                                              const baseStyle = getTagColor(weekBlockDisplay.tagName, periodizationTagColorMap);
+                                              if (typeof baseStyle?.backgroundColor === 'string') {
+                                                const m = baseStyle.backgroundColor.match(/rgba\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\)/);
+                                                if (m) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.25)`;
+                                              }
+                                              return baseStyle?.backgroundColor || 'rgba(212,132,89,0.2)';
+                                            })(),
+                                            color: (() => {
+                                              const normalized = String(weekBlockDisplay.tagName).toLowerCase().trim();
+                                              const hex = periodizationTagColorMap?.get(normalized);
+                                              if (hex) return hex;
+                                              return 'rgba(255,255,255,1)';
+                                            })()
+                                          }}
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-2.5 h-2.5 shrink-0" fill="currentColor">
+                                            <path d="M232.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 149.8C5.4 145.8 0 137.3 0 128s5.4-17.9 13.9-21.8L232.5 5.2zM48.1 218.4l164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 277.8C5.4 273.8 0 265.3 0 256s5.4-17.9 13.9-21.8l34.1-15.8zM13.9 362.2l34.1-15.8 164.3 75.9c27.7 12.8 59.6 12.8 87.3 0l164.3-75.9 34.1 15.8c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L13.9 405.8C5.4 401.8 0 393.3 0 384s5.4-17.9 13.9-21.8z" />
+                                          </svg>
+                                          {weekBlockDisplay.tagName}
+                                        </span>
+                                      )}
+                                      <div className="flex items-center gap-1 min-w-0">
+                                        {!weekBlockDisplay?.label && (
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 256 512"
+                                            className="w-2.5 h-2.5 shrink-0 text-white/50 group-hover:text-[#D48459] transition-colors"
+                                            fill="currentColor"
+                                            aria-hidden="true"
+                                          >
+                                            <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
+                                          </svg>
+                                        )}
+                                        <span
+                                          className={`text-xs truncate min-w-0 transition-colors ${
+                                            weekBlockDisplay?.label
+                                              ? 'text-[#D48459] font-medium'
+                                              : 'text-white/50 font-light group-hover:text-[#D48459] group-hover:font-normal'
+                                          }`}
+                                        >
+                                          {weekBlockDisplay?.label || `${format(weekStartDate, "'Sem.' w • d MMM", { locale: fr })} - ${format(addDays(weekStartDate, 6), 'd MMM yyyy', { locale: fr })}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <div className="px-3 py-3 flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedHistoryWeeks([])}
+                                className="px-3 py-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs transition-colors"
+                              >
+                                Réinitialiser
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIsHistoryPanelOpen(false)}
+                                className="px-4 py-2 rounded-lg bg-[#d4845a] text-white hover:bg-[#c47850] text-xs transition-colors"
+                              >
+                                Appliquer
+                              </button>
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
@@ -5932,7 +6655,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                   <div className="border-b border-white/10 mb-3"></div>
 
                   {/* Calendar Grid */}
-                  <div className="pr-0 md:pr-14 pt-4">
+                  <div className="relative pr-0 md:pr-14 pt-4">
                     {/* Day Headers - Hidden on mobile */}
                     <div className="hidden md:grid grid-cols-7 gap-1 md:gap-2 mb-2">
                       {['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'].map(day => (
@@ -5949,11 +6672,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         const weeks = [];
                         let currentWeek = [];
 
-                        trainingWeeks.forEach((day, index) => {
+                        displayedTrainingWeeks.forEach((day, index) => {
                           if (!isValid(day)) return;
                           currentWeek.push({ day, index });
 
-                          if (currentWeek.length === 7 || index === trainingWeeks.length - 1) {
+                          if (currentWeek.length === 7 || index === displayedTrainingWeeks.length - 1) {
                             weeks.push([...currentWeek]);
                             currentWeek = [];
                           }
@@ -6346,19 +7069,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                             }}
                                                           >
                                                             {session.status === 'completed' ? (
-                                                              <button
-                                                                onClick={(e) => {
-                                                                  e.stopPropagation();
-                                                                  closeDropdown();
-                                                                  handleCopySession(session, day);
-                                                                }}
-                                                                className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
-                                                              >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
-                                                                  <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
-                                                                </svg>
-                                                                Copier
-                                                              </button>
+                                                              !isHistoryMode ? (
+                                                                <button
+                                                                  onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    closeDropdown();
+                                                                    handleCopySession(session, day);
+                                                                  }}
+                                                                  className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
+                                                                >
+                                                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                                    <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
+                                                                  </svg>
+                                                                  Copier
+                                                                </button>
+                                                              ) : null
                                                             ) : (
                                                               <>
                                                                 {session.status === 'draft' ? (
@@ -6389,19 +7114,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                                   </button>
                                                                 )}
 
-                                                                <button
-                                                                  onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    closeDropdown();
-                                                                    handleCopySession(session, day);
-                                                                  }}
-                                                                  className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2"
-                                                                >
-                                                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
-                                                                    <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
-                                                                  </svg>
-                                                                  Copier
-                                                                </button>
+                                                                {!isHistoryMode && (
+                                                                  <button
+                                                                    onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      closeDropdown();
+                                                                      handleCopySession(session, day);
+                                                                    }}
+                                                                    className="w-full px-3 py-2 text-left text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2"
+                                                                  >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
+                                                                      <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
+                                                                    </svg>
+                                                                    Copier
+                                                                  </button>
+                                                                )}
 
                                                                 <button
                                                                   onClick={(e) => {
@@ -6520,7 +7247,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                           </div>
                                         </div>
                                       )}
-                                      {!isDetailedView && copiedSession && hoveredPasteDate === dateKey && !draggedSession && (
+                                      {!isHistoryMode && !isDetailedView && copiedSession && hoveredPasteDate === dateKey && !draggedSession && (
                                         <>
                                           {/* Overlay avec blur et assombrissement si des séances existent */}
                                           {sessionsOnDay.length > 0 && (
@@ -6555,16 +7282,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                         {copiedSession.session.exercises.slice(0, 2).map((exercise, index) => (
                                                           <React.Fragment key={index}>
                                                             {getExerciseCardRows(exercise, null).map((row, ri) =>
-                                                              row.type === 'sets' ? (
+                                                              row.type === 'seriesOnly' ? (
                                                                 <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
                                                                   {SET_LINE_ICON}
-                                                                  <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                                                  <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                                                                </div>
+                                                              ) : row.type === 'sets' ? (
+                                                                <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                                                  {SET_LINE_ICON}
+                                                                  <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                                                   {' '}
-                                                                  {exercise.useRir ? (
+                                                                  {!row.repsOnly && (exercise.useRir ? (
                                                                     <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                                                   ) : (
                                                                     <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                                                  )}
+                                                                  ))}
                                                                 </div>
                                                               ) : (
                                                                 <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">
@@ -7205,13 +7937,29 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             {/* Modals */}
             <PerformanceAnalysisModal
               isOpen={isPerformanceAnalysisModalOpen}
-              onClose={() => setIsPerformanceAnalysisModalOpen(false)}
+              onClose={() => {
+                setIsPerformanceAnalysisModalOpen(false);
+                setPerformanceAnalysisPrefsTick((t) => t + 1);
+              }}
               initialMovementIds={performanceInitialMovementIds}
               workoutSessions={workoutSessions}
               blocks={blocks}
               oneRmRecords={oneRmRecords}
               totalBlocks={totalBlocks}
               preferencesKey={'performanceAnalysisModalPreferences_' + performanceActiveCardIndex}
+              studentId={student.id}
+              slotIndex={performanceActiveCardIndex}
+              remoteSlotPreference={
+                performanceAnalysisRemoteBySlot?.[String(performanceActiveCardIndex)] ??
+                performanceAnalysisRemoteBySlot?.[performanceActiveCardIndex]
+              }
+              onRemotePreferencesSynced={(idx, payload) => {
+                setPerformanceAnalysisRemoteBySlot((prev) => ({
+                  ...(prev || {}),
+                  [String(idx)]: payload,
+                }));
+                setPerformanceAnalysisPrefsTick((t) => t + 1);
+              }}
             />
             <CreateWorkoutSessionModal
               isOpen={isCreateModalOpen}
@@ -7223,6 +7971,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               onSessionCreated={handleSessionCreated}
               studentId={student.id}
               existingSession={selectedSession}
+              oneRmRecords={oneRmRecords}
               onCopySession={(sessionForCopy, fromDate) => {
                 setCopiedSession({ session: sessionForCopy, fromDate });
               }}

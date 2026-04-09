@@ -1,6 +1,6 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
-import { X, Video, Trash2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
@@ -20,6 +20,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [duplicateNameError, setDuplicateNameError] = useState(false);
+  /** Existing server demo marked for removal; on submit we DELETE /exercises/:id/demo-video then save. */
+  const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -39,6 +41,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         // Set video preview if editing exercise has a demo video
         logger.debug('Editing exercise:', editingExercise);
         logger.debug('Demo video URL:', editingExercise.demoVideoURL);
+        setDemoVideoRemoved(false);
         if (editingExercise.demoVideoURL) {
           setVideoPreview(editingExercise.demoVideoURL);
           logger.debug('Video preview set to:', editingExercise.demoVideoURL);
@@ -56,6 +59,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         setVideoFile(null);
         setVideoPreview(null);
         setVideoError('');
+        setDemoVideoRemoved(false);
         setDuplicateNameError(false); // Reset duplicate error when creating new
       }
     } else {
@@ -126,6 +130,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
 
       setVideoFile(file);
       setVideoError('');
+      setDemoVideoRemoved(false);
       const previewUrl = URL.createObjectURL(file);
       setVideoPreview(previewUrl);
     }
@@ -134,6 +139,9 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const removeVideo = () => {
     if (videoPreview && videoPreview.startsWith('blob:')) {
       URL.revokeObjectURL(videoPreview);
+    }
+    if (editingExercise?.demoVideoURL && !videoFile) {
+      setDemoVideoRemoved(true);
     }
     setVideoFile(null);
     setVideoPreview(null);
@@ -228,6 +236,27 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('authToken');
+      if (
+        editingExercise?.id &&
+        demoVideoRemoved &&
+        !videoFile &&
+        editingExercise.demoVideoURL
+      ) {
+        try {
+          await axios.delete(buildApiUrl(`/exercises/${editingExercise.id}/demo-video`), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } catch (err) {
+          if (err.response?.status !== 400) {
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Impossible de supprimer la vidéo.';
+            setVideoError(msg);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       let exerciseData = { ...formData };
       
       // Handle video URL - either upload new video or preserve existing one
@@ -240,10 +269,12 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
           setLoading(false);
           return; // Don't proceed if video upload failed
         }
-      } else if (editingExercise && editingExercise.demoVideoURL) {
+      } else if (editingExercise && editingExercise.demoVideoURL && !demoVideoRemoved) {
         // Preserve existing video URL when editing
         logger.debug('Preserving existing video URL:', editingExercise.demoVideoURL);
         exerciseData.demoVideoURL = editingExercise.demoVideoURL;
+      } else if (editingExercise) {
+        exerciseData.demoVideoURL = '';
       }
       
       logger.debug('Final exercise data being sent:', exerciseData);
@@ -265,6 +296,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       setVideoFile(null);
       setVideoPreview(null);
       setVideoError('');
+      setDemoVideoRemoved(false);
       
       onClose();
     } catch (error) {
@@ -284,6 +316,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setVideoFile(null);
     setVideoPreview(null);
     setVideoError('');
+    setDemoVideoRemoved(false);
     setUploadProgress(0);
     onClose();
   };
@@ -392,20 +425,28 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             ) : (
               <div className="rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.5)] p-3 max-w-full">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden mb-3">
-                  <Video className="h-4 w-4 shrink-0 text-[#d4845a]" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 576 512"
+                    className="h-4 w-4 shrink-0 text-[#d4845a]"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
+                  </svg>
                   <div className="min-w-0 flex-1">
                     <p
-                      className="truncate text-sm font-extralight text-white/80"
+                      className="truncate text-sm font-light text-white/50"
                       title={videoFile ? videoFile.name : 'Preview'}
                       data-testid="video-file-name"
                     >
-                      {videoFile ? videoFile.name : 'Preview'}
+                      {videoFile ? videoFile.name : 'Aperçu'}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={removeVideo}
-                    className="shrink-0 rounded-[6px] px-3 py-1.5 text-xs font-extralight text-white/70 hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+                    className="shrink-0 px-3 py-1.5 text-xs font-normal text-white/25 hover:text-[var(--kaiylo-primary-hex)] transition-colors"
                   >
                     Supprimer
                   </button>

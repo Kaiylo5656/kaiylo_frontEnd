@@ -292,12 +292,6 @@ const StudentDashboard = () => {
 
 
   const handleStartSession = (assignment) => {
-    // Prevent starting already completed sessions
-    if (assignment.status === 'completed') {
-      alert('Cette séance est déjà terminée ! Vous ne pouvez pas la recommencer.');
-      return;
-    }
-
     setExecutingSession(assignment);
     setCurrentView('execution');
   };
@@ -553,6 +547,7 @@ const StudentDashboard = () => {
             onBack={handleBackToPlanning}
             onCompleteSession={handleCompleteSession}
             shouldCloseCompletionModal={shouldCloseCompletionModal}
+            readOnly={executingSession?.status === 'completed'}
             omitAmbientBackground
             isActive={isActive}
           />
@@ -917,9 +912,14 @@ const StudentDashboard = () => {
                           <CardContent className="px-4 mx-5 flex-1 flex flex-col">
                             <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                               {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                                <div key={exIndex} className="flex justify-between items-center gap-4">
-                                  <p className="text-white font-light flex-1 min-w-0 max-w-[60%] break-words text-left leading-snug" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                                  <div className="flex-shrink-0 min-w-0 max-w-[40%] flex justify-end">
+                                <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
+                                  <p
+                                    className="text-white font-light min-w-0 flex-1 break-words text-left leading-snug"
+                                    style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}
+                                  >
+                                    {ex.name}
+                                  </p>
+                                  <div className="shrink-0 flex justify-end self-start pt-0.5">
                                     <ExerciseSummaryPreview exercise={ex} alignEnd />
                                   </div>
                                 </div>
@@ -930,13 +930,12 @@ const StudentDashboard = () => {
                             </p>
                             <Button
                               className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                                ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                                ? 'bg-white/10 text-white/75 hover:bg-white/10'
                                 : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                                 }`}
                               onClick={() => handleStartSession(assignment)}
-                              disabled={assignment.status === 'completed'}
                             >
-                              {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                              {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
                             </Button>
                           </CardContent>
                         </Card>
@@ -987,9 +986,14 @@ const StudentDashboard = () => {
                         <CardContent className="px-4 mx-5 flex-1 flex flex-col">
                           <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                             {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                              <div key={exIndex} className="flex justify-between items-center gap-4">
-                                <p className="text-white font-light flex-1 min-w-0 max-w-[60%] break-words text-left leading-snug" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                                <div className="flex-shrink-0 min-w-0 max-w-[40%] flex justify-end">
+                              <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
+                                <p
+                                  className="text-white font-light min-w-0 flex-1 break-words text-left leading-snug"
+                                  style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}
+                                >
+                                  {ex.name}
+                                </p>
+                                <div className="shrink-0 flex justify-end self-start pt-0.5">
                                   <ExerciseSummaryPreview exercise={ex} alignEnd />
                                 </div>
                               </div>
@@ -1000,13 +1004,12 @@ const StudentDashboard = () => {
                           </p>
                           <Button
                             className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
-                              ? 'bg-[var(--surface-700)] text-gray-400 cursor-not-allowed'
+                              ? 'bg-white/10 text-white/75 hover:bg-white/10'
                               : 'bg-[#e87c3e] hover:bg-[#d66d35] text-white'
                               }`}
                             onClick={() => handleStartSession(assignment)}
-                            disabled={assignment.status === 'completed'}
                           >
-                            {assignment.status === 'completed' ? 'Séance terminée' : 'Aperçu de la séance'}
+                            {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
                           </Button>
                         </CardContent>
                       </Card>

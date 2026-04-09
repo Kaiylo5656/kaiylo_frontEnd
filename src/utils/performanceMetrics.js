@@ -15,6 +15,7 @@ export const metricOptions = [
   { id: 'reps', label: 'Reps (total)' },
   { id: 'series', label: 'Séries (réussies)' },
   { id: 'failed_series', label: 'Séries (échouées)' },
+  { id: 'time_under_tension', label: 'Temps sous tension (hold)' },
   { id: 'intensity', label: 'Intensité (%)' },
   { id: 'rpe_avg', label: 'RPE moyen' },
   { id: 'avg_charge', label: 'Charge moyenne (kg)' },
@@ -25,6 +26,30 @@ function toNumberOrNull(v) {
   if (v === null || v === undefined) return null;
   if (v === '') return null;
   const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Nombre seul (y compris négatif) ou plage "a-b" / "a - b" → moyenne (ex. 3-5 → 4, -10--5 → -7.5).
+ * Utilisé pour charge / reps / RPE dans l’agrégation performance.
+ */
+function parseNumericOrRangeAverage(v) {
+  if (v === null || v === undefined) return null;
+  if (v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+
+  const s = String(v).trim();
+  if (s === '') return null;
+
+  const rangeMatch = s.match(/^(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)$/);
+  if (rangeMatch) {
+    const a = Number(rangeMatch[1]);
+    const b = Number(rangeMatch[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return (a + b) / 2;
+    return null;
+  }
+
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -52,6 +77,80 @@ export function getMovementIdFromOneRmRecord(record) {
   return getMovementIdFromExerciseName(candidate);
 }
 
+/** Mouvements du suivi 1RM (alignés sur OneRmModal / movementOptions). */
+export const ONE_RM_TRACKED_LIFT_IDS = ['muscle-up', 'pull-up', 'dips', 'squat'];
+
+/**
+ * Associe le nom d’un exercice catalogue à un lift 1RM canonique (id), ou null.
+ * Ex. « Traction », « Pull-up » → pull-up ; « Squat », « Dips », « Muscle-up ».
+ */
+export function resolveCanonicalOneRmLiftIdFromExerciseName(exerciseName) {
+  const n = String(exerciseName || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (!n.trim()) return null;
+  if (/muscle\s*-?\s*up|muscleup/.test(n)) return 'muscle-up';
+  if (/\btraction\b|pull\s*-?\s*up|pullup|\btirage\b/.test(n)) return 'pull-up';
+  if (/\bdips?\b/.test(n)) return 'dips';
+  if (/\bsquat\b/.test(n)) return 'squat';
+  return null;
+}
+
+function toPositiveNumberOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * La fiche 1RM correspond au lift canonique (ex. id pull-up, ou nom « Traction » mappé sur pull-up).
+ * Les enregistrements API n’ont pas toujours id = pull-up alors que le nom est « Traction ».
+ */
+function oneRmRecordMatchesCanonicalLift(rec, canonicalLiftId) {
+  if (!canonicalLiftId || !rec) return false;
+  const want = `exercise:${canonicalLiftId}`;
+  if (rec.id === canonicalLiftId) return true;
+  if (getMovementIdFromOneRmRecord(rec) === want) return true;
+  const fromName = resolveCanonicalOneRmLiftIdFromExerciseName(rec.name || '');
+  if (fromName === canonicalLiftId) return true;
+  const fromExercise = resolveCanonicalOneRmLiftIdFromExerciseName(rec.exercise || '');
+  if (fromExercise === canonicalLiftId) return true;
+  return false;
+}
+
+/** 1RM (kg) pour un lift canonique à partir des fiches 1RM élève. */
+export function getOneRmKgForCanonicalLift(canonicalLiftId, oneRmRecords) {
+  if (!canonicalLiftId || !Array.isArray(oneRmRecords)) return null;
+  for (const rec of oneRmRecords) {
+    if (!oneRmRecordMatchesCanonicalLift(rec, canonicalLiftId)) continue;
+    const c = toPositiveNumberOrNull(rec?.current);
+    if (c !== null) return c;
+    const b = toPositiveNumberOrNull(rec?.best);
+    if (b !== null) return b;
+  }
+  return null;
+}
+
+export function getOneRmKgForExerciseName(exerciseName, oneRmRecords) {
+  const id = resolveCanonicalOneRmLiftIdFromExerciseName(exerciseName);
+  return id ? getOneRmKgForCanonicalLift(id, oneRmRecords) : null;
+}
+
+/** Charge saisie → nombre (kg) pour le % 1RM ; moyenne si plage « a-b ». */
+export function parseChargeKgForOneRmPercent(weightStr) {
+  if (weightStr == null || weightStr === '') return null;
+  const s = String(weightStr).trim().replace(/\s/g, '').replace(',', '.');
+  const rangeMatch = s.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/);
+  if (rangeMatch) {
+    const a = Number(rangeMatch[1]);
+    const b = Number(rangeMatch[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return (a + b) / 2;
+    return null;
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function isCompletedSet(set) {
   return set?.validation_status === 'completed';
 }
@@ -60,38 +159,64 @@ function isFailedSet(set) {
   return set?.validation_status === 'failed';
 }
 
-function getKgFromSet(set) {
-  // Prefer student-entered charge fields, then fall back to generic weight fields.
+function getKgFromSet(set, exercise) {
+  // Toujours prioriser la charge saisie par l’élève.
+  const fromStudent =
+    parseNumericOrRangeAverage(set?.student_weight) ??
+    parseNumericOrRangeAverage(set?.studentWeight);
+  if (fromStudent != null) return fromStudent;
+
+  // En mode RIR, weight / target sur la séance = cible RPE (voir getRpeFromSet), pas des kg.
+  if (exercise?.useRir) return null;
+
   return (
-    toNumberOrNull(set?.student_weight) ??
-    toNumberOrNull(set?.studentWeight) ??
-    toNumberOrNull(set?.weight) ??
-    toNumberOrNull(set?.target_weight) ??
-    toNumberOrNull(set?.requested_weight) ??
+    parseNumericOrRangeAverage(set?.weight) ??
+    parseNumericOrRangeAverage(set?.target_weight) ??
+    parseNumericOrRangeAverage(set?.requested_weight) ??
     null
   );
 }
 
 function getRepsFromSet(set) {
   return (
-    toNumberOrNull(set?.reps) ??
-    toNumberOrNull(set?.target_reps) ??
-    toNumberOrNull(set?.requested_reps) ??
+    parseNumericOrRangeAverage(set?.reps) ??
+    parseNumericOrRangeAverage(set?.target_reps) ??
+    parseNumericOrRangeAverage(set?.requested_reps) ??
     null
   );
+}
+
+function parseHoldSecondsFromReps(repsValue) {
+  if (repsValue === null || repsValue === undefined || repsValue === '') return null;
+  if (typeof repsValue === 'number') return Number.isFinite(repsValue) && repsValue >= 0 ? repsValue : null;
+
+  const raw = String(repsValue).trim().toLowerCase();
+  if (!raw) return null;
+
+  if (raw.includes(':')) {
+    const parts = raw.split(':').map((p) => Number(p));
+    if (!parts.length || parts.some((p) => !Number.isFinite(p) || p < 0)) return null;
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return null;
+  }
+
+  const normalized = raw.endsWith('s') ? raw.slice(0, -1).trim() : raw;
+  const n = Number(normalized);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 function getRpeFromSet(set, exercise) {
   // Real RPE entered by student (normal mode)
   const rpe =
-    toNumberOrNull(set?.rpe_rating) ??
-    toNumberOrNull(set?.rpeRating) ??
-    toNumberOrNull(set?.rpe) ??
+    parseNumericOrRangeAverage(set?.rpe_rating) ??
+    parseNumericOrRangeAverage(set?.rpeRating) ??
+    parseNumericOrRangeAverage(set?.rpe) ??
     null;
 
   // Fallback for `useRir` mode: the UI displays `RPE {set.weight}` when useRir=true.
   if (rpe === null && exercise?.useRir) {
-    return toNumberOrNull(set?.weight);
+    return parseNumericOrRangeAverage(set?.weight);
   }
 
   return rpe;
@@ -150,7 +275,43 @@ function findBlockIntervalForDate(blockIntervals, date) {
   );
 }
 
-export function computePeriodRange({ periodType, lastMonths, specificMonthValue, blocks, selectedBlockNumber }) {
+/**
+ * Numéros de bloc (1…N, ordre multi-semaines) à inclure dans la période « Bloc ».
+ * Prend en charge `selectedBlockNumbers` (tableau) ou l’ancien `selectedBlockNumber` (nombre).
+ */
+function resolveSelectedBlockNumbersForPeriod(selectedBlockNumbers, selectedBlockNumberLegacy, multiWeekSorted) {
+  const len = multiWeekSorted.length;
+  if (len === 0) return [];
+
+  const valid = new Set();
+  if (Array.isArray(selectedBlockNumbers) && selectedBlockNumbers.length > 0) {
+    selectedBlockNumbers.forEach((raw) => {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n >= 1 && n <= len) valid.add(Math.floor(n));
+    });
+  } else if (selectedBlockNumberLegacy != null && selectedBlockNumberLegacy !== '') {
+    const n = Number(selectedBlockNumberLegacy);
+    if (Number.isFinite(n) && n >= 1 && n <= len) valid.add(Math.floor(n));
+  }
+
+  let nums = Array.from(valid).sort((a, b) => a - b);
+  if (nums.length === 0) {
+    const idx = Math.max(0, Number(selectedBlockNumberLegacy) - 1);
+    const picked = multiWeekSorted[idx] || multiWeekSorted[len - 1];
+    const fallbackNum = multiWeekSorted.indexOf(picked) + 1;
+    nums = [fallbackNum > 0 ? fallbackNum : len];
+  }
+  return nums;
+}
+
+export function computePeriodRange({
+  periodType,
+  lastMonths,
+  specificMonthValue,
+  blocks,
+  selectedBlockNumbers,
+  selectedBlockNumber,
+}) {
   const now = new Date();
 
   if (periodType === 'allTime') {
@@ -182,10 +343,23 @@ export function computePeriodRange({ periodType, lastMonths, specificMonthValue,
     const intervals = computeBlockIntervals(blocks);
     const multiWeekSorted = intervals.filter(b => b.durationWeeks > 1);
 
-    const idx = Math.max(0, Number(selectedBlockNumber) - 1);
-    const picked = multiWeekSorted[idx] || multiWeekSorted[multiWeekSorted.length - 1] || null;
-    if (!picked) return { start: subMonths(now, 3), end: now };
-    return { start: picked.start, end: picked.end };
+    if (!multiWeekSorted.length) return { start: subMonths(now, 3), end: now };
+
+    const nums = resolveSelectedBlockNumbersForPeriod(
+      selectedBlockNumbers,
+      selectedBlockNumber,
+      multiWeekSorted,
+    );
+    const pickedList = nums.map(n => multiWeekSorted[n - 1]).filter(Boolean);
+    if (!pickedList.length) return { start: subMonths(now, 3), end: now };
+
+    const minStartTs = Math.min(...pickedList.map(b => b.start.getTime()));
+    const maxEndExclusiveTs = Math.max(...pickedList.map(b => b.end.getTime()));
+    const start = new Date(minStartTs);
+    const end = new Date(maxEndExclusiveTs);
+    end.setDate(end.getDate() - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   // default fallback
@@ -201,6 +375,7 @@ export function resolvePerformancePeriodBounds({
   lastMonths,
   specificMonthValue,
   blocks,
+  selectedBlockNumbers,
   selectedBlockNumber,
   workoutSessions,
 }) {
@@ -209,6 +384,7 @@ export function resolvePerformancePeriodBounds({
     lastMonths,
     specificMonthValue,
     blocks,
+    selectedBlockNumbers,
     selectedBlockNumber,
   });
 
@@ -231,6 +407,91 @@ export function resolvePerformancePeriodBounds({
   }
 
   return { periodStart, periodEnd };
+}
+
+/**
+ * Libellé court de la période (aligné sur PerformanceAnalysisModal) pour affichage dashboard / cartes.
+ */
+function buildBlockPeriodOptionsForLabel(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  const multiWeekSorted = [...list]
+    .filter((b) => Number(b?.duration) > 1)
+    .sort((a, b) => {
+      const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+      if (dateDiff !== 0) return dateDiff;
+      if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  return multiWeekSorted.map((b, idx) => {
+    const number = idx + 1;
+    const title = String(b?.name || b?.block_name || '').trim();
+    return { number, title };
+  });
+}
+
+export function formatPerformancePeriodPreferenceLabel({
+  periodType,
+  lastMonths,
+  specificMonthValue,
+  selectedBlockNumbers,
+  selectedBlockNumber,
+  blocks,
+}) {
+  if (periodType === 'lastWeek') {
+    return 'Les 7 derniers jours';
+  }
+
+  const pt = periodType;
+
+  if (pt === 'allTime') {
+    return 'Depuis le début';
+  }
+
+  if (pt === 'lastMonths') {
+    const m = Math.max(1, Number(lastMonths) || 3);
+    return m === 1 ? 'Le dernier mois' : `Les ${m} derniers mois`;
+  }
+
+  if (pt === 'specificMonth' && specificMonthValue) {
+    try {
+      const d = new Date(`${specificMonthValue}-01T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        const monthName = format(d, 'MMMM yyyy', { locale: fr });
+        return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (pt === 'block') {
+    const blockOptions = buildBlockPeriodOptionsForLabel(blocks);
+    const numsRaw =
+      Array.isArray(selectedBlockNumbers) && selectedBlockNumbers.length
+        ? selectedBlockNumbers
+        : selectedBlockNumber != null
+          ? [selectedBlockNumber]
+          : [];
+    const nums = [...numsRaw]
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n) && n >= 1)
+      .sort((a, b) => a - b);
+
+    const opts = nums.map((n) => blockOptions.find((o) => o.number === n)).filter(Boolean);
+    if (opts.length === 1) {
+      const o = opts[0];
+      return o.title ? `Bloc ${o.number} : ${o.title}` : `Bloc ${o.number}`;
+    }
+    if (opts.length > 1) {
+      return opts
+        .map((o) => (o.title ? `Bloc ${o.number} : ${o.title}` : `Bloc ${o.number}`))
+        .join(' · ');
+    }
+    return blockOptions.length ? 'Bloc' : 'Aucun bloc';
+  }
+
+  return '';
 }
 
 function formatBucketLabel(groupBy, dateOrMonthOrBlockLabel) {
@@ -276,6 +537,7 @@ export function computePerformanceAggregation({
   periodType,
   lastMonths,
   specificMonthValue,
+  selectedBlockNumbers,
   selectedBlockNumber,
 }) {
   const movementIds =
@@ -292,16 +554,40 @@ export function computePerformanceAggregation({
     lastMonths,
     specificMonthValue,
     blocks,
+    selectedBlockNumbers,
     selectedBlockNumber,
     workoutSessions,
   });
+
+  const multiWeekSortedForBlockFilter = blockIntervals.filter(b => b.durationWeeks > 1);
+  const resolvedBlockNums = resolveSelectedBlockNumbersForPeriod(
+    selectedBlockNumbers,
+    selectedBlockNumber,
+    multiWeekSortedForBlockFilter,
+  );
+  const selectedBlockPickedIntervals = resolvedBlockNums
+    .map(n => multiWeekSortedForBlockFilter[n - 1])
+    .filter(Boolean);
+
+  const dateInSelectedPerformancePeriod = (d) => {
+    const t = d.getTime();
+    if (periodType === 'block' && selectedBlockPickedIntervals.length > 0) {
+      return selectedBlockPickedIntervals.some(
+        b => t >= b.start.getTime() && t < b.end.getTime(),
+      );
+    }
+    return t >= periodStart.getTime() && t <= periodEnd.getTime();
+  };
 
   // Map 1RM values per movement.
   const oneRmByMovement = {};
   (Array.isArray(oneRmRecords) ? oneRmRecords : []).forEach(rec => {
     const mid = getMovementIdFromOneRmRecord(rec);
     if (!mid) return;
-    const v = toNumberOrNull(rec?.current) ?? toNumberOrNull(rec?.best);
+    const v =
+      toNumberOrNull(rec?.current) ??
+      toNumberOrNull(rec?.best) ??
+      toNumberOrNull(rec?.value);
     if (v !== null) oneRmByMovement[mid] = v;
   });
 
@@ -311,8 +597,7 @@ export function computePerformanceAggregation({
     Object.keys(workoutSessions).forEach(dateKey => {
       const date = parseISO(dateKey);
       if (!date || Number.isNaN(date.getTime())) return;
-      // Only keep sets inside the selected period
-      if (date.getTime() < periodStart.getTime() || date.getTime() > periodEnd.getTime()) return;
+      if (!dateInSelectedPerformancePeriod(date)) return;
 
       const sessions = workoutSessions[dateKey] || [];
       sessions.forEach(session => {
@@ -328,11 +613,16 @@ export function computePerformanceAggregation({
             const failed = isFailedSet(set);
             if (!completed && !failed) return;
 
-            const kg = getKgFromSet(set);
+            const kg = getKgFromSet(set, exercise);
             const reps = getRepsFromSet(set);
             const rpe = getRpeFromSet(set, exercise);
+            const repType = set?.repType || set?.rep_type || 'reps';
+            const holdSeconds =
+              repType === 'hold'
+                ? parseHoldSecondsFromReps(set?.reps ?? set?.target_reps ?? set?.requested_reps)
+                : null;
 
-            if (completed && kg === null && reps === null && rpe === null) return;
+            if (completed && kg === null && reps === null && rpe === null && holdSeconds === null) return;
 
             sets.push({
               movementId: mid,
@@ -343,6 +633,7 @@ export function computePerformanceAggregation({
               kg,
               reps,
               rpe,
+              holdSeconds,
             });
           });
         });
@@ -358,6 +649,7 @@ export function computePerformanceAggregation({
     reps: 0,
     series: 0,
     failed_series: 0,
+    time_under_tension: 0,
     // Averages
     rpe_sum: 0,
     rpe_count: 0,
@@ -424,6 +716,9 @@ export function computePerformanceAggregation({
     }
 
     agg.series += 1;
+    if (s.holdSeconds !== null && s.holdSeconds !== undefined) {
+      agg.time_under_tension += s.holdSeconds;
+    }
 
     const reps = s.reps ?? 0;
     const kg = s.kg ?? 0;
@@ -465,6 +760,7 @@ export function computePerformanceAggregation({
           reps: null,
           series: null,
           failed_series: null,
+          time_under_tension: null,
           intensity: null,
           rpe_avg: null,
           avg_charge: null,
@@ -478,6 +774,7 @@ export function computePerformanceAggregation({
         reps: agg.series > 0 ? agg.reps : null,
         series: agg.series,
         failed_series: agg.failed_series,
+        time_under_tension: agg.time_under_tension > 0 ? agg.time_under_tension : null,
         intensity: agg.intensity_count > 0 ? agg.intensity_sum / agg.intensity_count : null,
         rpe_avg: agg.rpe_count > 0 ? agg.rpe_sum / agg.rpe_count : null,
         avg_charge: agg.avg_charge_count > 0 ? agg.avg_charge_sum / agg.avg_charge_count : null,

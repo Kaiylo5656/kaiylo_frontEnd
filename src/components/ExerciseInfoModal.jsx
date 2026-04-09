@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const ExerciseInfoCard = ({ exercise, onClose }) => {
   const { getAuthToken, refreshAuthToken } = useAuth();
@@ -136,7 +136,11 @@ const ExerciseInfoCard = ({ exercise, onClose }) => {
                 {isVideoLoading && (
                   <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
                     <div className="text-white text-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white mx-auto mb-3"></div>
+                      <Loader2
+                        className="h-10 w-10 animate-smooth-spin mx-auto mb-3"
+                        style={{ color: 'var(--kaiylo-primary-hex)' }}
+                        aria-hidden="true"
+                      />
                       <p className="text-sm">Chargement...</p>
                     </div>
                   </div>

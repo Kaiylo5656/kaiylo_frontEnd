@@ -15,8 +15,9 @@ import { useWorkoutSession } from './MainLayout';
 import { safeGetItem, safeSetItem, safeRemoveItem, isStorageAvailable } from '../utils/storage';
 import axios from 'axios';
 import logger from '../utils/logger';
+import { ExerciseSummaryPreview } from './ExerciseSummaryPreview';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, isActive = true }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
@@ -45,6 +46,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const [sessionVideos, setSessionVideos] = useState([]); // Store videos from API to get coach feedback
   const [dotPositions, setDotPositions] = useState({});
   const [isSessionStarted, setIsSessionStarted] = useState(false); // Track if the session has been started
+  const isReadOnlySession = readOnly || session?.status === 'completed';
   const exerciseCardRefs = useRef([]);
   const exerciseListRef = useRef(null);
   const hasRestoredProgress = useRef(false); // Flag to track if progress has been restored
@@ -53,6 +55,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   const restoreTimeoutRef = useRef(null); // Ref to store timeout ID
   const lastFetchedVideosAssignmentId = useRef(null); // Guard against duplicate video fetches
   const historyEntryAdded = useRef(false); // Track if history entry was added for back button interception
+  const hasHydratedReadOnlyData = useRef(false);
 
   // Show/hide Header and BottomNavBar when component mounts/unmounts
   useEffect(() => {
@@ -109,6 +112,59 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return sessionId ? `workout_progress_${sessionId}` : null;
   }, [sessionId]);
 
+  useEffect(() => {
+    if (!isReadOnlySession || !sessionId || hasHydratedReadOnlyData.current) {
+      return;
+    }
+
+    const hydratedCompletedSets = {};
+    const hydratedComments = {};
+
+    exercises.forEach((exercise, exerciseIndex) => {
+      const studentComment = exercise?.student_comment ?? exercise?.comment;
+      if (studentComment) {
+        hydratedComments[exerciseIndex] = studentComment;
+      }
+
+      (exercise?.sets || []).forEach((set, setIndex) => {
+        const key = `${exerciseIndex}-${setIndex}`;
+        const nextSetData = {};
+
+        const status = set?.validation_status;
+        if (status === 'completed' || status === 'failed') {
+          nextSetData.status = status;
+        }
+
+        const rpeRating = set?.rpe_rating ?? set?.rpeRating ?? set?.rpe;
+        if (rpeRating !== null && rpeRating !== undefined && rpeRating !== '') {
+          nextSetData.rpeRating = rpeRating;
+        }
+
+        const studentWeight = set?.student_weight ?? set?.studentWeight;
+        if (studentWeight !== null && studentWeight !== undefined && studentWeight !== '') {
+          nextSetData.studentWeight = studentWeight;
+        }
+
+        if (Object.keys(nextSetData).length > 0) {
+          hydratedCompletedSets[key] = nextSetData;
+        }
+      });
+    });
+
+    setCompletedSets(hydratedCompletedSets);
+    setExerciseComments(hydratedComments);
+    setIsSessionStarted(true);
+    setSessionStatus('completed');
+    setCurrentExerciseIndex(0);
+    setCurrentSetIndex({ 0: 0 });
+    setSelectedSetIndex({ 0: 0 });
+    hasHydratedReadOnlyData.current = true;
+  }, [isReadOnlySession, sessionId, exercises]);
+
+  useEffect(() => {
+    hasHydratedReadOnlyData.current = false;
+  }, [sessionId]);
+
   // Helper function to save progress to localStorage
   const saveProgressToStorage = React.useCallback((progressData) => {
     if (!storageKey) return;
@@ -154,6 +210,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer l'avertissement avant de quitter la page (fermeture d'onglet, navigation)
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     // Ne pas afficher l'avertissement si on est encore sur la page aperçu
     if (!isSessionStarted) {
       return;
@@ -180,10 +239,13 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
+  }, [isReadOnlySession, isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos]);
 
   // Load saved progress on mount or when session changes (only once per session)
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     if (!sessionId || !storageKey) {
       return;
     }
@@ -389,7 +451,18 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         }, 300);
       }
     }
-  }, [sessionId, storageKey, session, exercises]);
+  }, [isReadOnlySession, sessionId, storageKey, session, exercises]);
+
+  useEffect(() => {
+    if (!isReadOnlySession || !sessionId || !exercises || exercises.length === 0) {
+      return;
+    }
+    const assignmentId = session?.assignment_id || session?.id;
+    if (assignmentId && lastFetchedVideosAssignmentId.current !== assignmentId) {
+      lastFetchedVideosAssignmentId.current = assignmentId;
+      fetchSessionVideosFromAPI(assignmentId);
+    }
+  }, [isReadOnlySession, sessionId, session, exercises]);
 
   // Function to fetch videos from API for this session
   const fetchSessionVideosFromAPI = React.useCallback(async (assignmentId) => {
@@ -920,6 +993,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Handle start session button click
   const handleStartSession = () => {
+    if (isReadOnlySession) {
+      return;
+    }
     setIsSessionStarted(true);
     // Sélectionner automatiquement la première série du premier exercice
     if (exercises && exercises.length > 0) {
@@ -965,75 +1041,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return exercise.sets.filter(set => set.video === true).length;
   };
 
-  /**
-   * Build the compact summary displayed under the exercise name (e.g. "4x8 @35 kg" or "4x8 RPE 8")
-   * so that we can mirror the Figma card layout.
-   */
-  const getExerciseSummary = (exercise) => {
-    if (!exercise || !Array.isArray(exercise.sets) || exercise.sets.length === 0) {
-      return null;
-    }
-
-    const sets = exercise.sets;
-
-    if (exercise.useRir) {
-      const firstReps = sets[0]?.reps ?? '?';
-      const firstRpe = sets[0]?.weight ?? 0;
-      const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-      const allSameRpe = sets.every(s => String(s.weight ?? 0) === String(firstRpe));
-      if (allSameReps && allSameRpe) {
-        return { scheme: `${sets.length}x${firstReps}`, weight: `RPE ${firstRpe}` };
-      }
-      // Group consecutive identical sets
-      const groups = [];
-      let i = 0;
-      while (i < sets.length) {
-        let j = i + 1;
-        while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? 0) === String(sets[i].weight ?? 0)) j++;
-        const count = j - i;
-        const scheme = `${count}x${sets[i].reps ?? '?'}`;
-        groups.push({ scheme, weight: `RPE ${sets[i].weight ?? 0}` });
-        i = j;
-      }
-      return { groups };
-    }
-
-    const withWeight = sets.every(s => s.weight != null && s.weight !== '');
-    const firstReps = sets[0]?.reps ?? '?';
-    const firstWeight = sets[0]?.weight;
-    const allSameReps = sets.every(s => String(s.reps ?? '?') === String(firstReps));
-    const allSameWeight = !withWeight || sets.every(s => String(s.weight) === String(firstWeight));
-
-    if (withWeight && allSameReps && allSameWeight && firstWeight != null) {
-      const showKg = !/[a-zA-Z]/.test(String(firstWeight));
-      return { scheme: `${sets.length}x${firstReps}`, weight: `@${firstWeight}${showKg ? 'kg' : ''}` };
-    }
-    if (!withWeight && allSameReps) {
-      return { scheme: `${sets.length}x${firstReps}`, weight: null };
-    }
-
-    // Group consecutive identical sets
-    const groups = [];
-    let i = 0;
-    while (i < sets.length) {
-      let j = i + 1;
-      while (
-        j < sets.length &&
-        String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') &&
-        String(sets[j].weight ?? '') === String(sets[i].weight ?? '')
-      ) j++;
-      const count = j - i;
-      const scheme = `${count}x${sets[i].reps ?? '?'}`;
-      const w = sets[i].weight;
-      const weightLabel = (w != null && w !== '')
-        ? `@${w}${!/[a-zA-Z]/.test(String(w)) ? 'kg' : ''}`
-        : null;
-      groups.push({ scheme, weight: weightLabel });
-      i = j;
-    }
-    return { groups };
-  };
-
   // Check if video upload is enabled for the currently selected set
   const isVideoUploadEnabled = (exerciseIndex) => {
     const selectedSet = getSelectedSetIndex(exerciseIndex);
@@ -1065,6 +1072,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleSetValidation = (exerciseIndex, status, setIndex = null) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1147,6 +1157,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer la mise à jour du RPE pour une série
   const handleRpeUpdate = (exerciseIndex, setIndex, rpeRating) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1176,6 +1189,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Gérer la mise à jour de la charge saisie par l'élève (quand coach demande RPE)
   const handleWeightUpdate = (exerciseIndex, setIndex, weight) => {
+    if (isReadOnlySession) {
+      return;
+    }
     const exercise = exercises[exerciseIndex];
 
     if (!exercise || !Array.isArray(exercise.sets)) {
@@ -1337,7 +1353,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const handleCompleteSession = () => {
-    if (!isActive) return;
+    if (isReadOnlySession) {
+      return;
+    }
     if (!isAllExercisesCompleted()) {
       alert('Veuillez compléter tous les exercices avant de terminer la séance');
       return;
@@ -2083,6 +2101,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Handle back button - show warning modal before leaving
   const handleBack = () => {
+    if (isReadOnlySession) {
+      if (onBack) {
+        onBack();
+      }
+      return;
+    }
     // Si on est encore sur la page aperçu (séance non commencée), quitter directement sans modale
     if (!isSessionStarted) {
       if (onBack) {
@@ -2119,6 +2143,9 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   // Intercepter le bouton retour arrière d'Android/iOS pour afficher la modale
   useEffect(() => {
+    if (isReadOnlySession) {
+      return;
+    }
     // Ne pas intercepter si la séance n'est pas commencée
     if (!isSessionStarted) {
       historyEntryAdded.current = false;
@@ -2144,7 +2171,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos, setIsLeaveWarningModalOpen, onBack]);
+  }, [isReadOnlySession, isSessionStarted, completedSets, currentExerciseIndex, exerciseComments, localVideos, setIsLeaveWarningModalOpen, onBack]);
 
   // Early return if no session data
   if (!session) {
@@ -2165,116 +2192,121 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
   return (
     <div
-      className="text-foreground w-full min-h-full relative overflow-hidden"
-      style={{
-        background: 'unset',
-        backgroundColor: '#0a0a0a',
-        backgroundImage: 'none'
-      }}
+      className={`text-foreground w-full relative ${omitAmbientBackground ? 'min-h-[100dvh]' : 'min-h-full overflow-hidden'}`}
+      style={
+        omitAmbientBackground
+          ? undefined
+          : {
+              background: 'unset',
+              backgroundColor: '#0a0a0a',
+              backgroundImage: 'none'
+            }
+      }
     >
-      {/* Image de fond */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '0',
-          left: '0',
-          width: '100vw',
-          height: '100vh',
-          backgroundImage: 'url(/background.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          zIndex: 1,
-          backgroundColor: '#0a0a0a'
-        }}
-      />
+      {!omitAmbientBackground && (
+        <>
+          {/* Image de fond */}
+          <div
+            style={{
+              position: 'fixed',
+              top: '0',
+              left: '0',
+              width: '100vw',
+              height: '100dvh',
+              backgroundImage: 'url(/background.jpg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              zIndex: 1,
+              backgroundColor: '#0a0a0a'
+            }}
+          />
 
-      {/* Layer blur sur l'écran */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '0',
-          left: '0',
-          width: '100vw',
-          height: '100vh',
-          backdropFilter: 'blur(50px)',
-          WebkitBackdropFilter: 'blur(100px)',
-          backgroundColor: 'rgba(0, 0, 0, 0.01)',
-          zIndex: 6,
-          pointerEvents: 'none',
-          opacity: 1
-        }}
-      />
+          {/* Layer blur sur l'écran */}
+          <div
+            style={{
+              position: 'fixed',
+              top: '0',
+              left: '0',
+              width: '100vw',
+              height: '100dvh',
+              backdropFilter: 'blur(50px)',
+              WebkitBackdropFilter: 'blur(100px)',
+              backgroundColor: 'rgba(0, 0, 0, 0.01)',
+              zIndex: 6,
+              pointerEvents: 'none',
+              opacity: 1
+            }}
+          />
 
-      {/* Gradient conique Figma - partie droite */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-25px',
-          left: '0',
-          transform: 'translateY(-50%)',
-          width: '50vw',
-          height: '900px',
-          borderRadius: '0',
-          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
-          backdropFilter: 'blur(75px)',
-          boxShadow: 'none',
-          filter: 'brightness(1.5)',
-          zIndex: 5,
-          pointerEvents: 'none',
-          opacity: 1.0,
-          animation: 'organicGradientBright 15s ease-in-out infinite'
-        }}
-      />
+          {/* Gradient conique Figma - partie droite */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '-25px',
+              left: '0',
+              transform: 'translateY(-50%)',
+              width: '50vw',
+              height: '900px',
+              borderRadius: '0',
+              background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+              backdropFilter: 'blur(75px)',
+              boxShadow: 'none',
+              filter: 'brightness(1.5)',
+              zIndex: 5,
+              pointerEvents: 'none',
+              opacity: 1.0,
+              animation: 'organicGradientBright 15s ease-in-out infinite'
+            }}
+          />
 
-      {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-25px',
-          left: '50vw',
-          transform: 'translateY(-50%) scaleX(-1)',
-          width: '50vw',
-          height: '900px',
-          borderRadius: '0',
-          background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
-          backdropFilter: 'blur(75px)',
-          boxShadow: 'none',
-          filter: 'brightness(1.5)',
-          zIndex: 5,
-          pointerEvents: 'none',
-          opacity: 1.0,
-          animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
-        }}
-      />
+          {/* Gradient conique Figma - partie gauche (symétrie axiale) */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '-25px',
+              left: '50vw',
+              transform: 'translateY(-50%) scaleX(-1)',
+              width: '50vw',
+              height: '900px',
+              borderRadius: '0',
+              background: 'conic-gradient(from 90deg at 0% 50%, #FFF 0deg, rgba(255, 255, 255, 0.95) 5deg, rgba(255, 255, 255, 0.9) 10deg,rgb(35, 38, 49) 23.50555777549744deg, rgba(0, 0, 0, 0.51) 105.24738073348999deg, rgba(18, 2, 10, 0.18) 281.80317878723145deg, rgba(9, 0, 4, 0.04) 330.0637102127075deg, rgba(35, 70, 193, 0.15) 340deg, rgba(35, 70, 193, 0.08) 350deg, rgba(35, 70, 193, 0.03) 355deg, rgba(35, 70, 193, 0.01) 360.08655548095703deg, rgba(0, 0, 0, 0.005) 360deg)',
+              backdropFilter: 'blur(75px)',
+              boxShadow: 'none',
+              filter: 'brightness(1.5)',
+              zIndex: 5,
+              pointerEvents: 'none',
+              opacity: 1.0,
+              animation: 'organicGradientBright 15s ease-in-out infinite 1.5s'
+            }}
+          />
 
-      {/* Top glow to match WorkoutSessionExecution */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
-        style={{
-          background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
-          opacity: 0.35
-        }}
-      />
-      {/* Warm orange glow from timeline */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
-        style={{
-          background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
-          opacity: 0.45
-        }}
-      />
-      {/* Subtle bottom depth glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
-        style={{
-          background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
-          opacity: 0.25
-        }}
-      />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-32 left-1/2 w-[120%] max-w-[700px] h-[260px] -translate-x-1/2 rounded-full blur-[120px]"
+            style={{
+              background: 'radial-gradient(circle at 50% 50%, rgba(60, 60, 60, 0.4) 0%, rgba(0, 0, 0, 1) 100%)',
+              opacity: 0.35
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-[26%] -left-[6%] w-[420px] h-[420px] blur-[200px]"
+            style={{
+              background: 'radial-gradient(circle, rgba(212,132,90,0.6) 0%, rgba(5,5,5,0) 65%)',
+              opacity: 0.45
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-[-18%] right-[-12%] w-[480px] h-[480px] blur-[230px]"
+            style={{
+              background: 'radial-gradient(circle, rgba(60,60,60,0.4) 0%, rgba(0,0,0,0) 70%)',
+              opacity: 0.25
+            }}
+          />
+        </>
+      )}
       {/* Header - Centré comme dans Figma */}
       <div className="pt-[40px] pb-0 relative z-10">
         {/* Bouton retour */}
@@ -2378,8 +2410,6 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
               const { start: sStart, end: sEnd } = getSupersetRange(exercises, exerciseIndex);
               const isExerciseInFocus = currentExerciseIndex >= sStart && currentExerciseIndex <= sEnd;
               const isCompleted = isExerciseFullyComplete(exerciseIndex);
-              const exerciseSummary = getExerciseSummary(exercise);
-              
               const isLinkedToNext = !!exercise.supersetGroup && 
                 exercise.supersetGroup === exercises[exerciseIndex + 1]?.supersetGroup;
               const isLinkedToPrev = !!exercise.supersetGroup && 
@@ -2408,34 +2438,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
                         <h3 className={`${(isLinkedToNext || isLinkedToPrev) ? 'text-[12px]' : 'text-[14px]'} font-light text-white break-words leading-tight`}>
                           {exercise.name}
                         </h3>
-                        {exerciseSummary && (
-                          <div className="flex flex-col gap-[2px] mt-[1px]">
-                            {exerciseSummary.groups ? (
-                              exerciseSummary.groups.map((g, gi) => (
-                                <p key={gi} className="text-[11px] font-light text-white/50 leading-tight">
-                                  {exerciseSummary.groups.length > 1 && (
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="flex-shrink-0 inline" style={{ width: '6px', height: '6px', fill: 'rgba(255,255,255,0.5)', marginRight: '3px', verticalAlign: 'middle' }}>
-                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-                                    </svg>
-                                  )}
-                                  <span>{g.scheme}</span>
-                                  {g.weight && (
-                                    <><span> </span><span className="text-[#d4845a] font-medium">{g.weight}</span></>
-                                  )}
-                                </p>
-                              ))
-                            ) : (
-                              <p className="text-[11px] font-light text-white/50 leading-tight">
-                                <span>{exerciseSummary.scheme}</span>{' '}
-                                {exerciseSummary.weight && (
-                                  <span className="text-[#d4845a] font-medium">
-                                    {exerciseSummary.weight}
-                                  </span>
-                                )}
-                              </p>
-                            )}
-                          </div>
-                        )}
+                        <ExerciseSummaryPreview exercise={exercise} />
                       </div>
 
                       {/* Set indicators - compact row, wrap after 5 sets */}
@@ -2568,7 +2571,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
 
       {/* Complete Session Button - Style Figma */}
       {/* Always show the button when session is started, but enable it only when all exercises are completed */}
-      {isSessionStarted && (
+      {isSessionStarted && !isReadOnlySession && (
         <div className="relative pl-[60px] pr-[40px] max-w-[400px] mx-auto z-10 pb-5">
           <div className="mt-[10px] mb-[20px] ml-[-5px] w-full">
             <button
@@ -2729,10 +2732,12 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           exerciseIndex={selectedExerciseForValidation}
           sets={exercises[selectedExerciseForValidation]?.sets || []}
           completedSets={completedSets}
+          readOnly={isReadOnlySession}
           onValidateSet={handleSetValidation}
           onRpeUpdate={handleRpeUpdate}
           onWeightUpdate={handleWeightUpdate}
           onVideoUpload={(exerciseIndex, setIndex) => {
+            if (isReadOnlySession) return;
             const exercise = exercises[exerciseIndex];
             if (exercise && exercise.sets && exercise.sets[setIndex] && exercise.sets[setIndex].video === true) {
               setSelectedSetForVideo(prev => ({
@@ -2755,6 +2760,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
           allExercises={exercises}
           studentComment={exerciseComments[selectedExerciseForValidation] || exercises[selectedExerciseForValidation]?.student_comment || exercises[selectedExerciseForValidation]?.comment || ''}
           onStudentComment={(exerciseIndex, comment) => {
+            if (isReadOnlySession) return;
             setExerciseComments(prev => ({
               ...prev,
               [exerciseIndex]: comment

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { Check, ChevronRight, Circle } from "lucide-react"
+import { ChevronRight, Circle } from "lucide-react"
 
 import { cn } from "../../lib/utils"
 
@@ -86,11 +86,11 @@ const DropdownMenuItem = React.forwardRef(({ className, inset, ...props }, ref) 
 ))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
-const DropdownMenuCheckboxItem = React.forwardRef(({ className, children, checked, ...props }, ref) => (
+const DropdownMenuCheckboxItem = React.forwardRef(({ className, children, checked, onSelect, ...props }, ref) => (
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
+      "group relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors",
       "data-[highlighted]:bg-[rgba(212,132,89,0.2)] data-[highlighted]:text-[#D48459]",
       "focus:bg-[rgba(212,132,89,0.2)] focus:text-[#D48459]",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
@@ -99,11 +99,40 @@ const DropdownMenuCheckboxItem = React.forwardRef(({ className, children, checke
       className
     )}
     checked={checked}
+    onSelect={(event) => {
+      event.preventDefault();
+      onSelect?.(event);
+    }}
     {...props}>
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </DropdownMenuPrimitive.ItemIndicator>
+    <span
+      className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2"
+      aria-hidden
+    >
+      <span
+        className={cn(
+          "relative flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+          "border-white/20 bg-transparent",
+          "group-data-[state=checked]:border-[#d4845a] group-data-[state=checked]:bg-[#d4845a]"
+        )}
+      >
+        <DropdownMenuPrimitive.ItemIndicator className="absolute inset-0 flex items-center justify-center">
+          <svg
+            className="block h-2.5 w-2.5 shrink-0"
+            viewBox="0 0 12 12"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden
+          >
+            <path
+              d="M10 3L4.5 8.5L2 6"
+              stroke="white"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
     </span>
     {children}
   </DropdownMenuPrimitive.CheckboxItem>

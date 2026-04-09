@@ -3,8 +3,12 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths,
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getExerciseSummaryForDisplay } from '../utils/studentExerciseSummary';
+import PeriodizationTab from '../components/PeriodizationTab';
 
 const StudentHistoryPage = () => {
+  const { user } = useAuth();
   const planningContext = useStudentPlanning();
   const assignments = planningContext?.assignments ?? [];
   const planningBlocks = planningContext?.planningBlocks ?? [];
@@ -18,6 +22,7 @@ const StudentHistoryPage = () => {
   const [collapsedCompletedSessionIds, setCollapsedCompletedSessionIds] = useState(new Set());
   const [sessionListView, setSessionListView] = useState('upcoming'); // 'upcoming' | 'past'
   const [showAllPastSessions, setShowAllPastSessions] = useState(true); // true = tout le mois, false = jour sélectionné
+  const [activeView, setActiveView] = useState('planning'); // 'planning' | 'periodization'
 
   // Helper function to capitalize first letter of month
   const capitalizeMonth = (date) => {
@@ -187,47 +192,43 @@ const StudentHistoryPage = () => {
   };
 
   const getExerciseGroups = (exercise) => {
-    const sets = exercise.sets || [];
-    if (sets.length === 0) return null;
-    const showKg = (w) => w != null && w !== '' && !/[a-zA-Z]/.test(String(w));
+    const summary = getExerciseSummaryForDisplay(exercise);
+    if (!summary) return null;
+    if (summary.groups) {
+      return { simple: false, groups: summary.groups };
+    }
+    return { simple: true, scheme: summary.scheme, weight: summary.weight };
+  };
 
-    if (exercise.useRir) {
-      const firstReps = sets[0]?.reps ?? '?';
-      const firstRpe = sets[0]?.weight ?? 0;
-      const allSame = sets.every((s) => String(s.reps ?? '?') === String(firstReps) && String(s.weight ?? 0) === String(firstRpe));
-      if (allSame) return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: `RPE ${firstRpe}` };
-      const groups = [];
-      let i = 0;
-      while (i < sets.length) {
-        let j = i + 1;
-        while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? 0) === String(sets[i].weight ?? 0)) j++;
-        groups.push({ scheme: `${j - i}x${sets[i].reps ?? '?'}`, weight: `RPE ${sets[i].weight ?? 0}` });
-        i = j;
-      }
-      return { groups };
+  const getStudentCompletionInputs = (exercise) => {
+    const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+    const normalize = (value) => String(value).trim();
+    const unique = (values) => Array.from(new Set(values.filter(Boolean)));
+
+    // Coach programmed in RPE -> show student load
+    if (exercise?.useRir) {
+      const studentLoads = unique(
+        sets
+          .map((set) => set?.student_weight ?? set?.studentWeight)
+          .filter((value) => value !== null && value !== undefined && normalize(value) !== '')
+          .map((value) => normalize(value))
+      );
+
+      if (studentLoads.length === 0) return null;
+      const formattedLoads = studentLoads.map((value) => (/[a-zA-Z]/.test(value) ? value : `${value}kg`));
+      return { studentLoadText: `@${formattedLoads.join(', @')}`, studentRpeText: null };
     }
 
-    const withWeight = sets.every((s) => s.weight != null && s.weight !== '');
-    const firstReps = sets[0]?.reps ?? '?';
-    const firstWeight = sets[0]?.weight;
-    const allSameReps = sets.every((s) => String(s.reps ?? '?') === String(firstReps));
-    const allSameWeight = !withWeight || sets.every((s) => String(s.weight) === String(firstWeight));
-    if (withWeight && allSameReps && allSameWeight && firstWeight != null) {
-      return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: `@${firstWeight}${showKg(firstWeight) ? 'kg' : ''}` };
-    }
-    if (!withWeight && allSameReps) return { simple: true, scheme: `${sets.length}x${firstReps}`, weight: null };
+    // Coach programmed in load -> show student RPE
+    const studentRpes = unique(
+      sets
+        .map((set) => set?.rpe_rating ?? set?.rpeRating ?? set?.student_rpe ?? set?.rpe)
+        .filter((value) => value !== null && value !== undefined && normalize(value) !== '')
+        .map((value) => normalize(value))
+    );
 
-    const groups = [];
-    let i = 0;
-    while (i < sets.length) {
-      let j = i + 1;
-      while (j < sets.length && String(sets[j].reps ?? '?') === String(sets[i].reps ?? '?') && String(sets[j].weight ?? '') === String(sets[i].weight ?? '')) j++;
-      const w = sets[i].weight;
-      const weightLabel = (w != null && w !== '') ? `@${w}${showKg(w) ? 'kg' : ''}` : null;
-      groups.push({ scheme: `${j - i}x${sets[i].reps ?? '?'}`, weight: weightLabel });
-      i = j;
-    }
-    return { groups };
+    if (studentRpes.length === 0) return null;
+    return { studentLoadText: null, studentRpeText: `RPE ${studentRpes.join(', ')}` };
   };
 
   const handleDayClick = (day) => {
@@ -353,8 +354,36 @@ const StudentHistoryPage = () => {
         }}
       />
 
+      {/* Switch Planning / Périodisation */}
+      <div className="px-[20px] pt-[26px] pb-2 relative z-10">
+        <div className="w-full max-w-[320px] mb-3 mx-auto">
+          <div className="flex bg-[rgba(255,255,255,0.05)] border border-white/10 rounded-full p-1">
+            <button
+              onClick={() => setActiveView('planning')}
+              className={`flex-1 px-4 py-2 text-[13px] rounded-full transition-all duration-200 ${activeView === 'planning'
+                ? 'bg-[#e87c3e] text-white shadow-lg font-normal'
+                : 'text-white/50 hover:text-white font-light'
+                }`}
+            >
+              Planning
+            </button>
+            <button
+              onClick={() => setActiveView('periodization')}
+              className={`flex-1 px-4 py-2 text-[13px] rounded-full transition-all duration-200 ${activeView === 'periodization'
+                ? 'bg-[#e87c3e] text-white shadow-lg font-normal'
+                : 'text-white/50 hover:text-white font-light'
+                }`}
+            >
+              Périodisation
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {activeView === 'planning' ? (
+        <>
       {/* Header */}
-      <div className="px-[47px] pt-[40px] pb-[40px] relative z-10">
+      <div className="px-[47px] pt-[8px] pb-[40px] relative z-10">
         {/* Month title and navigation */}
         <div className="flex items-center justify-center gap-4 mb-1">
           <button
@@ -533,6 +562,7 @@ const StudentHistoryPage = () => {
                               {exercisesList.map((exercise, exIdx) => {
                                 const summary = getExerciseGroups(exercise);
                                 const isGrouped = summary && !summary.simple;
+                                const studentCompletionInputs = getStudentCompletionInputs(exercise);
                                 return (
                                   <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
@@ -550,7 +580,7 @@ const StudentHistoryPage = () => {
                                                 <div key={gi} className="text-[10px] text-white/75 font-normal">
                                                   {summary.groups.length > 1 && (
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="inline flex-shrink-0" style={{ width: '5px', height: '5px', fill: 'rgba(255,255,255,0.75)', marginRight: '3px', verticalAlign: 'middle' }}>
-                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                                     </svg>
                                                   )}
                                                   <span>{g.scheme}</span>
@@ -561,6 +591,8 @@ const StudentHistoryPage = () => {
                                               <div className="text-[10px] text-white/75 font-normal">
                                                 <span>{summary.scheme}</span>
                                                 {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                                {studentCompletionInputs?.studentRpeText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentRpeText}</span></>}
+                                                {studentCompletionInputs?.studentLoadText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentLoadText}</span></>}
                                               </div>
                                             )}
                                           </div>
@@ -569,7 +601,7 @@ const StudentHistoryPage = () => {
                                           <div className="text-[10px] text-white/50 font-normal mt-0.5">
                                             {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
                                             {exercise.tempo && exercise.per_side ? ' · ' : ''}
-                                            {exercise.per_side ? 'Charge par main' : ''}
+                                            {exercise.per_side ? 'Charge par côté' : ''}
                                           </div>
                                         )}
                                         {(exercise.coach_feedback || exercise.coachFeedback || exercise.notes) && (
@@ -579,9 +611,7 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                       </div>
-                                      {!isGrouped && (exercise.sets?.length || 0) > 0 && (
-                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{exercise.sets.length}</span>
-                                      )}
+                                      {/* Le schéma contient déjà le nombre de séries (donc on ne ré-affiche pas "x{exercise.sets.length}") */}
                                     </div>
                                   </div>
                                 );
@@ -675,6 +705,7 @@ const StudentHistoryPage = () => {
                               {exercisesList.map((exercise, exIdx) => {
                                 const summary = getExerciseGroups(exercise);
                                 const isGrouped = summary && !summary.simple;
+                                const studentCompletionInputs = getStudentCompletionInputs(exercise);
                                 return (
                                   <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
@@ -692,7 +723,7 @@ const StudentHistoryPage = () => {
                                                 <div key={gi} className="text-[10px] text-white/75 font-normal">
                                                   {summary.groups.length > 1 && (
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="inline flex-shrink-0" style={{ width: '5px', height: '5px', fill: 'rgba(255,255,255,0.75)', marginRight: '3px', verticalAlign: 'middle' }}>
-                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+                                                      <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                                     </svg>
                                                   )}
                                                   <span>{g.scheme}</span>
@@ -703,6 +734,8 @@ const StudentHistoryPage = () => {
                                               <div className="text-[10px] text-white/75 font-normal">
                                                 <span>{summary.scheme}</span>
                                                 {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                                {studentCompletionInputs?.studentRpeText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentRpeText}</span></>}
+                                                {studentCompletionInputs?.studentLoadText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentLoadText}</span></>}
                                               </div>
                                             )}
                                           </div>
@@ -711,7 +744,7 @@ const StudentHistoryPage = () => {
                                           <div className="text-[10px] text-white/50 font-normal mt-0.5">
                                             {exercise.tempo ? `Tempo : ${exercise.tempo}` : ''}
                                             {exercise.tempo && exercise.per_side ? ' · ' : ''}
-                                            {exercise.per_side ? 'Charge par main' : ''}
+                                            {exercise.per_side ? 'Charge par côté' : ''}
                                           </div>
                                         )}
                                         {(exercise.coach_feedback || exercise.coachFeedback || exercise.notes) && (
@@ -721,9 +754,7 @@ const StudentHistoryPage = () => {
                                           </div>
                                         )}
                                       </div>
-                                      {!isGrouped && (exercise.sets?.length || 0) > 0 && (
-                                        <span className="text-[11px] text-white/75 flex-shrink-0">x{exercise.sets.length}</span>
-                                      )}
+                                      {/* Le schéma contient déjà le nombre de séries (donc on ne ré-affiche pas "x{exercise.sets.length}") */}
                                     </div>
                                   </div>
                                 );
@@ -738,6 +769,12 @@ const StudentHistoryPage = () => {
               )}
             </div>
           )}
+        </div>
+      )}
+        </>
+      ) : (
+        <div className="relative z-10 px-[8px] pb-[95px]">
+          <PeriodizationTab studentId={user?.id} readOnly readOnlyWeekNotes={false} />
         </div>
       )}
     </div>

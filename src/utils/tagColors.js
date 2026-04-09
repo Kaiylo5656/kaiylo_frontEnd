@@ -105,6 +105,62 @@ export const getTagColorMap = (tags) => {
 };
 
 /**
+ * Prefer database colors from coach tag list; fill gaps with getTagColorMap hash logic.
+ * @param {Array<{ name?: string, color?: string }>} allTags - From GET /periodization/tags
+ * @returns {Map<string, string>} normalized name -> hex
+ */
+export const buildTagColorMapFromAllTags = (allTags) => {
+  const map = new Map();
+  const names = [];
+  (allTags || []).forEach((tag) => {
+    if (!tag?.name || typeof tag.name !== 'string') return;
+    names.push(tag.name);
+    const n = tag.name.toLowerCase().trim();
+    if (tag.color && typeof tag.color === 'string') {
+      map.set(n, tag.color);
+    }
+  });
+  const hashMap = getTagColorMap(names);
+  hashMap.forEach((hex, key) => {
+    if (!map.has(key)) {
+      map.set(key, hex);
+    }
+  });
+  return map;
+};
+
+/**
+ * Map for PeriodizationTab: coach tags + colors embedded on loaded blocks (e.g. student view).
+ * @param {Array<{ name?: string, color?: string }>} allTags
+ * @param {Array<object>} blocks - periodization blocks with optional tags[] and color
+ * @returns {Map<string, string>}
+ */
+export const buildPeriodizationTagColorMap = (allTags, blocks) => {
+  const map = buildTagColorMapFromAllTags(allTags);
+  (blocks || []).forEach((block) => {
+    if (!block?.tags?.length) return;
+    const pt = block.tags[0];
+    const nm = typeof pt === 'string' ? pt : pt?.name;
+    if (!nm || typeof nm !== 'string') return;
+    const key = nm.toLowerCase().trim();
+    if (map.has(key)) return;
+    if (typeof pt === 'object' && pt?.color) {
+      map.set(key, pt.color);
+    } else if (block.color) {
+      map.set(key, block.color);
+    }
+  });
+  return map;
+};
+
+/** Hash fallback for tag name (same palette as getTagColor). */
+export const getFallbackTagHexByName = (normalizedTagName) => {
+  if (!normalizedTagName) return NOTION_COLORS[0].hex;
+  const hash = hashString(normalizedTagName);
+  return NOTION_COLORS[hash % NOTION_COLORS.length].hex;
+};
+
+/**
  * Get tag color styles based on tag name or tag object
  * Priority: 1) tag.color (from database), 2) colorMap, 3) hash-based
  * @param {string|object} tag - The tag name (string) or tag object with .color property
