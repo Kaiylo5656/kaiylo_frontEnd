@@ -874,9 +874,14 @@ const StudentDashboard = () => {
                           <CardContent className="px-4 mx-5 flex-1 flex flex-col">
                             <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                               {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                                <div key={exIndex} className="flex justify-between items-center gap-4">
-                                  <p className="text-white font-light flex-1 min-w-0 max-w-[60%] break-words text-left leading-snug" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                                  <div className="flex-shrink-0 min-w-0 max-w-[40%] flex justify-end">
+                                <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
+                                  <p
+                                    className="text-white font-light min-w-0 flex-1 break-words text-left leading-snug"
+                                    style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}
+                                  >
+                                    {ex.name}
+                                  </p>
+                                  <div className="shrink-0 flex justify-end self-start pt-0.5">
                                     <ExerciseSummaryPreview exercise={ex} alignEnd />
                                   </div>
                                 </div>
@@ -943,9 +948,14 @@ const StudentDashboard = () => {
                         <CardContent className="px-4 mx-5 flex-1 flex flex-col">
                           <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
                             {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
-                              <div key={exIndex} className="flex justify-between items-center gap-4">
-                                <p className="text-white font-light flex-1 min-w-0 max-w-[60%] break-words text-left leading-snug" style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}>{ex.name}</p>
-                                <div className="flex-shrink-0 min-w-0 max-w-[40%] flex justify-end">
+                              <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
+                                <p
+                                  className="text-white font-light min-w-0 flex-1 break-words text-left leading-snug"
+                                  style={{ color: 'rgba(255, 255, 255, 1)', fontSize: '13px' }}
+                                >
+                                  {ex.name}
+                                </p>
+                                <div className="shrink-0 flex justify-end self-start pt-0.5">
                                   <ExerciseSummaryPreview exercise={ex} alignEnd />
                                 </div>
                               </div>

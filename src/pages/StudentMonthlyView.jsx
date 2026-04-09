@@ -211,6 +211,44 @@ const StudentMonthlyView = () => {
     return dayAssignments.some(a => a.status !== 'completed' && a.status !== 'skipped' && a.status !== 'failed');
   };
 
+  const getCompletedInputIndicators = (day) => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const dayAssignments = assignments.filter(
+      a => format(new Date(a.due_date || a.created_at), 'yyyy-MM-dd') === dayStr && a.status === 'completed'
+    );
+
+    let hasStudentLoadOnRpeProgramming = false;
+    let hasStudentRpeOnLoadProgramming = false;
+
+    dayAssignments.forEach((assignment) => {
+      const exercises = assignment?.workout_sessions?.exercises || assignment?.exercises || [];
+
+      exercises.forEach((exercise) => {
+        const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+        const isRpeProgramming = Boolean(exercise?.useRir);
+
+        if (isRpeProgramming) {
+          const hasStudentWeight = sets.some((set) => {
+            const studentWeight = set?.student_weight ?? set?.studentWeight;
+            return studentWeight !== null && studentWeight !== undefined && String(studentWeight).trim() !== '';
+          });
+          if (hasStudentWeight) hasStudentLoadOnRpeProgramming = true;
+        } else {
+          const hasStudentRpe = sets.some((set) => {
+            const rpeRating = set?.rpe_rating ?? set?.rpeRating ?? set?.student_rpe;
+            return rpeRating !== null && rpeRating !== undefined && String(rpeRating).trim() !== '';
+          });
+          if (hasStudentRpe) hasStudentRpeOnLoadProgramming = true;
+        }
+      });
+    });
+
+    return {
+      hasStudentLoadOnRpeProgramming,
+      hasStudentRpeOnLoadProgramming
+    };
+  };
+
   const handleDayClick = (day) => {
     if (day) {
       setSelectedDate(day);
@@ -420,12 +458,13 @@ const StudentMonthlyView = () => {
                   const dayHasAssignments = assignmentsForDay.length > 0;
                   const isToday = isSameDay(day, new Date());
                   const isSelected = isSameDay(day, selectedDate);
+                  const completedIndicators = getCompletedInputIndicators(day);
 
                   return (
                     <button
                       key={day.toISOString()}
                       onClick={() => handleDayClick(day)}
-                      className={`flex-1 flex flex-col gap-[15px] items-center px-0 py-[5px] min-w-0 h-[50px] transition-colors ${isSelected
+                      className={`flex-1 flex flex-col gap-[4px] items-center px-0 py-[5px] min-w-0 h-[62px] transition-colors ${isSelected
                         ? 'border-[0.5px] border-[rgba(255,255,255,0.05)] rounded-[7.5px]'
                         : 'hover:bg-white/5'
                         }`}
@@ -452,6 +491,26 @@ const StudentMonthlyView = () => {
                             />
                           ))
                         ) : null}
+                      </div>
+                      <div className="flex items-center justify-center gap-1 min-h-[12px]">
+                        {completedIndicators.hasStudentLoadOnRpeProgramming && (
+                          <span
+                            className="text-[8px] leading-none px-1 py-[1px] rounded-[3px] font-normal"
+                            style={{ backgroundColor: 'rgba(212, 132, 90, 0.2)', color: '#d4845a' }}
+                            title="Charge élève (séance programmée en RPE)"
+                          >
+                            Charge
+                          </span>
+                        )}
+                        {completedIndicators.hasStudentRpeOnLoadProgramming && (
+                          <span
+                            className="text-[8px] leading-none px-1 py-[1px] rounded-[3px] font-normal"
+                            style={{ backgroundColor: 'rgba(47, 160, 100, 0.2)', color: '#2fa064' }}
+                            title="RPE élève (séance programmée en charge)"
+                          >
+                            RPE
+                          </span>
+                        )}
                       </div>
                     </button>
                   );

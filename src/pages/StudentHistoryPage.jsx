@@ -200,6 +200,37 @@ const StudentHistoryPage = () => {
     return { simple: true, scheme: summary.scheme, weight: summary.weight };
   };
 
+  const getStudentCompletionInputs = (exercise) => {
+    const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+    const normalize = (value) => String(value).trim();
+    const unique = (values) => Array.from(new Set(values.filter(Boolean)));
+
+    // Coach programmed in RPE -> show student load
+    if (exercise?.useRir) {
+      const studentLoads = unique(
+        sets
+          .map((set) => set?.student_weight ?? set?.studentWeight)
+          .filter((value) => value !== null && value !== undefined && normalize(value) !== '')
+          .map((value) => normalize(value))
+      );
+
+      if (studentLoads.length === 0) return null;
+      const formattedLoads = studentLoads.map((value) => (/[a-zA-Z]/.test(value) ? value : `${value}kg`));
+      return { studentLoadText: `@${formattedLoads.join(', @')}`, studentRpeText: null };
+    }
+
+    // Coach programmed in load -> show student RPE
+    const studentRpes = unique(
+      sets
+        .map((set) => set?.rpe_rating ?? set?.rpeRating ?? set?.student_rpe ?? set?.rpe)
+        .filter((value) => value !== null && value !== undefined && normalize(value) !== '')
+        .map((value) => normalize(value))
+    );
+
+    if (studentRpes.length === 0) return null;
+    return { studentLoadText: null, studentRpeText: `RPE ${studentRpes.join(', ')}` };
+  };
+
   const handleDayClick = (day) => {
     if (day) {
       setSelectedDate(day);
@@ -531,6 +562,7 @@ const StudentHistoryPage = () => {
                               {exercisesList.map((exercise, exIdx) => {
                                 const summary = getExerciseGroups(exercise);
                                 const isGrouped = summary && !summary.simple;
+                                const studentCompletionInputs = getStudentCompletionInputs(exercise);
                                 return (
                                   <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
@@ -559,6 +591,8 @@ const StudentHistoryPage = () => {
                                               <div className="text-[10px] text-white/75 font-normal">
                                                 <span>{summary.scheme}</span>
                                                 {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                                {studentCompletionInputs?.studentRpeText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentRpeText}</span></>}
+                                                {studentCompletionInputs?.studentLoadText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentLoadText}</span></>}
                                               </div>
                                             )}
                                           </div>
@@ -671,6 +705,7 @@ const StudentHistoryPage = () => {
                               {exercisesList.map((exercise, exIdx) => {
                                 const summary = getExerciseGroups(exercise);
                                 const isGrouped = summary && !summary.simple;
+                                const studentCompletionInputs = getStudentCompletionInputs(exercise);
                                 return (
                                   <div key={exIdx} className="flex items-start gap-2 py-1">
                                     <div className="w-3 flex-shrink-0 relative self-stretch flex justify-center">
@@ -699,6 +734,8 @@ const StudentHistoryPage = () => {
                                               <div className="text-[10px] text-white/75 font-normal">
                                                 <span>{summary.scheme}</span>
                                                 {summary.weight && <><span> </span><span style={{ color: 'var(--kaiylo-primary-hex)', fontWeight: 400 }}>{summary.weight}</span></>}
+                                                {studentCompletionInputs?.studentRpeText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentRpeText}</span></>}
+                                                {studentCompletionInputs?.studentLoadText && <><span> </span><span style={{ color: '#2fa064', fontWeight: 500 }}>{studentCompletionInputs.studentLoadText}</span></>}
                                               </div>
                                             )}
                                           </div>

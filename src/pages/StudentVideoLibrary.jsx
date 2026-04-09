@@ -42,7 +42,7 @@ const StudentVideoLibrary = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [exerciseFilter, setExerciseFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoDetailModalOpen, setIsVideoDetailModalOpen] = useState(false);
   const [openSessions, setOpenSessions] = useState({}); // Track which sessions are open
@@ -50,6 +50,7 @@ const StudentVideoLibrary = () => {
   // Dropdown states
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [isExerciseDropdownOpen, setIsExerciseDropdownOpen] = useState(false);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
 
   // Tab state
@@ -81,16 +82,17 @@ const StudentVideoLibrary = () => {
       if (!event.target.closest('.relative.flex-1')) {
         setIsStatusDropdownOpen(false);
         setIsExerciseDropdownOpen(false);
+        setIsTagDropdownOpen(false);
       }
     };
 
-    if (isStatusDropdownOpen || isExerciseDropdownOpen) {
+    if (isStatusDropdownOpen || isExerciseDropdownOpen || isTagDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isStatusDropdownOpen, isExerciseDropdownOpen]);
+  }, [isStatusDropdownOpen, isExerciseDropdownOpen, isTagDropdownOpen]);
 
   const fetchStudentVideos = async () => {
     setLoading(true);
@@ -169,10 +171,13 @@ const StudentVideoLibrary = () => {
       // Exercise filter
       if (exerciseFilter && !video.exercise_name.toLowerCase().includes(exerciseFilter.toLowerCase())) return false;
 
-      // Date filter
-      if (dateFilter) {
-        const videoDate = format(new Date(video.created_at), 'yyyy-MM-dd');
-        if (videoDate !== dateFilter) return false;
+      // Tag filter
+      if (tagFilter) {
+        const videoTags = getVideoTags(video);
+        const hasSelectedTag = videoTags.some(
+          tag => tag.toLowerCase().trim() === tagFilter.toLowerCase().trim()
+        );
+        if (!hasSelectedTag) return false;
       }
 
       return true;
@@ -195,6 +200,38 @@ const StudentVideoLibrary = () => {
     return exercises.filter(exercise =>
       exercise.toLowerCase().includes(searchLower)
     );
+  };
+
+  const getVideoTags = (video) => {
+    const directTags =
+      video.tags ||
+      video.exercise_tags ||
+      video.exerciseTags ||
+      video.assignment_exercise_tags ||
+      [];
+
+    if (Array.isArray(directTags) && directTags.length > 0) {
+      return directTags
+        .map(tag => (typeof tag === 'string' ? tag : tag?.name || ''))
+        .filter(Boolean);
+    }
+
+    const assignmentExercises = video.assignment?.workout_session?.exercises || [];
+    const assignmentExercise = assignmentExercises.find(
+      exercise => exercise?.name === video.exercise_name
+    );
+
+    return (assignmentExercise?.tags || [])
+      .map(tag => (typeof tag === 'string' ? tag : tag?.name || ''))
+      .filter(Boolean);
+  };
+
+  const getUniqueTags = () => {
+    const tagsSet = new Set();
+    videos.forEach(video => {
+      getVideoTags(video).forEach(tag => tagsSet.add(tag));
+    });
+    return Array.from(tagsSet).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   };
 
   // Group videos by workout session (using useMemo for performance)
@@ -228,7 +265,7 @@ const StudentVideoLibrary = () => {
       const dateB = new Date(b.sessionDate).getTime();
       return dateB - dateA;
     });
-  }, [videos, searchTerm, statusFilter, exerciseFilter, dateFilter]);
+  }, [videos, searchTerm, statusFilter, exerciseFilter, tagFilter]);
 
   // Toggle session open/closed
   const toggleSession = (sessionId) => {
@@ -521,6 +558,7 @@ const StudentVideoLibrary = () => {
                   onClick={() => {
                     setIsStatusDropdownOpen(!isStatusDropdownOpen);
                     setIsExerciseDropdownOpen(false);
+                    setIsTagDropdownOpen(false);
                   }}
                   className={`appearance-none ${statusFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${statusFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
                 >
@@ -576,6 +614,7 @@ const StudentVideoLibrary = () => {
                   onClick={() => {
                     setIsExerciseDropdownOpen(!isExerciseDropdownOpen);
                     setIsStatusDropdownOpen(false);
+                    setIsTagDropdownOpen(false);
                   }}
                   className={`appearance-none ${exerciseFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${exerciseFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
                 >
@@ -648,25 +687,61 @@ const StudentVideoLibrary = () => {
                 )}
               </div>
 
-              {/* Date Filter */}
+              {/* Tag Filter */}
               <div className="relative flex-1 min-w-0">
-                <input
-                  type="date"
-                  id="date-filter"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                />
                 <button
                   type="button"
-                  onClick={() => document.getElementById('date-filter')?.showPicker?.() || document.getElementById('date-filter')?.click()}
-                  className={`appearance-none ${dateFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
+                  onClick={() => {
+                    setIsTagDropdownOpen(!isTagDropdownOpen);
+                    setIsStatusDropdownOpen(false);
+                    setIsExerciseDropdownOpen(false);
+                  }}
+                  className={`appearance-none ${tagFilter ? 'bg-[rgba(232,124,62,0.15)]' : 'bg-[rgba(255,255,255,0.1)]'} rounded-[15px] px-3 py-2 pr-3 ${tagFilter ? 'text-[#D4845A]' : 'text-white/50'} text-xs sm:text-[13px] font-normal focus:outline-none w-full text-left flex items-center justify-between h-[36px]`}
                 >
-                  <span>{dateFilter ? format(new Date(dateFilter), 'dd/MM/yyyy', { locale: fr }) : 'Date'}</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className={`h-4 w-4 ${dateFilter ? 'text-[#D4845A]' : 'text-white/50'} pointer-events-none`} fill="currentColor" aria-hidden="true">
-                    <path d="M224 64C206.3 64 192 78.3 192 96L192 128L160 128C124.7 128 96 156.7 96 192L96 240L544 240L544 192C544 156.7 515.3 128 480 128L448 128L448 96C448 78.3 433.7 64 416 64C398.3 64 384 78.3 384 96L384 128L256 128L256 96C256 78.3 241.7 64 224 64zM96 288L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 288L96 288z" />
-                  </svg>
+                  <span className="truncate">{tagFilter || 'Tags'}</span>
+                  <ChevronDownIcon className={`h-3 w-3 flex-shrink-0 ml-2 ${tagFilter ? 'text-[#D4845A]' : 'text-gray-400'} pointer-events-none transition-transform ${isTagDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
+                {isTagDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setIsTagDropdownOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-[rgba(26,26,26,0.95)] backdrop-blur-md border border-white/10 rounded-[15px] overflow-hidden shadow-xl max-h-60">
+                      <div className="overflow-y-auto max-h-48 exercise-dropdown-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTagFilter('');
+                            setIsTagDropdownOpen(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${tagFilter === '' ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                        >
+                          Tags
+                        </button>
+                        {getUniqueTags().length > 0 ? (
+                          getUniqueTags().map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                setTagFilter(tag);
+                                setIsTagDropdownOpen(false);
+                              }}
+                              className={`w-full px-3 py-2 text-left text-[13px] font-normal transition-colors hover:bg-white/5 ${tagFilter === tag ? 'text-[#D4845A] bg-white/5' : 'text-white/50'}`}
+                            >
+                              {tag}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-[13px] text-white/30 text-center">
+                            Aucun tag trouvé
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -861,7 +936,7 @@ const StudentVideoLibrary = () => {
                   Aucune vidéo trouvée
                 </h3>
                 <p className="text-sm font-light" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
-                  {searchTerm || statusFilter || exerciseFilter || dateFilter
+                  {searchTerm || statusFilter || exerciseFilter || tagFilter
                     ? 'Aucune vidéo ne correspond à vos critères de recherche.'
                     : 'Vous n\'avez pas encore envoyé de vidéos à votre coach.'}
                 </p>

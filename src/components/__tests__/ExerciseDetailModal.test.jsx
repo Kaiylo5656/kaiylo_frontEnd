@@ -7,15 +7,6 @@ import axios from 'axios';
 // Mock axios
 vi.mock('axios');
 
-// Mock VideoPlayer component
-vi.mock('../VideoPlayer', () => ({
-  default: ({ src, className }) => (
-    <div data-testid="video-player" className={className}>
-      Video: {src}
-    </div>
-  )
-}));
-
 const mockExercise = {
   id: '1',
   title: 'Push Ups',
@@ -89,7 +80,7 @@ describe('ExerciseDetailModal', () => {
     });
   });
 
-  it('shows video player when demoVideoURL is present', async () => {
+  it('shows video preview when demoVideoURL is present', async () => {
     axios.get.mockResolvedValue({
       data: { success: true, exercise: mockExercise }
     });
@@ -103,7 +94,9 @@ describe('ExerciseDetailModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      const video = screen.getByRole('video');
+      expect(video).toHaveAttribute('src', mockExercise.demoVideoURL);
+      expect(screen.getByText('Aperçu')).toBeInTheDocument();
     });
   });
 

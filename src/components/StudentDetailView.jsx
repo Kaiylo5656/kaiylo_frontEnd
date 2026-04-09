@@ -29,6 +29,7 @@ import { getTagColor, getTagColorMap, hexToRgba } from '../utils/tagColors';
 import {
   computePerformanceAggregation,
   resolvePerformancePeriodBounds,
+  formatPerformancePeriodPreferenceLabel,
   metricOptions,
   getMovementIdFromExerciseName,
   movementOptions
@@ -55,6 +56,39 @@ function formatMetricValue(metricId, value) {
 function toDisplayNum(v) {
   return (v != null && v !== '') ? v : 0;
 }
+function toSeriesLabel(v) {
+  const n = Number(toDisplayNum(v));
+  return n <= 1 ? '1 série' : `${n} séries`;
+}
+
+function getExerciseRepType(exercise) {
+  const s = exercise?.sets?.[0];
+  return s?.repType || s?.rep_type || 'reps';
+}
+
+/** Hold numérique → « 122s » ; formats déjà littéraux (ex. MM:SS) inchangés. */
+function formatHoldRepsSegmentForCard(repsRaw) {
+  const v = repsRaw != null && repsRaw !== '' ? String(repsRaw) : '0';
+  if (v !== '0' && /[0-9]/.test(v) && !/[a-zA-Z]/.test(v)) return `${v}s`;
+  return v;
+}
+
+/**
+ * Segment séries × reps sur les cartes planning (vue coach) : aligné sur repType (hold → suffixe s).
+ */
+function formatExerciseCardRepsSegment(row, exercise) {
+  const c = toDisplayNum(row.count);
+  const r = toDisplayNum(row.reps);
+  const repType = getExerciseRepType(exercise);
+  if (row.repsOnly) {
+    if (repType === 'hold') return `${c}x${formatHoldRepsSegmentForCard(row.reps)}`;
+    if (repType === 'amrap') return `${c}x${r}`;
+    return `${c}x${r} reps`;
+  }
+  if (repType === 'hold') return `${c}×${formatHoldRepsSegmentForCard(row.reps)}`;
+  if (repType === 'amrap') return `${c}×${r}`;
+  return `${c}×${r}`;
+}
 import StudentSidebar from './StudentSidebar';
 import {
   DropdownMenu,
@@ -66,10 +100,21 @@ import {
 
 /** Lignes pour la carte séance : nom de l'exercice en premier, puis ses séries en dessous (ex. Traction, 2×5@5kg, 2×5@2.5kg). */
 function getExerciseCardRows(exercise, setsColor = null) {
+  const visibility = exercise?.tableColumnVisibility ?? exercise?.table_column_visibility ?? {};
+  const repsHoldVisible = (visibility.repsHold ?? visibility.reps_hold) !== false;
+  const chargeRpeVisible = (visibility.chargeRpe ?? visibility.charge_rpe) !== false;
+  const repsOnly = repsHoldVisible && !chargeRpeVisible;
+  const chargeOnly = chargeRpeVisible && !repsHoldVisible;
+  const prescriptionHidden = !repsHoldVisible && !chargeRpeVisible;
+
   const groups = getSetGroups(exercise.sets, exercise.useRir);
   if (groups.length === 0) return [{ type: 'name', name: exercise.name }];
   const rows = [{ type: 'name', name: exercise.name }];
-  for (let i = 0; i < groups.length; i++) rows.push({ type: 'sets', ...groups[i], setsColor });
+  if (prescriptionHidden) {
+    rows.push({ type: 'seriesOnly', count: exercise.sets.length, setsColor });
+    return rows;
+  }
+  for (let i = 0; i < groups.length; i++) rows.push({ type: 'sets', ...groups[i], setsColor, chargeOnly, repsOnly });
   return rows;
 }
 
@@ -170,9 +215,14 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [performanceInitialMovementIds, setPerformanceInitialMovementIds] = useState([]);
   const [performanceActiveCardIndex, setPerformanceActiveCardIndex] = useState(0);
 
-  const openPerformanceAnalysis = (movementId, index) => {
+  const openPerformanceAnalysis = (movementIdsOrId, index) => {
     setPerformanceActiveCardIndex(index);
-    setPerformanceInitialMovementIds(movementId ? [movementId] : []);
+    const ids = Array.isArray(movementIdsOrId)
+      ? movementIdsOrId.filter(Boolean)
+      : movementIdsOrId
+        ? [movementIdsOrId]
+        : [];
+    setPerformanceInitialMovementIds(ids);
     setIsPerformanceAnalysisModalOpen(true);
   };
 
@@ -216,12 +266,41 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   }, [performanceAnalysisRemoteBySlot, performanceAnalysisPrefsTick]);
 
   const dashboardMovementStats = useMemo(() => {
+    const labelByMovementIdFromSessions = new Map();
+    if (workoutSessions && typeof workoutSessions === 'object') {
+      Object.values(workoutSessions).forEach((sessions) => {
+        (sessions || []).forEach((session) => {
+          (session?.exercises || []).forEach((ex) => {
+            const mid = getMovementIdFromExerciseName(ex?.name);
+            if (mid && !labelByMovementIdFromSessions.has(mid)) {
+              const name = String(ex?.name || '').trim();
+              if (name) labelByMovementIdFromSessions.set(mid, name);
+            }
+          });
+        });
+      });
+    }
+
+    const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization', 'time_under_tension']);
+
+    const aggregateMetricAcrossMovements = (agg, bucketKey, metricId, movementIdsList) => {
+      if (!agg || !movementIdsList?.length) return null;
+      const parts = [];
+      movementIdsList.forEach((mid) => {
+        const v = agg.metricsByBucketMovement?.[bucketKey]?.[mid]?.[metricId];
+        if (v !== null && v !== undefined && Number.isFinite(Number(v))) parts.push(Number(v));
+      });
+      if (!parts.length) return null;
+      if (sumMetricIds.has(metricId)) return parts.reduce((a, b) => a + b, 0);
+      return parts.reduce((a, b) => a + b, 0) / parts.length;
+    };
+
     return dashboardPrefs.map((pref) => {
       if (!pref || !pref.selectedMovementIds || pref.selectedMovementIds.length === 0) {
         return null;
       }
-      
-      const singleMovementId = pref.selectedMovementIds[0];
+
+      const selectedMovementIds = pref.selectedMovementIds.filter(Boolean);
 
       const selectedBlockNumbersForPref =
         Array.isArray(pref.selectedBlockNumbers) && pref.selectedBlockNumbers.length
@@ -233,8 +312,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const agg = computePerformanceAggregation({
         workoutSessions,
         blocks,
-        oneRmRecords: studentData?.one_rm_records || [],
-        selectedMovementIds: [singleMovementId],
+        // Aligné sur PerformanceAnalysisModal : 1RM depuis oneRepMaxes (pas one_rm_records, souvent absent)
+        oneRmRecords: studentData?.oneRepMaxes || [],
+        selectedMovementIds,
         selectedMetricIds: pref.selectedMetricIds || ['tonnage', 'reps'],
         groupBy: pref.groupBy || 'bloc',
         periodType: pref.periodType || 'block',
@@ -252,8 +332,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         workoutSessions,
       });
 
-      let periodLabel = '';
-      if (bounds?.periodStart && bounds?.periodEnd) {
+      const periodLabelSemantic = formatPerformancePeriodPreferenceLabel({
+        periodType: pref.periodType || 'block',
+        lastMonths: pref.lastMonths ?? 3,
+        specificMonthValue: pref.specificMonthValue || '',
+        selectedBlockNumbers: selectedBlockNumbersForPref,
+        selectedBlockNumber: pref.selectedBlockNumber,
+        blocks,
+      });
+
+      let periodLabel = periodLabelSemantic;
+      if (!periodLabel && bounds?.periodStart && bounds?.periodEnd) {
         try {
           const start = format(bounds.periodStart, 'd MMM', { locale: fr });
           const end = format(bounds.periodEnd, 'd MMM yyyy', { locale: fr });
@@ -262,15 +351,22 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       }
 
       const metricIds = (pref.selectedMetricIds || []).slice(0, 2);
-      const sumMetricIds = new Set(['tonnage', 'reps', 'series', 'failed_series', 'utilization']);
 
-      const metrics = metricIds.map(metricId => {
+      const exerciseLabels = selectedMovementIds.map((id) => {
+        const fromCatalog = movementOptions.find((o) => o.id === id)?.label;
+        if (fromCatalog) return String(fromCatalog).replace(/-/g, ' ');
+        const fromSession = labelByMovementIdFromSessions.get(id);
+        if (fromSession) return fromSession;
+        return String(id.replace(/^exercise:/, '')).replace(/-/g, ' ');
+      });
+
+      const metrics = metricIds.map((metricId) => {
         let firstBucketVal = null;
         let lastBucketVal = null;
         const values = [];
 
-        agg.buckets.forEach(b => {
-          const v = agg.metricsByBucketMovement?.[b.key]?.[singleMovementId]?.[metricId];
+        agg.buckets.forEach((b) => {
+          const v = aggregateMetricAcrossMovements(agg, b.key, metricId, selectedMovementIds);
           if (v !== null && v !== undefined && Number.isFinite(Number(v))) {
             values.push(Number(v));
             if (firstBucketVal === null) firstBucketVal = Number(v);
@@ -293,9 +389,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         return { id: metricId, value: totalValue, evolution };
       });
 
-      return { movementId: singleMovementId, periodLabel, metrics };
+      const primaryMovementId = selectedMovementIds[0];
+
+      return {
+        movementId: primaryMovementId,
+        selectedMovementIds,
+        exerciseLabels,
+        periodLabel,
+        metrics,
+      };
     });
-  }, [dashboardPrefs, workoutSessions, blocks, studentData?.one_rm_records]);
+  }, [dashboardPrefs, workoutSessions, blocks, studentData?.oneRepMaxes]);
 
   // Refs pour le scroll horizontal des séances multiples par jour (comme vue entrainement)
   const dayScrollRefs = useRef({});
@@ -4076,18 +4180,25 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                           return (
                             <React.Fragment key={index}>
                               {rows.map((row, ri) =>
-                                row.type === 'sets' ? (
+                                row.type === 'seriesOnly' ? (
                                   <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px] shrink-0">
                                     {SET_LINE_ICON}
                                     <span className={`${row.setsColor || ''} ${(row.setsColor === 'text-[#2FA064]' || row.setsColor === 'text-red-500') ? 'font-normal' : ''}`}>
-                                      {toDisplayNum(row.count)}×{toDisplayNum(row.reps)}
+                                      {toSeriesLabel(row.count)}
+                                    </span>
+                                  </div>
+                                ) : row.type === 'sets' ? (
+                                  <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px] shrink-0">
+                                    {SET_LINE_ICON}
+                                    <span className={`${row.setsColor || ''} ${(row.setsColor === 'text-[#2FA064]' || row.setsColor === 'text-red-500') ? 'font-normal' : ''}`}>
+                                      {row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}
                                     </span>
                                     {' '}
-                                    {exercise.useRir ? (
+                                    {!row.repsOnly && (exercise.useRir ? (
                                       <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                     ) : (
                                       <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                    )}
+                                    ))}
                                   </div>
                                 ) : (
                                   <div key={ri} className="text-[11px] text-white font-extralight shrink-0 flex flex-col gap-0 min-w-0">
@@ -4287,16 +4398,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       {copiedSession.session.exercises?.slice(0, 3).map((exercise, index) => (
                         <React.Fragment key={index}>
                           {getExerciseCardRows(exercise, null).map((row, ri) =>
-                            row.type === 'sets' ? (
+                            row.type === 'seriesOnly' ? (
                               <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px]">
                                 {SET_LINE_ICON}
-                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                              </div>
+                            ) : row.type === 'sets' ? (
+                              <div key={ri} className="text-[11px] text-white truncate font-extralight flex items-center gap-[3px]">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                 {' '}
-                                {exercise.useRir ? (
+                                {!row.repsOnly && (exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
                                   <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                )}
+                                ))}
                               </div>
                             ) : (
                               <div key={ri} className="text-[11px] text-white font-extralight flex flex-col gap-0 min-w-0">
@@ -4553,16 +4669,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       {copiedSession.session.exercises?.slice(0, 2).map((exercise, index) => (
                         <React.Fragment key={index}>
                           {getExerciseCardRows(exercise, null).map((row, ri) =>
-                            row.type === 'sets' ? (
+                            row.type === 'seriesOnly' ? (
                               <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
                                 {SET_LINE_ICON}
-                                <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                              </div>
+                            ) : row.type === 'sets' ? (
+                              <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                {SET_LINE_ICON}
+                                <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                 {' '}
-                                {exercise.useRir ? (
+                                {!row.repsOnly && (exercise.useRir ? (
                                   <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                 ) : (
                                   <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                )}
+                                ))}
                               </div>
                             ) : (
                               <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">
@@ -4880,20 +5001,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                         Entraînement
                       </button>
                       <button
-                        className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
-                        data-text="Périodisation"
-                        style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
-                        onClick={() => handleTabChange('periodization')}
-                      >
-                        Périodisation
-                      </button>
-                      <button
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'analyse' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
                         data-text="Analyse vidéo"
                         style={activeTab !== 'analyse' ? { fontWeight: 200 } : {}}
                         onClick={() => handleTabChange('analyse')}
                       >
                         Analyse vidéo
+                      </button>
+                      <button
+                        className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'periodization' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
+                        data-text="Périodisation"
+                        style={activeTab !== 'periodization' ? { fontWeight: 200 } : {}}
+                        onClick={() => handleTabChange('periodization')}
+                      >
+                        Périodisation
                       </button>
                       <button
                         className={`tab-button-fixed-width pt-3 pb-2 text-sm border-b-2 ${activeTab === 'suivi' ? 'font-normal text-[#d4845a] border-[#d4845a]' : 'text-white/50 hover:text-[#d4845a] hover:!font-normal border-transparent'}`}
@@ -5571,26 +5692,44 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                             );
                           }
 
-                          const mLabel = movementOptions.find(o => o.id === stat.movementId)?.label || stat.movementId.replace('exercise:', '');
                           const primary = stat.metrics[0];
                           const hasNoData = stat.metrics.every(m => m.value === null);
+                          const titleLine = (stat.exerciseLabels && stat.exerciseLabels.length
+                            ? stat.exerciseLabels
+                            : [movementOptions.find(o => o.id === stat.movementId)?.label || stat.movementId.replace('exercise:', '')]
+                          ).map((s) => String(s).replace(/-/g, ' '));
                           
                           return (
                             <button
-                              key={stat.movementId + '-' + i}
+                              key={(stat.selectedMovementIds || [stat.movementId]).join('-') + '-' + i}
                               type="button"
                               className="bg-[rgba(0,0,0,0.5)] rounded-2xl p-3 text-left cursor-pointer transition-colors duration-200 hover:bg-[rgba(255,255,255,0.08)] flex flex-col min-h-[140px] group relative overflow-hidden focus:outline-none focus:ring-0"
-                              onClick={() => openPerformanceAnalysis(stat.movementId, i)}
+                              onClick={() => openPerformanceAnalysis(stat.selectedMovementIds || [stat.movementId], i)}
                             >
                               <div className="flex items-center justify-between gap-3 w-full mb-3 relative z-10">
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-[14px] text-[#d4845a] font-medium mb-1 ml-1 truncate capitalize transition-colors group-hover:text-[#e29a76]">{mLabel.replace(/-/g, ' ')}</div>
+                                  <div className="flex items-start gap-2 mb-1 ml-1 text-[#d4845a] transition-colors group-hover:text-[#e29a76]">
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 640 512"
+                                      className="h-4 w-4 shrink-0 mt-0.5 fill-current"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M96 112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 112 256 0 0-112c0-26.5 21.5-48 48-48s48 21.5 48 48l0 16 16 0c26.5 0 48 21.5 48 48l0 48c17.7 0 32 14.3 32 32s-14.3 32-32 32l0 48c0 26.5-21.5 48-48 48l-16 0 0 16c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-112-256 0 0 112c0 26.5-21.5 48-48 48s-48-21.5-48-48l0-16-16 0c-26.5 0-48-21.5-48-48l0-48c-17.7 0-32-14.3-32-32s14.3-32 32-32l0-48c0-26.5 21.5-48 48-48l16 0 0-16z" />
+                                    </svg>
+                                    <div
+                                      className="text-[14px] font-medium leading-snug capitalize break-words flex-1 min-w-0"
+                                      title={titleLine.join(' · ')}
+                                    >
+                                      {titleLine.join(' · ')}
+                                    </div>
+                                  </div>
                                   {stat.periodLabel && (
-                                    <div className="flex items-center gap-1 text-[10px] text-white/50 font-normal ml-1 truncate">
-                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-2.5 w-2.5 shrink-0 fill-current" aria-hidden="true">
+                                    <div className="flex items-start gap-1 text-[10px] text-white/50 font-normal ml-1 min-w-0">
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-2.5 w-2.5 shrink-0 fill-current mt-0.5" aria-hidden="true">
                                         <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z" />
                                       </svg>
-                                      <span className="truncate text-xs font-light text-white/50">{stat.periodLabel}</span>
+                                      <span className="text-xs font-light text-white/50 leading-snug break-words" title={stat.periodLabel}>{stat.periodLabel}</span>
                                     </div>
                                   )}
                                 </div>
@@ -7077,16 +7216,21 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                                                         {copiedSession.session.exercises.slice(0, 2).map((exercise, index) => (
                                                           <React.Fragment key={index}>
                                                             {getExerciseCardRows(exercise, null).map((row, ri) =>
-                                                              row.type === 'sets' ? (
+                                                              row.type === 'seriesOnly' ? (
                                                                 <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
                                                                   {SET_LINE_ICON}
-                                                                  <span className="font-normal text-white/75">{toDisplayNum(row.count)}×{toDisplayNum(row.reps)}</span>
+                                                                  <span className="font-normal text-white/75">{toSeriesLabel(row.count)}</span>
+                                                                </div>
+                                                              ) : row.type === 'sets' ? (
+                                                                <div key={ri} className="text-[10px] text-white truncate font-extralight flex items-center gap-1.5">
+                                                                  {SET_LINE_ICON}
+                                                                  <span className="font-normal text-white/75">{row.chargeOnly ? toSeriesLabel(row.count) : formatExerciseCardRepsSegment(row, exercise)}</span>
                                                                   {' '}
-                                                                  {exercise.useRir ? (
+                                                                  {!row.repsOnly && (exercise.useRir ? (
                                                                     <span className="text-[#d4845a] font-normal">RPE {toDisplayNum(row.weight)}</span>
                                                                   ) : (
                                                                     <span className="text-[#d4845a] font-normal">@{toDisplayNum(row.weight)}{!/[a-zA-Z]/.test(String(row.weight || '')) ? 'kg' : ''}</span>
-                                                                  )}
+                                                                  ))}
                                                                 </div>
                                                               ) : (
                                                                 <div key={ri} className="text-[10px] text-white font-extralight flex flex-col gap-0 min-w-0">

@@ -1,9 +1,7 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
-import { Play } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
 import axios from 'axios';
-import VideoPlayer from './VideoPlayer';
 import ExerciseHistory from './ExerciseHistory';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
@@ -115,25 +113,25 @@ const ExerciseDetailModal = ({
       closeOnEsc={isTopMost}
       closeOnBackdrop={isTopMost}
       size="lg"
-      className="max-w-xl"
+      className="!w-full md:!w-[448px] !max-w-full md:!max-w-[448px] !min-w-0 md:!min-w-[448px]"
       title=""
       footer={createFooter()}
       noPadding={true}
       borderRadius="16px"
     >
           {loading ? (
-            <div className="px-6 py-6 space-y-4">
+            <div className="px-4 md:px-6 py-4 md:py-6 space-y-4">
               <div className="h-4 bg-white/10 rounded animate-pulse" />
               <div className="h-4 bg-white/10 rounded animate-pulse w-3/4" />
               <div className="h-4 bg-white/10 rounded animate-pulse w-1/2" />
             </div>
           ) : error ? (
-            <div className="px-6 py-8 text-center">
+            <div className="px-4 md:px-6 py-8 text-center">
               <div className="text-red-400 mb-2">Error loading exercise</div>
               <div className="text-white/60 text-sm">{error}</div>
             </div>
           ) : isDeleted ? (
-            <div className="px-6 py-8 text-center">
+            <div className="px-4 md:px-6 py-8 text-center">
               <div className="text-red-400 mb-2">Exercise not found</div>
               <div className="text-white/60 text-sm">This exercise may have been deleted.</div>
               <button
@@ -146,7 +144,7 @@ const ExerciseDetailModal = ({
           ) : exercise ? (
             <>
               {/* Custom Header matching BaseModal style */}
-              <div className="shrink-0 px-6 pt-6 pb-0 flex items-center justify-between">
+              <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-0 flex items-center justify-between">
                 <div className="flex-1 flex items-center gap-2">
                   <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                     {exercise.title}
@@ -202,14 +200,14 @@ const ExerciseDetailModal = ({
               </div>
               {/* Created Date */}
               {exercise.created_at && (
-                <div className="text-xs font-light text-white/50 px-6 pt-1 pb-3">
+                <div className="text-xs font-light text-white/50 px-4 md:px-6 pt-1 pb-3">
                   Créé {formatRelative(exercise.created_at)}
                 </div>
               )}
               {/* Border line */}
-              <div className="border-b border-white/10 mx-6"></div>
+              <div className="border-b border-white/10 mx-4 md:mx-6"></div>
               
-              <div className="px-6 py-6 space-y-6">
+              <div className="px-4 md:px-6 py-4 md:py-6 space-y-5">
               
               {/* Instructions */}
               <div>
@@ -252,27 +250,45 @@ const ExerciseDetailModal = ({
                 </div>
               </div>
 
-              {/* Demo vidéo ou image */}
+              {/* Demo vidéo ou image — même présentation que AddExerciseModal (aperçu) */}
               {exercise.demoVideoURL && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Play className="h-4 w-4 text-white/60" />
-                    <h3 className="text-lg font-medium text-white">
-                      {(/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(exercise.demoVideoURL) || (exercise.demoVideoURL.includes('/files/') && !exercise.demoVideoURL.includes('/videos/'))) ? 'Image démo' : 'Vidéo démo'}
-                    </h3>
-                  </div>
-                  <div className="bg-black/50 rounded-lg overflow-hidden border border-white/10 max-h-[60vh] sm:max-h-[70vh] w-full">
+                <div className="space-y-2">
+                  <label
+                    className="block text-sm font-extralight text-white/50"
+                    style={{ boxSizing: 'content-box' }}
+                  >
+                    {(/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(exercise.demoVideoURL) || (exercise.demoVideoURL.includes('/files/') && !exercise.demoVideoURL.includes('/videos/'))) ? 'Image démo' : 'Vidéo démo'}
+                  </label>
+                  <div className="rounded-[10px] border-[0.5px] border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.5)] p-3 max-w-full">
+                    <div className="flex items-center gap-2 max-w-full overflow-hidden mb-3">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 576 512"
+                        className="h-4 w-4 shrink-0 text-[#d4845a]"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
+                      </svg>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-light text-white/50">Aperçu</p>
+                      </div>
+                    </div>
                     {(/\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(exercise.demoVideoURL) || (exercise.demoVideoURL.includes('/files/') && !exercise.demoVideoURL.includes('/videos/'))) ? (
                       <img
                         src={exercise.demoVideoURL}
-                        alt="Démonstration de l'exercice"
-                        className="w-full h-full object-contain max-h-[60vh] sm:max-h-[70vh]"
+                        alt="Aperçu"
+                        className="w-full max-h-64 object-contain rounded-[8px] bg-black"
                       />
                     ) : (
-                      <VideoPlayer
+                      <video
                         src={exercise.demoVideoURL}
-                        className="w-full h-full object-contain"
-                      />
+                        controls
+                        playsInline
+                        className="w-full max-h-64 rounded-[8px] bg-black"
+                      >
+                        Votre navigateur ne supporte pas la balise vidéo.
+                      </video>
                     )}
                   </div>
                 </div>

@@ -409,6 +409,91 @@ export function resolvePerformancePeriodBounds({
   return { periodStart, periodEnd };
 }
 
+/**
+ * Libellé court de la période (aligné sur PerformanceAnalysisModal) pour affichage dashboard / cartes.
+ */
+function buildBlockPeriodOptionsForLabel(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  const multiWeekSorted = [...list]
+    .filter((b) => Number(b?.duration) > 1)
+    .sort((a, b) => {
+      const dateDiff = new Date(a.start_week_date) - new Date(b.start_week_date);
+      if (dateDiff !== 0) return dateDiff;
+      if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  return multiWeekSorted.map((b, idx) => {
+    const number = idx + 1;
+    const title = String(b?.name || b?.block_name || '').trim();
+    return { number, title };
+  });
+}
+
+export function formatPerformancePeriodPreferenceLabel({
+  periodType,
+  lastMonths,
+  specificMonthValue,
+  selectedBlockNumbers,
+  selectedBlockNumber,
+  blocks,
+}) {
+  if (periodType === 'lastWeek') {
+    return 'Les 7 derniers jours';
+  }
+
+  const pt = periodType;
+
+  if (pt === 'allTime') {
+    return 'Depuis le début';
+  }
+
+  if (pt === 'lastMonths') {
+    const m = Math.max(1, Number(lastMonths) || 3);
+    return m === 1 ? 'Le dernier mois' : `Les ${m} derniers mois`;
+  }
+
+  if (pt === 'specificMonth' && specificMonthValue) {
+    try {
+      const d = new Date(`${specificMonthValue}-01T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        const monthName = format(d, 'MMMM yyyy', { locale: fr });
+        return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (pt === 'block') {
+    const blockOptions = buildBlockPeriodOptionsForLabel(blocks);
+    const numsRaw =
+      Array.isArray(selectedBlockNumbers) && selectedBlockNumbers.length
+        ? selectedBlockNumbers
+        : selectedBlockNumber != null
+          ? [selectedBlockNumber]
+          : [];
+    const nums = [...numsRaw]
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n) && n >= 1)
+      .sort((a, b) => a - b);
+
+    const opts = nums.map((n) => blockOptions.find((o) => o.number === n)).filter(Boolean);
+    if (opts.length === 1) {
+      const o = opts[0];
+      return o.title ? `Bloc ${o.number} : ${o.title}` : `Bloc ${o.number}`;
+    }
+    if (opts.length > 1) {
+      return opts
+        .map((o) => (o.title ? `Bloc ${o.number} : ${o.title}` : `Bloc ${o.number}`))
+        .join(' · ');
+    }
+    return blockOptions.length ? 'Bloc' : 'Aucun bloc';
+  }
+
+  return '';
+}
+
 function formatBucketLabel(groupBy, dateOrMonthOrBlockLabel) {
   return String(dateOrMonthOrBlockLabel || '');
 }
@@ -499,7 +584,10 @@ export function computePerformanceAggregation({
   (Array.isArray(oneRmRecords) ? oneRmRecords : []).forEach(rec => {
     const mid = getMovementIdFromOneRmRecord(rec);
     if (!mid) return;
-    const v = toNumberOrNull(rec?.current) ?? toNumberOrNull(rec?.best);
+    const v =
+      toNumberOrNull(rec?.current) ??
+      toNumberOrNull(rec?.best) ??
+      toNumberOrNull(rec?.value);
     if (v !== null) oneRmByMovement[mid] = v;
   });
 
