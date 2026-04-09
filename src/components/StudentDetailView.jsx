@@ -209,6 +209,72 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   const [hoveredPasteDate, setHoveredPasteDate] = useState(null); // Track which day is hovered for paste
   const [isPastingSession, setIsPastingSession] = useState(false);
   const [visibleExercisesCount, setVisibleExercisesCount] = useState(5); // Number of visible exercises: 5, 8 or 10
+  const [trainingPrefsLoaded, setTrainingPrefsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          if (!cancelled) setTrainingPrefsLoaded(true);
+          return;
+        }
+        const res = await axios.get(`${getApiBaseUrlWithApi()}/coach/training-view-preferences`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled || !res.data?.success || !res.data?.data) {
+          if (!cancelled) setTrainingPrefsLoaded(true);
+          return;
+        }
+        const d = res.data.data;
+        if (['all', 'assigned', 'completed'].includes(d.trainingFilter)) {
+          setTrainingFilter(d.trainingFilter);
+        }
+        if ([4, 8, 16].includes(Number(d.weekViewFilter))) {
+          setWeekViewFilter(Number(d.weekViewFilter));
+        }
+        if (typeof d.isDetailedView === 'boolean') {
+          setIsDetailedView(d.isDetailedView);
+        }
+        if ([5, 8, 10].includes(Number(d.visibleExercisesCount))) {
+          setVisibleExercisesCount(Number(d.visibleExercisesCount));
+        }
+      } catch (e) {
+        logger.warn('Training view preferences (server):', e?.message || e);
+      } finally {
+        if (!cancelled) setTrainingPrefsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!trainingPrefsLoaded) return;
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    const handle = setTimeout(() => {
+      axios
+        .put(
+          `${getApiBaseUrlWithApi()}/coach/training-view-preferences`,
+          {
+            trainingFilter,
+            weekViewFilter,
+            isDetailedView,
+            visibleExercisesCount,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        .catch((e) => {
+          logger.warn('Saving training view preferences:', e?.message || e);
+        });
+    }, 450);
+
+    return () => clearTimeout(handle);
+  }, [trainingFilter, weekViewFilter, isDetailedView, visibleExercisesCount, trainingPrefsLoaded]);
 
   // Performance analysis modal (opened from the “Evolution des Kg/Reps” cards)
   const [isPerformanceAnalysisModalOpen, setIsPerformanceAnalysisModalOpen] = useState(false);
