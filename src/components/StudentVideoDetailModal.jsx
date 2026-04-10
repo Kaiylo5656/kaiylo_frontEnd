@@ -8,10 +8,13 @@ import { useVideoModal } from '../contexts/VideoModalContext';
  * Mobile-optimized video detail modal for students
  * Matches Figma design with centered modal overlay
  */
+const SESSION_GLOBAL_PREVIEW_LEN = 120;
+
 const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) => {
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState(null);
   const [videoStatus, setVideoStatus] = useState(video?.status || 'pending');
+  const [sessionGlobalExpanded, setSessionGlobalExpanded] = useState(false);
   const videoRef = useRef(null);
   const { registerVideoModalOpen, registerVideoModalClose } = useVideoModal();
 
@@ -42,6 +45,10 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
       return () => clearTimeout(loadingTimeout);
     }
   }, [video]);
+
+  useEffect(() => {
+    setSessionGlobalExpanded(false);
+  }, [video?.id]);
 
   // Prevent body scroll when modal is open (mobile-friendly)
   useEffect(() => {
@@ -115,6 +122,11 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
   };
 
   if (!isOpen || !video) return null;
+
+  const sessionGlobalComment =
+    (video.assignment?.notes && String(video.assignment.notes).trim()) || null;
+  const sessionGlobalNeedsExpand =
+    !!sessionGlobalComment && sessionGlobalComment.length > SESSION_GLOBAL_PREVIEW_LEN;
 
   return createPortal(
     <div
@@ -216,6 +228,38 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
               <p className="text-gray-400 text-xs font-light">Aucune vidéo disponible</p>
             </div>
           )}
+
+          {/* Commentaire élève (global) — aligné maquette Kaiylo */}
+          <div>
+            <h4 className="text-sm font-normal mb-2 text-left" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+              Commentaire élève (global)
+            </h4>
+            <div className="rounded-xl border border-white/10 p-3 mb-4 bg-[#2A1E17]">
+              {sessionGlobalComment ? (
+                <>
+                  <p className="text-white/90 text-xs font-light leading-relaxed whitespace-pre-wrap">
+                    {sessionGlobalExpanded || !sessionGlobalNeedsExpand
+                      ? sessionGlobalComment
+                      : `${sessionGlobalComment.slice(0, SESSION_GLOBAL_PREVIEW_LEN).trim()}…`}
+                  </p>
+                  {sessionGlobalNeedsExpand && (
+                    <button
+                      type="button"
+                      onClick={() => setSessionGlobalExpanded((e) => !e)}
+                      className="mt-2 text-xs font-normal bg-transparent border-0 p-0 cursor-pointer"
+                      style={{ color: 'var(--kaiylo-primary-hex)' }}
+                    >
+                      {sessionGlobalExpanded ? 'Voir moins' : 'Voir plus →'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="text-white/40 text-xs font-extralight italic">
+                  Aucun commentaire global sur la séance.
+                </p>
+              )}
+            </div>
+          </div>
 
           {/* Coach feedback section */}
           <div>

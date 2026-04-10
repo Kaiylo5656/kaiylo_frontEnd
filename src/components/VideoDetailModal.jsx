@@ -45,6 +45,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
   const [localSubmittedFeedback, setLocalSubmittedFeedback] = useState(null);
+  const [sessionGlobalExpanded, setSessionGlobalExpanded] = useState(false);
 
   
   const videoRef = useRef(null);
@@ -105,6 +106,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       return () => clearTimeout(loadingTimeout);
     }
   }, [video]);
+
+  useEffect(() => {
+    setSessionGlobalExpanded(false);
+  }, [video?.id]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -463,6 +468,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   const exerciseTempo = matchedExercise?.tempo || null;
   const exerciseNotes = matchedExercise?.notes || null;
   const studentComment = video.comment || matchedExercise?.comment || matchedExercise?.studentComment || matchedExercise?.student_comment || matchedExercise?.previous_student_comment || null;
+  /** Ressenti global après la séance (même texte pour toutes les vidéos de l'assignation) — stocké dans workout_assignments.notes */
+  const sessionGlobalComment = (video.assignment?.notes && String(video.assignment.notes).trim()) || null;
+  const SESSION_GLOBAL_PREVIEW_LEN = 120;
+  const sessionGlobalNeedsExpand =
+    !!sessionGlobalComment && sessionGlobalComment.length > SESSION_GLOBAL_PREVIEW_LEN;
 
   return (
     <div
@@ -576,28 +586,6 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
               })()}
             </span>
           </div>
-          {videoType === 'student' && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 256 512" 
-                className="h-4 w-4"
-                style={{ color: 'var(--kaiylo-primary-hex)' }}
-                fill="currentColor"
-              >
-                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
-              </svg>
-              {videoStatus === 'pending' ? (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
-                  A feedback
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
-                  Complété
-                </span>
-              )}
-            </div>
-          )}
           {/* Coach session notes - mobile */}
           {exerciseNotes && (
             <div>
@@ -629,9 +617,62 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                 >
                   <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
                 </svg>
-                <span className="text-white/50 text-xs">Commentaire élève</span>
+                <span className="text-white/50 text-xs">Commentaire élève (exercice)</span>
               </div>
               <p className="text-[#D4845A] font-normal text-sm mt-1 pl-6 break-words">{studentComment}</p>
+            </div>
+          )}
+          {videoType === 'student' && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 512" 
+                className="h-4 w-4"
+                style={{ color: 'var(--kaiylo-primary-hex)' }}
+                fill="currentColor"
+              >
+                <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
+              </svg>
+              {videoStatus === 'pending' ? (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(212, 132, 90, 0.15)', color: 'rgb(212, 132, 90)', fontWeight: '400' }}>
+                  A feedback
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-light" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: 'rgb(74, 222, 128)', fontWeight: '400' }}>
+                  Complété
+                </span>
+              )}
+            </div>
+          )}
+          {/* Commentaire élève (global) — mobile only (desktop: même bloc sous la colonne commentaires) */}
+          {videoType === 'student' && (
+            <div className="md:hidden min-w-0">
+              <h4 className="text-sm font-normal mb-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                Commentaire élève (global)
+              </h4>
+              <div className="rounded-xl border border-white/10 p-3 bg-[#2A1E17]">
+                {sessionGlobalComment ? (
+                  <>
+                    <p className="text-white/90 text-sm font-light leading-relaxed break-words whitespace-pre-wrap">
+                      {sessionGlobalExpanded || !sessionGlobalNeedsExpand
+                        ? sessionGlobalComment
+                        : `${sessionGlobalComment.slice(0, SESSION_GLOBAL_PREVIEW_LEN).trim()}…`}
+                    </p>
+                    {sessionGlobalNeedsExpand && (
+                      <button
+                        type="button"
+                        onClick={() => setSessionGlobalExpanded((e) => !e)}
+                        className="mt-2 text-sm font-normal bg-transparent border-0 p-0 cursor-pointer"
+                        style={{ color: 'var(--kaiylo-primary-hex)' }}
+                      >
+                        {sessionGlobalExpanded ? 'Voir moins' : 'Voir plus →'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-white/40 text-sm font-extralight italic">Aucun commentaire global sur la séance.</p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -920,7 +961,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                     >
                       <path d="M249.3 235.8c10.2 12.6 9.5 31.1-2.2 42.8l-128 128c-9.2 9.2-22.9 11.9-34.9 6.9S64.5 396.9 64.5 384l0-256c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l128 128 2.2 2.4z"/>
                     </svg>
-                    <span className="text-white/50 text-xs">Commentaire élève</span>
+                    <span className="text-white/50 text-xs">Commentaire élève (exercice)</span>
                   </div>
                   <p className="text-[#D4845A] font-normal text-sm mt-1 pl-6 break-words">{studentComment}</p>
                 </div>
@@ -951,6 +992,36 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
 
             {/* Comment Section */}
             <div className="px-4 md:px-6 py-4 md:py-4 flex-1 flex flex-col min-h-0">
+              {videoType === 'student' && (
+                <div className="hidden md:block mb-4 md:mb-5 min-w-0">
+                  <h4 className="text-sm font-normal mb-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                    Commentaire élève (global)
+                  </h4>
+                  <div className="rounded-xl border border-white/10 p-3 md:p-4 bg-[#2A1E17]">
+                    {sessionGlobalComment ? (
+                      <>
+                        <p className="text-white/90 text-sm font-light leading-relaxed break-words whitespace-pre-wrap">
+                          {sessionGlobalExpanded || !sessionGlobalNeedsExpand
+                            ? sessionGlobalComment
+                            : `${sessionGlobalComment.slice(0, SESSION_GLOBAL_PREVIEW_LEN).trim()}…`}
+                        </p>
+                        {sessionGlobalNeedsExpand && (
+                          <button
+                            type="button"
+                            onClick={() => setSessionGlobalExpanded((e) => !e)}
+                            className="mt-2 text-sm font-normal bg-transparent border-0 p-0 cursor-pointer"
+                            style={{ color: 'var(--kaiylo-primary-hex)' }}
+                          >
+                            {sessionGlobalExpanded ? 'Voir moins' : 'Voir plus →'}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-white/40 text-sm font-extralight italic">Aucun commentaire global sur la séance.</p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-2 md:mb-3">
                 <h3 className="text-xs md:text-sm font-normal" style={{ color: 'var(--kaiylo-primary-hex)' }}>Commentaire coach</h3>
                 {videoType === 'coach' && (
