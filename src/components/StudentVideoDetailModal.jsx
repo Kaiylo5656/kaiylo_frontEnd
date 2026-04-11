@@ -234,10 +234,18 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
             <h4 className="text-sm font-normal mb-2 text-left" style={{ color: 'var(--kaiylo-primary-hex)' }}>
               Commentaire élève (global)
             </h4>
-            <div className="rounded-xl border border-white/10 p-3 mb-4 bg-[#2A1E17]">
+            <div className="relative rounded-xl border border-white/10 p-3 mb-4 bg-[#2A1E17]">
               {sessionGlobalComment ? (
                 <>
-                  <p className="text-white/90 text-xs font-light leading-relaxed whitespace-pre-wrap">
+                  <p
+                    className={`text-white/90 text-xs font-light leading-relaxed whitespace-pre-wrap ${
+                      sessionGlobalNeedsExpand
+                        ? sessionGlobalExpanded
+                          ? 'pb-6'
+                          : 'pr-[4.25rem] pb-0'
+                        : ''
+                    }`}
+                  >
                     {sessionGlobalExpanded || !sessionGlobalNeedsExpand
                       ? sessionGlobalComment
                       : `${sessionGlobalComment.slice(0, SESSION_GLOBAL_PREVIEW_LEN).trim()}…`}
@@ -246,7 +254,7 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
                     <button
                       type="button"
                       onClick={() => setSessionGlobalExpanded((e) => !e)}
-                      className="mt-2 text-xs font-normal bg-transparent border-0 p-0 cursor-pointer"
+                      className="absolute bottom-3 right-2.5 z-10 text-xs font-normal bg-transparent border-0 p-0 cursor-pointer"
                       style={{ color: 'var(--kaiylo-primary-hex)' }}
                     >
                       {sessionGlobalExpanded ? 'Voir moins' : 'Voir plus →'}
