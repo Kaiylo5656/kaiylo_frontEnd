@@ -113,10 +113,10 @@ const PolitiqueConfidentialitePage = () => {
           <Section title="1. Responsable de traitement">
             <p style={textStyle}>
               Le responsable du traitement des données personnelles collectées via la plateforme Kaiylo est :<br /><br />
-              <strong style={labelStyle}>[NOM DE L'ASSOCIÉ]</strong><br />
-              Auto-entrepreneur — SIRET : [SIRET]<br />
+              <strong style={labelStyle}>Théo Kai Leng CHOMARAT</strong><br />
+              Auto-entrepreneur — SIRET : 91902856300014<br />
               Adresse : [ADRESSE]<br />
-              Email : <a href="mailto:[EMAIL CONTACT]" style={linkStyle}>[EMAIL CONTACT]</a>
+              Email : <a href="mailto:contact@kaiylo.fr" style={linkStyle}>contact@kaiylo.fr</a>
             </p>
           </Section>
 
@@ -214,7 +214,7 @@ const PolitiqueConfidentialitePage = () => {
               <li><strong style={labelStyle}>Droit à la limitation :</strong> demander la limitation du traitement</li>
             </ul>
             <p style={{ ...textStyle, marginTop: '16px' }}>
-              Pour exercer vos droits, contactez-nous à : <a href="mailto:[EMAIL CONTACT]" style={linkStyle}>[EMAIL CONTACT]</a>
+              Pour exercer vos droits, contactez-nous à : <a href="mailto:contact@kaiylo.fr" style={linkStyle}>contact@kaiylo.fr</a>
             </p>
             <p style={{ ...textStyle, marginTop: '12px' }}>
               Vous pouvez également supprimer votre compte directement depuis la plateforme, ce qui entraîne la suppression de toutes vos données dans un délai de 30 jours.

@@ -220,7 +220,6 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
         { name: 'Exercices', path: '/coach/exercises', icon: DumbbellIcon },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: VideoIcon },
         { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
-        { name: 'Facturation', path: '/coach/facturation', icon: ReceiptIcon },
       ];
     }
     if (user?.role === 'student') {
@@ -379,6 +378,15 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
           }}
         >
           <div className="space-y-4">
+            {user?.role === 'coach' && (
+              <NavLink
+                to="/coach/facturation"
+                icon={ReceiptIcon}
+                onLinkClick={onClose}
+              >
+                Facturation
+              </NavLink>
+            )}
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <span className="font-bold text-primary-foreground">

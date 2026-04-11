@@ -112,7 +112,7 @@ const CGUPage = () => {
 
           <Section title="1. Objet et accès à la plateforme">
             <p style={textStyle}>
-              Les présentes Conditions Générales d'Utilisation (CGU) régissent l'accès et l'utilisation de la plateforme Kaiylo, accessible à l'adresse <a href="https://kaiylo.fr" style={linkStyle}>kaiylo.fr</a>, éditée par [NOM DE L'ASSOCIÉ], auto-entrepreneur.
+              Les présentes Conditions Générales d'Utilisation (CGU) régissent l'accès et l'utilisation de la plateforme Kaiylo, accessible à l'adresse <a href="https://kaiylo.fr" style={linkStyle}>kaiylo.fr</a>, éditée par Théo Kai Leng CHOMARAT, auto-entrepreneur.
             </p>
             <p style={{ ...textStyle, marginTop: '12px' }}>
               L'accès à la plateforme est réservé aux utilisateurs majeurs disposant d'un compte valide. Kaiylo est une plateforme SaaS dédiée au coaching en Streetlifting et Powerlifting, permettant aux coachs de gérer leurs élèves et aux élèves de suivre leurs programmes d'entraînement.
@@ -171,7 +171,7 @@ const CGUPage = () => {
               Kaiylo se réserve le droit de suspendre ou de supprimer tout compte en cas de violation des présentes CGU, sans préavis ni indemnité.
             </p>
             <p style={{ ...textStyle, marginTop: '12px' }}>
-              L'utilisateur peut demander la suppression de son compte à tout moment en contactant Kaiylo à l'adresse <a href="mailto:[EMAIL CONTACT]" style={linkStyle}>[EMAIL CONTACT]</a> ou directement depuis la plateforme. La suppression entraîne la perte définitive de toutes les données associées au compte dans un délai de 30 jours.
+              L'utilisateur peut demander la suppression de son compte à tout moment en contactant Kaiylo à l'adresse <a href="mailto:contact@kaiylo.fr" style={linkStyle}>contact@kaiylo.fr</a> ou directement depuis la plateforme. La suppression entraîne la perte définitive de toutes les données associées au compte dans un délai de 30 jours.
             </p>
           </Section>
 

@@ -53,6 +53,13 @@ const CoachDashboard = () => {
   // Sort state from URL
   const { sort, dir, updateSort } = useSortParams();
 
+  const clientLimit = billing?.clientLimit ?? 3;
+  const activeStudentCount = useMemo(
+    () => students.filter((s) => s.is_active !== false).length,
+    [students]
+  );
+  const isOverClientLimit = activeStudentCount > clientLimit;
+
   // Wrapper for updateSort
   const handleSortChange = (newSort, newDir) => {
     updateSort(newSort, newDir);
@@ -719,6 +726,18 @@ const CoachDashboard = () => {
             </div>
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 shrink-0 min-w-0">
+                <span className="text-xs font-light text-white/50 whitespace-nowrap">Clients actifs</span>
+                <span
+                  className="text-xs font-medium tabular-nums shrink-0"
+                  title={`${activeStudentCount} élève${activeStudentCount !== 1 ? 's' : ''} actif${activeStudentCount !== 1 ? 's' : ''} · ${clientLimit} autorisé${clientLimit !== 1 ? 's' : ''} par l’abonnement${isOverClientLimit ? ' — Dépassement de la limite.' : ''}`}
+                  aria-label={`${activeStudentCount} élèves actifs sur ${clientLimit} autorisés par l’abonnement${isOverClientLimit ? ' — dépassement de la limite' : ''}`}
+                >
+                  <span className={isOverClientLimit ? 'text-red-500' : 'text-white/50'}>{activeStudentCount}</span>
+                  <span className="text-white/50">/</span>
+                  <span className="text-white/50">{clientLimit}</span>
+                </span>
+              </div>
               <button
                 onClick={handleOpenPendingInvitationsModal}
                 className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"
@@ -1142,6 +1161,18 @@ const CoachDashboard = () => {
 
           {/* Action Buttons - Desktop: Right side */}
           <div className="hidden md:flex items-center space-x-3 order-3">
+            <div className="flex items-center gap-2 shrink-0 min-w-0">
+              <span className="text-sm font-light text-white/50 whitespace-nowrap">Clients actifs</span>
+              <span
+                className="text-sm font-medium tabular-nums shrink-0"
+                title={`${activeStudentCount} élève${activeStudentCount !== 1 ? 's' : ''} actif${activeStudentCount !== 1 ? 's' : ''} · ${clientLimit} autorisé${clientLimit !== 1 ? 's' : ''} par l’abonnement${isOverClientLimit ? ' — Dépassement de la limite.' : ''}`}
+                aria-label={`${activeStudentCount} élèves actifs sur ${clientLimit} autorisés par l’abonnement${isOverClientLimit ? ' — dépassement de la limite' : ''}`}
+              >
+                <span className={isOverClientLimit ? 'text-red-500' : 'text-white/50'}>{activeStudentCount}</span>
+                <span className="text-white/50">/</span>
+                <span className="text-white/50">{clientLimit}</span>
+              </span>
+            </div>
             <button
               onClick={handleOpenPendingInvitationsModal}
               className="p-2.5 bg-white/5 rounded-[8px] hover:bg-white/10 text-white/75 transition-colors"

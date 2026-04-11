@@ -117,20 +117,25 @@ const MentionsLegalesPage = () => {
 
           <Section title="Éditeur du site">
             <p style={textStyle}>
-              <strong style={labelStyle}>Raison sociale :</strong> Kaiylo — [NOM DE L'ASSOCIÉ], auto-entrepreneur
+              <strong style={labelStyle}>Raison sociale :</strong> Kaiylo — Théo Kai Leng CHOMARAT, auto-entrepreneur
             </p>
             <p style={textStyle}>
-              <strong style={labelStyle}>SIRET :</strong> [SIRET]
+              <strong style={labelStyle}>SIRET :</strong> 91902856300014
             </p>
             <p style={textStyle}>
               <strong style={labelStyle}>Adresse :</strong> [ADRESSE]
             </p>
             <p style={textStyle}>
               <strong style={labelStyle}>Email :</strong>{' '}
-              <a href="mailto:[EMAIL CONTACT]" style={linkStyle}>[EMAIL CONTACT]</a>
+              <a
+                href="mailto:contact@kaiylo.fr"
+                style={{ ...linkStyle, display: 'inline-block', marginBottom: '6px' }}
+              >
+                contact@kaiylo.fr
+              </a>
             </p>
             <p style={textStyle}>
-              <strong style={labelStyle}>Directeur de publication :</strong> [NOM DE L'ASSOCIÉ]
+              <strong style={labelStyle}>Directeur de publication :</strong> Théo Kai Leng CHOMARAT
             </p>
           </Section>
 

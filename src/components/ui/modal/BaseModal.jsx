@@ -7,6 +7,7 @@ const BaseModal = forwardRef(({
   isOpen,
   onClose,
   title,
+  titleIcon,
   children,
   modalId,
   zIndex = 50,
@@ -157,6 +158,7 @@ const BaseModal = forwardRef(({
             <>
               <div className="shrink-0 px-4 md:px-6 pt-4 md:pt-6 pb-3 flex items-center justify-between">
                 <h2 id={`${modalId}-title`} className={`${titleClassName} flex items-center gap-2`} style={{ color: 'var(--kaiylo-primary-hex)' }}>
+                  {titleIcon}
                   {title}
                 </h2>
                 <button

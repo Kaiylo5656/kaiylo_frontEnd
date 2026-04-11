@@ -1534,7 +1534,7 @@ const VideoLibrary = () => {
 
   return (
     <div
-      className="min-h-screen text-foreground relative"
+      className="flex-1 min-h-0 w-full text-foreground flex flex-col relative"
       style={{ background: 'unset', backgroundColor: 'unset' }}
     >
       {/* Mobile Background Elements (Hidden on Desktop) */}
@@ -1647,8 +1647,9 @@ const VideoLibrary = () => {
         />
       </div>
 
-      {/* Main Content */}
-      <div className="px-4 md:px-[50px] pt-3 pb-20 w-full relative z-10">
+      {/* Main Content — tabs fixes ; défilement uniquement sur la liste (comme la page Exercices) */}
+      <div className="flex flex-col flex-1 min-h-0 w-full relative z-10 overflow-hidden">
+        <div className="flex-shrink-0 px-4 md:px-[50px] pt-3 w-full">
         {/* Header */}
         <div className="mb-8">
 
@@ -1689,11 +1690,13 @@ const VideoLibrary = () => {
             </button>
           </div>
         </div>
+        </div>
 
-        {/* Content area: loading overlay only here, header/tabs stay visible */}
-        <div className="relative min-h-[320px]">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 px-4 md:px-[50px] pb-0 overflow-hidden w-full">
+        {/* Zone liste : overlay de chargement ; filtres fixes au-dessus de la zone scrollable */}
+        <div className="relative flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
           {loading && (
-            <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
+            <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0 pointer-events-none">
               <div
                 className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
                 style={{
@@ -1706,7 +1709,8 @@ const VideoLibrary = () => {
             </div>
           )}
           {activeTab === 'clients' && (
-            <>
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+              <div className="flex-shrink-0">
               {/* Filters Row */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[14px] mb-6">
                 {/* Status Filter */}
@@ -2337,6 +2341,9 @@ const VideoLibrary = () => {
                 </div>
               )}
 
+              </div>
+
+              <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar pb-20 md:pb-0 overscroll-contain">
               {!loading && !error && (
                 filteredVideos.length > 0 ? (
                   renderStudentVideosGrouped()
@@ -2383,11 +2390,13 @@ const VideoLibrary = () => {
                   </div>
                 )
               )}
-            </>
+              </div>
+            </div>
           )}
 
           {activeTab === 'coach' && (
-            <>
+            <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+              <div className="flex-shrink-0">
               {/* Filters and Actions */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -2445,6 +2454,9 @@ const VideoLibrary = () => {
               </div>
 
               {error && <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6"><p className="text-destructive">Erreur: {error}</p></div>}
+              </div>
+
+              <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar pb-20 md:pb-0 overscroll-contain">
               {!loading && !error && (
                 (selectedFolder
                   ? coachResources.filter(video => video.folderId === selectedFolder).length > 0
@@ -2461,8 +2473,10 @@ const VideoLibrary = () => {
                   </div>
                 )
               )}
-            </>
+              </div>
+            </div>
           )}
+        </div>
         </div>
       </div>
 

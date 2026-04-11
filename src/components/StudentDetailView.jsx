@@ -4851,7 +4851,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
   };
 
   return (
-    <div className="min-h-screen bg-transparent text-white flex relative">
+    <div
+      className={`bg-transparent text-white flex relative ${activeTab === 'analyse' ? 'flex-1 min-h-0 min-w-0 w-full' : 'min-h-screen'}`}
+    >
       {/* Mobile Background Elements (Hidden on Desktop) */}
       <div className="md:hidden">
         {/* Image de fond */}
@@ -4979,7 +4981,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       )}
 
       {/* Main Content */}
-      <div className="flex-1 min-w-0 pb-[80px] md:pb-0 relative z-10">
+      <div
+        className={`flex-1 min-w-0 pb-[80px] md:pb-0 relative z-10 ${activeTab === 'analyse' ? 'flex flex-col min-h-0 overflow-hidden' : ''}`}
+      >
         {loading ? (
           <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-8 w-8 text-[#d4845a] animate-spin" />
@@ -4991,7 +4995,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         ) : (
           <>
             {/* Header */}
-            <div className="relative">
+            <div className={`relative ${activeTab === 'analyse' ? 'shrink-0' : ''}`}>
               <div className="p-3 md:p-4 relative mt-3">
                 {/* Toggle Sidebar Button - Hidden on mobile */}
                 {students.length > 0 && (
@@ -5097,7 +5101,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
             </div>
 
             {/* Main Content */}
-            <div className="p-4 pb-0 pt-0" style={{ overflow: 'hidden', maxWidth: '100%' }}>
+            <div
+              className={`p-4 pb-0 pt-0 ${activeTab === 'analyse' ? 'flex flex-col flex-1 min-h-0 overflow-hidden' : ''}`}
+              style={{ ...(activeTab !== 'analyse' ? { overflow: 'hidden' } : {}), maxWidth: '100%' }}
+            >
               {activeTab === 'overview' && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-[220px,1fr,250px] gap-3" style={{ marginBottom: '8px' }}>
@@ -7426,7 +7433,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
               )}
 
               {activeTab === 'analyse' && (
-                <div className="p-0 md:p-4">
+                <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden p-0 md:p-4">
+                  {/* Filtres fixes — liste scrollable en dessous (comme Vidéothèque) */}
+                  <div className="flex-shrink-0">
                   {/* Filters - same structure as VideoLibrary on mobile */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[14px] mb-6">
                     {/* Status Filter */}
@@ -7901,10 +7910,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       )}
                     </div>
                   </div>
+                  </div>
 
-                  <div className="relative min-h-[320px]">
+                  <div className="relative flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
                     {videosLoading && (
-                      <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0">
+                      <div className="absolute inset-0 flex justify-center items-center z-10 pt-24 md:pt-0 pointer-events-none">
                         <div
                           className="rounded-full border-2 border-transparent animate-spin flex-shrink-0"
                           style={{
@@ -7917,7 +7927,9 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
                       </div>
                     )}
 
-                    {!videosLoading && renderStudentVideosGrouped()}
+                    <div className="overflow-y-auto flex-1 min-h-0 exercise-list-scrollbar pb-20 md:pb-0 overscroll-contain">
+                      {!videosLoading && renderStudentVideosGrouped()}
+                    </div>
                   </div>
                 </div>
               )}

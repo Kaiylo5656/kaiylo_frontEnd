@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Zap, Search, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import useSocket from '../hooks/useSocket';
 import axios from 'axios';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
+import UpgradeConfirmationModal from '@/components/billing/UpgradeConfirmationModal';
 import VideoDetailModal from './VideoDetailModal';
 import StudentVideoDetailModal from './StudentVideoDetailModal';
 import { useModalManager } from './ui/modal/ModalManager';
@@ -41,7 +42,7 @@ const SettingsIcon = ({ className, style }) => (
 );
 
 const Header = ({ onOpenFeedback }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, getAuthToken } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -51,6 +52,8 @@ const Header = ({ onOpenFeedback }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const settingsRef = useRef(null);
   const location = useLocation();
   const { onVideoUpload, onFeedback, onAccessChange } = useSocket();
@@ -331,6 +334,9 @@ const Header = ({ onOpenFeedback }) => {
     if (location.pathname.includes('/chat')) {
       return 'Messages';
     }
+    if (location.pathname.includes('/coach/facturation')) {
+      return 'Facturation';
+    }
     if (location.pathname.includes('/coach/dashboard')) {
       return 'Clients';
     }
@@ -507,8 +513,34 @@ const Header = ({ onOpenFeedback }) => {
     }
   };
 
+  const handleCheckout = useCallback(async () => {
+    try {
+      setCheckoutLoading(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/create-checkout-session'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (result.success && result.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl;
+      } else {
+        logger.error('Checkout session error:', result);
+        setShowUpgradeModal(false);
+      }
+    } catch (err) {
+      logger.error('Checkout request failed:', err);
+      setShowUpgradeModal(false);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [getAuthToken]);
+
   const renderCoachHeader = () => (
-    <div className="flex items-center w-full pb-3 border-b border-white/10">
+    <div className="flex items-center w-full pt-2 pb-[18px] border-b border-white/10">
       {/* Left side - Title and Hamburger menu */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
         {/* Hamburger menu (mobile only) */}
@@ -530,6 +562,16 @@ const Header = ({ onOpenFeedback }) => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-0 flex-shrink-0">
+        <Button
+          type="button"
+          className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5"
+          onClick={() => setShowUpgradeModal(true)}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1" fill="currentColor" aria-hidden="true">
+            <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
+          </svg>
+          Passer à Pro
+        </Button>
         {/* Settings icon + dropdown */}
         <div ref={settingsRef} style={{ position: 'relative' }}>
           <Button
@@ -696,6 +738,14 @@ const Header = ({ onOpenFeedback }) => {
             // Ideally, refresh notifications or list if needed
             // For now, no action needed here as Header doesn't manage the list
           }}
+        />
+      )}
+      {!isStudent && (
+        <UpgradeConfirmationModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onConfirm={handleCheckout}
+          isLoading={checkoutLoading}
         />
       )}
       {/* Delete Account Confirmation Modal */}

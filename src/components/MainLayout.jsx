@@ -37,9 +37,14 @@ const MainLayout = ({ children }) => {
   const isChatPage = location.pathname.startsWith('/chat');
   const isStudentDashboard = user?.role === 'student' && location.pathname === '/student/dashboard';
   const isExercisePage = location.pathname === '/coach/exercises' || location.pathname === '/admin/exercises';
+  const isVideoLibraryPage = location.pathname === '/coach/videotheque';
   const dashboardSearchParams = new URLSearchParams(location.search);
   const isCoachClientsMainPage = location.pathname === '/coach/dashboard';
   const isCoachClientsListView = isCoachClientsMainPage && !dashboardSearchParams.get('studentId');
+  const isCoachStudentAnalyseTab =
+    isCoachClientsMainPage &&
+    Boolean(dashboardSearchParams.get('studentId')) &&
+    dashboardSearchParams.get('tab') === 'analyse';
   const [isWorkoutSessionOpen, setIsWorkoutSessionOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [hideMainHeaderInChatThread, setHideMainHeaderInChatThread] = useState(false);
@@ -145,7 +150,7 @@ const MainLayout = ({ children }) => {
                   {children}
                 </PullToRefresh>
               ) : (
-                <div className={`flex-1 relative z-10 overflow-x-hidden min-h-0 ${isChatPage ? (hideMainHeaderInChatThread ? 'p-0 overflow-hidden' : 'p-0 overflow-hidden pb-16 md:pb-0') : isExercisePage ? 'pt-0 pb-0 overflow-hidden flex flex-col w-full min-h-0 dashboard-scrollbar' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
+                <div className={`flex-1 relative z-10 overflow-x-hidden min-h-0 ${isChatPage ? (hideMainHeaderInChatThread ? 'p-0 overflow-hidden' : 'p-0 overflow-hidden pb-16 md:pb-0') : isExercisePage || isVideoLibraryPage || isCoachStudentAnalyseTab ? 'pt-0 pb-0 overflow-hidden flex flex-col w-full min-h-0 dashboard-scrollbar' : 'pt-0 pb-6 overflow-y-auto dashboard-scrollbar w-full'}`} style={{ marginTop: 0, paddingTop: 0, color: 'rgba(160, 19, 19, 0)' }}>
                   {children}
                 </div>
               )}

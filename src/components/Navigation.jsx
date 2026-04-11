@@ -68,12 +68,12 @@ const MessageSquareIcon = ({ className, style }) => (
 const ReceiptIcon = ({ className, style }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 384 512"
+    viewBox="0 0 512 512"
     className={className}
     style={style}
     fill="currentColor"
   >
-    <path d="M14 2.2C22.5-1.7 32.5-.3 39.6 5.8L80 40.4 120.4 5.8c9-7.7 22.3-7.7 31.2 0L192 40.4 232.4 5.8c9-7.7 22.3-7.7 31.2 0L304 40.4 344.4 5.8c7.1-6.1 17.1-7.5 25.6-3.6S384 14.4 384 23.9V488.1c0 9.5-5.7 18.2-14.4 22s-18.5 2.5-25.6-3.6L304 471.6l-40.4 34.6c-9 7.7-22.3 7.7-31.2 0L192 471.6l-40.4 34.6c-9 7.7-22.3 7.7-31.2 0L80 471.6 39.6 506.2c-7.1 6.1-17.1 7.5-25.6 3.6S0 497.6 0 488.1V23.9C0 14.4 5.7 5.7 14 2.2zM96 144c-8.8 0-16 7.2-16 16s7.2 16 16 16H288c8.8 0 16-7.2 16-16s-7.2-16-16-16H96zM80 288c0 8.8 7.2 16 16 16H288c8.8 0 16-7.2 16-16s-7.2-16-16-16H96c-8.8 0-16 7.2-16 16zM96 368c-8.8 0-16 7.2-16 16s7.2 16 16 16H288c8.8 0 16-7.2 16-16s-7.2-16-16-16H96z"/>
+    <path d="M328 112l-144 0-37.3-74.5c-1.8-3.6-2.7-7.6-2.7-11.6 0-14.3 11.6-25.9 25.9-25.9L342.1 0c14.3 0 25.9 11.6 25.9 25.9 0 4-.9 8-2.7 11.6L328 112zM169.6 160l172.8 0 48.7 40.6C457.6 256 496 338 496 424.5 496 472.8 456.8 512 408.5 512l-305.1 0C55.2 512 16 472.8 16 424.5 16 338 54.4 256 120.9 200.6L169.6 160zM260 224c-11 0-20 9-20 20l0 4c-28.8 .3-52 23.7-52 52.5 0 25.7 18.5 47.6 43.9 51.8l41.7 7c6 1 10.4 6.2 10.4 12.3 0 6.9-5.6 12.5-12.5 12.5L216 384c-11 0-20 9-20 20s9 20 20 20l24 0 0 4c0 11 9 20 20 20s20-9 20-20l0-4.7c25-4.1 44-25.7 44-51.8 0-25.7-18.5-47.6-43.9-51.8l-41.7-7c-6-1-10.4-6.2-10.4-12.3 0-6.9 5.6-12.5 12.5-12.5l47.5 0c11 0 20-9 20-20s-9-20-20-20l-8 0 0-4c0-11-9-20-20-20z"/>
   </svg>
 );
 
@@ -257,7 +257,6 @@ const Navigation = () => {
         { name: 'Exercices', path: '/coach/exercises', icon: DumbbellIcon },
         { name: 'Vidéothèque', path: '/coach/videotheque', icon: VideoIcon },
         { name: 'Messages', path: '/chat', icon: MessageSquareIcon, badge: unreadCount },
-        { name: 'Facturation', path: '/coach/facturation', icon: ReceiptIcon },
       ];
     }
     // Add other roles here later if needed
@@ -319,14 +318,23 @@ const Navigation = () => {
       </nav>
       <div className="px-4 py-5 border-t border-border" style={{ borderTopWidth: '0px', borderTopColor: 'rgba(0, 0, 0, 0)', borderTopStyle: 'none', borderImage: 'none', borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)', borderStyle: 'none' }}>
         <div className="space-y-1">
+          {user?.role === 'coach' && (
+            <NavLink
+              to="/coach/facturation"
+              icon={ReceiptIcon}
+              isCollapsed={isCollapsed}
+            >
+              Facturation
+            </NavLink>
+          )}
           {!isCollapsed ? (
-            <div className="flex items-center justify-start space-x-3 pl-2 pr-4 py-2.5 rounded-lg">
+            <div className="flex items-center justify-start space-x-2 pl-2 pr-4 py-2.5 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', background: 'rgba(255, 255, 255, 0.1)' }}>
                 <span className="font-semibold text-sm text-primary-foreground leading-none">
                   {user?.name?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 -ml-2">
                 <p className="font-light text-sm text-foreground truncate leading-tight">{user?.name || user?.email}</p>
               </div>
               <button onClick={handleLogout} className="text-muted-foreground flex-shrink-0 p-1 rounded transition-colors hover:bg-muted/50 group" title="Logout" style={{ backgroundColor: 'unset', background: 'unset' }}>

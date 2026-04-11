@@ -79,7 +79,7 @@ describe('FacturationPage', () => {
     });
 
     expect(screen.getByText('Détails de Facturation')).toBeInTheDocument();
-    expect(screen.getByText('Historique')).toBeInTheDocument();
+    expect(screen.getByText('Historique de paiement')).toBeInTheDocument();
     expect(screen.getByText('Support')).toBeInTheDocument();
   });
 
@@ -94,10 +94,8 @@ describe('FacturationPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Free')).toBeInTheDocument();
+      expect(screen.getAllByText('Gratuit')).toHaveLength(2);
     });
-
-    expect(screen.getByText('Gratuit')).toBeInTheDocument();
     expect(screen.getByText('Clients actifs')).toBeInTheDocument();
     expect(screen.getByText('Passer à Pro')).toBeInTheDocument();
   });
@@ -118,6 +116,23 @@ describe('FacturationPage', () => {
 
     const ctaButton = screen.getByText('Passer à Pro').closest('button');
     expect(ctaButton).not.toBeDisabled();
+  });
+
+  it('shows active client count in red when over limit', async () => {
+    global.fetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({
+        success: true,
+        data: { plan: 'free', status: 'active', clientCount: 5, clientLimit: 3, currentPeriodEnd: null },
+      }),
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('5').className).toContain('text-red-500');
   });
 
   it('displays Pro plan with success badge and manage CTA', async () => {
