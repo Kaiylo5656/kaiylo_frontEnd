@@ -6,6 +6,15 @@ import DashboardCoachCard from '../components/DashboardCoachCard';
 import BetaSignupSection from '../components/BetaSignupSection';
 import LegalFooter from '../components/LegalFooter';
 
+const CALENDLY_DEMO_URL =
+  'https://calendly.com/contact-kaiylo/demo-kaiylo?month=2026-04';
+
+const CALENDLY_WIDGET_SCRIPT_SRC =
+  'https://assets.calendly.com/assets/external/widget.js';
+
+const CALENDLY_WIDGET_CSS_HREF =
+  'https://assets.calendly.com/assets/external/widget.css';
+
 const LandingPage = () => {
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [isHeaderCompact, setIsHeaderCompact] = React.useState(false);
@@ -24,6 +33,51 @@ const LandingPage = () => {
       document.body.classList.remove('landing-page');
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (
+      !document.querySelector(`link[href="${CALENDLY_WIDGET_CSS_HREF}"]`)
+    ) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = CALENDLY_WIDGET_CSS_HREF;
+      document.head.appendChild(link);
+    }
+
+    if (window.Calendly) return;
+
+    let script = document.querySelector(
+      `script[src="${CALENDLY_WIDGET_SCRIPT_SRC}"]`,
+    );
+    if (!script) {
+      script = document.createElement('script');
+      script.src = CALENDLY_WIDGET_SCRIPT_SRC;
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  const openCalendlyDemo = () => {
+    if (window.Calendly?.initPopupWidget) {
+      try {
+        window.Calendly.initPopupWidget({ url: CALENDLY_DEMO_URL });
+        return;
+      } catch {
+        /* fall through to navigational fallback */
+      }
+    }
+
+    const newTab = window.open(
+      CALENDLY_DEMO_URL,
+      '_blank',
+      'noopener,noreferrer',
+    );
+    if (!newTab) {
+      window.location.assign(CALENDLY_DEMO_URL);
+    }
+  };
 
   useEffect(() => {
     const SCROLL_COMPACT_PX = 56;
@@ -318,6 +372,7 @@ const LandingPage = () => {
               >
                 <button
                   type="button"
+                  onClick={openCalendlyDemo}
                   className="w-full h-full px-8 bg-[#0a0a0a] hover:bg-[#111111] text-white rounded-full text-base transition-all duration-300 whitespace-nowrap flex items-center justify-center relative overflow-hidden group/demo"
                 >
                   <span className="relative z-10">Demander une démo</span>
