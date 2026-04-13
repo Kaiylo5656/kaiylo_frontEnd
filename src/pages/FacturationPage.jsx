@@ -52,6 +52,7 @@ const FacturationPage = () => {
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [downgradeModal, setDowngradeModal] = useState({ isOpen: false, targetPlan: null, studentsToDeactivate: [] });
@@ -98,7 +99,8 @@ const FacturationPage = () => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ planName: selectedPlan?.name || 'starter' })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -463,7 +465,8 @@ const FacturationPage = () => {
                               const placeholders = Array.from({ length: excessCount }, (_, i) => ({ id: i, name: `Élève ${i + 1}` }));
                               setDowngradeModal({ isOpen: true, targetPlan: plan, studentsToDeactivate: placeholders });
                             } else {
-                              handleManageBilling();
+                              setSelectedPlan(plan);
+                              setShowUpgradeModal(true);
                             }
                           }}
                           disabled={portalLoading}
@@ -497,6 +500,7 @@ const FacturationPage = () => {
         onClose={() => setShowUpgradeModal(false)}
         onConfirm={handleCheckout}
         isLoading={checkoutLoading}
+        plan={selectedPlan || { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 }}
       />
 
       {/* Success Toast */}
