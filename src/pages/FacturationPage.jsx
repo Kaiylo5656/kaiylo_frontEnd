@@ -140,7 +140,7 @@ const FacturationPage = () => {
   }, [getAuthToken]);
 
   const activePlan = billing?.plan ?? 'free';
-  const isPro = activePlan !== 'free';
+  const isPaidPlan = activePlan !== 'free';
   const clientCount = billing?.clientCount ?? 0;
   const clientLimit = billing?.clientLimit ?? 3;
   const isOverClientLimit = clientCount > clientLimit;
@@ -212,15 +212,15 @@ const FacturationPage = () => {
                       </h2>
                     </div>
                   </div>
-                  <Badge variant={isPro ? 'success' : 'default'}>
-                    {isPro ? 'Actif' : 'Gratuit'}
+                  <Badge variant={isPaidPlan ? 'success' : 'default'}>
+                    {isPaidPlan ? 'Actif' : 'Gratuit'}
                   </Badge>
                 </div>
 
                 {/* Plan name */}
                 <div>
                   <span className="text-3xl md:text-4xl font-bold tracking-tight text-foreground capitalize">
-                    {isPro ? activePlan : 'Gratuit'}
+                    {isPaidPlan ? activePlan : 'Gratuit'}
                   </span>
                 </div>
 
@@ -250,7 +250,7 @@ const FacturationPage = () => {
                     <motion.div
                       className="h-full rounded-full"
                       style={{
-                        background: isPro
+                        background: isPaidPlan
                           ? 'linear-gradient(90deg, #D4845A, #A05A3A)'
                           : progressPercent > 80
                             ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
@@ -264,7 +264,7 @@ const FacturationPage = () => {
                 </div>
 
                 {/* CTA */}
-                {isPro ? (
+                {isPaidPlan ? (
                   <button
                     onClick={handleManageBilling}
                     disabled={portalLoading}
@@ -311,12 +311,12 @@ const FacturationPage = () => {
                   </div>
                 </div>
 
-                {isPro ? (
+                {isPaidPlan ? (
                   <div className="flex-1 flex flex-col justify-between gap-5">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between py-3 border-b border-white/[0.06]">
                         <span className="text-sm text-muted-foreground font-light">Montant</span>
-                        <span className="text-lg font-bold text-foreground tabular-nums">29€<span className="text-sm font-light text-muted-foreground">/mois</span></span>
+                        <span className="text-lg font-bold text-foreground tabular-nums">{PLANS.find(p => p.name === activePlan)?.price ?? 29}€<span className="text-sm font-light text-muted-foreground">/mois</span></span>
                       </div>
                       <div className="flex items-center justify-between py-3 border-b border-white/[0.06]">
                         <span className="text-sm text-muted-foreground font-light">Période en cours</span>
@@ -355,7 +355,7 @@ const FacturationPage = () => {
                   </div>
                 </div>
 
-                {isPro ? (
+                {isPaidPlan ? (
                   <div className="flex-1 flex flex-col justify-between">
                     <p className="text-sm text-muted-foreground font-light leading-relaxed">
                       Consultez vos factures et l&apos;historique de vos paiements directement depuis le portail de gestion.
@@ -477,7 +477,7 @@ const FacturationPage = () => {
 
       {/* Success Toast */}
       <Toast
-        message="Bienvenue sur Pro !"
+        message={`Bienvenue sur ${PLANS.find(p => p.name === activePlan)?.label ?? 'Starter'} !`}
         type="success"
         isVisible={showSuccessToast}
         onClose={() => setShowSuccessToast(false)}
