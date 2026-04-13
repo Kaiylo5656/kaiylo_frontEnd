@@ -113,7 +113,7 @@ const InviteStudentModal = ({ isOpen, onClose, onInviteSent }) => {
       <ClientLimitModal
         isOpen={true}
         onClose={handleClose}
-        plan={clientLimitData.plan}
+        currentPlan={clientLimitData.plan}
         limit={clientLimitData.limit}
         count={clientLimitData.count}
       />
