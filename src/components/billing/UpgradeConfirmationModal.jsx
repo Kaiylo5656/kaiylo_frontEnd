@@ -57,13 +57,14 @@ const upgradeTitleIcon = (
 
 const DEFAULT_PLAN = { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 };
 
-const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan = DEFAULT_PLAN }) => {
-  const benefits = makeBenefits(plan.studentLimit);
+const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan }) => {
+  const resolvedPlan = plan || DEFAULT_PLAN;
+  const benefits = makeBenefits(resolvedPlan.studentLimit);
   return (
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Passer à ${plan.label}`}
+      title={`Passer à ${resolvedPlan.label}`}
       titleIcon={upgradeTitleIcon}
       modalId="upgrade-confirmation"
       size="sm"
@@ -72,7 +73,7 @@ const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan 
       <div className="flex flex-col gap-6">
         {/* Price */}
         <div className="text-center mt-1.5 mb-1.5">
-          <span className="text-4xl font-bold text-white">€{plan.price}</span>
+          <span className="text-4xl font-bold text-white">€{resolvedPlan.price}</span>
           <span className="text-lg text-zinc-400 font-light">/mois</span>
         </div>
 

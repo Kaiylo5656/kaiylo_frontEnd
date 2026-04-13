@@ -55,6 +55,7 @@ const Header = ({ onOpenFeedback }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [coachPlan, setCoachPlan] = useState('free');
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState(null);
   const settingsRef = useRef(null);
   const location = useLocation();
   const { onVideoUpload, onFeedback, onAccessChange } = useSocket();
@@ -544,7 +545,7 @@ const Header = ({ onOpenFeedback }) => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: 'starter' })
+        body: JSON.stringify({ planName: selectedUpgradePlan?.name || 'starter' })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -584,18 +585,35 @@ const Header = ({ onOpenFeedback }) => {
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-0 flex-shrink-0">
-        {coachPlan === 'free' && (
-          <Button
-            type="button"
-            className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5"
-            onClick={() => setShowUpgradeModal(true)}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1" fill="currentColor" aria-hidden="true">
-              <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
-            </svg>
-            Passer à Starter
-          </Button>
-        )}
+        {(() => {
+          const PLANS = ['free', 'starter', 'growth', 'scale', 'elite'];
+          const PLAN_LABELS = { starter: 'Starter', growth: 'Growth', scale: 'Scale', elite: 'Elite' };
+          const currentIndex = PLANS.indexOf(coachPlan);
+          const nextPlan = PLANS[currentIndex + 1];
+          if (!nextPlan || nextPlan === 'elite' && coachPlan === 'elite') return null;
+          const PLAN_DETAILS = {
+            starter: { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 },
+            growth:  { name: 'growth',  label: 'Growth',  price: 49, studentLimit: 20 },
+            scale:   { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30 },
+            elite:   { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40 },
+          };
+          const handleClick = () => {
+            setSelectedUpgradePlan(PLAN_DETAILS[nextPlan]);
+            setShowUpgradeModal(true);
+          };
+          return (
+            <Button
+              type="button"
+              className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5"
+              onClick={handleClick}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1" fill="currentColor" aria-hidden="true">
+                <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
+              </svg>
+              Passer à {PLAN_LABELS[nextPlan]}
+            </Button>
+          );
+        })()}
         {/* Settings icon + dropdown */}
         <div ref={settingsRef} style={{ position: 'relative' }}>
           <Button
@@ -770,6 +788,7 @@ const Header = ({ onOpenFeedback }) => {
           onClose={() => setShowUpgradeModal(false)}
           onConfirm={handleCheckout}
           isLoading={checkoutLoading}
+          plan={selectedUpgradePlan}
         />
       )}
       {/* Delete Account Confirmation Modal */}
