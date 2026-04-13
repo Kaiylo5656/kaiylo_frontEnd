@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Toast } from '@/components/ui/Toast';
 import UpgradeConfirmationModal from '@/components/billing/UpgradeConfirmationModal';
+import DowngradeConfirmationModal from '../components/billing/DowngradeConfirmationModal';
 import { buildApiUrl } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -53,6 +54,7 @@ const FacturationPage = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [downgradeModal, setDowngradeModal] = useState({ isOpen: false, targetPlan: null, studentsToDeactivate: [] });
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -449,16 +451,29 @@ const FacturationPage = () => {
                       <div className="mt-auto py-2 text-center text-xs font-medium text-[#D4845A]">
                         Plan actuel
                       </div>
-                    ) : (
-                      <button
-                        onClick={handleManageBilling}
-                        disabled={portalLoading}
-                        aria-busy={portalLoading}
-                        className="mt-auto w-full py-2 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20] disabled:opacity-50"
-                      >
-                        {portalLoading ? 'Chargement...' : 'Changer de plan'}
-                      </button>
-                    )}
+                    ) : (() => {
+                      const currentPlanIndex = PLANS.findIndex(p => p.name === activePlan);
+                      const thisPlanIndex = PLANS.findIndex(p => p.name === plan.name);
+                      const isDowngrade = isPaidPlan && thisPlanIndex < currentPlanIndex;
+                      return (
+                        <button
+                          onClick={() => {
+                            if (isDowngrade) {
+                              const excessCount = Math.max(0, clientCount - plan.studentLimit);
+                              const placeholders = Array.from({ length: excessCount }, (_, i) => ({ id: i, name: `Élève ${i + 1}` }));
+                              setDowngradeModal({ isOpen: true, targetPlan: plan, studentsToDeactivate: placeholders });
+                            } else {
+                              handleManageBilling();
+                            }
+                          }}
+                          disabled={portalLoading}
+                          aria-busy={portalLoading}
+                          className="mt-auto w-full py-2 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20] disabled:opacity-50"
+                        >
+                          {portalLoading ? 'Chargement...' : 'Changer de plan'}
+                        </button>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -466,6 +481,15 @@ const FacturationPage = () => {
           </motion.div>
         )}
       </div>
+
+      {/* Downgrade Confirmation Modal */}
+      <DowngradeConfirmationModal
+        isOpen={downgradeModal.isOpen}
+        onClose={() => setDowngradeModal({ isOpen: false, targetPlan: null, studentsToDeactivate: [] })}
+        onConfirm={() => { setDowngradeModal(prev => ({ ...prev, isOpen: false })); handleManageBilling(); }}
+        targetPlan={downgradeModal.targetPlan}
+        studentsToDeactivate={downgradeModal.studentsToDeactivate}
+      />
 
       {/* Upgrade Confirmation Modal */}
       <UpgradeConfirmationModal
