@@ -12,6 +12,13 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const cardClass = 'bg-white/[0.03] border border-white/10 rounded-2xl p-7 flex flex-col gap-5 h-full md:min-h-[282px]';
 
+const PLANS = [
+  { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 },
+  { name: 'growth',  label: 'Growth',  price: 49, studentLimit: 20 },
+  { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30 },
+  { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40 },
+];
+
 const SkeletonBlock = ({ className }) => (
   <div className={`animate-pulse bg-muted rounded-lg ${className}`} />
 );
@@ -132,7 +139,8 @@ const FacturationPage = () => {
     }
   }, [getAuthToken]);
 
-  const isPro = billing?.plan === 'pro';
+  const activePlan = billing?.plan ?? 'free';
+  const isPro = activePlan !== 'free';
   const clientCount = billing?.clientCount ?? 0;
   const clientLimit = billing?.clientLimit ?? 3;
   const isOverClientLimit = clientCount > clientLimit;
@@ -178,7 +186,7 @@ const FacturationPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Plan Status Card */}
+            {/* Subscription Status Card */}
             <motion.div
               className="h-full"
               initial={{ opacity: 0, y: 24 }}
@@ -211,8 +219,8 @@ const FacturationPage = () => {
 
                 {/* Plan name */}
                 <div>
-                  <span className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                    {isPro ? 'Pro' : 'Gratuit'}
+                  <span className="text-3xl md:text-4xl font-bold tracking-tight text-foreground capitalize">
+                    {isPro ? activePlan : 'Gratuit'}
                   </span>
                 </div>
 
@@ -280,7 +288,7 @@ const FacturationPage = () => {
                     >
                       <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
                     </svg>
-                    Passer à Pro
+                    Voir les plans
                   </button>
                 )}
               </Card>
@@ -403,6 +411,59 @@ const FacturationPage = () => {
               </Card>
             </motion.div>
           </div>
+        )}
+
+        {/* Plan Comparison Grid */}
+        {!loading && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="mt-6"
+          >
+            <h2 className="text-base font-medium text-muted-foreground mb-4">Choisir un plan</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {PLANS.map((plan) => {
+                const isActive = activePlan === plan.name;
+                return (
+                  <div
+                    key={plan.name}
+                    className={`rounded-2xl p-5 flex flex-col gap-4 border transition-colors duration-300 ${
+                      isActive
+                        ? 'bg-[#D4845A]/10 border-[#D4845A]/50'
+                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-base text-foreground">{plan.label}</span>
+                      {isActive && (
+                        <Badge variant="success">Plan actuel</Badge>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-2xl font-bold text-foreground tabular-nums">€{plan.price}</span>
+                      <span className="text-sm font-light text-muted-foreground">/mois</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground font-light">{plan.studentLimit} élèves</p>
+                    {isActive ? (
+                      <div className="mt-auto py-2 text-center text-xs font-medium text-[#D4845A]">
+                        Plan actuel
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleManageBilling}
+                        disabled={portalLoading}
+                        aria-busy={portalLoading}
+                        className="mt-auto w-full py-2 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20] disabled:opacity-50"
+                      >
+                        {portalLoading ? 'Chargement...' : 'Changer de plan'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
         )}
       </div>
 
