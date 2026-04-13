@@ -37,8 +37,8 @@ const supportPriorityIcon = (
   </svg>
 );
 
-const benefits = [
-  { customIcon: clientsIcon, text: "Jusqu'à 10 clients" },
+const makeBenefits = (studentLimit) => [
+  { customIcon: clientsIcon, text: `Jusqu'à ${studentLimit} clients` },
   { customIcon: videoRetentionIcon, text: 'Rétention vidéo 6 mois' },
   { customIcon: supportPriorityIcon, text: 'Support prioritaire' },
 ];
@@ -55,12 +55,15 @@ const upgradeTitleIcon = (
   </svg>
 );
 
-const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading }) => {
+const DEFAULT_PLAN = { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 };
+
+const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan = DEFAULT_PLAN }) => {
+  const benefits = makeBenefits(plan.studentLimit);
   return (
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Passer à Pro"
+      title={`Passer à ${plan.label}`}
       titleIcon={upgradeTitleIcon}
       modalId="upgrade-confirmation"
       size="sm"
@@ -69,7 +72,7 @@ const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading }) => 
       <div className="flex flex-col gap-6">
         {/* Price */}
         <div className="text-center mt-1.5 mb-1.5">
-          <span className="text-4xl font-bold text-white">€29</span>
+          <span className="text-4xl font-bold text-white">€{plan.price}</span>
           <span className="text-lg text-zinc-400 font-light">/mois</span>
         </div>
 
