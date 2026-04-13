@@ -4,14 +4,21 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { buildApiUrl } from '@/config/api';
 
-const ClientLimitModal = ({ isOpen, onClose, plan, limit, count }) => {
+const PLANS = [
+  { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 },
+  { name: 'growth',  label: 'Growth',  price: 49, studentLimit: 20 },
+  { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30 },
+  { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40 },
+];
+
+const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
   const { getAuthToken } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
 
-  const handleUpgrade = useCallback(async () => {
+  const handleUpgrade = useCallback(async (planName) => {
     try {
-      setIsLoading(true);
+      setLoadingPlan(planName);
       setCheckoutError('');
       const token = await getAuthToken();
       const response = await fetch(buildApiUrl('/api/billing/create-checkout-session'), {
@@ -19,7 +26,8 @@ const ClientLimitModal = ({ isOpen, onClose, plan, limit, count }) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ planName })
       });
       if (!response.ok) {
         setCheckoutError('Impossible de créer la session de paiement. Réessayez.');
@@ -34,11 +42,14 @@ const ClientLimitModal = ({ isOpen, onClose, plan, limit, count }) => {
     } catch {
       setCheckoutError('Erreur lors de la redirection vers le paiement. Réessayez.');
     } finally {
-      setIsLoading(false);
+      setLoadingPlan(null);
     }
   }, [getAuthToken]);
 
-  const isFree = plan === 'free';
+  const currentIndex = PLANS.findIndex(p => p.name === currentPlan);
+  const upgradePlans = currentIndex === -1 ? PLANS : PLANS.slice(currentIndex + 1);
+
+  const isFree = currentPlan === 'free';
 
   const titleIcon = isFree ? (
     <svg
@@ -63,74 +74,72 @@ const ClientLimitModal = ({ isOpen, onClose, plan, limit, count }) => {
       titleClassName="text-xl font-semibold"
     >
       <div className="flex flex-col items-center gap-5 text-center">
-        {/* Tier-specific messaging */}
         {isFree ? (
-          <>
-            {/* Price badge */}
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-bold text-white">€29</span>
-              <span className="text-lg text-zinc-300 font-light">/mois</span>
-            </div>
-
-            <div>
-              <p className="text-[var(--kaiylo-primary-hex)] text-base font-medium mb-2">
-                Bravo, vous accompagnez déjà {count ?? 3} clients !
-              </p>
-              <p className="text-zinc-300 text-sm font-light">
-                C'est un super début. Passez à Pro pour coacher jusqu'à 10 élèves
-                et débloquer toutes les fonctionnalités.
-              </p>
-            </div>
-
-            {/* Checkout error */}
-            {checkoutError && (
-              <p className="text-amber-400 text-xs">{checkoutError}</p>
-            )}
-
-            {/* CTA */}
-            <div className="flex flex-col gap-3 w-full pt-1">
-              <button
-                onClick={handleUpgrade}
-                disabled={isLoading}
-                className="w-full py-3 rounded-[8px] text-sm font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-[#a855f7] to-[#0f66c9] transition-[transform,box-shadow,filter] duration-300 ease-out hover:brightness-[1.04] hover:shadow-[0_8px_26px_-12px_rgba(168,85,247,0.28)] hover:-translate-y-px active:translate-y-0 active:brightness-[1.02] active:shadow-[0_4px_18px_-10px_rgba(15,102,201,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Chargement...
-                  </>
-                ) : (
-                  'Passer à Pro'
-                )}
-              </button>
-              <button
-                onClick={onClose}
-                className="w-full py-2.5 rounded-lg text-sm font-medium text-zinc-400 transition-all duration-300 hover:text-white hover:bg-white/5"
-              >
-                Plus tard
-              </button>
-            </div>
-          </>
+          <p className="text-[var(--kaiylo-primary-hex)] text-base font-medium">
+            Bravo, vous accompagnez déjà {count ?? 3} clients !
+          </p>
         ) : (
-          <>
-            <div>
-              <p className="text-white text-base font-medium mb-2">
-                {count ?? limit} clients, impressionnant !
-              </p>
-              <p className="text-zinc-300 text-sm font-light">
-                Vous avez atteint la capacité maximale du plan Pro ({limit}).
-                Un palier supérieur arrive bientôt, restez à l'écoute.
-              </p>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 rounded-lg text-sm font-medium text-zinc-400 transition-all duration-300 hover:text-white hover:bg-white/5"
-            >
-              Compris
-            </button>
-          </>
+          <p className="text-white text-base font-medium">
+            {count} clients, impressionnant !
+          </p>
         )}
+
+        <p className="text-zinc-300 text-sm font-light -mt-2">
+          {upgradePlans.length > 0
+            ? 'Choisissez le palier qui correspond à votre activité.'
+            : null}
+        </p>
+
+        {upgradePlans.length === 0 ? (
+          <p className="text-zinc-400 text-sm">
+            Vous avez atteint le plan maximum.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3 w-full">
+            {upgradePlans.map((plan) => (
+              <div
+                key={plan.name}
+                className="flex items-center justify-between rounded-[8px] border border-white/10 bg-white/5 px-4 py-3"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-white">{plan.label}</p>
+                  <p className="text-xs text-zinc-400">Jusqu'à {plan.studentLimit} élèves</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-base font-bold text-white">
+                    €{plan.price}
+                    <span className="text-xs font-light text-zinc-400">/mo</span>
+                  </span>
+                  <button
+                    onClick={() => handleUpgrade(plan.name)}
+                    disabled={loadingPlan !== null}
+                    className="py-2 px-3 rounded-[8px] text-xs font-semibold text-white flex items-center gap-1.5 bg-gradient-to-r from-[#a855f7] to-[#0f66c9] transition-[transform,box-shadow,filter] duration-300 ease-out hover:brightness-[1.04] hover:shadow-[0_8px_26px_-12px_rgba(168,85,247,0.28)] hover:-translate-y-px active:translate-y-0 active:brightness-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {loadingPlan === plan.name ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Chargement...
+                      </>
+                    ) : (
+                      `Passer à ${plan.label}`
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {checkoutError && (
+          <p className="text-amber-400 text-xs">{checkoutError}</p>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 rounded-lg text-sm font-medium text-zinc-400 transition-all duration-300 hover:text-white hover:bg-white/5"
+        >
+          Plus tard
+        </button>
       </div>
     </BaseModal>
   );
