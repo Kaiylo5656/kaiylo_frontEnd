@@ -535,6 +535,25 @@ const Header = ({ onOpenFeedback }) => {
     }
   };
 
+  const handlePortalSession = useCallback(async () => {
+    try {
+      setCheckoutLoading(true);
+      const token = await getAuthToken();
+      const response = await fetch(buildApiUrl('/api/billing/create-portal-session'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      if (result.success && result.data?.portalUrl) {
+        window.location.href = result.data.portalUrl;
+      }
+    } catch (err) {
+      logger.error('Portal request failed:', err);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [getAuthToken]);
+
   const handleCheckout = useCallback(async () => {
     try {
       setCheckoutLoading(true);
@@ -597,10 +616,9 @@ const Header = ({ onOpenFeedback }) => {
             scale:   { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30 },
             elite:   { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40 },
           };
-          const handleClick = () => {
-            setSelectedUpgradePlan(PLAN_DETAILS[nextPlan]);
-            setShowUpgradeModal(true);
-          };
+          const handleClick = coachPlan === 'free'
+            ? () => { setSelectedUpgradePlan(PLAN_DETAILS[nextPlan]); setShowUpgradeModal(true); }
+            : () => handlePortalSession();
           return (
             <Button
               type="button"

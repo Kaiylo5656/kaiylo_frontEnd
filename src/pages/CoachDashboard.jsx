@@ -671,7 +671,7 @@ const CoachDashboard = () => {
         <div className="relative z-10 mx-4 mt-3 flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-400" />
           <div className="flex-1 text-sm text-yellow-200">
-            Votre abonnement Pro se termine le{' '}
+            Votre abonnement {billing?.plan ? billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1) : 'Pro'} se termine le{' '}
             <span className="font-medium">
               {new Date(billing.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>

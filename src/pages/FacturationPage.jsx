@@ -117,7 +117,7 @@ const FacturationPage = () => {
     } finally {
       setCheckoutLoading(false);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, selectedPlan]);
 
   const handleManageBilling = useCallback(async () => {
     try {
