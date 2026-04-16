@@ -260,10 +260,7 @@ const CoachDashboard = () => {
 
         // Charger les données de tri AVANT d'afficher la liste pour éviter le réordonnancement
         if (transformedStudents.length > 0) {
-          await Promise.all([
-            fetchDashboardCounts(),
-            fetchNextSessions()
-          ]);
+          await fetchDashboardCounts();
         }
       } else {
         logger.debug('⚠️ No students found or API returned unexpected format');
@@ -283,18 +280,16 @@ const CoachDashboard = () => {
 
   const fetchDashboardCounts = async () => {
     try {
-      logger.debug('Fetching dashboard counts...');
+      logger.debug('Fetching dashboard data...');
       const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/coach/dashboard-counts`
+        `${getApiBaseUrlWithApi()}/coach/dashboard-data`
       );
 
       if (response.data.success) {
-        logger.debug('Fetched counts:', response.data.data);
-        // Normalize counts to ensure they are numbers
+        logger.debug('Fetched dashboard data:', response.data.data);
         const videoCounts = response.data.data.videoCounts || {};
         const messageCounts = response.data.data.messageCounts || {};
 
-        // Convert to numbers and filter out 0 or undefined values
         const normalizedVideoCounts = {};
         const normalizedMessageCounts = {};
 
@@ -314,24 +309,13 @@ const CoachDashboard = () => {
 
         setStudentVideoCounts(normalizedVideoCounts);
         setStudentMessageCounts(normalizedMessageCounts);
+
+        if (response.data.data.nextSessions) {
+          setStudentNextSessions(response.data.data.nextSessions);
+        }
       }
     } catch (error) {
-      logger.error('Error fetching dashboard counts:', error);
-    }
-  };
-
-  const fetchNextSessions = async () => {
-    try {
-      // Batch endpoint: one request for all students instead of N individual calls
-      const response = await axios.get(
-        `${getApiBaseUrlWithApi()}/coach/dashboard-summary`
-      );
-
-      if (response.data.success && response.data.data.nextSessions) {
-        setStudentNextSessions(response.data.data.nextSessions);
-      }
-    } catch (error) {
-      logger.error('Error fetching next sessions:', error);
+      logger.error('Error fetching dashboard data:', error);
     }
   };
 
