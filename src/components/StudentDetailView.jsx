@@ -528,6 +528,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
   // Avoid overwriting periodization blocks (with tags) by the fallback "coach/student" blocks response.
   const periodizationBlocksWithTagsLoadedRef = useRef(false);
+  const lastFetchedSessionsRangeRef = useRef(null);
 
   // Periodization tags -> used to render colored tag "pills" (e.g. Technique)
   const [periodizationTagColorMap, setPeriodizationTagColorMap] = useState(null);
@@ -2237,6 +2238,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setLoadingSessions(true);
       const token = localStorage.getItem('authToken');
 
+
       // Get a wider date range to include both week and training week data for progress indicators
       const weekStart = startOfWeek(overviewWeekDate, { weekStartsOn: 1 });
       const weekEnd = addDays(weekStart, 6);
@@ -2275,33 +2277,28 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       const rangeStart = format(extendedStart, 'yyyy-MM-dd');
       const rangeEnd = format(extendedEnd, 'yyyy-MM-dd');
 
+      // Skip redundant re-fetch if the computed range hasn't changed (e.g. when blocks load
+      // but don't widen the range beyond what was already fetched)
+      const rangeKey = `${student.id}-${rangeStart}-${rangeEnd}`;
+      if (lastFetchedSessionsRangeRef.current === rangeKey) {
+        setLoadingSessions(false);
+        return;
+      }
+      lastFetchedSessionsRangeRef.current = rangeKey;
+
       const assignmentsUrl = `${getApiBaseUrlWithApi()}/assignments/student/${student.id}`;
 
-      // Fetch all assignment pages in range (API default limit 200 would truncate long histories)
+      // Fetch all assignments in range in a single request (1000 is PostgREST's safe max)
       const [assignmentsRes, draftsRes] = await Promise.allSettled([
-        (async () => {
-          const allRows = [];
-          let offset = 0;
-          while (offset <= ASSIGNMENTS_FETCH_MAX_OFFSET) {
-            const res = await axios.get(assignmentsUrl, {
-              headers: { Authorization: `Bearer ${token}` },
-              params: {
-                startDate: rangeStart,
-                endDate: rangeEnd,
-                limit: ASSIGNMENTS_FETCH_PAGE,
-                offset,
-              },
-            });
-            const batch = Array.isArray(res.data?.data) ? res.data.data : [];
-            allRows.push(...batch);
-            if (batch.length < ASSIGNMENTS_FETCH_PAGE) break;
-            offset += ASSIGNMENTS_FETCH_PAGE;
-          }
-          if (offset > ASSIGNMENTS_FETCH_MAX_OFFSET) {
-            logger.warn('fetchWorkoutSessions: assignment pagination stopped at safety cap', { offset });
-          }
-          return { data: { data: allRows } };
-        })(),
+        axios.get(assignmentsUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            startDate: rangeStart,
+            endDate: rangeEnd,
+            limit: 1000,
+            offset: 0,
+          },
+        }),
         axios.get(`${getApiBaseUrlWithApi()}/workout-sessions`, {
           headers: { Authorization: `Bearer ${token}` },
           params: {

@@ -8,8 +8,7 @@ import {
   LogOut,
   ChevronRight
 } from 'lucide-react';
-import useSocket from '../hooks/useSocket';
-import { buildApiUrl } from '../config/api';
+import { useNavigation } from '../contexts/NavigationContext';
 
 // Custom Users Icon Component (Font Awesome) - same as Navigation.jsx
 const UsersIcon = ({ className, style }) => (
@@ -136,57 +135,11 @@ const FeedbackIcon = ({ className, style }) => (
 );
 
 const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
-  const { user, logout, getAuthToken } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const drawerRef = useRef(null);
-  const { socket } = useSocket();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useNavigation();
   const [drawerHeight, setDrawerHeight] = useState('100vh');
-
-  const fetchUnreadCount = async () => {
-    if (!user) return;
-    
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const conversations = data.data || [];
-        const totalUnread = conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0);
-        setUnreadCount(totalUnread);
-      }
-    } catch (error) {
-      logger.error('Error fetching unread count:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchUnreadCount();
-
-    if (socket) {
-      const handleNewMessage = () => {
-        fetchUnreadCount();
-      };
-
-      const handleMessagesRead = () => {
-        fetchUnreadCount();
-      };
-
-      socket.on('new_message', handleNewMessage);
-      socket.on('messages_read', handleMessagesRead);
-
-      return () => {
-        socket.off('new_message', handleNewMessage);
-        socket.off('messages_read', handleMessagesRead);
-      };
-    }
-  }, [user, socket, getAuthToken]);
 
   const handleLogout = () => {
     logout();
