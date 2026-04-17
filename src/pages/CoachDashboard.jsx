@@ -1331,11 +1331,11 @@ const CoachDashboard = () => {
                 filteredStudents.map((student) => (
                   <div
                     key={student.id}
-                    className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-14 2xl:gap-32 3xl:gap-56 4xl:gap-72 5xl:gap-96 cursor-pointer transition-all duration-200 ${selectedStudents.has(student.id)
+                    className={`group relative w-full h-[60px] rounded-[16px] flex md:grid md:grid-cols-[1fr_auto] items-center px-4 md:px-9 gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-14 2xl:gap-32 3xl:gap-56 4xl:gap-72 5xl:gap-96 transition-all duration-200 ${selectedStudents.has(student.id)
                       ? 'bg-white/10'
                       : 'bg-white/[0.04] hover:bg-white/10'
-                      }`}
-                    onClick={() => handleStudentClick(student)}
+                      } ${student.is_active === false ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
+                    onClick={() => student.is_active !== false && handleStudentClick(student)}
                   >
                     {/* Checkbox & Name Group */}
                     <div className="flex items-center gap-4 md:gap-6 min-w-0 flex-1 justify-between md:justify-start">
@@ -1375,6 +1375,11 @@ const CoachDashboard = () => {
                             </svg>
                           </div>
                           <span className="text-[18px] text-white font-light whitespace-nowrap">{student.name}</span>
+                          {student.is_active === false && (
+                            <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full border border-white/20 text-white/50 whitespace-nowrap">
+                              Lecture seule
+                            </span>
+                          )}
                         </div>
                       </div>
 
