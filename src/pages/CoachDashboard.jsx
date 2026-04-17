@@ -55,7 +55,7 @@ const CoachDashboard = () => {
 
   const clientLimit = billing?.clientLimit ?? 3;
   const activeStudentCount = useMemo(
-    () => students.filter((s) => s.is_active !== false).length,
+    () => students.length,
     [students]
   );
   const isOverClientLimit = activeStudentCount > clientLimit;
