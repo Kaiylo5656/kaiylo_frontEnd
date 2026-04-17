@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import axios from 'axios';
-import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Bell, Settings, MessageCircle, CheckSquare, Users, Trash2, ChevronDown, Check } from 'lucide-react';
 import InviteStudentModal from '../components/InviteStudentModal';
 import PendingInvitationsModal from '../components/PendingInvitationsModal';
 import DeleteStudentModal from '../components/DeleteStudentModal';
@@ -652,9 +652,20 @@ const CoachDashboard = () => {
 
       {/* Cancelling subscription banner (AC1) */}
       {!billingError && billing?.status === 'cancelling' && (
-        <div className="relative z-10 mx-4 mt-3 flex items-start gap-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-400" />
-          <div className="flex-1 text-sm text-yellow-200">
+        <div
+          className="relative z-10 mx-4 mt-3 flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--kaiylo-primary-hex) 14%, transparent)' }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 512 512"
+            className="h-5 w-5 shrink-0 text-[var(--kaiylo-primary-hex)]"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
+          </svg>
+          <div className="flex-1 text-sm text-[var(--kaiylo-primary-hex)]">
             Votre abonnement {billing?.plan ? billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1) : 'Pro'} se termine le{' '}
             <span className="font-medium">
               {new Date(billing.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -664,7 +675,7 @@ const CoachDashboard = () => {
           <button
             onClick={handleManageSubscription}
             disabled={portalLoading}
-            className="shrink-0 rounded-lg bg-yellow-500/20 px-3 py-1.5 text-xs font-medium text-yellow-200 transition-colors hover:bg-yellow-500/30 disabled:opacity-50"
+            className="shrink-0 rounded-lg bg-[var(--kaiylo-primary-hex)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {portalLoading ? '...' : 'Gérer mon abonnement'}
           </button>
@@ -673,15 +684,26 @@ const CoachDashboard = () => {
 
       {/* Downgraded state banner (AC2) */}
       {!billingError && billing?.plan === 'free' && students.filter(s => s.is_active === false).length > 0 && (
-        <div className="relative z-10 mx-4 mt-3 flex items-start gap-3 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
-          <div className="flex-1 text-sm text-orange-200">
+        <div
+          className="relative z-10 mx-4 mt-3 flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--kaiylo-primary-hex) 14%, transparent)' }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 512 512"
+            className="h-5 w-5 shrink-0 text-[var(--kaiylo-primary-hex)]"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M256 512a256 256 0 1 1 0-512 256 256 0 1 1 0 512zm0-192a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.6 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
+          </svg>
+          <div className="flex-1 text-sm text-[var(--kaiylo-primary-hex)]">
             <span className="font-medium">{students.filter(s => s.is_active === false).length} étudiant(s)</span> sont en mode lecture seule suite à votre changement de plan. Réabonnez-vous pour restaurer leur accès complet.
           </div>
           <button
             onClick={handleResubscribe}
             disabled={checkoutLoading}
-            className="shrink-0 rounded-lg bg-orange-500/20 px-3 py-1.5 text-xs font-medium text-orange-200 transition-colors hover:bg-orange-500/30 disabled:opacity-50"
+            className="shrink-0 rounded-lg bg-[var(--kaiylo-primary-hex)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {checkoutLoading ? '...' : 'Se réabonner'}
           </button>
