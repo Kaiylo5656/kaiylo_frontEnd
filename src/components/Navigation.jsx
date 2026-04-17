@@ -9,8 +9,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import useSocket from '../hooks/useSocket';
-import { buildApiUrl } from '../config/api';
+import { useNavigation } from '../contexts/NavigationContext';
 
 // Custom Users Icon Component (Font Awesome)
 const UsersIcon = ({ className, style }) => (
@@ -135,10 +134,9 @@ const NavLink = ({ to, icon: Icon, children, onClick, isCollapsed, badge }) => {
 };
 
 const Navigation = () => {
-  const { user, logout, getAuthToken } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { socket } = useSocket();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useNavigation();
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved ? JSON.parse(saved) : false; // Default to not collapsed
@@ -147,53 +145,6 @@ const Navigation = () => {
     const saved = localStorage.getItem('sidebarPinned');
     return saved ? JSON.parse(saved) : true; // Default to pinned (true) so menu stays open
   });
-
-  const fetchUnreadCount = async () => {
-    if (!user) return;
-    
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/chat/conversations'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const conversations = data.data || [];
-        const totalUnread = conversations.reduce((acc, conv) => acc + (conv.unread_count || 0), 0);
-        setUnreadCount(totalUnread);
-      }
-    } catch (error) {
-      logger.error('Error fetching unread count:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchUnreadCount();
-
-    if (socket) {
-      const handleNewMessage = () => {
-        // Refresh count on new message
-        fetchUnreadCount();
-      };
-
-      const handleMessagesRead = () => {
-        // Refresh count when messages are read
-        fetchUnreadCount();
-      };
-
-      socket.on('new_message', handleNewMessage);
-      socket.on('messages_read', handleMessagesRead);
-
-      return () => {
-        socket.off('new_message', handleNewMessage);
-        socket.off('messages_read', handleMessagesRead);
-      };
-    }
-  }, [user, socket, getAuthToken]);
 
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed));

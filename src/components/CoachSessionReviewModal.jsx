@@ -784,31 +784,52 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       );
                     }
 
-                    const setsCount = selectedExercise.sets?.length || 0;
-                    const repsPerSet = selectedExercise.sets?.[0]?.reps;
-                    const weight = selectedExercise.sets?.[0]?.weight;
+                    const exerciseSets = selectedExercise.sets || [];
+                    const setsCount = exerciseSets.length;
+                    const firstSet = exerciseSets[0];
+                    const repsPerSet = firstSet?.reps;
+                    const useRir = selectedExercise.useRir || selectedExercise.use_rir;
+
+                    const normalizeValue = (value) => {
+                      if (value === undefined || value === null || value === '') return null;
+                      const strValue = String(value).trim();
+                      if (!strValue) return null;
+                      const numValue = Number(strValue);
+                      return Number.isNaN(numValue) ? strValue.toLowerCase() : numValue;
+                    };
+
+                    const hasUniformReps =
+                      setsCount > 0 &&
+                      repsPerSet !== undefined &&
+                      repsPerSet !== null &&
+                      exerciseSets.every((set) => set?.reps === repsPerSet);
+
+                    const firstTargetValue = normalizeValue(firstSet?.weight);
+                    const hasUniformTarget =
+                      setsCount > 0 &&
+                      firstTargetValue !== null &&
+                      exerciseSets.every((set) => normalizeValue(set?.weight) === firstTargetValue);
+
+                    const canUseCompactFormat = hasUniformReps && hasUniformTarget;
 
                     // Si useRir === true, on doit afficher le RPE au lieu de la charge
                     let displayValue = null;
                     let displayLabel = '';
 
-                    if (selectedExercise.useRir || selectedExercise.use_rir) {
-                      // Quand useRir === true, le champ weight contient le RPE demandé par le coach
-                      const firstSet = selectedExercise.sets?.[0];
-                      const requestedRpe = firstSet?.weight;
-
-                      if (requestedRpe !== undefined && requestedRpe !== null && requestedRpe !== '') {
-                        // Convertir en nombre si nécessaire
-                        const rpeNumber = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
-                        if (!isNaN(rpeNumber) && rpeNumber >= 1 && rpeNumber <= 10) {
-                          displayValue = Math.round(rpeNumber);
-                          displayLabel = 'RPE';
+                    if (canUseCompactFormat) {
+                      if (useRir) {
+                        // Quand useRir === true, le champ weight contient le RPE demandé par le coach
+                        const requestedRpe = firstSet?.weight;
+                        if (requestedRpe !== undefined && requestedRpe !== null && requestedRpe !== '') {
+                          const rpeNumber = typeof requestedRpe === 'string' ? parseFloat(requestedRpe) : requestedRpe;
+                          if (!isNaN(rpeNumber) && rpeNumber >= 1 && rpeNumber <= 10) {
+                            displayValue = Math.round(rpeNumber);
+                            displayLabel = 'RPE';
+                          }
                         }
-                      }
-                    } else {
-                      // Si useRir === false, afficher la charge normale
-                      if (weight !== undefined && weight !== null) {
-                        displayValue = weight;
+                      } else if (firstSet?.weight !== undefined && firstSet?.weight !== null) {
+                        // Si useRir === false, afficher la charge normale
+                        displayValue = firstSet.weight;
                         displayLabel = 'kg';
                       }
                     }
@@ -816,7 +837,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     return (
                       <>
                         <span className="font-normal min-w-0 truncate" title={selectedExercise.name}>{selectedExercise.name}</span>
-                        {setsCount > 0 && repsPerSet !== undefined && repsPerSet !== null && (
+                        {canUseCompactFormat && (
                           <span className="text-white font-normal flex-shrink-0">
                             {' '}{setsCount}x{repsPerSet}
                           </span>
@@ -824,6 +845,11 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                         {displayValue !== null && (
                           <span className="text-[#D4845A] font-normal flex-shrink-0">
                             {displayLabel === 'kg' ? ` @${displayValue}${!/[a-zA-Z]/.test(String(displayValue)) ? displayLabel : ''}` : ` RPE ${displayValue}`}
+                          </span>
+                        )}
+                        {!canUseCompactFormat && setsCount > 0 && (
+                          <span className="text-[#D4845A] font-normal flex-shrink-0">
+                            {' '}({setsCount} séries variables)
                           </span>
                         )}
                       </>

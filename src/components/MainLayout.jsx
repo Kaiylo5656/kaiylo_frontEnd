@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { NavigationProvider } from '../contexts/NavigationContext';
 import Navigation from './Navigation';
 import Header from './Header';
 import BottomNavBar from './BottomNavBar';
@@ -51,6 +52,7 @@ const MainLayout = ({ children }) => {
   const isStudent = user?.role === 'student';
 
   return (
+    <NavigationProvider>
     <WorkoutSessionContext.Provider value={{ isWorkoutSessionOpen, setIsWorkoutSessionOpen }}>
       <HideMainHeaderInChatContext.Provider value={{ setHideMainHeaderInChatThread }}>
         <OverlayModalProvider>
@@ -186,6 +188,7 @@ const MainLayout = ({ children }) => {
         </OverlayModalProvider>
       </HideMainHeaderInChatContext.Provider>
     </WorkoutSessionContext.Provider>
+    </NavigationProvider>
   );
 };
 
