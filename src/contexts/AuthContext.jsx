@@ -950,8 +950,8 @@ export const AuthProvider = ({ children }) => {
   // Check if user is student
   const isStudent = () => hasRole('student');
 
-  // Get auth token function with automatic refresh
-  const getAuthToken = async () => {
+  // Get auth token function with automatic refresh (stable ref: avoids re-running consumers' effects on every AuthProvider render)
+  const getAuthToken = useCallback(async () => {
     // Try localStorage first
     let token = safeGetItem('authToken');
     
@@ -1022,7 +1022,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     return token;
-  };
+  }, [refreshAuthToken]);
 
   // Login with Google function
   const signInWithGoogle = async (navigate) => {

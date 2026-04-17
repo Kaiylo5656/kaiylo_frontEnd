@@ -2,22 +2,75 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-import { Clock, ExternalLink, ArrowUpRight } from 'lucide-react';
+import { Clock, ExternalLink, ArrowUpRight, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Toast } from '@/components/ui/Toast';
-import UpgradeConfirmationModal from '@/components/billing/UpgradeConfirmationModal';
-import DowngradeConfirmationModal from '../components/billing/DowngradeConfirmationModal';
+import BaseModal from '@/components/ui/modal/BaseModal';
 import { buildApiUrl } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 const cardClass = 'bg-white/[0.03] border border-white/10 rounded-2xl p-7 flex flex-col gap-5 h-full md:min-h-[282px]';
 
 const PLANS = [
-  { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 },
-  { name: 'growth',  label: 'Growth',  price: 49, studentLimit: 20 },
-  { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30 },
-  { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40 },
+  { name: 'starter', label: 'Starter', price: 29, studentLimit: 10, videoRetention: '1 mois' },
+  { name: 'growth',  label: 'Growth',  price: 49, studentLimit: 20, videoRetention: '3 mois' },
+  { name: 'scale',   label: 'Scale',   price: 69, studentLimit: 30, videoRetention: '6 mois' },
+  { name: 'elite',   label: 'Elite',   price: 89, studentLimit: 40, videoRetention: '1 an' },
+];
+
+const clientsIcon = (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 576 512"
+    className="h-4 w-4 shrink-0 text-purple-400"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M64 128a112 112 0 1 1 224 0 112 112 0 1 1 -224 0zM0 464c0-97.2 78.8-176 176-176s176 78.8 176 176l0 6c0 23.2-18.8 42-42 42L42 512c-23.2 0-42-18.8-42-42l0-6zM432 64a96 96 0 1 1 0 192 96 96 0 1 1 0-192zm0 240c79.5 0 144 64.5 144 144l0 22.4c0 23-18.6 41.6-41.6 41.6l-144.8 0c6.6-12.5 10.4-26.8 10.4-42l0-6c0-51.5-17.4-98.9-46.5-136.7 22.6-14.7 49.6-23.3 78.5-23.3z" />
+  </svg>
+);
+
+const videoRetentionIcon = (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 576 512"
+    className="h-4 w-4 shrink-0 text-purple-400"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M96 64c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L96 64zM464 336l73.5 58.8c4.2 3.4 9.4 5.2 14.8 5.2 13.1 0 23.7-10.6 23.7-23.7l0-240.6c0-13.1-10.6-23.7-23.7-23.7-5.4 0-10.6 1.8-14.8 5.2L464 176 464 336z" />
+  </svg>
+);
+
+const supportPriorityIcon = (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 448 512"
+    className="h-4 w-4 shrink-0 text-purple-400"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M224 64c-79 0-144.7 57.3-157.7 132.7 9.3-3 19.3-4.7 29.7-4.7l16 0c26.5 0 48 21.5 48 48l0 96c0 26.5-21.5 48-48 48l-16 0c-53 0-96-43-96-96l0-64C0 100.3 100.3 0 224 0S448 100.3 448 224l0 168.1c0 66.3-53.8 120-120.1 120l-87.9-.1-32 0c-26.5 0-48-21.5-48-48s21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 0 40 0c39.8 0 72-32.2 72-72l0-20.9c-14.1 8.2-30.5 12.8-48 12.8l-16 0c-26.5 0-48-21.5-48-48l0-96c0-26.5 21.5-48 48-48l16 0c10.4 0 20.3 1.6 29.7 4.7-13-75.3-78.6-132.7-157.7-132.7z" />
+  </svg>
+);
+
+const upgradeTitleIcon = (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 448 512"
+    className="h-4 w-4 shrink-0"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
+  </svg>
+);
+
+const makeBenefits = (studentLimit, videoRetention) => [
+  { customIcon: clientsIcon, text: `Jusqu'a ${studentLimit} clients` },
+  { customIcon: videoRetentionIcon, text: `Rétention vidéo ${videoRetention}` },
+  { customIcon: supportPriorityIcon, text: 'Support prioritaire' },
 ];
 
 const SkeletonBlock = ({ className }) => (
@@ -51,11 +104,9 @@ const FacturationPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutPlanLoading, setCheckoutPlanLoading] = useState(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [downgradeModal, setDowngradeModal] = useState({ isOpen: false, targetPlan: null, studentsToDeactivate: [] });
+  const [showPlansModal, setShowPlansModal] = useState(false);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -90,9 +141,10 @@ const FacturationPage = () => {
     }
   }, [searchParams, setSearchParams, fetchBillingStatus]);
 
-  const handleCheckout = useCallback(async () => {
+  const handleCheckout = useCallback(async (plan) => {
     try {
-      setCheckoutLoading(true);
+      if (!plan?.name) return;
+      setCheckoutPlanLoading(plan.name);
       const token = await getAuthToken();
       const response = await fetch(buildApiUrl('/api/billing/create-checkout-session'), {
         method: 'POST',
@@ -100,7 +152,7 @@ const FacturationPage = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: selectedPlan?.name || 'starter' })
+        body: JSON.stringify({ planName: plan.name })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -108,16 +160,14 @@ const FacturationPage = () => {
       } else {
         console.error('Checkout session error:', result);
         setError(result.error || 'Impossible de créer la session de paiement');
-        setShowUpgradeModal(false);
       }
     } catch (err) {
       console.error('Checkout request failed:', err);
       setError('Erreur lors de la redirection vers le paiement');
-      setShowUpgradeModal(false);
     } finally {
-      setCheckoutLoading(false);
+      setCheckoutPlanLoading(null);
     }
-  }, [getAuthToken, selectedPlan]);
+  }, [getAuthToken]);
 
   const handleManageBilling = useCallback(async () => {
     try {
@@ -269,18 +319,27 @@ const FacturationPage = () => {
 
                 {/* CTA */}
                 {isPaidPlan ? (
-                  <button
-                    onClick={handleManageBilling}
-                    disabled={portalLoading}
-                    aria-busy={portalLoading}
-                    className="w-full mt-1 py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.16] disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {portalLoading ? 'Chargement...' : 'Gérer mon abonnement'}
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                  <div className="flex flex-col gap-2 mt-1">
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={portalLoading}
+                      aria-busy={portalLoading}
+                      className="w-full py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.16] disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {portalLoading ? 'Chargement...' : 'Gérer mon abonnement'}
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPlansModal(true)}
+                      className="w-full py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20]"
+                    >
+                      Comparer les plans
+                    </button>
+                  </div>
                 ) : (
                   <button
-                    onClick={() => setShowUpgradeModal(true)}
+                    onClick={() => setShowPlansModal(true)}
                     className="w-full mt-1 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-300 hover:opacity-90 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
                   >
                     <svg
@@ -292,7 +351,7 @@ const FacturationPage = () => {
                     >
                       <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
                     </svg>
-                    Voir les plans
+                    Comparer les plans
                   </button>
                 )}
               </Card>
@@ -417,91 +476,86 @@ const FacturationPage = () => {
           </div>
         )}
 
-        {/* Plan Comparison Grid */}
-        {!loading && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="mt-6"
-          >
-            <h2 className="text-base font-medium text-muted-foreground mb-4">Choisir un plan</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {PLANS.map((plan) => {
-                const isActive = activePlan === plan.name;
-                return (
-                  <div
-                    key={plan.name}
-                    className={`rounded-2xl p-5 flex flex-col gap-4 border transition-colors duration-300 ${
-                      isActive
-                        ? 'bg-[#D4845A]/10 border-[#D4845A]/50'
-                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-base text-foreground">{plan.label}</span>
-                      {isActive && (
-                        <Badge variant="success">Plan actuel</Badge>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-2xl font-bold text-foreground tabular-nums">€{plan.price}</span>
-                      <span className="text-sm font-light text-muted-foreground">/mois</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground font-light">{plan.studentLimit} élèves</p>
-                    {isActive ? (
-                      <div className="mt-auto py-2 text-center text-xs font-medium text-[#D4845A]">
-                        Plan actuel
-                      </div>
-                    ) : (() => {
-                      const currentPlanIndex = PLANS.findIndex(p => p.name === activePlan);
-                      const thisPlanIndex = PLANS.findIndex(p => p.name === plan.name);
-                      const isDowngrade = isPaidPlan && thisPlanIndex < currentPlanIndex;
-                      return (
-                        <button
-                          onClick={() => {
-                            if (isDowngrade) {
-                              const excessCount = Math.max(0, clientCount - plan.studentLimit);
-                              const placeholders = Array.from({ length: excessCount }, (_, i) => ({ id: i, name: `Élève ${i + 1}` }));
-                              setDowngradeModal({ isOpen: true, targetPlan: plan, studentsToDeactivate: placeholders });
-                            } else {
-                              setSelectedPlan(plan);
-                              setShowUpgradeModal(true);
-                            }
-                          }}
-                          disabled={portalLoading}
-                          aria-busy={portalLoading}
-                          className="mt-auto w-full py-2 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20] disabled:opacity-50"
-                        >
-                          {portalLoading ? 'Chargement...' : 'Changer de plan'}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
       </div>
 
-      {/* Downgrade Confirmation Modal */}
-      <DowngradeConfirmationModal
-        isOpen={downgradeModal.isOpen}
-        onClose={() => setDowngradeModal({ isOpen: false, targetPlan: null, studentsToDeactivate: [] })}
-        onConfirm={() => { setDowngradeModal(prev => ({ ...prev, isOpen: false })); handleManageBilling(); }}
-        targetPlan={downgradeModal.targetPlan}
-        studentsToDeactivate={downgradeModal.studentsToDeactivate}
-      />
+      {/* Plans (modal) */}
+      <BaseModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
+        titleIcon={(
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5 shrink-0" fill="currentColor" aria-hidden="true">
+            <path d="M328 112l-144 0-37.3-74.5c-1.8-3.6-2.7-7.6-2.7-11.6 0-14.3 11.6-25.9 25.9-25.9L342.1 0c14.3 0 25.9 11.6 25.9 25.9 0 4-.9 8-2.7 11.6L328 112zM169.6 160l172.8 0 48.7 40.6C457.6 256 496 338 496 424.5 496 472.8 456.8 512 408.5 512l-305.1 0C55.2 512 16 472.8 16 424.5 16 338 54.4 256 120.9 200.6L169.6 160zM260 224c-11 0-20 9-20 20l0 4c-28.8 .3-52 23.7-52 52.5 0 25.7 18.5 47.6 43.9 51.8l41.7 7c6 1 10.4 6.2 10.4 12.3 0 6.9-5.6 12.5-12.5 12.5L216 384c-11 0-20 9-20 20s9 20 20 20l24 0 0 4c0 11 9 20 20 20s20-9 20-20l0-4.7c25-4.1 44-25.7 44-51.8 0-25.7-18.5-47.6-43.9-51.8l-41.7-7c-6-1-10.4-6.2-10.4-12.3 0-6.9 5.6-12.5 12.5-12.5l47.5 0c11 0 20-9 20-20s-9-20-20-20l-8 0 0-4c0-11-9-20-20-20z" />
+          </svg>
+        )}
+        title="Choisir un plan"
+        modalId="facturation-plans"
+        size="2xl"
+        titleClassName="text-xl font-semibold"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {PLANS.map((plan) => {
+            const isActive = activePlan === plan.name;
+            const benefits = makeBenefits(plan.studentLimit, plan.videoRetention);
+            return (
+              <div
+                key={plan.name}
+                className={`rounded-2xl p-5 flex flex-col gap-4 transition-[transform,box-shadow,background-color,border-color] duration-300 ease-out motion-safe:hover:-translate-y-0.5 ${
+                  isActive
+                    ? 'border border-[#D4845A]/50 bg-[#D4845A]/10 motion-safe:hover:border-[#D4845A]/65 motion-safe:hover:bg-[#D4845A]/14 motion-safe:hover:shadow-[0_14px_36px_-18px_rgba(212,132,90,0.28)]'
+                    : 'border-0 bg-black/25 motion-safe:hover:bg-black/[0.32] motion-safe:hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.55)]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[var(--kaiylo-primary-hex)]">
+                    {upgradeTitleIcon}
+                    {`Passer a ${plan.label}`}
+                  </p>
+                  {isActive && (
+                    <Badge variant="success">Plan actuel</Badge>
+                  )}
+                </div>
 
-      {/* Upgrade Confirmation Modal */}
-      <UpgradeConfirmationModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        onConfirm={handleCheckout}
-        isLoading={checkoutLoading}
-        plan={selectedPlan || { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 }}
-      />
+                <div className="text-center mt-1.5 mb-1.5">
+                  <span className="text-4xl font-bold text-white">€{plan.price}</span>
+                  <span className="text-lg text-zinc-400 font-light">/mois</span>
+                </div>
+
+                <ul className="space-y-3 mt-1.5 mb-1.5">
+                  {benefits.map((benefit) => (
+                    <li key={benefit.text} className="flex items-center gap-3 text-sm text-zinc-300">
+                      <span className="inline-flex w-8 shrink-0 items-center justify-center">{benefit.customIcon}</span>
+                      {benefit.text}
+                    </li>
+                  ))}
+                </ul>
+
+                {isActive ? (
+                  <div className="mt-auto py-3 text-center text-sm font-semibold text-[#D4845A]">
+                    Plan actuel
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout(plan)}
+                    disabled={checkoutPlanLoading !== null}
+                    aria-busy={checkoutPlanLoading === plan.name}
+                    className="mt-auto w-full py-2.5 rounded-[8px] text-sm font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-[#a855f7] to-[#0f66c9] transition-[transform,box-shadow,filter] duration-300 ease-out hover:brightness-[1.04] hover:shadow-[0_8px_26px_-12px_rgba(168,85,247,0.28)] hover:-translate-y-px active:translate-y-0 active:brightness-[1.02] disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {checkoutPlanLoading === plan.name ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Redirection...
+                      </>
+                    ) : (
+                      `Passer au plan ${plan.label}`
+                    )}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </BaseModal>
 
       {/* Success Toast */}
       <Toast
