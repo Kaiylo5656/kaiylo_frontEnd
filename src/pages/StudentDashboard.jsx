@@ -2,11 +2,10 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
-import { AlertTriangle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format, addDays, startOfWeek, subDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Circle, CheckCircle2, Search, User, Calendar, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { buildApiUrl } from '../config/api';
@@ -56,6 +55,7 @@ const StudentDashboard = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isDayAnimating, setIsDayAnimating] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [isReadOnlyBannerOpen, setIsReadOnlyBannerOpen] = useState(false);
   const scrollContainerRef = useRef(null);
   const weekSwipeRef = useRef({ startX: null, startY: null });
 
@@ -679,14 +679,34 @@ const StudentDashboard = () => {
       >
         {/* Read-only access banner */}
         {!isActive && (
-          <div className="w-full mb-4 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-400/20 text-blue-200 text-sm text-center">
-            <div className="flex items-center justify-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">Accès limité</span>
-            </div>
-            <p className="mt-1 text-blue-300/80 text-xs">
-              Votre accès a été limité. Le plan de votre coach a changé. Contactez votre coach pour plus de détails.
-            </p>
+          <div
+            className="w-full mb-4 px-4 py-3 rounded-xl text-sm text-center text-[var(--kaiylo-primary-hex)]"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--kaiylo-primary-hex) 14%, transparent)' }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsReadOnlyBannerOpen((prev) => !prev)}
+              className="mx-auto flex items-center justify-center gap-1.5 font-medium"
+              aria-expanded={isReadOnlyBannerOpen}
+              aria-controls="student-read-only-access-details"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 512 512"
+                className="w-4 h-4 flex-shrink-0"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
+              </svg>
+              <span>Accès limité</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isReadOnlyBannerOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isReadOnlyBannerOpen && (
+              <p id="student-read-only-access-details" className="mt-1 text-xs text-[var(--kaiylo-primary-hex)]/80">
+                Vous êtes actuellement en mode lecture seule suite au changement de plan de votre coach. Vous pouvez consulter votre planning, mais vous ne pouvez plus démarrer ou valider vos séances. Contactez votre coach pour retrouver un accès complet.
+              </p>
+            )}
           </div>
         )}
 
