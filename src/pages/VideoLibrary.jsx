@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
-import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, Play, Video, ImageIcon } from 'lucide-react';
+import { PlayCircle, MoreHorizontal, Trash2, Filter, ChevronDown, ChevronRight, Clock, Play, Video, ImageIcon, Star, Download } from 'lucide-react';
+import { getExpiryLabel } from '@/utils/videoRetention';
 
 const CircleCheckIcon = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
@@ -333,6 +334,29 @@ const VideoLibrary = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleFavorite = async (video) => {
+    const method = video.is_favorited ? 'DELETE' : 'POST';
+    let token = await getAuthToken();
+    const res = await fetch(buildApiUrl(`/api/videos/${video.id}/favorite`), {
+      method,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.error === 'Limite atteinte') return;
+    }
+    fetchCoachResources();
+  };
+
+  const handleDownload = async (videoId) => {
+    let token = await getAuthToken();
+    const res = await fetch(buildApiUrl(`/api/videos/${videoId}/download`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.url) window.open(data.url, '_blank');
   };
 
   // Handle delete video click - opens confirmation modal
@@ -1442,6 +1466,25 @@ const VideoLibrary = () => {
                   >
                     {video.title || video.fileName}
                   </h3>
+                  <div className="flex items-center gap-1">
+                    {!video.is_favorited && getExpiryLabel(video) && (
+                      <span className="text-xs text-gray-400">{getExpiryLabel(video)}</span>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(video); }}
+                      disabled={!video.is_favorited && (video.student_favorite_count || 0) >= 3}
+                      title={!video.is_favorited && (video.student_favorite_count || 0) >= 3 ? 'Limite atteinte (3/3)' : undefined}
+                      className="p-1"
+                    >
+                      <Star
+                        size={16}
+                        className={video.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'}
+                      />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDownload(video.id); }} className="p-1">
+                      <Download size={16} className="text-gray-400 hover:text-white" />
+                    </button>
+                  </div>
                   <div className="relative video-menu-container">
                     <button
                       onClick={(e) => {
