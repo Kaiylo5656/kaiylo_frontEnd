@@ -1,4 +1,5 @@
 export function getExpiryLabel(video) {
+  if (!video) return null;
   const now = Date.now();
   let expiryDate;
 
