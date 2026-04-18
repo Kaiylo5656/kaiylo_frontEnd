@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, Maximize, Send, Save, Edit3, Folder, Star, Download } from 'lucide-react';
+import { getExpiryLabel } from '@/utils/videoRetention';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import axios from 'axios';
@@ -28,7 +29,8 @@ const VoirPlusArrowIcon = ({ className }) => (
   </svg>
 );
 
-const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, onFeedbackUpdate, videoType = 'student', isCoachView = false }) => {
+const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, onFeedbackUpdate, onVideoUpdated, videoType = 'student', isCoachView = false }) => {
+  const [localVideo, setLocalVideo] = useState(video);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -91,6 +93,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   const handleClose = useCallback(() => {
     onClose();
   }, [onClose]);
+
+  useEffect(() => {
+    setLocalVideo(video);
+  }, [video]);
 
   useEffect(() => {
     if (video) {
@@ -395,6 +401,45 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
     }
   };
 
+  const handleMarkReviewed = async () => {
+    const token = await getAuthToken();
+    const res = await fetch(buildApiUrl(`/api/videos/${localVideo.id}/mark-reviewed`), {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const now = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      setLocalVideo(v => ({ ...v, reviewed_at: now, expires_at: expiresAt }));
+      onVideoUpdated?.();
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    const token = await getAuthToken();
+    const method = localVideo.is_favorited ? 'DELETE' : 'POST';
+    const res = await fetch(buildApiUrl(`/api/videos/${localVideo.id}/favorite`), {
+      method,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      setLocalVideo(v => ({ ...v, is_favorited: !v.is_favorited }));
+      onVideoUpdated?.();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      if (data.error === 'Limite atteinte') alert('Limite atteinte (3/3)');
+    }
+  };
+
+  const handleDownloadRetention = async () => {
+    const token = await getAuthToken();
+    const res = await fetch(buildApiUrl(`/api/videos/${localVideo.id}/download`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.url) window.open(data.url, '_blank');
+  };
+
   const handleDelete = async () => {
     try {
       await axios.delete(buildApiUrl(`/workout-sessions/videos/${video.id}`));
@@ -535,13 +580,36 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
               )}
             </h2>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-white/50 hover:text-white transition-colors"
-            aria-label="Close modal"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {isCoachView && (
+              <>
+                {getExpiryLabel(localVideo) && (
+                  <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
+                )}
+                {!localVideo?.reviewed_at && (
+                  <button
+                    onClick={handleMarkReviewed}
+                    className="text-xs text-gray-400 hover:text-white border border-gray-600 rounded px-1.5 py-0.5"
+                  >
+                    Marquer comme revu
+                  </button>
+                )}
+                <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
+                  <Star size={14} className={localVideo?.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'} />
+                </button>
+                <button onClick={handleDownloadRetention} className="p-1" title="Télécharger">
+                  <Download size={14} className="text-gray-400 hover:text-white" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={handleClose}
+              className="text-white/50 hover:text-white transition-colors"
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Video Information - Mobile: Below header, Desktop: Inside sidebar */}
@@ -930,13 +998,36 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                   )}
                 </h2>
               </div>
-              <button
-                onClick={onClose}
-                className="text-white/50 hover:text-white transition-colors"
-                aria-label="Close modal"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {isCoachView && (
+                  <>
+                    {getExpiryLabel(localVideo) && (
+                      <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
+                    )}
+                    {!localVideo?.reviewed_at && (
+                      <button
+                        onClick={handleMarkReviewed}
+                        className="text-sm text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-1"
+                      >
+                        Marquer comme revu
+                      </button>
+                    )}
+                    <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
+                      <Star size={16} className={localVideo?.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'} />
+                    </button>
+                    <button onClick={handleDownloadRetention} className="p-1" title="Télécharger">
+                      <Download size={16} className="text-gray-400 hover:text-white" />
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={onClose}
+                  className="text-white/50 hover:text-white transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Video Information - Desktop only */}
