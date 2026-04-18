@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import VoiceMessage from './VoiceMessage';
 import { useVideoModal } from '../contexts/VideoModalContext';
+import { Star } from 'lucide-react';
+import { getExpiryLabel } from '@/utils/videoRetention';
 
 /**
  * Mobile-optimized video detail modal for students
@@ -145,6 +147,16 @@ const StudentVideoDetailModal = ({ isOpen, onClose, video, onFeedbackUpdate }) =
             <h3 className="text-white font-light text-base flex items-center justify-center gap-2 flex-wrap">
               <span className="text-[var(--kaiylo-primary-hex)] text-[20px] font-normal">{video.exercise_name || 'Exercice'}</span>
             </h3>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              {/* Read-only favorite indicator */}
+              {video.is_favorited && (
+                <Star size={14} className="text-yellow-400 fill-yellow-400" />
+              )}
+              {/* Expiry label */}
+              {getExpiryLabel(video) && (
+                <span className="text-xs text-gray-400">{getExpiryLabel(video)}</span>
+              )}
+            </div>
             <div className="flex items-center justify-center gap-2 text-white/50 text-[13px] font-light mt-1">
               <span>№ {video.set_number || 1}/{video.total_sets || '?'}</span>
               {(() => {

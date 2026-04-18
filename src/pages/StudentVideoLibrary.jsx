@@ -14,8 +14,10 @@ import {
   Filter,
   ChevronRight,
   Video,
-  Folder
+  Folder,
+  Star
 } from 'lucide-react';
+import { getExpiryLabel } from '@/utils/videoRetention';
 
 // Custom ChevronDown Icon Component
 const ChevronDownIcon = ({ className, style }) => (
@@ -885,6 +887,16 @@ const StudentVideoLibrary = () => {
                                             {getStatusBadge(video.status, video.coach_feedback)}
                                           </div>
                                         )}
+
+                                        {/* Read-only favorite indicator and expiry label */}
+                                        <div className="flex items-center gap-2 mt-1">
+                                          {video.is_favorited && (
+                                            <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                                          )}
+                                          {getExpiryLabel(video) && (
+                                            <span className="text-xs text-gray-400">{getExpiryLabel(video)}</span>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
