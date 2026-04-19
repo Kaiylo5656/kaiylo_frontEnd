@@ -95,7 +95,12 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   }, [onClose]);
 
   useEffect(() => {
-    setLocalVideo(video);
+    setLocalVideo(prev => {
+      if (prev?.id === video?.id) {
+        return { ...video, is_favorited: prev?.is_favorited ?? video?.is_favorited };
+      }
+      return video;
+    });
   }, [video]);
 
   useEffect(() => {
@@ -423,11 +428,17 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      setLocalVideo(v => ({ ...v, is_favorited: !v.is_favorited }));
-      onVideoUpdated?.();
+      const newFav = !localVideo.is_favorited;
+      setLocalVideo(v => ({ ...v, is_favorited: newFav }));
+      onVideoUpdated?.({ ...localVideo, is_favorited: newFav });
     } else {
       const data = await res.json().catch(() => ({}));
       if (data.error === 'Limite atteinte') alert('Limite atteinte (3/3)');
+      else if (res.status === 409) {
+        setLocalVideo(v => ({ ...v, is_favorited: true }));
+        onVideoUpdated?.({ ...localVideo, is_favorited: true });
+        onVideoUpdated?.();
+      }
     }
   };
 
@@ -586,16 +597,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                 {getExpiryLabel(localVideo) && (
                   <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
                 )}
-                {!localVideo?.reviewed_at && (
-                  <button
-                    onClick={handleMarkReviewed}
-                    className="text-xs text-gray-400 hover:text-white border border-gray-600 rounded px-1.5 py-0.5"
-                  >
-                    Marquer comme revu
-                  </button>
-                )}
                 <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
-                  <Star size={14} className={localVideo?.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'} />
+                  <Star size={14} className={localVideo?.is_favorited ? 'text-[#D4845A] fill-[#D4845A]' : 'text-gray-400 hover:text-[#D4845A]'} />
                 </button>
                 <button onClick={handleDownloadRetention} className="p-1" title="Télécharger">
                   <Download size={14} className="text-gray-400 hover:text-white" />
@@ -1004,16 +1007,8 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
                     {getExpiryLabel(localVideo) && (
                       <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
                     )}
-                    {!localVideo?.reviewed_at && (
-                      <button
-                        onClick={handleMarkReviewed}
-                        className="text-sm text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-1"
-                      >
-                        Marquer comme revu
-                      </button>
-                    )}
                     <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
-                      <Star size={16} className={localVideo?.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'} />
+                      <Star size={16} className={localVideo?.is_favorited ? 'text-[#D4845A] fill-[#D4845A]' : 'text-gray-400 hover:text-[#D4845A]'} />
                     </button>
                     <button onClick={handleDownloadRetention} className="p-1" title="Télécharger">
                       <Download size={16} className="text-gray-400 hover:text-white" />

@@ -2622,6 +2622,10 @@ const VideoLibrary = () => {
         onClose={() => navigate(-1)}
         video={selectedVideo}
         onFeedbackUpdate={handleFeedbackUpdate}
+        onVideoUpdated={(updated) => {
+          if (!updated) return;
+          setStudentVideos(prev => prev.map(v => v.id === updated.id ? { ...v, is_favorited: updated.is_favorited } : v));
+        }}
         videoType="student"
         isCoachView={true}
       />
