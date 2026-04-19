@@ -824,6 +824,34 @@ const CreateWorkoutSessionModal = ({
     setExercises(updatedExercises);
   };
 
+  const focusNextSessionSetInput = useCallback(
+    (exerciseIndex, setIndex, field) => {
+      const nextSetIndex = setIndex + 1;
+      const len = exercises[exerciseIndex]?.sets?.length ?? 0;
+      if (nextSetIndex >= len) return;
+      const selector = `input[data-session-set-field="${exerciseIndex}-${nextSetIndex}-${field}"]`;
+      requestAnimationFrame(() => {
+        const el = document.querySelector(selector);
+        if (el && typeof el.focus === 'function') {
+          el.focus();
+          if (typeof el.select === 'function') {
+            el.select();
+          }
+        }
+      });
+    },
+    [exercises],
+  );
+
+  const handleSessionSetInputEnterKeyDown = useCallback(
+    (e, exerciseIndex, setIndex, field) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      focusNextSessionSetInput(exerciseIndex, setIndex, field);
+    },
+    [focusNextSessionSetInput],
+  );
+
   const handleChangeAllRepTypes = (exerciseIndex, repType) => {
     const updatedExercises = [...exercises];
     updatedExercises[exerciseIndex].sets.forEach(set => {
@@ -2683,6 +2711,7 @@ const CreateWorkoutSessionModal = ({
                                               return (
                                                 <>
                                                   <Input
+                                                    data-session-set-field={`${exerciseIndex}-${setIndex}-reps`}
                                                     type="text"
                                                     value={holdVal}
                                                     maxLength={repsChargeLayout.repsMaxLen}
@@ -2700,6 +2729,9 @@ const CreateWorkoutSessionModal = ({
                                                         ? (repsChargeLayout.wideReps ? '!pr-7' : '!pr-5')
                                                         : '!pr-1.5'
                                                     }`}
+                                                    onKeyDown={(e) =>
+                                                      handleSessionSetInputEnterKeyDown(e, exerciseIndex, setIndex, 'reps')
+                                                    }
                                                     onFocus={(e) => {
                                                       e.target.style.borderStyle = 'solid';
                                                       e.target.style.borderWidth = '0.5px';
@@ -2741,6 +2773,7 @@ const CreateWorkoutSessionModal = ({
                                             }}
                                           >
                                             <Input
+                                              data-session-set-field={`${exerciseIndex}-${setIndex}-reps`}
                                               type="text"
                                               value={set.reps || ''}
                                               maxLength={repsChargeLayout.repsMaxLen}
@@ -2750,6 +2783,9 @@ const CreateWorkoutSessionModal = ({
                                               }}
                                               placeholder=""
                                               className={`text-white text-sm text-center h-8 mx-auto rounded-[8px] focus:outline-none pt-[2px] pb-[2px] !pl-1.5 !pr-1.5 transition-colors ${repsChargeLayout.wideReps ? repsChargeLayout.wideInputClass : 'w-[82px]'}`}
+                                              onKeyDown={(e) =>
+                                                handleSessionSetInputEnterKeyDown(e, exerciseIndex, setIndex, 'reps')
+                                              }
                                               onFocus={(e) => {
                                                 e.target.style.borderStyle = 'solid';
                                                 e.target.style.borderWidth = '0.5px';
@@ -2806,6 +2842,7 @@ const CreateWorkoutSessionModal = ({
                                                 }}
                                               >
                                                 <Input
+                                                  data-session-set-field={`${exerciseIndex}-${setIndex}-weight`}
                                                   type="text"
                                                   maxLength={exercise.useRir ? 20 : repsChargeLayout.chargeMaxLen}
                                                   value={set.weight ?? ''}
@@ -2815,6 +2852,9 @@ const CreateWorkoutSessionModal = ({
                                                     handleSetChange(exerciseIndex, setIndex, 'weight', value);
                                                   }}
                                                   className={`text-white text-sm text-center h-8 rounded-[8px] focus:outline-none pt-[2px] pb-[2px] transition-colors ${repsChargeLayout.wideCharge ? repsChargeLayout.wideInputClass : 'w-20'} ${(!exercise.useRir && set.weight !== null && set.weight !== '' && !/[a-zA-Z]/.test(set.weight)) ? (repsChargeLayout.wideCharge ? 'pr-8 pl-8' : 'pr-6 pl-6') : ''}`}
+                                                  onKeyDown={(e) =>
+                                                    handleSessionSetInputEnterKeyDown(e, exerciseIndex, setIndex, 'weight')
+                                                  }
                                                   onFocus={(e) => {
                                                     e.target.style.borderStyle = 'solid';
                                                     e.target.style.borderWidth = '0.5px';
@@ -2892,6 +2932,7 @@ const CreateWorkoutSessionModal = ({
                                           }}
                                         >
                                           <Input
+                                            data-session-set-field={`${exerciseIndex}-${setIndex}-rest`}
                                             type="text"
                                             value={set.rest}
                                             onChange={(e) => handleSetChange(exerciseIndex, setIndex, 'rest', e.target.value)}
@@ -2919,7 +2960,9 @@ const CreateWorkoutSessionModal = ({
                                                   const formattedValue = `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`;
                                                   handleSetChange(exerciseIndex, setIndex, 'rest', formattedValue);
                                                 }
+                                                return;
                                               }
+                                              handleSessionSetInputEnterKeyDown(e, exerciseIndex, setIndex, 'rest');
                                             }}
                                             onFocus={(e) => {
                                               e.target.style.borderStyle = 'solid';
