@@ -21,13 +21,10 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [duplicateNameError, setDuplicateNameError] = useState(false);
-<<<<<<< HEAD
   /** Existing server demo marked for removal; on submit we DELETE /exercises/:id/demo-video then save. */
   const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
-=======
   const [youtubeDemoURL, setYoutubeDemoURL] = useState('');
   const [youtubeError, setYoutubeError] = useState('');
->>>>>>> main
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -246,7 +243,13 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setLoading(true);
 
     try {
-<<<<<<< HEAD
+      setYoutubeError('');
+      const ytTrim = youtubeDemoURL.trim();
+      if (ytTrim && !parseYoutubeVideoId(ytTrim)) {
+        setYoutubeError('Lien YouTube invalide (utilisez une URL youtube.com ou youtu.be).');
+        setLoading(false);
+        return;
+      }
       const token = localStorage.getItem('authToken');
       if (
         editingExercise?.id &&
@@ -266,14 +269,6 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             return;
           }
         }
-=======
-      setYoutubeError('');
-      const ytTrim = youtubeDemoURL.trim();
-      if (ytTrim && !parseYoutubeVideoId(ytTrim)) {
-        setYoutubeError('Lien YouTube invalide (utilisez une URL youtube.com ou youtu.be).');
-        setLoading(false);
-        return;
->>>>>>> main
       }
 
       let exerciseData = { ...formData };
@@ -316,11 +311,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       setVideoFile(null);
       setVideoPreview(null);
       setVideoError('');
-<<<<<<< HEAD
       setDemoVideoRemoved(false);
-=======
       setYoutubeDemoURL('');
->>>>>>> main
       
       onClose();
     } catch (error) {
@@ -340,12 +332,9 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setVideoFile(null);
     setVideoPreview(null);
     setVideoError('');
-<<<<<<< HEAD
     setDemoVideoRemoved(false);
-=======
     setYoutubeDemoURL('');
     setYoutubeError('');
->>>>>>> main
     setUploadProgress(0);
     onClose();
   };
