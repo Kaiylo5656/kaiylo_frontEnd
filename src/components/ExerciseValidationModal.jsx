@@ -63,6 +63,27 @@ function studentValidationRepsHoldColumnClasses(coachChargePrescriptionColumnVis
   return { headerClass, cellClass, barClass };
 }
 
+/** Saisie charge (kg) côté élève : max 3 chiffres avant la virgule, 2 après, négatif possible. */
+const MAX_STUDENT_WEIGHT_CHARS = 7; // ex. "-123,45"
+
+function normalizeStudentWeightInput(value) {
+  let raw = String(value ?? '').replace(',', '.');
+  const isNeg = raw.startsWith('-');
+  raw = raw.replace(/[^\d.]/g, '');
+  const parts = raw.split('.');
+  if (parts.length > 2) {
+    raw = parts[0] + '.' + parts.slice(1).join('');
+  }
+  const p2 = raw.split('.');
+  if (p2.length >= 2) {
+    raw = p2[0].slice(0, 3) + '.' + p2[1].slice(0, 2);
+  } else {
+    raw = raw.slice(0, 3);
+  }
+  if (isNeg) raw = raw === '' ? '-' : '-' + raw;
+  return raw.replace('.', ',');
+}
+
 const ExerciseValidationModal = ({
   isOpen,
   onClose,
@@ -110,6 +131,7 @@ const ExerciseValidationModal = ({
       const hasDirectInstructions = exercise.instructions && exercise.instructions.trim().length > 0;
       const hasDirectDescription = exercise.description && exercise.description.trim().length > 0;
       const hasDirectVideo = (exercise.demoVideoURL && exercise.demoVideoURL.trim().length > 0) ||
+        (exercise.youtubeDemoURL && exercise.youtubeDemoURL.trim().length > 0) ||
         (exercise.demo_video_url && exercise.demo_video_url.trim().length > 0) ||
         (exercise.videoUrl && exercise.videoUrl.trim().length > 0) ||
         (exercise.video_url && exercise.video_url.trim().length > 0);
@@ -188,6 +210,9 @@ const ExerciseValidationModal = ({
     const hasDirectVideo = (exercise.demoVideoURL &&
       typeof exercise.demoVideoURL === 'string' &&
       exercise.demoVideoURL.trim().length > 0) ||
+      (exercise.youtubeDemoURL &&
+        typeof exercise.youtubeDemoURL === 'string' &&
+        exercise.youtubeDemoURL.trim().length > 0) ||
       (exercise.demo_video_url &&
         typeof exercise.demo_video_url === 'string' &&
         exercise.demo_video_url.trim().length > 0) ||
@@ -215,6 +240,9 @@ const ExerciseValidationModal = ({
       const hasFetchedVideo = (fetchedDetails.demoVideoURL &&
         typeof fetchedDetails.demoVideoURL === 'string' &&
         fetchedDetails.demoVideoURL.trim().length > 0) ||
+        (fetchedDetails.youtubeDemoURL &&
+          typeof fetchedDetails.youtubeDemoURL === 'string' &&
+          fetchedDetails.youtubeDemoURL.trim().length > 0) ||
         (fetchedDetails.demoVideoUrl &&
           typeof fetchedDetails.demoVideoUrl === 'string' &&
           fetchedDetails.demoVideoUrl.trim().length > 0);
@@ -1302,84 +1330,64 @@ const ExerciseValidationModal = ({
                                       </div>
                                       <div className={normalChargeWidths.studentClass}>
                                         <div className="flex justify-center items-center w-full">
-                                              {exercise.useRir ? (
-                                              <div className="relative flex items-center">
-                                                <div
-                                                  className={`relative group flex items-center justify-center ${
-                                                    !showCoachPrescribedRepsColumn ? 'w-[56px] min-w-[56px]' : 'w-[38px] min-w-[38px]'
-                                                  }`}
-                                                >
-                                                  {/* Sous-trait centré, volontairement plus court que la largeur de l'input */}
-                                                  <span
-                                                    aria-hidden
-                                                    className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[0.5px] transition-colors bg-white/25 group-focus-within:bg-[#d4845a] ${
-                                                      !showCoachPrescribedRepsColumn ? 'w-[36px]' : 'w-[24px]'
-                                                    }`}
-                                                  />
-                                                  <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    value={getStudentWeightForSet(setIndex) || ''}
-                                                    onChange={(e) => {
-                                                      let raw = e.target.value.replace(',', '.');
-                                                      const isNeg = raw.startsWith('-');
-                                                      raw = raw.replace(/[^\d.]/g, '');
-                                                      const parts = raw.split('.');
-                                                      if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
-                                                      if (parts.length >= 2) {
-                                                        raw = parts[0].slice(0, 3) + '.' + parts[1].slice(0, 1);
+                                          {exercise.useRir ? (
+                                            // Si coach demande RPE : l'élève saisit une charge
+                                            <div className="relative flex items-center">
+                                              <div className="group relative h-[22px] w-[52px] min-w-[52px] shrink-0">
+                                                <input
+                                                  type="text"
+                                                  inputMode="decimal"
+                                                  value={getStudentWeightForSet(setIndex) || ''}
+                                                  onChange={(e) => {
+                                                    const displayValue = normalizeStudentWeightInput(e.target.value);
+                                                    handleWeightUpdate(setIndex, displayValue || '');
+                                                  }}
+                                                  onKeyDown={(e) => {
+                                                    const v = e.target.value;
+                                                    const hasComma = /[,.]/.test(v);
+                                                    if (e.key === '-') {
+                                                      if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
+                                                      return;
+                                                    }
+                                                    if (/^\d$/.test(e.key)) {
+                                                      if (hasComma) {
+                                                        const afterComma = v.split(/[,.]/)[1] || '';
+                                                        if (afterComma.length >= 2) e.preventDefault();
                                                       } else {
-                                                        raw = raw.slice(0, 3);
+                                                        const digitsOnly = v.replace(/\D/g, '');
+                                                        if (digitsOnly.length >= 3) e.preventDefault();
                                                       }
-                                                      if (isNeg) raw = (raw === '' ? '-' : '-' + raw);
-                                                      const displayValue = raw.replace('.', ',');
-                                                      handleWeightUpdate(setIndex, displayValue || '');
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                      const v = e.target.value;
-                                                      const hasComma = /,/.test(v);
-                                                      if (e.key === '-') {
-                                                        if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
-                                                        return;
-                                                      }
-                                                      if (/^\d$/.test(e.key)) {
-                                                        if (hasComma) {
-                                                          const afterComma = v.split(',')[1] || '';
-                                                          if (afterComma.length >= 1) e.preventDefault();
-                                                        } else {
-                                                          const digitsOnly = v.replace(/\D/g, '');
-                                                          if (digitsOnly.length >= 3) e.preventDefault();
-                                                        }
-                                                        return;
-                                                      }
-                                                      if (e.key === ',' || e.key === '.') {
-                                                        if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
-                                                        return;
-                                                      }
-                                                      const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
-                                                      if (allowedKeys.includes(e.key)) return;
-                                                      e.preventDefault();
-                                                    }}
-                                                    disabled={!isCompleted}
-                                                    className={`bg-transparent border-0 rounded-none w-full ${!showCoachPrescribedRepsColumn ? 'h-[18px] text-[15px]' : 'h-[22px] text-[16px]'} font-semibold text-center transition-colors focus:outline-none ${
-                                                      !isCompleted
-                                                        ? 'opacity-50 cursor-not-allowed text-white/50'
-                                                        : 'cursor-text text-[#d4845a]'
+                                                      return;
+                                                    }
+                                                    if (e.key === ',' || e.key === '.') {
+                                                      if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
+                                                      return;
+                                                    }
+                                                    const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
+                                                    if (allowedKeys.includes(e.key)) return;
+                                                    e.preventDefault();
+                                                  }}
+                                                  disabled={!isCompleted}
+                                                  className={`bg-transparent border-0 rounded-none w-full h-full text-[16px] font-semibold text-center transition-colors focus:outline-none ${!isCompleted
+                                                    ? 'opacity-50 cursor-not-allowed text-white/50'
+                                                    : 'cursor-text text-[#d4845a]'
                                                     }`}
-                                                    style={{
-                                                      padding: '0',
-                                                      lineHeight: 1
-                                                    }}
-                                                    placeholder=""
-                                                    maxLength={3}
-                                                    title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) - 3 caractères max (le - compte). Virgule pour décimales, négatif possible (ex. -15 ou 21)"}
-                                                  />
-                                                </div>
-                                                {!/[a-zA-Z]/.test(String(getStudentWeightForSet(setIndex) || '')) && (
-                                                  <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>
-                                                )}
+                                                  style={{
+                                                    padding: '0',
+                                                    lineHeight: 1
+                                                  }}
+                                                  placeholder=""
+                                                  maxLength={MAX_STUDENT_WEIGHT_CHARS}
+                                                  title={!isCompleted ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) — jusqu'à 3 chiffres avant la virgule et 2 après (ex. 12,25). Négatif possible."}
+                                                />
+                                                <span
+                                                  className={`pointer-events-none absolute bottom-0 left-1/2 h-[0.5px] w-[34px] -translate-x-1/2 transition-colors group-focus-within:bg-[#d4845a] ${!isCompleted ? 'bg-white/15' : 'bg-white/25'}`}
+                                                  aria-hidden
+                                                />
                                               </div>
-                                            ) : (
+                                              {!/[a-zA-Z]/.test(String(getStudentWeightForSet(setIndex) || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}
+                                            </div>
+                                          ) : (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -1682,14 +1690,45 @@ const ExerciseValidationModal = ({
                                                       type="text"
                                                       inputMode="decimal"
                                                       value={wVal || ''}
-                                                      onChange={(e) => { if (!readOnly && onWeightUpdate) onWeightUpdate(exIdx, setIndex, e.target.value); }}
+                                                      onChange={(e) => {
+                                                        const displayValue = normalizeStudentWeightInput(e.target.value);
+                                                        if (!readOnly && onWeightUpdate) onWeightUpdate(exIdx, setIndex, displayValue || '');
+                                                      }}
+                                                      onKeyDown={(e) => {
+                                                        const v = e.target.value;
+                                                        const hasComma = /[,.]/.test(v);
+                                                        if (e.key === '-') {
+                                                          if (e.target.selectionStart !== 0 || v.startsWith('-')) e.preventDefault();
+                                                          return;
+                                                        }
+                                                        if (/^\d$/.test(e.key)) {
+                                                          if (hasComma) {
+                                                            const afterComma = v.split(/[,.]/)[1] || '';
+                                                            if (afterComma.length >= 2) e.preventDefault();
+                                                          } else {
+                                                            const digitsOnly = v.replace(/\D/g, '');
+                                                            if (digitsOnly.length >= 3) e.preventDefault();
+                                                          }
+                                                          return;
+                                                        }
+                                                        if (e.key === ',' || e.key === '.') {
+                                                          if (hasComma || v.length === 0 || (v === '-')) e.preventDefault();
+                                                          return;
+                                                        }
+                                                        const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'];
+                                                        if (allowedKeys.includes(e.key)) return;
+                                                        e.preventDefault();
+                                                      }}
                                                       disabled={!isComp || readOnly}
                                                       placeholder=""
-                                                      className={`bg-transparent border-0 rounded-none w-full h-[18px] text-[15px] font-semibold text-center transition-colors focus:outline-none ${
-                                                        !isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'
-                                                      }`}
+                                                      className={`bg-transparent border-0 rounded-none w-full h-full text-[16px] font-semibold text-center transition-colors focus:outline-none ${!isComp ? 'opacity-50 cursor-not-allowed text-white/50' : 'cursor-text text-[#d4845a]'}`}
                                                       style={{ padding: '0', lineHeight: 1 }}
-                                                      maxLength={3}
+                                                      maxLength={MAX_STUDENT_WEIGHT_CHARS}
+                                                      title={!isComp ? "Validez d'abord votre série pour saisir la charge" : "Saisir la charge (kg) — jusqu'à 3 chiffres avant la virgule et 2 après (ex. 12,25). Négatif possible."}
+                                                    />
+                                                    <span
+                                                      className={`pointer-events-none absolute bottom-0 left-1/2 h-[0.5px] w-[34px] -translate-x-1/2 transition-colors group-focus-within:bg-[#d4845a] ${!isComp ? 'bg-white/15' : 'bg-white/25'}`}
+                                                      aria-hidden
                                                     />
                                                   </div>
                                                   {!/[a-zA-Z]/.test(String(wVal || '')) && <span className="text-[8px] text-white/25 font-normal leading-none">kg</span>}

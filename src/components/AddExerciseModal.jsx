@@ -6,6 +6,7 @@ import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import ExerciseTagTypeahead from './ui/ExerciseTagTypeahead';
 import axios from 'axios';
+import { parseYoutubeVideoId } from '../utils/youtube';
 
 const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise, onExerciseUpdated, existingExercises = [] }) => {
   const [formData, setFormData] = useState({
@@ -20,8 +21,13 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoError, setVideoError] = useState('');
   const [duplicateNameError, setDuplicateNameError] = useState(false);
+<<<<<<< HEAD
   /** Existing server demo marked for removal; on submit we DELETE /exercises/:id/demo-video then save. */
   const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
+=======
+  const [youtubeDemoURL, setYoutubeDemoURL] = useState('');
+  const [youtubeError, setYoutubeError] = useState('');
+>>>>>>> main
 
   // Modal management
   const { isTopMost } = useModalManager();
@@ -49,6 +55,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
           setVideoPreview(null);
           logger.debug('No demo video URL found');
         }
+        setYoutubeDemoURL(editingExercise.youtubeDemoURL?.trim() ? editingExercise.youtubeDemoURL : '');
+        setYoutubeError('');
       } else {
         // Creating a new exercise - always reset to empty values
         setFormData({
@@ -61,6 +69,8 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
         setVideoError('');
         setDemoVideoRemoved(false);
         setDuplicateNameError(false); // Reset duplicate error when creating new
+        setYoutubeDemoURL('');
+        setYoutubeError('');
       }
     } else {
       // Reset duplicate error when modal closes
@@ -236,6 +246,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setLoading(true);
 
     try {
+<<<<<<< HEAD
       const token = localStorage.getItem('authToken');
       if (
         editingExercise?.id &&
@@ -255,10 +266,19 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             return;
           }
         }
+=======
+      setYoutubeError('');
+      const ytTrim = youtubeDemoURL.trim();
+      if (ytTrim && !parseYoutubeVideoId(ytTrim)) {
+        setYoutubeError('Lien YouTube invalide (utilisez une URL youtube.com ou youtu.be).');
+        setLoading(false);
+        return;
+>>>>>>> main
       }
 
       let exerciseData = { ...formData };
-      
+      exerciseData.youtubeDemoURL = ytTrim || null;
+
       // Handle video URL - either upload new video or preserve existing one
       if (videoFile) {
         // Upload new video if one is selected
@@ -296,7 +316,11 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
       setVideoFile(null);
       setVideoPreview(null);
       setVideoError('');
+<<<<<<< HEAD
       setDemoVideoRemoved(false);
+=======
+      setYoutubeDemoURL('');
+>>>>>>> main
       
       onClose();
     } catch (error) {
@@ -316,7 +340,12 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
     setVideoFile(null);
     setVideoPreview(null);
     setVideoError('');
+<<<<<<< HEAD
     setDemoVideoRemoved(false);
+=======
+    setYoutubeDemoURL('');
+    setYoutubeError('');
+>>>>>>> main
     setUploadProgress(0);
     onClose();
   };
@@ -394,6 +423,31 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
               placeholder="Appuyez sur Entrée pour ajouter des tags..."
               canCreate={true}
             />
+          </div>
+
+          {/* YouTube link */}
+          <div className="space-y-2">
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>
+              Lien YouTube (optionnel)
+            </label>
+            <input
+              type="url"
+              name="youtubeDemoURL"
+              value={youtubeDemoURL}
+              onChange={(e) => {
+                setYoutubeDemoURL(e.target.value);
+                setYoutubeError('');
+              }}
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+              placeholder="https://www.youtube.com/watch?v=…"
+              autoComplete="off"
+            />
+            {youtubeError && (
+              <p className="text-sm font-extralight text-red-400">{youtubeError}</p>
+            )}
+            <p className="text-xs font-extralight text-white/40">
+              La vidéo sera lue dans Kaiylo (lecteur intégré). Compatible avec l’upload fichier ci-dessous.
+            </p>
           </div>
 
           {/* Video or Image Upload */}
@@ -500,7 +554,7 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             </button>
             <button
               type="submit"
-              disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise)}
+              disabled={loading || uploadingVideo || (duplicateNameError && !editingExercise) || !!youtubeError}
               className="w-full md:w-auto px-5 py-2.5 text-sm font-normal bg-primary text-primary-foreground rounded-[10px] hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
             >

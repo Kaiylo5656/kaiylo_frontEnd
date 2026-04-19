@@ -2454,9 +2454,20 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       }
 
-      // Process profile/limitations (non-critical - degrade gracefully)
+      // Process profile: limitations + onboarding fields (authoritative source is profiles table)
       if (profileRes.status === 'fulfilled' && profileRes.value.data.success) {
-        setLimitations(profileRes.value.data.data.limitations || []);
+        const p = profileRes.value.data.data || {};
+        setLimitations(p.limitations || []);
+        const normBirth = (v) => {
+          if (v == null || v === '') return null;
+          const s = String(v);
+          return s.length >= 10 && s.includes('-') ? s.slice(0, 10) : s;
+        };
+        data.gender = p.gender ?? data.gender ?? null;
+        data.birth_date = normBirth(p.birth_date ?? data.birth_date);
+        data.height = p.height ?? data.height ?? null;
+        data.weight = p.weight ?? data.weight ?? null;
+        data.discipline = p.discipline ?? data.discipline ?? null;
       } else {
         logger.warn('Profile limitations unavailable');
         setLimitations([]);

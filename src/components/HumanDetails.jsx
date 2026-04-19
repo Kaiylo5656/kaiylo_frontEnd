@@ -121,7 +121,7 @@ const HumanDetails = ({ exercise }) => {
       );
     }
 
-    if (!exercise.demoVideoURL) {
+    if (!exercise.demoVideoURL && !exercise.youtubeDemoURL) {
       return (
         <div className="flex items-center gap-2">
           <Play className="h-4 w-4 text-white/40" />

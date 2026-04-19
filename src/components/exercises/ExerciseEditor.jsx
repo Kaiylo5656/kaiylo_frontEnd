@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { buildApiUrl } from '../../config/api';
 import axios from 'axios';
+import { parseYoutubeVideoId } from '../../utils/youtube';
 
 const ExerciseEditor = ({ 
   exercise, 
@@ -27,6 +28,8 @@ const ExerciseEditor = ({
   const [tagInput, setTagInput] = useState('');
   /** User removed an existing server-side demo; on save we DELETE /exercises/:id/demo-video then PATCH. */
   const [demoVideoRemoved, setDemoVideoRemoved] = useState(false);
+  const [youtubeDemoURL, setYoutubeDemoURL] = useState('');
+  const [youtubeError, setYoutubeError] = useState('');
 
   // Initialize form data when exercise changes
   useEffect(() => {
@@ -44,6 +47,8 @@ const ExerciseEditor = ({
       } else {
         setVideoPreview(null);
       }
+      setYoutubeDemoURL(exercise.youtubeDemoURL?.trim() ? exercise.youtubeDemoURL : '');
+      setYoutubeError('');
     }
   }, [exercise]);
 
@@ -178,8 +183,16 @@ const ExerciseEditor = ({
 
   const handleSave = async () => {
     setLoading(true);
+    setYoutubeError('');
 
     try {
+      const ytTrim = youtubeDemoURL.trim();
+      if (ytTrim && !parseYoutubeVideoId(ytTrim)) {
+        setYoutubeError('Invalid YouTube URL (use youtube.com or youtu.be).');
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('authToken');
       if (demoVideoRemoved && !videoFile && exercise?.demoVideoURL) {
         try {
@@ -197,7 +210,8 @@ const ExerciseEditor = ({
       }
 
       let exerciseData = { ...formData };
-      
+      exerciseData.youtubeDemoURL = ytTrim || null;
+
       // Handle video URL - either upload new video or preserve existing one
       if (videoFile) {
         // Upload new video if one is selected
@@ -318,6 +332,27 @@ const ExerciseEditor = ({
           )}
         </div>
 
+        {/* YouTube */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-2">
+            YouTube link (optional)
+          </label>
+          <Input
+            type="url"
+            value={youtubeDemoURL}
+            onChange={(e) => {
+              setYoutubeDemoURL(e.target.value);
+              setYoutubeError('');
+            }}
+            className="bg-[#1a1a1a] border-white/20 text-white placeholder-white/50 focus:ring-[#e87c3e] focus:border-[#e87c3e]"
+            placeholder="https://www.youtube.com/watch?v=…"
+            autoComplete="off"
+          />
+          {youtubeError && (
+            <p className="text-sm text-red-400 mt-2">{youtubeError}</p>
+          )}
+        </div>
+
         {/* Video Upload */}
         <div>
           <label className="block text-sm font-medium text-white mb-2">
@@ -405,7 +440,7 @@ const ExerciseEditor = ({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={loading || uploadingVideo}
+            disabled={loading || uploadingVideo || !!youtubeError}
             className="flex-1 bg-[#e87c3e] hover:bg-[#e87c3e]/90 text-white"
           >
             {uploadingVideo ? 'Uploading...' : loading ? 'Saving...' : 'Save Changes'}
