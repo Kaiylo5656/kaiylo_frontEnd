@@ -100,6 +100,31 @@ describe('ExerciseDetailModal', () => {
     });
   });
 
+  it('shows YouTube iframe when youtubeDemoURL is present', async () => {
+    const exerciseWithYt = {
+      ...mockExercise,
+      demoVideoURL: null,
+      youtubeDemoURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    };
+    axios.get.mockResolvedValue({
+      data: { success: true, exercise: exerciseWithYt }
+    });
+
+    renderWithRouter(
+      <ExerciseDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        exerciseId="1"
+      />
+    );
+
+    await waitFor(() => {
+      const iframe = screen.getByTitle(/Démo — Push Ups/i);
+      expect(iframe).toBeInTheDocument();
+      expect(iframe).toHaveAttribute('src', expect.stringContaining('youtube-nocookie.com/embed/dQw4w9WgXcQ'));
+    });
+  });
+
   it('handles 404 error gracefully', async () => {
     axios.get.mockRejectedValue({
       response: { status: 404 }

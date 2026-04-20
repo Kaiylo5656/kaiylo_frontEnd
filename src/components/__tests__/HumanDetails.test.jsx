@@ -160,5 +160,17 @@ describe('HumanDetails', () => {
 
     expect(screen.getByText('Not added')).toBeInTheDocument();
   });
+
+  it('shows video as available when only youtubeDemoURL is set', () => {
+    const exerciseYoutubeOnly = {
+      ...mockExercise,
+      demoVideoURL: null,
+      youtubeDemoURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    };
+
+    render(<HumanDetails exercise={exerciseYoutubeOnly} />);
+
+    expect(screen.getByText('Available')).toBeInTheDocument();
+  });
 });
 

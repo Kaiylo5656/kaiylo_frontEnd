@@ -1,11 +1,17 @@
 import logger from '../utils/logger';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import VoiceMessage from './VoiceMessage';
 import { PlayCircle, FileVideo, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { buildApiUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) => {
+  const { getAuthToken } = useAuth();
+  const [resolvedStreamUrl, setResolvedStreamUrl] = useState(null);
+
   const metadata = message.metadata || {};
   const { 
     exerciseName = 'Exercice', 
@@ -19,16 +25,46 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
     weight,
     reps,
     videoDate,
-    rpe
+    rpe,
+    videoId
   } = metadata;
+
+  // Same issue as chat modal: metadata.videoUrl is a fixed signed URL that expires.
+  // Thumbnail <video preload="metadata"> needs a fresh URL when videoId is known.
+  useEffect(() => {
+    if (!videoId) {
+      setResolvedStreamUrl(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const { data } = await axios.get(buildApiUrl(`/videos/${videoId}`), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!cancelled && data?.success && data.video?.video_url) {
+          setResolvedStreamUrl(data.video.video_url);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          logger.debug('VideoFeedbackMessage: could not refresh preview URL', e?.message || e);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [videoId, getAuthToken]);
+
+  const streamUrlForPreview = resolvedStreamUrl || videoUrl || '';
+  const hasPreviewMedia = !!(thumbnailUrl || streamUrlForPreview);
 
   // Handle click on video preview to open video player
   const handleVideoClick = (e) => {
     e.stopPropagation();
     if (onVideoClick) {
       onVideoClick(metadata);
-    } else if (videoUrl) {
-      window.open(videoUrl, '_blank');
+    } else if (streamUrlForPreview) {
+      window.open(streamUrlForPreview, '_blank');
     }
   };
 
@@ -113,7 +149,7 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
       <div className="flex items-center gap-2 md:gap-4">
         {/* Video Thumbnail - Left */}
         <div className="relative w-20 h-14 md:w-32 md:h-20 bg-white/5 rounded-lg md:rounded-[10px] flex-shrink-0 overflow-hidden group border border-white/10">
-          {videoUrl ? (
+          {hasPreviewMedia ? (
             <>
               {thumbnailUrl ? (
                  <img 
@@ -123,7 +159,8 @@ const VideoFeedbackMessage = ({ message, isOwnMessage = false, onVideoClick }) =
                  />
               ) : (
                  <video
-                   src={videoUrl + '#t=0.1'}
+                   key={streamUrlForPreview}
+                   src={streamUrlForPreview ? `${streamUrlForPreview}#t=0.1` : undefined}
                    className="w-full h-full object-cover"
                    preload="metadata"
                    playsInline
