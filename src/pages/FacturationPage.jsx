@@ -232,14 +232,14 @@ const FacturationPage = () => {
     <div className="flex-1 p-6 md:p-10">
       <div className="max-w-[1200px] mx-auto">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-md:pb-14">
             <SkeletonCard delay={0} />
             <SkeletonCard delay={0.08} />
             <SkeletonCard delay={0.16} />
             <SkeletonCard delay={0.24} />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-md:pb-14">
             {/* Subscription Status Card */}
             <motion.div
               className="h-full"

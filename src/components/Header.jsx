@@ -622,13 +622,17 @@ const Header = ({ onOpenFeedback }) => {
           return (
             <Button
               type="button"
-              className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5"
+              aria-label={`Passer à ${PLAN_LABELS[nextPlan]}`}
+              className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5 max-md:h-8 max-md:min-h-8 max-md:px-2.5 max-md:mr-1 max-md:gap-1 max-md:text-[11px] max-md:max-w-[min(100%,9.5rem)] max-md:min-w-0 max-md:shrink"
               onClick={handleClick}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1" fill="currentColor" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1 max-md:h-2.5 max-md:w-2.5 max-md:mr-0.5 max-md:flex-shrink-0" fill="currentColor" aria-hidden="true">
                 <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
               </svg>
-              Passer à {PLAN_LABELS[nextPlan]}
+              <span className="min-w-0 truncate md:whitespace-normal">
+                <span className="md:hidden">{PLAN_LABELS[nextPlan]}</span>
+                <span className="hidden md:inline">Passer à {PLAN_LABELS[nextPlan]}</span>
+              </span>
             </Button>
           );
         })()}
