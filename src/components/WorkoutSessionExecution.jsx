@@ -17,7 +17,7 @@ import axios from 'axios';
 import logger from '../utils/logger';
 import { ExerciseSummaryPreview } from './ExerciseSummaryPreview';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false, isActive = true }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
