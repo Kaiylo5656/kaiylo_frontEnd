@@ -1728,8 +1728,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         );
       }));
 
-      // Refresh sessions
-      await fetchWorkoutSessions();
+      // Force refresh sessions even if date range didn't change
+      await fetchWorkoutSessions(true);
 
       // Clear copied week after successful paste
       setCopiedWeek(null);
@@ -1824,8 +1824,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       }
 
-      // Refresh workout sessions after all deletions
-      await fetchWorkoutSessions();
+      // Force refresh workout sessions even if date range didn't change
+      await fetchWorkoutSessions(true);
 
       // Close modal
       setIsDeleteWeekModalOpen(false);
@@ -2233,7 +2233,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
-  const fetchWorkoutSessions = async () => {
+  const fetchWorkoutSessions = async (force = false) => {
     try {
       setLoadingSessions(true);
       const token = localStorage.getItem('authToken');
@@ -2280,7 +2280,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Skip redundant re-fetch if the computed range hasn't changed (e.g. when blocks load
       // but don't widen the range beyond what was already fetched)
       const rangeKey = `${student.id}-${rangeStart}-${rangeEnd}`;
-      if (lastFetchedSessionsRangeRef.current === rangeKey) {
+      if (!force && lastFetchedSessionsRangeRef.current === rangeKey) {
         setLoadingSessions(false);
         return;
       }

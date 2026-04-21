@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-import { Clock, ExternalLink, ArrowUpRight, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Toast } from '@/components/ui/Toast';
@@ -103,7 +103,6 @@ const FacturationPage = () => {
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutPlanLoading, setCheckoutPlanLoading] = useState(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
@@ -169,30 +168,6 @@ const FacturationPage = () => {
     }
   }, [getAuthToken]);
 
-  const handleManageBilling = useCallback(async () => {
-    try {
-      setPortalLoading(true);
-      const token = await getAuthToken();
-      const response = await fetch(buildApiUrl('/api/billing/create-portal-session'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      const result = await response.json();
-      if (result.success && result.data?.portalUrl) {
-        window.location.href = result.data.portalUrl;
-      } else {
-        setError(result.error || 'Impossible de créer la session de gestion');
-      }
-    } catch {
-      setError('Erreur lors de la redirection vers le portail de gestion');
-    } finally {
-      setPortalLoading(false);
-    }
-  }, [getAuthToken]);
-
   const activePlan = billing?.plan ?? 'free';
   const isPaidPlan = activePlan !== 'free';
   const clientCount = billing?.clientCount ?? 0;
@@ -247,7 +222,18 @@ const FacturationPage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
-              <Card className={`${cardClass} group transition-colors duration-300 hover:bg-white/[0.10]`}>
+              <Card
+                role="button"
+                tabIndex={0}
+                onClick={() => setShowPlansModal(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowPlansModal(true);
+                  }
+                }}
+                className={`${cardClass} group transition-colors duration-300 hover:bg-white/[0.10] cursor-pointer`}
+              >
                 {/* Icon + Title */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
@@ -317,43 +303,9 @@ const FacturationPage = () => {
                   </div>
                 </div>
 
-                {/* CTA */}
-                {isPaidPlan ? (
-                  <div className="flex flex-col gap-2 mt-1">
-                    <button
-                      onClick={handleManageBilling}
-                      disabled={portalLoading}
-                      aria-busy={portalLoading}
-                      className="w-full py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.16] disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {portalLoading ? 'Chargement...' : 'Gérer mon abonnement'}
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowPlansModal(true)}
-                      className="w-full py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.20]"
-                    >
-                      Comparer les plans
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowPlansModal(true)}
-                    className="w-full mt-1 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-300 hover:opacity-90 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 448 512"
-                      className="h-3.5 w-3.5 shrink-0"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
-                    </svg>
-                    Comparer les plans
-                  </button>
-                )}
+                <div className="mt-1 text-sm text-white/40 font-light">
+                  Cliquer sur ce bloc pour choisir un plan.
+                </div>
               </Card>
             </motion.div>
 
@@ -423,15 +375,6 @@ const FacturationPage = () => {
                     <p className="text-sm text-muted-foreground font-light leading-relaxed">
                       Consultez vos factures et l&apos;historique de vos paiements directement depuis le portail de gestion.
                     </p>
-                    <button
-                      onClick={handleManageBilling}
-                      disabled={portalLoading}
-                      aria-busy={portalLoading}
-                      className="w-full mt-4 py-2.5 rounded-xl border border-white/[0.08] text-sm font-medium text-foreground transition-all duration-300 hover:bg-white/[0.04] hover:border-white/[0.16] disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {portalLoading ? 'Chargement...' : 'Voir l\'historique'}
-                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center text-center min-h-0">
@@ -501,7 +444,7 @@ const FacturationPage = () => {
                 key={plan.name}
                 className={`rounded-2xl p-5 flex flex-col gap-4 transition-[transform,box-shadow,background-color,border-color] duration-300 ease-out motion-safe:hover:-translate-y-0.5 ${
                   isActive
-                    ? 'border border-[#D4845A]/50 bg-[#D4845A]/10 motion-safe:hover:border-[#D4845A]/65 motion-safe:hover:bg-[#D4845A]/14 motion-safe:hover:shadow-[0_14px_36px_-18px_rgba(212,132,90,0.28)]'
+                    ? 'bg-[#D4845A]/25 motion-safe:hover:bg-[#D4845A]/14 motion-safe:hover:shadow-[0_14px_36px_-18px_rgba(212,132,90,0.28)]'
                     : 'border-0 bg-black/25 motion-safe:hover:bg-black/[0.32] motion-safe:hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.55)]'
                 }`}
               >
@@ -510,9 +453,6 @@ const FacturationPage = () => {
                     {upgradeTitleIcon}
                     {`Passer a ${plan.label}`}
                   </p>
-                  {isActive && (
-                    <Badge variant="success">Plan actuel</Badge>
-                  )}
                 </div>
 
                 <div className="text-center mt-1.5 mb-1.5">
