@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
+import { buildApiUrl } from '@/config/api';
 import DashboardShowcase from '../components/DashboardShowcase';
 import BorderBeam from '../components/ui/BorderBeam';
 import DashboardCoachCard from '../components/DashboardCoachCard';
@@ -522,6 +524,27 @@ const PricingSection = () => {
   const [hoveredTierIndex, setHoveredTierIndex] = React.useState(null);
   const [billingPeriod, setBillingPeriod] = React.useState('monthly');
   const isAnnual = billingPeriod === 'annual';
+  const [affiliationCode, setAffiliationCode] = React.useState('');
+  const [codeValidation, setCodeValidation] = React.useState(null);
+  const [codeChecking, setCodeChecking] = React.useState(false);
+
+  const validateCode = async (code) => {
+    if (!code.trim()) { setCodeValidation(null); return; }
+    setCodeChecking(true);
+    try {
+      const res = await axios.get(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`));
+      setCodeValidation(res.data.data);
+    } catch {
+      setCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCodeChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCode(affiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [affiliationCode]);
 
   const formatEuro = (value) =>
     `${value.toLocaleString('fr-FR', {
@@ -636,6 +659,31 @@ const PricingSection = () => {
           <p className="mt-4 text-[16px] text-white/45 font-['Inter'] font-light">
             Sans engagement. Prix dégressifs au prorata du nombre d'élèves
           </p>
+        </div>
+
+        <div className="mt-10 flex justify-center">
+          <div className="w-full max-w-xs space-y-2">
+            <label className="block text-sm font-medium text-white/60 font-['Inter']">Code d&apos;affiliation (optionnel)</label>
+            <input
+              type="text"
+              value={affiliationCode}
+              onChange={e => setAffiliationCode(e.target.value.toUpperCase())}
+              placeholder="ex: MARC-47"
+              className="w-full border border-white/10 rounded-lg px-3 py-2 text-sm font-mono uppercase bg-white/[0.05] text-white placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-[#D4845A]"
+              maxLength={15}
+            />
+            {codeChecking && <p className="text-xs text-white/40 font-['Inter']">Vérification...</p>}
+            {codeValidation?.valid && (
+              <p className="text-xs text-green-400 font-['Inter']">✓ {codeValidation.discount}</p>
+            )}
+            {codeValidation && !codeValidation.valid && (
+              <p className="text-xs text-red-400 font-['Inter']">
+                {codeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                  : codeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                  : 'Code invalide.'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </section>
