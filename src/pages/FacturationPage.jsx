@@ -106,6 +106,7 @@ const FacturationPage = () => {
   const [checkoutPlanLoading, setCheckoutPlanLoading] = useState(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [affiliationStats, setAffiliationStats] = useState(null);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -130,6 +131,24 @@ const FacturationPage = () => {
   useEffect(() => {
     fetchBillingStatus();
   }, [fetchBillingStatus]);
+
+  useEffect(() => {
+    const fetchAffiliation = async () => {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/billing/affiliation'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (result.success) {
+          setAffiliationStats(result.data);
+        }
+      } catch (err) {
+        console.error('Could not load affiliation stats', err);
+      }
+    };
+    fetchAffiliation();
+  }, [getAuthToken]);
 
   // Detect ?upgraded=true after Stripe Checkout redirect
   useEffect(() => {
@@ -416,6 +435,53 @@ const FacturationPage = () => {
                 </div>
               </Card>
             </motion.div>
+            {/* Affiliation Card */}
+            {affiliationStats && (
+              <motion.div
+                className="h-full md:col-span-2"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+              >
+                <Card className={`${cardClass} group transition-colors duration-300 hover:bg-white/[0.10]`}>
+                  <h3 className="text-lg font-semibold">Code d&apos;affiliation</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Partagez votre code pour gagner des réductions sur votre abonnement.
+                  </p>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-mono font-bold tracking-widest text-primary">
+                      {affiliationStats.code}
+                    </span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(affiliationStats.code)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Copier
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Filleuls actifs</p>
+                      <p className="font-semibold">{affiliationStats.active_referral_count} / {affiliationStats.referral_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Réduction active jusqu&apos;au</p>
+                      <p className="font-semibold">
+                        {affiliationStats.discount_expires_at
+                          ? new Date(affiliationStats.discount_expires_at).toLocaleDateString('fr-FR')
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Vous gagnez {affiliationStats.referrer_discount_pct}% de réduction pendant 6 mois par filleul.
+                  </p>
+                </Card>
+              </motion.div>
+            )}
           </div>
         )}
 
