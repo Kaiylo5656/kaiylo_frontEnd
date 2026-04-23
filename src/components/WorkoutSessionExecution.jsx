@@ -17,7 +17,7 @@ import axios from 'axios';
 import logger from '../utils/logger';
 import { ExerciseSummaryPreview } from './ExerciseSummaryPreview';
 
-const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false }) => {
+const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldCloseCompletionModal = false, omitAmbientBackground = false, readOnly = false, isActive = true }) => {
   const { getAuthToken, refreshAuthToken, user } = useAuth();
   const { setIsWorkoutSessionOpen } = useWorkoutSession();
   const [completedSets, setCompletedSets] = useState({});
@@ -72,8 +72,16 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
     }
   }, [shouldCloseCompletionModal]);
 
-  // Get exercises from the correct data structure
-  const exercises = session?.workout_sessions?.exercises || session?.exercises || [];
+  // Normalize upstream data to avoid runtime crashes when payloads are partially missing.
+  const exercises = React.useMemo(() => {
+    const rawExercises = session?.workout_sessions?.exercises ?? session?.exercises ?? [];
+    if (!Array.isArray(rawExercises)) {
+      return [];
+    }
+    return rawExercises.filter((exercise) => exercise && typeof exercise === 'object');
+  }, [session]);
+
+  const sessionTitle = session?.workout_sessions?.title || session?.title || 'Séance';
 
   // Superset range utility: given an exercise index, find the start and end of its superset group
   const getSupersetRange = (exArr, index) => {
@@ -102,6 +110,25 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
   };
 
   const estimatedDuration = calculateEstimatedDuration();
+
+  if (!session) {
+    return (
+      <div className="min-h-screen text-white flex flex-col items-center justify-center px-6">
+        <p className="text-sm text-white/70 text-center mb-4">
+          Cette séance est momentanément indisponible. Revenez au planning et réessayez.
+        </p>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-4 py-2 rounded-lg border border-white/20 text-white/90 hover:bg-white/5 transition-colors"
+          >
+            Retour au planning
+          </button>
+        )}
+      </div>
+    );
+  }
 
   // Generate a unique storage key for this session (memoized)
   const sessionId = React.useMemo(() => {
@@ -2325,7 +2352,7 @@ const WorkoutSessionExecution = ({ session, onBack, onCompleteSession, shouldClo
         <div className="pl-[60px] pr-[40px] max-w-[400px] mx-auto">
           <div className="mb-5 text-left w-full ml-[-5px] pl-0 mr-[30px] pr-0">
             <h1 className="text-[25px] font-normal text-[#d4845a] leading-normal mb-0">
-              {session.workout_sessions?.title || 'Séance'}
+              {sessionTitle}
             </h1>
             <p className="text-[12px] font-light text-white/50 mr-[30px]">
               Durée estimée : {estimatedDuration}
