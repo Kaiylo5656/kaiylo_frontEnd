@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
@@ -107,6 +107,9 @@ const FacturationPage = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [affiliationStats, setAffiliationStats] = useState(null);
+  const [checkoutAffiliationCode, setCheckoutAffiliationCode] = useState('');
+  const [checkoutCodeValidation, setCheckoutCodeValidation] = useState(null);
+  const [checkoutCodeChecking, setCheckoutCodeChecking] = useState(false);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -150,6 +153,28 @@ const FacturationPage = () => {
     fetchAffiliation();
   }, [getAuthToken]);
 
+  const validateCheckoutCode = useCallback(async (code) => {
+    if (!code.trim()) { setCheckoutCodeValidation(null); return; }
+    setCheckoutCodeChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      setCheckoutCodeValidation(data.data);
+    } catch {
+      setCheckoutCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCheckoutCodeChecking(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCheckoutCode(checkoutAffiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [checkoutAffiliationCode, validateCheckoutCode]);
+
   // Detect ?upgraded=true after Stripe Checkout redirect
   useEffect(() => {
     if (searchParams.get('upgraded') === 'true') {
@@ -170,7 +195,10 @@ const FacturationPage = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: plan.name })
+        body: JSON.stringify({
+          planName: plan.name,
+          ...(checkoutCodeValidation?.valid && checkoutAffiliationCode ? { affiliationCode: checkoutAffiliationCode } : {})
+        })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -185,7 +213,7 @@ const FacturationPage = () => {
     } finally {
       setCheckoutPlanLoading(null);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, checkoutCodeValidation, checkoutAffiliationCode]);
 
   const activePlan = billing?.plan ?? 'free';
   const isPaidPlan = activePlan !== 'free';
@@ -501,6 +529,29 @@ const FacturationPage = () => {
         size="2xl"
         titleClassName="text-xl font-semibold"
       >
+        <div className="space-y-2 mb-5">
+          <label className="text-sm font-medium">Code d&apos;affiliation (optionnel)</label>
+          <input
+            type="text"
+            value={checkoutAffiliationCode}
+            onChange={e => setCheckoutAffiliationCode(e.target.value.toUpperCase())}
+            placeholder="ex: MARC-47"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono uppercase bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            maxLength={15}
+          />
+          {checkoutCodeChecking && <p className="text-xs text-muted-foreground">Vérification...</p>}
+          {checkoutCodeValidation?.valid && (
+            <p className="text-xs text-green-500">{checkoutCodeValidation.discount}</p>
+          )}
+          {checkoutCodeValidation && !checkoutCodeValidation.valid && (
+            <p className="text-xs text-destructive">
+              {checkoutCodeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                : checkoutCodeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                : 'Code invalide.'}
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan) => {
             const isActive = activePlan === plan.name;
