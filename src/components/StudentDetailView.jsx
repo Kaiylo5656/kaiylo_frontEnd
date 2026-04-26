@@ -1099,7 +1099,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       if (response.data.success) {
         logger.debug('✅ Assignment created successfully');
         // Rafraîchir les séances pour voir les changements
-        await fetchWorkoutSessions();
+        await fetchWorkoutSessions(true);
 
         // Close modal and reset state
         setIsPublishSessionModalOpen(false);
@@ -1612,7 +1612,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       setIsCreateModalOpen(false);
       // Refresh pour récupérer les vrais ids côté serveur (sans latence visible)
-      await fetchWorkoutSessions();
+      await fetchWorkoutSessions(true);
     } catch (error) {
       logger.error('❌ Error creating/updating workout session and assignment:', error);
       logger.error('Error details:', {
@@ -1909,7 +1909,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
 
       // Refresh sessions
-      await fetchWorkoutSessions();
+      await fetchWorkoutSessions(true);
 
       // Close modal and reset state
       setIsSwitchToDraftModalOpen(false);
