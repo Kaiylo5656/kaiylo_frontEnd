@@ -129,7 +129,7 @@ export default defineConfig(({ mode }) => {
         theme_color: 'transparent',
         background_color: '#0a0a0a',
         display: 'standalone',
-        orientation: 'portrait',
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         icons: [

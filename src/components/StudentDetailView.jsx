@@ -1099,7 +1099,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       if (response.data.success) {
         logger.debug('✅ Assignment created successfully');
         // Rafraîchir les séances pour voir les changements
-        await fetchWorkoutSessions();
+        await fetchWorkoutSessions(true);
 
         // Close modal and reset state
         setIsPublishSessionModalOpen(false);
@@ -1174,7 +1174,17 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         return;
       }
 
-      if (session && session.status === 'draft') {
+      // Optimistic/placeholder session not yet saved to backend — remove from local state only
+      if (String(sessionId).startsWith('temp-') || sessionId === 'pending') {
+        setWorkoutSessions(prev => {
+          const updated = { ...prev };
+          if (updated[day]) {
+            updated[day] = updated[day].filter(s => s.id !== sessionId && s.assignmentId !== sessionId);
+            if (updated[day].length === 0) delete updated[day];
+          }
+          return updated;
+        });
+      } else if (session && session.status === 'draft') {
         // Delete draft session directly
         const response = await axios.delete(
           `${getApiBaseUrlWithApi()}/workout-sessions/${sessionId}`,
@@ -1184,8 +1194,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         );
 
         if (response.status === 200) {
-          // Rafraîchir les séances
-          await fetchWorkoutSessions();
+          await fetchWorkoutSessions(true);
         } else {
           throw new Error('Failed to delete draft session');
         }
@@ -1200,7 +1209,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
         if (response.data.success) {
           // Rafraîchir les séances
-          await fetchWorkoutSessions();
+          await fetchWorkoutSessions(true);
         } else {
           throw new Error('Failed to delete session');
         }
@@ -1603,7 +1612,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
 
       setIsCreateModalOpen(false);
       // Refresh pour récupérer les vrais ids côté serveur (sans latence visible)
-      await fetchWorkoutSessions();
+      await fetchWorkoutSessions(true);
     } catch (error) {
       logger.error('❌ Error creating/updating workout session and assignment:', error);
       logger.error('Error details:', {
@@ -1728,8 +1737,11 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         );
       }));
 
-      // Refresh sessions
-      await fetchWorkoutSessions();
+      // Force refresh sessions even if date range didn't change
+      await fetchWorkoutSessions(true);
+
+      // Show all sessions so pasted drafts are visible
+      setTrainingFilter('all');
 
       // Clear copied week after successful paste
       setCopiedWeek(null);
@@ -1824,8 +1836,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         }
       }
 
-      // Refresh workout sessions after all deletions
-      await fetchWorkoutSessions();
+      // Force refresh workout sessions even if date range didn't change
+      await fetchWorkoutSessions(true);
 
       // Close modal
       setIsDeleteWeekModalOpen(false);
@@ -1897,7 +1909,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       );
 
       // Refresh sessions
-      await fetchWorkoutSessions();
+      await fetchWorkoutSessions(true);
 
       // Close modal and reset state
       setIsSwitchToDraftModalOpen(false);
@@ -1963,9 +1975,10 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       setWorkoutSessions(prev => {
         const updated = { ...prev };
         if (!updated[scheduledDate]) updated[scheduledDate] = [];
+        const tempId = `temp-${Date.now()}`;
         updated[scheduledDate] = [...updated[scheduledDate], {
-          id: `temp-${Date.now()}`,
-          assignmentId: `temp-${Date.now()}`,
+          id: tempId,
+          assignmentId: tempId,
           title: sessionData.title,
           exercises: sessionData.exercises,
           status: sessionData.status === 'draft' ? 'draft' : 'assigned',
@@ -1981,8 +1994,8 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         { headers }
       );
 
-      // Refresh in background to replace optimistic entry with real data
-      fetchWorkoutSessions();
+      // Refresh to replace optimistic entry with real data
+      await fetchWorkoutSessions(true);
       setCopiedSession(null);
       setHoveredPasteDate(null);
     } catch (error) {
@@ -2233,7 +2246,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
     }
   };
 
-  const fetchWorkoutSessions = async () => {
+  const fetchWorkoutSessions = async (force = false) => {
     try {
       setLoadingSessions(true);
       const token = localStorage.getItem('authToken');
@@ -2280,7 +2293,7 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
       // Skip redundant re-fetch if the computed range hasn't changed (e.g. when blocks load
       // but don't widen the range beyond what was already fetched)
       const rangeKey = `${student.id}-${rangeStart}-${rangeEnd}`;
-      if (lastFetchedSessionsRangeRef.current === rangeKey) {
+      if (!force && lastFetchedSessionsRangeRef.current === rangeKey) {
         setLoadingSessions(false);
         return;
       }

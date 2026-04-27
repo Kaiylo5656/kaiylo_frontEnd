@@ -434,9 +434,6 @@ const AddExerciseModal = ({ isOpen, onClose, onExerciseCreated, editingExercise,
             {youtubeError && (
               <p className="text-sm font-extralight text-red-400">{youtubeError}</p>
             )}
-            <p className="text-xs font-extralight text-white/40">
-              La vidéo sera lue dans Kaiylo (lecteur intégré). Compatible avec l’upload fichier ci-dessous.
-            </p>
           </div>
 
           {/* Video or Image Upload */}
