@@ -2,6 +2,9 @@ import logger from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import { buildApiUrl } from '../config/api';
 import axios from 'axios';
+import VideoPlayer from './VideoPlayer';
+import ExerciseYoutubeEmbed from './ExerciseYoutubeEmbed';
+import { parseYoutubeVideoId } from '../utils/youtube';
 import ExerciseHistory from './ExerciseHistory';
 import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
@@ -172,14 +175,14 @@ const ExerciseDetailModal = ({
                   {/* Video Icon */}
                   <div 
                     className="flex items-center"
-                    title={exercise.demoVideoURL ? "Vidéo renseignée" : "Aucune vidéo"}
+                    title={(exercise.demoVideoURL || exercise.youtubeDemoURL) ? "Vidéo renseignée" : "Aucune vidéo"}
                   >
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       viewBox="0 0 640 640" 
                       className="h-5 w-5"
                       style={{ 
-                        fill: exercise.demoVideoURL 
+                        fill: (exercise.demoVideoURL || exercise.youtubeDemoURL)
                           ? 'rgba(212, 132, 89, 0.8)' 
                           : 'rgba(255, 255, 255, 0.2)' 
                       }}
@@ -250,7 +253,21 @@ const ExerciseDetailModal = ({
                 </div>
               </div>
 
-              {/* Demo vidéo ou image — même présentation que AddExerciseModal (aperçu) */}
+              {/* Démo YouTube (iframe) */}
+              {exercise.youtubeDemoURL && parseYoutubeVideoId(exercise.youtubeDemoURL) && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Play className="h-4 w-4 text-white/60" />
+                    <h3 className="text-lg font-medium text-white">Vidéo YouTube</h3>
+                  </div>
+                  <ExerciseYoutubeEmbed
+                    videoId={parseYoutubeVideoId(exercise.youtubeDemoURL)}
+                    title={`Démo — ${exercise.title || 'exercice'}`}
+                  />
+                </div>
+              )}
+
+              {/* Demo vidéo ou image (upload) */}
               {exercise.demoVideoURL && (
                 <div className="space-y-2">
                   <label

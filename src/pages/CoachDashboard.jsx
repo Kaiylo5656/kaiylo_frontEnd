@@ -273,7 +273,7 @@ const CoachDashboard = () => {
 
         // Charger les données de tri AVANT d'afficher la liste pour éviter le réordonnancement
         if (transformedStudents.length > 0) {
-          await fetchDashboardCounts();
+          await fetchDashboardCounts(transformedStudents.map((s) => s.id));
         }
       } else {
         logger.debug('⚠️ No students found or API returned unexpected format');
@@ -291,7 +291,39 @@ const CoachDashboard = () => {
     }
   };
 
-  const fetchDashboardCounts = async () => {
+  const fetchPendingVideoCountsForStudents = async (studentIds = []) => {
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return {};
+    }
+
+    const results = await Promise.allSettled(
+      studentIds.map((studentId) =>
+        axios.get(`${getApiBaseUrlWithApi()}/workout-sessions/videos`, {
+          params: {
+            studentId,
+            status: 'pending',
+            limit: 1,
+            offset: 0
+          }
+        })
+      )
+    );
+
+    const counts = {};
+    results.forEach((result, index) => {
+      if (result.status !== 'fulfilled') return;
+      const payload = result.value?.data;
+      if (!payload?.success) return;
+      const total = Number(payload.total ?? payload.data?.length ?? 0);
+      if (total > 0) {
+        counts[studentIds[index]] = total;
+      }
+    });
+
+    return counts;
+  };
+
+  const fetchDashboardCounts = async (studentIdsOverride = null) => {
     try {
       logger.debug('Fetching dashboard data...');
       const response = await axios.get(
@@ -303,15 +335,24 @@ const CoachDashboard = () => {
         const videoCounts = response.data.data.videoCounts || {};
         const messageCounts = response.data.data.messageCounts || {};
 
-        const normalizedVideoCounts = {};
+        let normalizedVideoCounts = {};
         const normalizedMessageCounts = {};
+        const targetStudentIds = Array.isArray(studentIdsOverride)
+          ? studentIdsOverride
+          : students.map((student) => student.id);
 
-        Object.keys(videoCounts).forEach(studentId => {
-          const count = Number(videoCounts[studentId]) || 0;
-          if (count > 0) {
-            normalizedVideoCounts[studentId] = count;
-          }
-        });
+        try {
+          // Align dashboard badge with "Analyse vidéo" logic: count pending videos from the same endpoint.
+          normalizedVideoCounts = await fetchPendingVideoCountsForStudents(targetStudentIds);
+        } catch (countError) {
+          logger.warn('Falling back to /coach/dashboard-data videoCounts after pending count fetch failure:', countError);
+          Object.keys(videoCounts).forEach(studentId => {
+            const count = Number(videoCounts[studentId]) || 0;
+            if (count > 0) {
+              normalizedVideoCounts[studentId] = count;
+            }
+          });
+        }
 
         Object.keys(messageCounts).forEach(studentId => {
           const count = Number(messageCounts[studentId]) || 0;

@@ -30,11 +30,19 @@ const StudentProfileModal = ({ isOpen, onClose, studentData, onUpdate }) => {
   // Initialize form data when modal opens or studentData changes
   useEffect(() => {
     if (isOpen && studentData) {
+      const birthRaw = studentData.birth_date;
+      const birthDate =
+        birthRaw == null || birthRaw === ''
+          ? ''
+          : (() => {
+              const s = String(birthRaw);
+              return s.length >= 10 && s.includes('-') ? s.slice(0, 10) : s;
+            })();
       setFormData({
         gender: studentData.gender || '',
-        birthDate: studentData.birth_date || '',
-        height: studentData.height?.toString() || '',
-        weight: studentData.weight?.toString() || '',
+        birthDate,
+        height: studentData.height != null && studentData.height !== '' ? String(studentData.height) : '',
+        weight: studentData.weight != null && studentData.weight !== '' ? String(studentData.weight) : '',
         discipline: studentData.discipline || 'Street Lifting'
       });
     }

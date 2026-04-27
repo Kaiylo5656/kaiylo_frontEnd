@@ -13,7 +13,7 @@ import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import UpgradeConfirmationModal from '@/components/billing/UpgradeConfirmationModal';
 import VideoDetailModal from './VideoDetailModal';
 import StudentVideoDetailModal from './StudentVideoDetailModal';
-import { useModalManager } from './ui/modal/ModalManager';
+import BaseModal from './ui/modal/BaseModal';
 
 // Custom Notification Icon Component
 const NotificationIcon = ({ className, style }) => (
@@ -55,6 +55,7 @@ const Header = ({ onOpenFeedback }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [coachPlan, setCoachPlan] = useState('free');
+  const [isCoachPlanLoaded, setIsCoachPlanLoaded] = useState(false);
   const [selectedUpgradePlan, setSelectedUpgradePlan] = useState(null);
   const settingsRef = useRef(null);
   const location = useLocation();
@@ -89,11 +90,18 @@ const Header = ({ onOpenFeedback }) => {
 
   // Fetch coach plan to show/hide upgrade button
   useEffect(() => {
-    if (user?.role !== 'coach') return;
+    if (user?.role !== 'coach') {
+      setIsCoachPlanLoaded(true);
+      return;
+    }
+    setIsCoachPlanLoaded(false);
     const fetchPlan = async () => {
       try {
         const token = localStorage.getItem('authToken');
-        if (!token) return;
+        if (!token) {
+          setCoachPlan('free');
+          return;
+        }
         const res = await axios.get(buildApiUrl('/api/billing/status'), {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -102,6 +110,8 @@ const Header = ({ onOpenFeedback }) => {
         }
       } catch {
         // silently fail — default stays 'free'
+      } finally {
+        setIsCoachPlanLoaded(true);
       }
     };
     fetchPlan();
@@ -605,6 +615,7 @@ const Header = ({ onOpenFeedback }) => {
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-0 flex-shrink-0">
         {(() => {
+          if (!isCoachPlanLoaded) return null;
           const PLANS = ['free', 'starter', 'growth', 'scale', 'elite'];
           const PLAN_LABELS = { starter: 'Starter', growth: 'Growth', scale: 'Scale', elite: 'Elite' };
           const currentIndex = PLANS.indexOf(coachPlan);
@@ -622,13 +633,17 @@ const Header = ({ onOpenFeedback }) => {
           return (
             <Button
               type="button"
-              className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5"
+              aria-label={`Passer à ${PLAN_LABELS[nextPlan]}`}
+              className="h-[38px] min-h-[38px] py-0 px-6 mr-2 rounded-lg text-sm font-normal text-white bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 border-0 gap-1.5 max-md:h-8 max-md:min-h-8 max-md:px-2.5 max-md:mr-1 max-md:gap-1 max-md:text-[11px] max-md:max-w-[min(100%,9.5rem)] max-md:min-w-0 max-md:shrink"
               onClick={handleClick}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1" fill="currentColor" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 mr-1 max-md:h-2.5 max-md:w-2.5 max-md:mr-0.5 max-md:flex-shrink-0" fill="currentColor" aria-hidden="true">
                 <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
               </svg>
-              Passer à {PLAN_LABELS[nextPlan]}
+              <span className="min-w-0 truncate md:whitespace-normal">
+                <span className="md:hidden">{PLAN_LABELS[nextPlan]}</span>
+                <span className="hidden md:inline">Passer à {PLAN_LABELS[nextPlan]}</span>
+              </span>
             </Button>
           );
         })()}
@@ -648,33 +663,37 @@ const Header = ({ onOpenFeedback }) => {
               position: 'absolute',
               top: 'calc(100% + 8px)',
               right: 0,
-              backgroundColor: '#1a1a1a',
-              border: '0.5px solid rgba(255,255,255,0.1)',
-              borderRadius: '10px',
-              padding: '6px',
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '4px',
               minWidth: '200px',
               zIndex: 9999,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              boxShadow: '0 12px 32px -16px rgba(0,0,0,0.55)',
               fontFamily: "'Inter', sans-serif"
             }}>
               <button
                 onClick={() => { setIsSettingsOpen(false); setIsDeleteAccountModalOpen(true); }}
                 style={{
-                  display: 'block',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   width: '100%',
-                  padding: '10px 14px',
-                  fontSize: '13px',
-                  fontWeight: 300,
-                  color: 'rgba(220,80,80,0.85)',
+                  padding: '8px 10px',
+                  fontSize: '14px',
+                  fontWeight: 400,
+                  color: 'rgba(220, 80, 80, 0.9)',
                   backgroundColor: 'transparent',
                   border: 'none',
-                  borderRadius: '7px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
-                  textAlign: 'left',
+                  textAlign: 'center',
                   fontFamily: "'Inter', sans-serif",
-                  transition: 'background-color 0.15s'
+                  transition: 'background-color 0.2s, color 0.2s'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(220,80,80,0.08)'; }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(220, 80, 80, 0.18)'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
                 Supprimer mon compte
@@ -810,77 +829,53 @@ const Header = ({ onOpenFeedback }) => {
         />
       )}
       {/* Delete Account Confirmation Modal */}
-      {isDeleteAccountModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 99999,
-            backgroundColor: 'rgba(0,0,0,0.75)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px'
-          }}
-          onClick={() => !isDeletingAccount && setIsDeleteAccountModalOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: '#111',
-              border: '0.5px solid rgba(255,255,255,0.1)',
-              borderRadius: '16px',
-              padding: '32px',
-              maxWidth: '420px',
-              width: '100%',
-              fontFamily: "'Inter', sans-serif"
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: '18px', fontWeight: 300, color: 'rgba(255,255,255,0.95)', marginBottom: '12px' }}>
-              Supprimer mon compte
-            </h3>
-            <p style={{ fontSize: '14px', fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: '1.6', marginBottom: '28px' }}>
-              Cette action est irréversible. Toutes vos données seront définitivement supprimées. Êtes-vous sûr ?
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setIsDeleteAccountModalOpen(false)}
-                disabled={isDeletingAccount}
-                style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  fontWeight: 300,
-                  color: 'rgba(255,255,255,0.6)',
-                  backgroundColor: 'rgba(255,255,255,0.06)',
-                  border: '0.5px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontFamily: "'Inter', sans-serif"
-                }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={isDeletingAccount}
-                style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  fontWeight: 400,
-                  color: 'rgba(255,255,255,1)',
-                  backgroundColor: isDeletingAccount ? 'rgba(180,50,50,0.5)' : 'rgba(220,50,50,1)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: isDeletingAccount ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Inter', sans-serif"
-                }}
-              >
-                {isDeletingAccount ? 'Suppression...' : 'Supprimer définitivement'}
-              </button>
-            </div>
+      <BaseModal
+        isOpen={isDeleteAccountModalOpen}
+        onClose={() => {
+          if (!isDeletingAccount) {
+            setIsDeleteAccountModalOpen(false);
+          }
+        }}
+        modalId="delete-account-modal"
+        zIndex={100}
+        closeOnEsc={!isDeletingAccount}
+        closeOnBackdrop={!isDeletingAccount}
+        size="sm"
+        title={
+          <span className="flex items-center gap-2 text-[rgba(220,50,50,1)]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+              <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
+            </svg>
+            Supprimer mon compte
+          </span>
+        }
+        titleClassName="text-xl font-normal text-white"
+      >
+        <div className="space-y-6">
+          <p className="text-sm font-extralight text-white/70 leading-relaxed">
+            Cette action est irréversible. Toutes vos données seront définitivement supprimées. Êtes-vous sûr ?
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDeleteAccountModalOpen(false)}
+              disabled={isDeletingAccount}
+              className="px-5 py-2.5 text-sm font-extralight text-white/70 bg-[rgba(0,0,0,0.5)] rounded-[10px] hover:bg-[rgba(255,255,255,0.1)] transition-colors border-[0.5px] border-[rgba(255,255,255,0.05)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={isDeletingAccount}
+              className="px-5 py-2.5 text-sm font-normal text-white rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: isDeletingAccount ? 'rgba(220, 50, 50, 0.5)' : 'rgba(220, 50, 50, 1)' }}
+            >
+              {isDeletingAccount ? 'Suppression...' : 'Supprimer définitivement'}
+            </button>
           </div>
         </div>
-      )}
+      </BaseModal>
     </>
   );
 };

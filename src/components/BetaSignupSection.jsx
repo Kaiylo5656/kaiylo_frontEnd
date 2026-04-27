@@ -17,7 +17,7 @@ const BetaSignupSection = () => {
       await axios.post(apiUrl, { ...formData });
       
       setStatus('success');
-      setMessage("Merci ! Tu es bien inscrit sur la liste d'attente.");
+      setMessage("Merci ! Ta demande a bien ete envoyee.");
       setFormData({ name: '', email: '' });
     } catch (error) {
       setStatus('error');
@@ -26,7 +26,7 @@ const BetaSignupSection = () => {
   };
 
   return (
-    <section className="w-full pt-[80px] pb-[200px] flex justify-center items-center px-6 relative z-20">
+    <section className="w-full pt-[80px] pb-16 md:pb-20 flex justify-center items-center px-6 relative z-20">
       <div className="max-w-[1000px] w-full flex flex-col gap-12 items-center">
         
         {/* Text Side */}
@@ -35,7 +35,7 @@ const BetaSignupSection = () => {
             Fais partie des <span className="text-[#d4845a]">premiers</span> à tester Kaiylo
           </h2>
           <p className="font-['Inter'] font-extralight text-sm md:text-base text-white/50 leading-tight">
-            Laisse ton email, on t'envoie les accès à la bêta dès qu'elle est disponible.
+            Laisse ton email, on te contacte pour une demo et la creation de ton compte.
           </p>
         </div>
 
@@ -77,7 +77,7 @@ const BetaSignupSection = () => {
                 className="w-full h-12 px-6 flex items-center justify-center bg-[#d4845a] hover:bg-[#bf7348] rounded-full transition-all cursor-pointer group relative overflow-hidden group/btn opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                  <span className="text-sm text-white font-['Inter'] font-normal relative z-10">
-                   {status === 'loading' ? 'Inscription...' : 'Réserver mon accès'}
+                   {status === 'loading' ? 'Envoi...' : 'Demander une demo'}
                  </span>
                  <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
               </button>
