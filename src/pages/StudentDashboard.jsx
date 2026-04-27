@@ -881,17 +881,15 @@ const StudentDashboard = () => {
               {selectedAssignments.length > 0 ? (
                 selectedAssignments.length > 1 ? (
                   // Mode horizontal avec scroll pour plusieurs séances
-                  <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto px-2 md:px-4 flex-1 flex flex-col relative overflow-hidden" style={{ minHeight: 0, marginBottom: '50px' }}>
+                  <div className="w-full max-w-xl md:max-w-2xl lg:max-w-3xl mx-auto px-2 md:px-4 flex flex-col relative overflow-x-hidden" style={{ marginBottom: '50px' }}>
                     <div
                       ref={scrollContainerRef}
-                      className="flex overflow-x-auto gap-4 scrollbar-hide items-stretch"
+                      className="flex overflow-x-auto gap-4 scrollbar-hide items-start"
                       style={{
                         scrollSnapType: 'x mandatory',
-                        flex: '1 1 0',
-                        minHeight: 0,
                         width: '100%',
                         overflowX: 'auto',
-                        overflowY: 'hidden',
+                        overflowY: 'visible',
                         WebkitOverflowScrolling: 'touch'
                       }}
                       onScroll={(e) => {
@@ -915,7 +913,6 @@ const StudentDashboard = () => {
                           width: '100%',
                           maxWidth: '100%',
                           minWidth: '100%',
-                          height: '100%',
                           scrollSnapAlign: 'start'
                         }}>
                           <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
@@ -929,8 +926,8 @@ const StudentDashboard = () => {
                             </CardTitle>
                             <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
                           </CardHeader>
-                          <CardContent className="px-4 mx-5 flex-1 flex flex-col">
-                            <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
+                          <CardContent className="px-4 mx-5 flex flex-col">
+                            <div className="space-y-3 mb-0 pt-5 pb-5">
                               {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
                                 <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
                                   <p
@@ -1003,8 +1000,8 @@ const StudentDashboard = () => {
                           </CardTitle>
                           <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
                         </CardHeader>
-                        <CardContent className="px-4 mx-5 flex-1 flex flex-col">
-                          <div className="space-y-3 mb-0 pt-5 pb-5 flex-1">
+                        <CardContent className="px-4 mx-5 flex-1 flex flex-col min-h-0">
+                          <div className="space-y-3 mb-0 pt-5 pb-5 flex-1 overflow-y-auto min-h-0">
                             {assignment.workout_sessions?.exercises?.map((ex, exIndex) => (
                               <div key={exIndex} className="flex items-start gap-2 sm:gap-3">
                                 <p
