@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
@@ -106,6 +106,10 @@ const FacturationPage = () => {
   const [checkoutPlanLoading, setCheckoutPlanLoading] = useState(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [affiliationStats, setAffiliationStats] = useState(null);
+  const [checkoutAffiliationCode, setCheckoutAffiliationCode] = useState('');
+  const [checkoutCodeValidation, setCheckoutCodeValidation] = useState(null);
+  const [checkoutCodeChecking, setCheckoutCodeChecking] = useState(false);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -131,6 +135,47 @@ const FacturationPage = () => {
     fetchBillingStatus();
   }, [fetchBillingStatus]);
 
+  useEffect(() => {
+    const fetchAffiliation = async () => {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/billing/affiliation'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (result.success) {
+          setAffiliationStats(result.data);
+        }
+      } catch (err) {
+        console.error('Could not load affiliation stats', err);
+      }
+    };
+    fetchAffiliation();
+  }, [getAuthToken]);
+
+  const validateCheckoutCode = useCallback(async (code) => {
+    if (!code.trim()) { setCheckoutCodeValidation(null); return; }
+    setCheckoutCodeChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      setCheckoutCodeValidation(data.data);
+    } catch {
+      setCheckoutCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCheckoutCodeChecking(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCheckoutCode(checkoutAffiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [checkoutAffiliationCode, validateCheckoutCode]);
+
   // Detect ?upgraded=true after Stripe Checkout redirect
   useEffect(() => {
     if (searchParams.get('upgraded') === 'true') {
@@ -151,7 +196,10 @@ const FacturationPage = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: plan.name })
+        body: JSON.stringify({
+          planName: plan.name,
+          ...(checkoutCodeValidation?.valid && checkoutAffiliationCode ? { affiliationCode: checkoutAffiliationCode } : {})
+        })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -166,7 +214,7 @@ const FacturationPage = () => {
     } finally {
       setCheckoutPlanLoading(null);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, checkoutCodeValidation, checkoutAffiliationCode]);
 
   const activePlan = billing?.plan ?? 'free';
   const isPaidPlan = activePlan !== 'free';
@@ -416,6 +464,53 @@ const FacturationPage = () => {
                 </div>
               </Card>
             </motion.div>
+            {/* Affiliation Card */}
+            {affiliationStats && (
+              <motion.div
+                className="h-full md:col-span-2"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+              >
+                <Card className={`${cardClass} group transition-colors duration-300 hover:bg-white/[0.10]`}>
+                  <h3 className="text-lg font-semibold">Code d&apos;affiliation</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Partagez votre code pour gagner des réductions sur votre abonnement.
+                  </p>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-mono font-bold tracking-widest text-primary">
+                      {affiliationStats.code}
+                    </span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(affiliationStats.code)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Copier
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Filleuls actifs</p>
+                      <p className="font-semibold">{affiliationStats.active_referral_count} / {affiliationStats.referral_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Réduction active jusqu&apos;au</p>
+                      <p className="font-semibold">
+                        {affiliationStats.discount_expires_at
+                          ? new Date(affiliationStats.discount_expires_at).toLocaleDateString('fr-FR')
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Vous gagnez {affiliationStats.referrer_discount_pct}% de réduction pendant 6 mois par filleul.
+                  </p>
+                </Card>
+              </motion.div>
+            )}
           </div>
         )}
 
@@ -435,6 +530,29 @@ const FacturationPage = () => {
         size="2xl"
         titleClassName="text-xl font-semibold"
       >
+        <div className="space-y-2 mb-5">
+          <label className="text-sm font-medium">Code d&apos;affiliation (optionnel)</label>
+          <input
+            type="text"
+            value={checkoutAffiliationCode}
+            onChange={e => setCheckoutAffiliationCode(e.target.value.toUpperCase())}
+            placeholder="ex: MARC-47"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono uppercase bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            maxLength={15}
+          />
+          {checkoutCodeChecking && <p className="text-xs text-muted-foreground">Vérification...</p>}
+          {checkoutCodeValidation?.valid && (
+            <p className="text-xs text-green-500">{checkoutCodeValidation.discount}</p>
+          )}
+          {checkoutCodeValidation && !checkoutCodeValidation.valid && (
+            <p className="text-xs text-destructive">
+              {checkoutCodeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                : checkoutCodeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                : 'Code invalide.'}
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan) => {
             const isActive = activePlan === plan.name;

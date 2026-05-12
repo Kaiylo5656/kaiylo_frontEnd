@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import BaseModal from '@/components/ui/modal/BaseModal';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,32 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
   const { getAuthToken } = useAuth();
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutAffiliationCode, setCheckoutAffiliationCode] = useState('');
+  const [checkoutCodeValidation, setCheckoutCodeValidation] = useState(null);
+  const [checkoutCodeChecking, setCheckoutCodeChecking] = useState(false);
+
+  const validateCheckoutCode = useCallback(async (code) => {
+    if (!code.trim()) { setCheckoutCodeValidation(null); return; }
+    setCheckoutCodeChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      setCheckoutCodeValidation(data.data);
+    } catch {
+      setCheckoutCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCheckoutCodeChecking(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCheckoutCode(checkoutAffiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [checkoutAffiliationCode, validateCheckoutCode]);
 
   const handleUpgrade = useCallback(async (planName) => {
     try {
@@ -27,7 +53,10 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName })
+        body: JSON.stringify({
+          planName,
+          ...(checkoutCodeValidation?.valid && checkoutAffiliationCode ? { affiliationCode: checkoutAffiliationCode } : {})
+        })
       });
       if (!response.ok) {
         setCheckoutError('Impossible de créer la session de paiement. Réessayez.');
@@ -44,7 +73,7 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
     } finally {
       setLoadingPlan(null);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, checkoutCodeValidation, checkoutAffiliationCode]);
 
   const currentIndex = PLANS.findIndex(p => p.name === currentPlan);
   const upgradePlans = currentIndex === -1 ? PLANS : PLANS.slice(currentIndex + 1);
@@ -89,6 +118,31 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
             ? 'Choisissez le palier qui correspond à votre activité.'
             : null}
         </p>
+
+        {upgradePlans.length > 0 && (
+          <div className="space-y-2 w-full text-left">
+            <label className="text-sm font-medium">Code d&apos;affiliation (optionnel)</label>
+            <input
+              type="text"
+              value={checkoutAffiliationCode}
+              onChange={e => setCheckoutAffiliationCode(e.target.value.toUpperCase())}
+              placeholder="ex: MARC-47"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono uppercase bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              maxLength={15}
+            />
+            {checkoutCodeChecking && <p className="text-xs text-muted-foreground">Vérification...</p>}
+            {checkoutCodeValidation?.valid && (
+              <p className="text-xs text-green-500">{checkoutCodeValidation.discount}</p>
+            )}
+            {checkoutCodeValidation && !checkoutCodeValidation.valid && (
+              <p className="text-xs text-destructive">
+                {checkoutCodeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                  : checkoutCodeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                  : 'Code invalide.'}
+              </p>
+            )}
+          </div>
+        )}
 
         {upgradePlans.length === 0 ? (
           <p className="text-zinc-400 text-sm">
