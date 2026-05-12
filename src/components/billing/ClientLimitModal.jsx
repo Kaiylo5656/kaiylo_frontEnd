@@ -27,6 +27,7 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
       const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
+      if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       setCheckoutCodeValidation(data.data);
     } catch {
