@@ -121,13 +121,13 @@ const ClientLimitModal = ({ isOpen, onClose, currentPlan = 'free', count }) => {
 
         {upgradePlans.length > 0 && (
           <div className="space-y-2 w-full text-left">
-            <label className="text-sm font-medium">Code d&apos;affiliation (optionnel)</label>
+            <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>Code d&apos;affiliation (optionnel)</label>
             <input
               type="text"
               value={checkoutAffiliationCode}
               onChange={e => setCheckoutAffiliationCode(e.target.value.toUpperCase())}
               placeholder="ex: MARC-47"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono uppercase bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm font-mono uppercase placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
               maxLength={15}
             />
             {checkoutCodeChecking && <p className="text-xs text-muted-foreground">Vérification...</p>}

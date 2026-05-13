@@ -1243,7 +1243,7 @@ const CoachDashboard = () => {
       </div>
 
       {/* Client List Container - Scrollable */}
-      <div className="flex-1 min-h-0 px-6 pb-6 relative z-10">
+      <div className="flex-1 min-h-0 px-6 pb-0 relative z-10">
         <div className="rounded-lg flex flex-col overflow-hidden h-full" style={{ backgroundColor: 'unset', border: 'none' }}>
 
           {/* Client List - Scrollable */}
