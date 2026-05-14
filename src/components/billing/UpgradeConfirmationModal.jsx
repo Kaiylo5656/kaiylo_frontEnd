@@ -1,5 +1,8 @@
+import { useState, useEffect, useCallback } from 'react';
 import BaseModal from '@/components/ui/modal/BaseModal';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { buildApiUrl } from '@/config/api';
 
 const clientsIcon = (
   <svg
@@ -58,8 +61,44 @@ const upgradeTitleIcon = (
 const DEFAULT_PLAN = { name: 'starter', label: 'Starter', price: 29, studentLimit: 10 };
 
 const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan }) => {
+  const { getAuthToken } = useAuth();
   const resolvedPlan = plan || DEFAULT_PLAN;
   const benefits = makeBenefits(resolvedPlan.studentLimit);
+
+  const [affiliationCode, setAffiliationCode] = useState('');
+  const [codeValidation, setCodeValidation] = useState(null);
+  const [codeChecking, setCodeChecking] = useState(false);
+
+  const validateCode = useCallback(async (code) => {
+    if (!code.trim()) { setCodeValidation(null); return; }
+    setCodeChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      setCodeValidation(data.data);
+    } catch {
+      setCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCodeChecking(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCode(affiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [affiliationCode, validateCode]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAffiliationCode('');
+      setCodeValidation(null);
+    }
+  }, [isOpen]);
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -89,10 +128,34 @@ const UpgradeConfirmationModal = ({ isOpen, onClose, onConfirm, isLoading, plan 
           ))}
         </ul>
 
+        {/* Affiliation code */}
+        <div className="space-y-2 text-left">
+          <label className="text-sm font-medium text-zinc-300">Code d&apos;affiliation (optionnel)</label>
+          <input
+            type="text"
+            value={affiliationCode}
+            onChange={e => setAffiliationCode(e.target.value.toUpperCase())}
+            placeholder="ex: MARC-47"
+            className="w-full border border-white/10 rounded-lg px-3 py-2 text-sm font-mono uppercase bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            maxLength={15}
+          />
+          {codeChecking && <p className="text-xs text-zinc-400">Vérification...</p>}
+          {codeValidation?.valid && (
+            <p className="text-xs text-green-500">{codeValidation.discount}</p>
+          )}
+          {codeValidation && !codeValidation.valid && (
+            <p className="text-xs text-red-400">
+              {codeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                : codeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                : 'Code invalide.'}
+            </p>
+          )}
+        </div>
+
         {/* Actions */}
         <div className="flex flex-col gap-3 pt-2">
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(codeValidation?.valid ? affiliationCode : null)}
             disabled={isLoading}
             className="w-full py-3 rounded-[8px] text-sm font-semibold text-white flex items-center justify-center gap-2 bg-gradient-to-r from-[#a855f7] to-[#0f66c9] transition-[transform,box-shadow,filter] duration-300 ease-out hover:brightness-[1.04] hover:shadow-[0_8px_26px_-12px_rgba(168,85,247,0.28)] hover:-translate-y-px active:translate-y-0 active:brightness-[1.02] active:shadow-[0_4px_18px_-10px_rgba(15,102,201,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50"
           >

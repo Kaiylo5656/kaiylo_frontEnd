@@ -564,7 +564,7 @@ const Header = ({ onOpenFeedback }) => {
     }
   }, [getAuthToken]);
 
-  const handleCheckout = useCallback(async () => {
+  const handleCheckout = useCallback(async (affiliationCode) => {
     try {
       setCheckoutLoading(true);
       const token = await getAuthToken();
@@ -574,7 +574,10 @@ const Header = ({ onOpenFeedback }) => {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: selectedUpgradePlan?.name || 'starter' })
+        body: JSON.stringify({
+          planName: selectedUpgradePlan?.name || 'starter',
+          ...(affiliationCode ? { affiliationCode } : {})
+        })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {

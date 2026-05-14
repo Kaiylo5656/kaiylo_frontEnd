@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
@@ -106,6 +106,10 @@ const FacturationPage = () => {
   const [checkoutPlanLoading, setCheckoutPlanLoading] = useState(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [affiliationStats, setAffiliationStats] = useState(null);
+  const [checkoutAffiliationCode, setCheckoutAffiliationCode] = useState('');
+  const [checkoutCodeValidation, setCheckoutCodeValidation] = useState(null);
+  const [checkoutCodeChecking, setCheckoutCodeChecking] = useState(false);
 
   const fetchBillingStatus = useCallback(async () => {
     try {
@@ -131,6 +135,47 @@ const FacturationPage = () => {
     fetchBillingStatus();
   }, [fetchBillingStatus]);
 
+  useEffect(() => {
+    const fetchAffiliation = async () => {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(buildApiUrl('/api/billing/affiliation'), {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (result.success) {
+          setAffiliationStats(result.data);
+        }
+      } catch (err) {
+        console.error('Could not load affiliation stats', err);
+      }
+    };
+    fetchAffiliation();
+  }, [getAuthToken]);
+
+  const validateCheckoutCode = useCallback(async (code) => {
+    if (!code.trim()) { setCheckoutCodeValidation(null); return; }
+    setCheckoutCodeChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(buildApiUrl(`/api/billing/validate-affiliation-code?code=${encodeURIComponent(code)}`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      setCheckoutCodeValidation(data.data);
+    } catch {
+      setCheckoutCodeValidation({ valid: false, reason: 'error' });
+    } finally {
+      setCheckoutCodeChecking(false);
+    }
+  }, [getAuthToken]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => validateCheckoutCode(checkoutAffiliationCode), 600);
+    return () => clearTimeout(timer);
+  }, [checkoutAffiliationCode, validateCheckoutCode]);
+
   // Detect ?upgraded=true after Stripe Checkout redirect
   useEffect(() => {
     if (searchParams.get('upgraded') === 'true') {
@@ -151,7 +196,10 @@ const FacturationPage = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ planName: plan.name })
+        body: JSON.stringify({
+          planName: plan.name,
+          ...(checkoutCodeValidation?.valid && checkoutAffiliationCode ? { affiliationCode: checkoutAffiliationCode } : {})
+        })
       });
       const result = await response.json();
       if (result.success && result.data?.checkoutUrl) {
@@ -166,7 +214,7 @@ const FacturationPage = () => {
     } finally {
       setCheckoutPlanLoading(null);
     }
-  }, [getAuthToken]);
+  }, [getAuthToken, checkoutCodeValidation, checkoutAffiliationCode]);
 
   const activePlan = billing?.plan ?? 'free';
   const isPaidPlan = activePlan !== 'free';
@@ -187,7 +235,7 @@ const FacturationPage = () => {
   if (error && !billing) {
     return (
       <div className="flex-1 p-6 md:p-10">
-        <div className="max-w-[1200px] mx-auto">
+        <div className="w-full max-w-[1800px] mx-auto">
           <h1 className="text-2xl md:text-3xl font-medium text-foreground mb-8 tracking-tight">Facturation</h1>
           <div className="text-center py-16 text-muted-foreground">
             <p className="text-base">{error}</p>
@@ -205,7 +253,7 @@ const FacturationPage = () => {
 
   return (
     <div className="flex-1 p-6 md:p-10">
-      <div className="max-w-[1200px] mx-auto">
+      <div className="w-full max-w-[1800px] mx-auto">
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-md:pb-14">
             <SkeletonCard delay={0} />
@@ -416,6 +464,93 @@ const FacturationPage = () => {
                 </div>
               </Card>
             </motion.div>
+            {/* Affiliation Card */}
+            {affiliationStats && (
+              <motion.div
+                className="h-full md:col-span-2"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+              >
+                <Card className={`${cardClass} group transition-colors duration-300 hover:bg-white/[0.10]`}>
+                  <div className="flex items-center gap-3.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-6 w-6 text-white/50 transition-colors duration-300 group-hover:text-white" fill="currentColor" aria-hidden="true">
+                      <path d="M268.9 85.2L152.3 214.8c-4.6 5.1-4.4 13 .5 17.9 30.5 30.5 80 30.5 110.5 0l31.8-31.8c4.2-4.2 9.5-6.5 14.9-6.9 6.8-.6 13.8 1.7 19 6.9L505.6 376 576 320 576 32 464 96 440.2 80.1C424.4 69.6 405.9 64 386.9 64l-70.4 0c-1.1 0-2.3 0-3.4 .1-16.9 .9-32.8 8.5-44.2 21.1zM116.6 182.7L223.4 64 183.8 64c-25.5 0-49.9 10.1-67.9 28.1L112 96 0 32 0 320 156.4 450.3c23 19.2 52 29.7 81.9 29.7l15.7 0-7-7c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l41 41 9 0c19.1 0 37.8-4.3 54.8-12.3L359 441c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l32 32 17.5-17.5c8.9-8.9 11.5-21.8 7.6-33.1l-137.9-136.8-14.9 14.9c-49.3 49.3-129.1 49.3-178.4 0-23-23-23.9-59.9-2.2-84z" />
+                    </svg>
+                    <div>
+                      <h2 className="font-light text-base text-white/50 leading-tight transition-colors duration-300 group-hover:text-white">Programme d&apos;Affiliation</h2>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col md:flex-row gap-8 md:gap-12 mt-2">
+                    {/* Left part: Code + Description */}
+                    <div className="flex-1 flex flex-col justify-between space-y-5">
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground font-light leading-relaxed">
+                          Partagez votre code d&apos;affiliation pour gagner des réductions sur votre abonnement Kaiylo.
+                        </p>
+                        <p className="text-sm text-[#D4845A] font-medium">
+                          Vous gagnez {affiliationStats.referrer_discount_pct}% de réduction pendant 6 mois par filleul.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-start gap-4 bg-white/[0.04] p-3 px-5 rounded-xl">
+                        <span className="text-xl font-mono font-bold tracking-widest text-foreground">
+                          {affiliationStats.code}
+                        </span>
+                        <div className="hidden sm:block w-px h-6 bg-white/10" />
+                        <button
+                          type="button"
+                          aria-label="Copier le code"
+                          onClick={(e) => {
+                            navigator.clipboard.writeText(affiliationStats.code);
+                            const btn = e.currentTarget;
+                            const originalText = btn.innerHTML;
+                            btn.innerHTML = `<span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" class="h-3.5 w-3.5"><path fill="currentColor" d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>Copié</span>`;
+                            btn.classList.add('text-green-400');
+                            btn.classList.remove('text-muted-foreground', 'hover:text-white');
+                            setTimeout(() => {
+                              btn.innerHTML = originalText;
+                              btn.classList.remove('text-green-400');
+                              btn.classList.add('text-muted-foreground', 'hover:text-white');
+                            }, 2000);
+                          }}
+                          className="text-sm text-muted-foreground hover:text-white transition-colors duration-300 font-medium flex items-center justify-center shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true"><path d="M192 0c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64l192 0c35.3 0 64-28.7 64-64l0-200.6c0-17.4-7.1-34.1-19.7-46.2L370.6 17.8C358.7 6.4 342.8 0 326.3 0L192 0zM64 128c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l192 0c35.3 0 64-28.7 64-64l0-16-64 0 0 16-192 0 0-256 16 0 0-64-16 0z"/></svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right part: Stats */}
+                    <div className="flex flex-row md:flex-col gap-5 md:min-w-[220px] pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-white/[0.06] md:pl-8">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" className="h-3.5 w-3.5 text-white/40" fill="currentColor"><path d="M144 0a80 80 0 1 1 0 160A80 80 0 1 1 144 0zM512 0a80 80 0 1 1 0 160A80 80 0 1 1 512 0zM0 298.7C0 239.8 47.8 192 106.7 192h42.7c15.9 0 31 3.5 44.6 9.7c-1.3 7.2-1.9 14.7-1.9 22.3c0 38.2 16.8 72.5 43.3 96c-.2 0-.4 0-.7 0H21.3C9.6 320 0 310.4 0 298.7zM405.3 320c-.2 0-.4 0-.7 0c26.6-23.5 43.3-57.8 43.3-96c0-7.6-.7-15-1.9-22.3c13.6-6.1 28.8-9.7 44.6-9.7h42.7C592.2 192 640 239.8 640 298.7c0 11.8-9.6 21.3-21.3 21.3H405.3zM224 224a96 96 0 1 1 192 0 96 96 0 1 1 -192 0zM128 485.3C128 411.7 187.7 352 261.3 352H378.7C452.3 352 512 411.7 512 485.3c0 14.7-11.9 26.7-26.7 26.7H154.7c-14.7 0-26.7-11.9-26.7-26.7z"/></svg>
+                          <p className="text-xs text-muted-foreground font-light uppercase tracking-wider">Filleuls actifs</p>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-2xl font-semibold text-foreground">{affiliationStats.active_referral_count}</p>
+                          <p className="text-sm text-muted-foreground font-light">/ {affiliationStats.referral_count}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-3.5 w-3.5 text-white/40" fill="currentColor"><path d="M256 0a256 256 0 1 1 0 512A256 256 0 1 1 256 0zM232 120V256c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.4 33.3-6.7s4.4-25.9-6.7-33.3L280 243.2V120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"/></svg>
+                          <p className="text-xs text-muted-foreground font-light uppercase tracking-wider">Réduction valide</p>
+                        </div>
+                        <p className="text-base font-medium text-foreground">
+                          {affiliationStats.discount_expires_at
+                            ? new Date(affiliationStats.discount_expires_at).toLocaleDateString('fr-FR')
+                            : 'Aucune expiration'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
           </div>
         )}
 
@@ -435,6 +570,29 @@ const FacturationPage = () => {
         size="2xl"
         titleClassName="text-xl font-semibold"
       >
+        <div className="space-y-2 mb-5">
+          <label className="block text-sm font-extralight text-white/50" style={{ boxSizing: 'content-box' }}>Code d&apos;affiliation (optionnel)</label>
+          <input
+            type="text"
+            value={checkoutAffiliationCode}
+            onChange={e => setCheckoutAffiliationCode(e.target.value.toUpperCase())}
+            placeholder="ex: MARC-47"
+            className="w-full px-[14px] py-3 rounded-[10px] border-[0.5px] bg-[rgba(0,0,0,0.5)] border-[rgba(255,255,255,0.05)] text-white text-sm font-mono uppercase placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus:border-[0.5px] focus:border-[rgba(255,255,255,0.05)]"
+            maxLength={15}
+          />
+          {checkoutCodeChecking && <p className="text-xs text-muted-foreground">Vérification...</p>}
+          {checkoutCodeValidation?.valid && (
+            <p className="text-xs text-green-500">{checkoutCodeValidation.discount}</p>
+          )}
+          {checkoutCodeValidation && !checkoutCodeValidation.valid && (
+            <p className="text-xs text-destructive">
+              {checkoutCodeValidation.reason === 'own_code' ? 'Vous ne pouvez pas utiliser votre propre code.'
+                : checkoutCodeValidation.reason === 'already_used' ? "Vous avez déjà utilisé un code d'affiliation."
+                : 'Code invalide.'}
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan) => {
             const isActive = activePlan === plan.name;

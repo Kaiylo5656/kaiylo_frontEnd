@@ -10,6 +10,7 @@ import { useModalManager } from './ui/modal/ModalManager';
 import BaseModal from './ui/modal/BaseModal';
 import { formatRelative } from '../utils/formatting';
 import { getTagColor } from '../utils/tagColors';
+import { Play } from 'lucide-react';
 
 const ExerciseDetailModal = ({ 
   isOpen, 
