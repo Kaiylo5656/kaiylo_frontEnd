@@ -893,7 +893,7 @@ const StudentVideoLibrary = () => {
                                           {video.is_favorited && (
                                             <Star size={14} className="text-yellow-400 fill-yellow-400" />
                                           )}
-                                          {getExpiryLabel(video) && (
+                                          {!video.is_favorited && getExpiryLabel(video) && (
                                             <span className="text-xs text-gray-400">{getExpiryLabel(video)}</span>
                                           )}
                                         </div>

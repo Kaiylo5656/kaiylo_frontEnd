@@ -208,12 +208,17 @@ const VideoLibrary = () => {
       }
     } else {
       if (updateType === 'student') {
-        // Update video feedback in the student videos list
-        setStudentVideos(prev => prev.map(v =>
-          v.id === videoId
-            ? { ...v, coach_feedback: feedback, coach_rating: rating, status: status }
-            : v
-        ));
+        const applyUpdate = (v) => {
+          if (v.id !== videoId) return v;
+          const updated = { ...v, coach_feedback: feedback, coach_rating: rating, status: status };
+          if (!v.reviewed_at) {
+            updated.reviewed_at = new Date().toISOString();
+            updated.expires_at = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+          }
+          return updated;
+        };
+        setStudentVideos(prev => prev.map(applyUpdate));
+        setSelectedVideo(prev => prev && prev.id === videoId ? applyUpdate(prev) : prev);
       } else if (updateType === 'coach') {
         // Update description in the coach resources list
         setCoachResources(prev => prev.map(v =>
@@ -277,7 +282,10 @@ const VideoLibrary = () => {
         } else {
           setStudentVideos(newData);
         }
-        setHasMore(currentOffset + newData.length < total);
+        // Stop the loop if backend returned 0 items even though total > 0 — happens when
+        // remaining videos have broken storage paths (signed URL generation drops them).
+        // Otherwise advance by PAGE_SIZE (not data.length) so partial pages don't stall.
+        setHasMore(newData.length > 0 && currentOffset + PAGE_SIZE < total);
       } else {
         throw new Error(response.data.message || 'Failed to fetch student videos');
       }
@@ -1223,6 +1231,18 @@ const VideoLibrary = () => {
                                   })()}
                                 </div>
 
+                                {/* Favorite star / Expiry label */}
+                                {(video.is_favorited || getExpiryLabel(video)) && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {video.is_favorited && (
+                                      <Star size={12} className="text-yellow-400 fill-yellow-400" />
+                                    )}
+                                    {!video.is_favorited && getExpiryLabel(video) && (
+                                      <span className="text-xs text-gray-400 font-extralight">{getExpiryLabel(video)}</span>
+                                    )}
+                                  </div>
+                                )}
+
                                 {/* Coach Feedback */}
                                 {(video.coach_feedback || video.coach_feedback_audio_url) && (
                                   <div className="mt-2 pt-2 flex flex-col gap-1 border-t border-white/10">
@@ -1466,25 +1486,6 @@ const VideoLibrary = () => {
                   >
                     {video.title || video.fileName}
                   </h3>
-                  <div className="flex items-center gap-1">
-                    {!video.is_favorited && getExpiryLabel(video) && (
-                      <span className="text-xs text-gray-400">{getExpiryLabel(video)}</span>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(video); }}
-                      disabled={!video.is_favorited && (video.student_favorite_count || 0) >= 3}
-                      title={!video.is_favorited && (video.student_favorite_count || 0) >= 3 ? 'Limite atteinte (3/3)' : undefined}
-                      className="p-1"
-                    >
-                      <Star
-                        size={16}
-                        className={video.is_favorited ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400 hover:text-yellow-300'}
-                      />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDownload(video.id); }} className="p-1">
-                      <Download size={16} className="text-gray-400 hover:text-white" />
-                    </button>
-                  </div>
                   <div className="relative video-menu-container">
                     <button
                       onClick={(e) => {

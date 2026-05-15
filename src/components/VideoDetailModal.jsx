@@ -57,6 +57,7 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
   const [localSubmittedFeedback, setLocalSubmittedFeedback] = useState(null);
   const [sessionGlobalExpanded, setSessionGlobalExpanded] = useState(false);
+  const [favoriteLimitMsg, setFavoriteLimitMsg] = useState(null);
   const globalCommentMobileRef = useRef(null);
   const globalCommentDesktopRef = useRef(null);
 
@@ -357,6 +358,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
         setVideoStatus('completed');
         setLocalSubmittedFeedback(feedback.trim());
         setFeedback('');
+        if (!localVideo.reviewed_at) {
+          const now = new Date().toISOString();
+          const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+          setLocalVideo(v => ({ ...v, reviewed_at: now, expires_at: expiresAt }));
+        }
       }
 
       if (onFeedbackUpdate) {
@@ -433,7 +439,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
       onVideoUpdated?.({ ...localVideo, is_favorited: newFav });
     } else {
       const data = await res.json().catch(() => ({}));
-      if (data.error === 'Limite atteinte') alert('Limite atteinte (3/3)');
+      if (data.error === 'Limite atteinte') {
+        setFavoriteLimitMsg('Limite atteinte (3/3)');
+        setTimeout(() => setFavoriteLimitMsg(null), 3000);
+      }
       else if (res.status === 409) {
         setLocalVideo(v => ({ ...v, is_favorited: true }));
         onVideoUpdated?.({ ...localVideo, is_favorited: true });
@@ -486,6 +495,11 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setVideoStatus('completed');
+      if (!localVideo.reviewed_at) {
+        const now = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        setLocalVideo(v => ({ ...v, reviewed_at: now, expires_at: expiresAt }));
+      }
       if (onFeedbackUpdate) {
         onFeedbackUpdate(video.id, '', null, false, 'completed', 'student');
       }
@@ -594,7 +608,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
           <div className="flex items-center gap-2">
             {isCoachView && (
               <>
-                {getExpiryLabel(localVideo) && (
+                {favoriteLimitMsg && (
+                  <span className="text-xs text-red-400 animate-pulse">{favoriteLimitMsg}</span>
+                )}
+                {!localVideo?.is_favorited && !favoriteLimitMsg && getExpiryLabel(localVideo) && (
                   <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
                 )}
                 <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
@@ -1004,7 +1021,10 @@ const VideoDetailModal = ({ isOpen, onClose, video, totalSets: totalSetsProp, on
               <div className="flex items-center gap-2">
                 {isCoachView && (
                   <>
-                    {getExpiryLabel(localVideo) && (
+                    {favoriteLimitMsg && (
+                      <span className="text-xs text-red-400 animate-pulse">{favoriteLimitMsg}</span>
+                    )}
+                    {!localVideo?.is_favorited && !favoriteLimitMsg && getExpiryLabel(localVideo) && (
                       <span className="text-xs text-gray-400">{getExpiryLabel(localVideo)}</span>
                     )}
                     <button onClick={handleToggleFavorite} className="p-1" title={localVideo?.is_favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}>
