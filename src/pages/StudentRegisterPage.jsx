@@ -2,7 +2,9 @@ import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import i18next from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
 import { ChevronDown, ChevronUp } from 'lucide-react';
@@ -153,6 +155,20 @@ const StudentRegisterPage = () => {
 
           // Use login function to properly initialize auth state
           await login(result.user.email, data.password, navigate, '/onboarding');
+
+          // Phase 09 Plan 01 Task 7: persist the pre-auth detected
+          // language onto user_metadata at account creation (invitation
+          // flow). The backend /invitations/accept endpoint does not
+          // carry user_metadata fields, so the write happens
+          // client-side here, immediately after login() establishes
+          // the Supabase session. AuthContext's session-resolve effect
+          // grants a 30-second grace window for brand-new users so
+          // this write does not race the 'absent ⇒ force fr' fallback.
+          Promise.resolve(
+            supabase.auth.updateUser({ data: { language: i18next.language } })
+          ).catch((err) => {
+            logger.warn('[i18n] signup language write failed (StudentRegisterPage)', err);
+          });
         } else {
           // If no token (email confirmation required), redirect to success page
           // The user will need to confirm email before logging in

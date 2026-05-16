@@ -1,6 +1,7 @@
 import logger from '../utils/logger';
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import i18next from 'i18next';
 import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
@@ -94,6 +95,30 @@ const AuthCallback = () => {
             // Set axios header
             const axios = (await import('axios')).default;
             axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+            // Phase 09 Plan 01 Task 7: persist the pre-auth detected
+            // language onto user_metadata for first-time OAuth users.
+            // The plan described this as 'piggyback the language write
+            // onto the existing role-fallback updateUser call at
+            // AuthCallback.jsx:99', but no such call exists in the
+            // current codebase — the OAuth path only reads
+            // user_metadata.role from the backend /auth/me, it does
+            // not write back. So Task 7 here is a NEW client-side
+            // write (deviation documented in SUMMARY).
+            //
+            // Guard: only write when user_metadata.language is absent
+            // so returning OAuth users do not get their existing
+            // preference clobbered. The AuthContext session-resolve
+            // effect runs in parallel; its 30-second new-user grace
+            // window prevents the 'absent ⇒ force fr' fallback from
+            // racing this write for first-time signups.
+            if (!session.user.user_metadata?.language) {
+              Promise.resolve(
+                supabase.auth.updateUser({ data: { language: i18next.language } })
+              ).catch((err) => {
+                logger.warn('[i18n] OAuth signup language write failed (AuthCallback)', err);
+              });
+            }
 
             // Rôle fiable depuis le backend (évite de bloquer les coachs à l'inscription Google où user_metadata.role peut être absent)
             let userRole = session.user.user_metadata?.role;
