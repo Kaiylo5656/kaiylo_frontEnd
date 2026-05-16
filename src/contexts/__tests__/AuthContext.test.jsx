@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, beforeEach, expect, vi } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { describe, it, beforeEach, beforeAll, afterAll, afterEach, expect, vi } from 'vitest';
+import { render, act, waitFor } from '@testing-library/react';
 
 // --- Mocks ------------------------------------------------------------------
 const axiosMock = vi.hoisted(() => {
@@ -25,7 +25,8 @@ const supabaseAuth = vi.hoisted(() => ({
   refreshSession: vi.fn(),
   setSession: vi.fn(),
   signOut: vi.fn(() => Promise.resolve()),
-  onAuthStateChange: vi.fn()
+  onAuthStateChange: vi.fn(),
+  updateUser: vi.fn(() => Promise.resolve({ data: { user: {} }, error: null }))
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -187,5 +188,202 @@ describe('AuthContext refreshAuthToken', () => {
     expect(localStorage.getItem('authToken')).toBe('fresh-token');
     expect(localStorage.getItem('supabaseRefreshToken')).toBe('fresh-refresh');
     expect(supabaseAuth.signOut).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AuthContext — language sync on session resolve (Phase 09 Plan 01)
+// ---------------------------------------------------------------------------
+
+describe('AuthContext language sync', () => {
+  let consoleErrorSpy;
+  let consoleWarnSpy;
+  let consoleLogSpy;
+  let i18nextRef;
+  let changeLanguageSpy;
+  let authStateChangeHandler;
+
+  beforeAll(() => {
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterAll(() => {
+    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Reset shared mocks
+    axiosMock.mockReset();
+    axiosMock.mockImplementation(() => Promise.resolve({ data: {} }));
+    axiosMock.get.mockReset();
+    axiosMock.get.mockResolvedValue(resolvedUser);
+    axiosMock.post.mockReset();
+    axiosMock.put.mockReset();
+    axiosMock.defaults.headers.common = {};
+    axiosMock.interceptors.response.use.mockClear();
+    axiosMock.interceptors.response.use.mockReturnValue(Symbol('interceptor'));
+    axiosMock.interceptors.response.eject.mockClear();
+
+    supabaseAuth.getSession.mockReset();
+    supabaseAuth.refreshSession.mockReset();
+    supabaseAuth.setSession.mockReset();
+    supabaseAuth.signOut.mockClear();
+    supabaseAuth.updateUser.mockReset();
+    supabaseAuth.updateUser.mockResolvedValue({ data: { user: {} }, error: null });
+    supabaseAuth.onAuthStateChange.mockReset();
+
+    // Capture the SIGNED_IN handler so each test can fire events at will.
+    authStateChangeHandler = null;
+    supabaseAuth.onAuthStateChange.mockImplementation((cb) => {
+      authStateChangeHandler = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+
+    supabaseAuth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+    supabaseAuth.refreshSession.mockResolvedValue({ data: { session: null }, error: null });
+    supabaseAuth.setSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    // Reset i18next to FR before each test.
+    const i18next = (await import('i18next')).default;
+    i18nextRef = i18next;
+    await act(async () => {
+      await i18next.changeLanguage('fr');
+    });
+    changeLanguageSpy = vi.spyOn(i18next, 'changeLanguage');
+  });
+
+  afterEach(() => {
+    if (changeLanguageSpy) changeLanguageSpy.mockRestore();
+  });
+
+  const makeSession = (metadata, opts = {}) => ({
+    access_token: 'access-1',
+    refresh_token: 'refresh-1',
+    user: {
+      id: opts.id || 'user-1',
+      email: 'u@example.com',
+      created_at: opts.created_at || new Date().toISOString(),
+      user_metadata: metadata,
+    },
+  });
+
+  it('Test A: session with user_metadata.language=en triggers changeLanguage("en") and no updateUser', async () => {
+    renderWithAuthProvider();
+
+    // Wait for AuthProvider mount + onAuthStateChange registration
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_IN', makeSession({ language: 'en', role: 'coach' }));
+    });
+
+    expect(i18nextRef.language).toBe('en');
+    expect(localStorage.getItem('kaiyloLanguage')).toBe('en');
+    expect(supabaseAuth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('Test B: session with no user_metadata.language on an OLD user forces fr + fires one fr write-back', async () => {
+    renderWithAuthProvider();
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    // navigator.language is en-US in jsdom by default sometimes — irrelevant here;
+    // the AuthContext effect is the source of truth post-session-resolve.
+    const oldUserSession = makeSession(
+      { role: 'coach' }, // language ABSENT
+      { created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() } // 1h ago
+    );
+
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_IN', oldUserSession);
+    });
+
+    expect(i18nextRef.language).toBe('fr');
+    expect(localStorage.getItem('kaiyloLanguage')).toBe('fr');
+    expect(supabaseAuth.updateUser).toHaveBeenCalledTimes(1);
+    expect(supabaseAuth.updateUser).toHaveBeenCalledWith({ data: { language: 'fr' } });
+  });
+
+  it('Test C: when the fr write-back rejects, no exception escapes', async () => {
+    supabaseAuth.updateUser.mockRejectedValueOnce(new Error('network down'));
+    renderWithAuthProvider();
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    const oldUserSession = makeSession(
+      {},
+      { created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }
+    );
+
+    // Must not throw
+    await expect(act(async () => {
+      await authStateChangeHandler('SIGNED_IN', oldUserSession);
+    })).resolves.toBeUndefined();
+
+    expect(i18nextRef.language).toBe('fr');
+  });
+
+  it('Test D: on SIGNED_OUT, language is NOT changed and localStorage is preserved', async () => {
+    localStorage.setItem('kaiyloLanguage', 'en');
+    await act(async () => {
+      await i18nextRef.changeLanguage('en');
+    });
+
+    renderWithAuthProvider();
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    // Re-spy after the changeLanguage('en') above to count fresh calls only.
+    changeLanguageSpy.mockClear();
+    supabaseAuth.updateUser.mockClear();
+
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_OUT', null);
+    });
+
+    expect(changeLanguageSpy).not.toHaveBeenCalled();
+    expect(supabaseAuth.updateUser).not.toHaveBeenCalled();
+    expect(localStorage.getItem('kaiyloLanguage')).toBe('en');
+  });
+
+  it('Test E: the same session does not double-fire changeLanguage on repeat SIGNED_IN', async () => {
+    renderWithAuthProvider();
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    const session = makeSession({ language: 'en', role: 'coach' }, { id: 'stable-user' });
+
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_IN', session);
+    });
+    const firstCount = changeLanguageSpy.mock.calls.length;
+
+    // Re-fire the same session ref
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_IN', session);
+    });
+
+    expect(changeLanguageSpy.mock.calls.length).toBe(firstCount);
+  });
+
+  it('Test F (Rule-2 deviation): new user (created < 30s ago) with absent language does NOT get fr write-back', async () => {
+    // This is the signup-path safety net: AuthContext must defer to the
+    // signup-path write rather than racing it with a fr-fallback.
+    renderWithAuthProvider();
+    await waitFor(() => expect(authStateChangeHandler).toBeTruthy());
+
+    const freshSignupSession = makeSession(
+      {}, // no language yet — signup path will write it
+      { created_at: new Date().toISOString() } // just-now
+    );
+
+    await act(async () => {
+      await authStateChangeHandler('SIGNED_IN', freshSignupSession);
+    });
+
+    expect(supabaseAuth.updateUser).not.toHaveBeenCalled();
   });
 });

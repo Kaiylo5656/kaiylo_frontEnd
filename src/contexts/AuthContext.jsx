@@ -1,12 +1,28 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import i18next from 'i18next';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import { supabase } from '../lib/supabase';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '../utils/storage';
 import { isDesktopViewport } from '../utils/device';
 import { clearAllChatCache } from '../utils/chatCache';
 import logger from '../utils/logger';
+
+// Phase 09 Plan 01 — session-resolve language sync helper. Reads
+// user_metadata.language from the resolved session and:
+//   - if 'fr'|'en': i18next.changeLanguage + localStorage cache, no write-back.
+//   - if absent on an OLD user (created > 30s ago): force 'fr' + fire-and-forget
+//     supabase.auth.updateUser({ data: { language: 'fr' } }). This is the
+//     "existing pre-i18n users stay French" guarantee (ROADMAP AC-4).
+//   - if absent on a NEW user (created <= 30s ago): no-op. The signup path is
+//     responsible for writing language: i18next.language; AuthContext stepping
+//     in here would race the signup write and demote new English-browser
+//     signups to French (see Phase 09 plan, signup-path Task 7).
+// Idempotency: a ref guards against re-running for the same user id within
+// the same provider instance.
+const LANGUAGE_VALUES = new Set(['fr', 'en']);
+const NEW_USER_GRACE_MS = 30 * 1000;
 
 // Expose axios globally for testing purposes (development only)
 if (import.meta.env.DEV) {
@@ -667,6 +683,82 @@ export const AuthProvider = ({ children }) => {
         }
       }
     );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Phase 09 Plan 01 — language sync on session resolve.
+  //
+  // Listens to SIGNED_IN (and TOKEN_REFRESHED, which carries the same session
+  // user metadata) and reconciles i18next.language with user_metadata.language.
+  // SIGNED_OUT is intentionally ignored — the localStorage cache continues to
+  // drive i18next on next boot, mirroring the last authenticated preference.
+  //
+  // Idempotency: lastSyncedUserIdRef guards against re-firing for the same
+  // user across renders / duplicate SIGNED_IN events.
+  const lastSyncedUserIdRef = useRef(null);
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED' && event !== 'PASSWORD_RECOVERY') {
+        return;
+      }
+      const sessionUser = session?.user;
+      if (!sessionUser?.id) return;
+      if (lastSyncedUserIdRef.current === sessionUser.id) return;
+
+      const metadataLanguage = sessionUser.user_metadata?.language;
+
+      if (LANGUAGE_VALUES.has(metadataLanguage)) {
+        // user_metadata is authoritative — sync i18next + cache, no write-back.
+        lastSyncedUserIdRef.current = sessionUser.id;
+        try {
+          if (i18next.language !== metadataLanguage) {
+            await i18next.changeLanguage(metadataLanguage);
+          }
+          safeSetItem('kaiyloLanguage', metadataLanguage);
+        } catch (err) {
+          logger.warn('[i18n] language sync failed', err);
+        }
+        return;
+      }
+
+      // user_metadata.language is absent. Distinguish between:
+      //   - existing pre-i18n user (created long ago) → force 'fr' + write-back.
+      //   - brand-new signup (just created) → defer to the signup path which
+      //     will write language: i18next.language. Racing it here would
+      //     demote English-browser signups to French.
+      const createdAt = sessionUser.created_at ? Date.parse(sessionUser.created_at) : NaN;
+      const isNewUser = Number.isFinite(createdAt) && (Date.now() - createdAt) < NEW_USER_GRACE_MS;
+      if (isNewUser) {
+        // Mark synced so we don't re-evaluate on every render; the signup-path
+        // write will land independently and the next session resolution will
+        // see user_metadata.language set.
+        lastSyncedUserIdRef.current = sessionUser.id;
+        return;
+      }
+
+      // Existing pre-i18n user — force 'fr' and fire-and-forget write-back.
+      lastSyncedUserIdRef.current = sessionUser.id;
+      try {
+        if (i18next.language !== 'fr') {
+          await i18next.changeLanguage('fr');
+        }
+        safeSetItem('kaiyloLanguage', 'fr');
+      } catch (err) {
+        logger.warn('[i18n] fr fallback changeLanguage failed', err);
+      }
+      try {
+        const result = supabase.auth.updateUser({ data: { language: 'fr' } });
+        // Tolerate both Promise and thenable returns from the mock / SDK.
+        Promise.resolve(result).catch((err) => {
+          logger.warn('[i18n] fr write-back failed', err);
+        });
+      } catch (err) {
+        logger.warn('[i18n] fr write-back threw synchronously', err);
+      }
+    });
 
     return () => {
       subscription.unsubscribe();
