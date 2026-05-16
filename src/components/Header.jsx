@@ -1,9 +1,11 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Bell, Zap, Search, CreditCard, Menu } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import LanguageToggle from './LanguageToggle';
 import MobileNavigationDrawer from './MobileNavigationDrawer';
 import NotificationSidebar from './NotificationSidebar';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -43,6 +45,7 @@ const SettingsIcon = ({ className, style }) => (
 
 const Header = ({ onOpenFeedback }) => {
   const { user, logout, getAuthToken } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -677,6 +680,20 @@ const Header = ({ onOpenFeedback }) => {
               boxShadow: '0 12px 32px -16px rgba(0,0,0,0.55)',
               fontFamily: "'Inter', sans-serif"
             }}>
+              <div
+                style={{
+                  padding: '6px 10px 2px 10px',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(255, 255, 255, 0.45)',
+                  fontFamily: "'Inter', sans-serif"
+                }}
+              >
+                {t('settings.language_label')}
+              </div>
+              <LanguageToggle />
               <button
                 onClick={() => { setIsSettingsOpen(false); setIsDeleteAccountModalOpen(true); }}
                 style={{
