@@ -1,0 +1,17 @@
+{
+  "settings": {
+    "language_label": "Langue / Language",
+    "delete_account": "Supprimer mon compte"
+  },
+  "language": {
+    "fr_label": "FR",
+    "en_label": "EN"
+  },
+  "buttons": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "delete": "Supprimer"
+  }
+}
