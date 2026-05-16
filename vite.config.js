@@ -46,6 +46,10 @@ export default defineConfig(({ mode }) => {
             'ui-vendor': ['framer-motion', 'lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
             'media-vendor': ['react-player'],
             'socket-vendor': ['socket.io-client'],
+            // Phase 09 Plan 01 Task 8 mitigation: route i18n libs into
+            // their own vendor chunk so they don't inflate the main
+            // entry chunk (would breach the ≤ 5 KB delta budget).
+            'i18n-vendor': ['i18next', 'react-i18next', 'i18next-resources-to-backend'],
           },
         },
       },
