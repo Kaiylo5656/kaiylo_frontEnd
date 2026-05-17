@@ -2076,7 +2076,12 @@ const StudentDetailView = ({ student, onBack, initialTab = 'overview', students 
         } else {
           setStudentVideos(newData);
         }
-        setHasMoreVideos(currentOffset + newData.length < total);
+        // Use "got a full page" as the more-pages indicator. Relying on
+        // `total` breaks when the backend drops rows after the count is
+        // computed (e.g. failed signed-URL generation on stale paths) —
+        // currentOffset + newData.length never reaches total and the
+        // intersection observer infinite-loops the same offset.
+        setHasMoreVideos(newData.length >= VIDEO_PAGE_SIZE);
       }
     } catch (error) {
       logger.error('Error fetching student videos:', error);
