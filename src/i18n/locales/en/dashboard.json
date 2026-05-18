@@ -27,8 +27,17 @@
     "filters": "Filters",
     "new_button_title": "New",
     "new_button_label": "New",
+    "columns": {
+      "pending_feedback": "Pending feedback",
+      "pending_messages": "Pending messages",
+      "scheduled_until": "Scheduled until"
+    },
+    "sort": {
+      "label": "Sort"
+    },
     "empty_states": {
       "no_upcoming_session": "No upcoming session",
+      "no_upcoming_session_inline": "no upcoming session",
       "no_students_yet": "No students yet",
       "no_students_match": "No students found",
       "no_students_match_search": "No students match your search criteria",

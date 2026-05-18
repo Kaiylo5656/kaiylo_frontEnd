@@ -27,8 +27,17 @@
     "filters": "Filtres",
     "new_button_title": "Nouveau",
     "new_button_label": "Nouveau",
+    "columns": {
+      "pending_feedback": "Feedback en attente",
+      "pending_messages": "Messages en attente",
+      "scheduled_until": "Programmé jusqu'au"
+    },
+    "sort": {
+      "label": "Trier"
+    },
     "empty_states": {
       "no_upcoming_session": "Aucune séance à venir",
+      "no_upcoming_session_inline": "aucune séance à venir",
       "no_students_yet": "Aucun étudiant pour le moment",
       "no_students_match": "Aucun étudiant trouvé",
       "no_students_match_search": "Aucun étudiant ne correspond à vos critères de recherche",

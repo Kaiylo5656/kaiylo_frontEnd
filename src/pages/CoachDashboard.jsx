@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import axios from 'axios';
@@ -711,7 +712,7 @@ const CoachDashboard = () => {
           <div className="flex-1 text-sm text-[var(--kaiylo-primary-hex)]">
             Votre abonnement {billing?.plan ? billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1) : 'Pro'} se termine le{' '}
             <span className="font-medium">
-              {new Date(billing.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {new Date(billing.currentPeriodEnd).toLocaleDateString(i18next.language || 'fr', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
             . Vos étudiants conservent leur accès jusqu'à cette date.
           </div>
@@ -911,7 +912,7 @@ const CoachDashboard = () => {
                         </svg>
                       )}
                     </div>
-                    <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>Feedback en attente</span>
+                    <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>{t('coach.columns.pending_feedback')}</span>
                   </div>
 
                   <div
@@ -951,7 +952,7 @@ const CoachDashboard = () => {
                         </svg>
                       )}
                     </div>
-                    <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>Messages en attente</span>
+                    <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>{t('coach.columns.pending_messages')}</span>
                   </div>
 
                   <div
@@ -1109,7 +1110,7 @@ const CoachDashboard = () => {
                       </svg>
                     )}
                   </div>
-                  <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>Feedback en attente</span>
+                  <span className={filterPendingFeedback ? 'text-primary' : 'text-foreground'}>{t('coach.columns.pending_feedback')}</span>
                 </div>
 
                 <div
@@ -1149,7 +1150,7 @@ const CoachDashboard = () => {
                       </svg>
                     )}
                   </div>
-                  <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>Messages en attente</span>
+                  <span className={filterPendingMessages ? 'text-primary' : 'text-foreground'}>{t('coach.columns.pending_messages')}</span>
                 </div>
 
                 <div
@@ -1297,17 +1298,17 @@ const CoachDashboard = () => {
                   <div className="hidden md:flex items-center justify-center !gap-4 sm:!gap-8 md:!gap-12 lg:!gap-16 xl:!gap-14 2xl:!gap-32 3xl:!gap-56 4xl:!gap-72 5xl:!gap-96">
                     {/* Feedback en attente Text */}
                     <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
-                      Feedback en attente
+                      {t('coach.columns.pending_feedback')}
                     </p>
 
                     {/* Messages en attente Text */}
                     <p className="text-[12px] text-white/50 font-light text-center leading-normal whitespace-nowrap">
-                      Messages en attente
+                      {t('coach.columns.pending_messages')}
                     </p>
 
                     {/* Next Session Date Header */}
                     <p className="w-[150px] text-[12px] text-white/50 font-light text-center whitespace-nowrap">
-                      Programmé jusqu'au
+                      {t('coach.columns.scheduled_until')}
                     </p>
 
                     {/* Status dot placeholder (transparent) */}
@@ -1512,9 +1513,9 @@ const CoachDashboard = () => {
                         : 'text-[14px] font-normal text-[#d4845a]'
                         }`}>
                         {studentNextSessions[student.id] ? (
-                          new Date(studentNextSessions[student.id]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/(\p{L}+)\.?\s*(\d{4})/u, '$1 .$2')
+                          new Date(studentNextSessions[student.id]).toLocaleDateString(i18next.language || 'fr', { day: 'numeric', month: 'short', year: 'numeric' })
                         ) : (
-                          'aucune séance à venir'
+                          t('coach.empty_states.no_upcoming_session_inline')
                         )}
                       </div>
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></div>
