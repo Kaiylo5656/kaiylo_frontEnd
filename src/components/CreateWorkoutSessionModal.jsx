@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { format, parseISO, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, addWeeks, addMonths, subMonths, differenceInCalendarWeeks, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { X, Plus, MoreHorizontal, User, GripVertical, Check, ArrowLeft, Loader2, Link } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -109,6 +110,7 @@ const CreateWorkoutSessionModal = ({
   onCopySession,
   oneRmRecords = [],
 }) => {
+  const { t } = useTranslation('workout');
   const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [sessionName, setSessionName] = useState('');
   const [description, setDescription] = useState('');
@@ -1599,7 +1601,7 @@ const CreateWorkoutSessionModal = ({
                       }
                     }}
                     aria-expanded={showSidebar && rightPanelView === 'agencement'}
-                    aria-label={showSidebar && rightPanelView === 'agencement' ? "Masquer l'agencement" : "Afficher l'agencement des exercices"}
+                    aria-label={showSidebar && rightPanelView === 'agencement' ? t('create_modal.hide_layout_aria') : t('create_modal.show_layout_aria')}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
                     style={{
                       backgroundColor: showSidebar && rightPanelView === 'agencement' ? 'var(--kaiylo-primary-hex)' : undefined,
@@ -1629,7 +1631,7 @@ const CreateWorkoutSessionModal = ({
                         e.currentTarget.style.transform = 'scale(1)';
                       }
                     }}
-                    title="Agencement des exercices"
+                    title={t('create_modal.layout_button_title')}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -1658,7 +1660,7 @@ const CreateWorkoutSessionModal = ({
                       }
                     }}
                     aria-expanded={showSidebar && rightPanelView === 'planning'}
-                    aria-label={showSidebar && rightPanelView === 'planning' ? "Masquer le calendrier d'entraînement" : "Afficher le calendrier d'entraînement"}
+                    aria-label={showSidebar && rightPanelView === 'planning' ? t('create_modal.hide_calendar_aria') : t('create_modal.show_calendar_aria')}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
                     style={{
                       backgroundColor: showSidebar && rightPanelView === 'planning' ? 'var(--kaiylo-primary-hex)' : undefined,
@@ -1688,7 +1690,7 @@ const CreateWorkoutSessionModal = ({
                         e.currentTarget.style.transform = 'scale(1)';
                       }
                     }}
-                    title="Calendrier d'entraînement"
+                    title={t('create_modal.calendar_button_title')}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className={`h-4 w-4 text-white transition-opacity duration-150 ${showSidebar && rightPanelView === 'planning' ? 'opacity-100' : 'opacity-50'}`} fill="currentColor" style={{ pointerEvents: 'none' }}>
                       <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
@@ -1721,7 +1723,7 @@ const CreateWorkoutSessionModal = ({
                         <button
                           onClick={() => setShowSidebar(false)}
                           className="text-white/50 hover:text-white p-1"
-                          aria-label="Retour"
+                          aria-label={t('create_modal.back_aria')}
                         >
                           <ArrowLeft className="w-5 h-5" />
                         </button>
@@ -1834,7 +1836,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => setPlanningViewDate(subMonths(monthStart, 1))}
                               className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
-                              aria-label="Mois précédent"
+                              aria-label={t('create_modal.previous_month_aria')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
                                 <path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z" />
@@ -1847,7 +1849,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => setPlanningViewDate(addMonths(monthStart, 1))}
                               className="p-1.5 rounded-full transition-colors text-white/60 hover:text-white"
-                              aria-label="Mois suivant"
+                              aria-label={t('create_modal.next_month_aria')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" className="h-4 w-4" fill="currentColor">
                                 <path d="M246.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L178.7 256 41.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z" />
@@ -1925,7 +1927,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => setPlanningCalendarExpanded(true)}
                               className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10"
-                              aria-label="Afficher tout le mois"
+                              aria-label={t('create_modal.show_full_month_aria')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 text-white/50 group-hover:text-white transition-colors duration-300 ease-in-out" fill="currentColor">
                                 <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
@@ -1937,7 +1939,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => setPlanningCalendarExpanded(false)}
                               className="group flex items-center justify-center py-1.5 transition-colors rounded-md w-full text-white hover:bg-white/10 mt-1"
-                              aria-label="Réduire le calendrier"
+                              aria-label={t('create_modal.collapse_calendar_aria')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4 flex-shrink-0 text-white/50 group-hover:text-white transition-colors duration-200" fill="currentColor">
                                 <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
@@ -2074,7 +2076,7 @@ const CreateWorkoutSessionModal = ({
             });
           }}
           aria-expanded={openSheet}
-          aria-label={openSheet ? "Masquer la bibliothèque" : "Afficher la bibliothèque d'exercices"}
+          aria-label={openSheet ? t('create_modal.hide_library_aria') : t('create_modal.show_library_aria')}
           className={`absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1002] h-8 w-8 items-center justify-center rounded-full transition-all duration-150 hidden md:inline-flex ${openSheet
             ? 'scale-95 hover:scale-105'
             : 'hover:scale-105'
@@ -2084,7 +2086,7 @@ const CreateWorkoutSessionModal = ({
             borderWidth: '1px',
             borderColor: 'rgba(255, 255, 255, 0.1)'
           }}
-          title="Bibliothèque d'exercices"
+          title={t('create_modal.library_button_title')}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -2124,7 +2126,7 @@ const CreateWorkoutSessionModal = ({
                     setTimeout(() => updateLibraryPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
-                  aria-label="Bibliothèque d'exercices"
+                  aria-label={t('create_modal.library_button_aria')}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" fill="currentColor">
                     <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z" />
@@ -2139,7 +2141,7 @@ const CreateWorkoutSessionModal = ({
                     setTimeout(() => updateArrangementPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
-                  aria-label="Agencement des exercices"
+                  aria-label={t('create_modal.layout_button_title')}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-5 w-5" fill="currentColor">
                     <path d="M48 144a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM48 464a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM96 256a48 48 0 1 0 -96 0 48 48 0 1 0 96 0z" />
@@ -2154,7 +2156,7 @@ const CreateWorkoutSessionModal = ({
                     setTimeout(() => updateArrangementPosition(), 0);
                   }}
                   className="text-white/50 hover:text-white p-2"
-                  aria-label="Calendrier d'entraînement"
+                  aria-label={t('create_modal.calendar_button_title')}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-5 w-5" fill="currentColor">
                     <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
@@ -2165,7 +2167,7 @@ const CreateWorkoutSessionModal = ({
                 type="button"
                 onClick={() => handleClose(false)}
                 className="text-white/50 hover:text-white transition-colors"
-                aria-label="Close modal"
+                aria-label={t('create_modal.close_aria')}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
                   <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
@@ -2198,7 +2200,7 @@ const CreateWorkoutSessionModal = ({
                     <path d="M160.5-26.4c9.3-7.8 23-7.5 31.9 .9 12.3 11.6 23.3 24.4 33.9 37.4 13.5 16.5 29.7 38.3 45.3 64.2 5.2-6.8 10-12.8 14.2-17.9 1.1-1.3 2.2-2.7 3.3-4.1 7.9-9.8 17.7-22.1 30.8-22.1 13.4 0 22.8 11.9 30.8 22.1 1.3 1.7 2.6 3.3 3.9 4.8 10.3 12.4 24 30.3 37.7 52.4 27.2 43.9 55.6 106.4 55.6 176.6 0 123.7-100.3 224-224 224S0 411.7 0 288c0-91.1 41.1-170 80.5-225 19.9-27.7 39.7-49.9 54.6-65.1 8.2-8.4 16.5-16.7 25.5-24.2zM225.7 416c25.3 0 47.7-7 68.8-21 42.1-29.4 53.4-88.2 28.1-134.4-4.5-9-16-9.6-22.5-2l-25.2 29.3c-6.6 7.6-18.5 7.4-24.7-.5-17.3-22.1-49.1-62.4-65.3-83-5.4-6.9-15.2-8-21.5-1.9-18.3 17.8-51.5 56.8-51.5 104.3 0 68.6 50.6 109.2 113.7 109.2z" />
                   </svg>
                   <Input
-                    placeholder="Saisir le nom de la séance"
+                    placeholder={t('create_modal.session_name_placeholder')}
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                     className="w-full pl-9 md:pl-[42px] pr-3 md:pr-[14px] py-2.5 md:py-3 rounded-[10px] border-0 text-white text-xs md:text-sm placeholder:text-[rgba(255,255,255,0.25)] placeholder:font-extralight focus:outline-none focus-visible:ring-0 focus-visible:ring-transparent focus-visible:ring-offset-0 h-10 md:h-[44px]"
@@ -2233,7 +2235,7 @@ const CreateWorkoutSessionModal = ({
                         return `${day}/${month}/${year}`;
                       })()
                     ) : (
-                      <span className="text-[rgba(255,255,255,0.25)]">Date de la séance</span>
+                      <span className="text-[rgba(255,255,255,0.25)]">{t('create_modal.date_placeholder')}</span>
                     )}
                   </div>
 
@@ -2321,8 +2323,8 @@ const CreateWorkoutSessionModal = ({
                               {exercise.isQuickExercise && (
                                 <span
                                   className="inline-flex items-center justify-center flex-shrink-0"
-                                  title="Exercice rapide"
-                                  aria-label="Exercice rapide"
+                                  title={t('create_modal.quick_exercise_title')}
+                                  aria-label={t('create_modal.quick_exercise_aria')}
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-3 w-3 md:h-3.5 md:w-3.5" fill="currentColor" style={{ color: 'var(--kaiylo-primary-hex)' }}>
                                     <path d="M338.8-9.9c11.9 8.6 16.3 24.2 10.9 37.8L271.3 224 416 224c13.5 0 25.5 8.4 30.1 21.1s.7 26.9-9.6 35.5l-288 240c-11.3 9.4-27.4 9.9-39.3 1.3s-16.3-24.2-10.9-37.8L176.7 288 32 288c-13.5 0-25.5-8.4-30.1-21.1s-.7-26.9 9.6-35.5l288-240c11.3-9.4 27.4-9.9 39.3-1.3z" />
@@ -2339,7 +2341,7 @@ const CreateWorkoutSessionModal = ({
                                     e.currentTarget.style.height = 'auto';
                                     e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
                                   }}
-                                  placeholder="Nom de l'exercice"
+                                  placeholder={t('create_modal.exercise_name_placeholder')}
                                   rows={1}
                                   className="min-w-0 flex-1 bg-transparent text-[var(--tw-ring-offset-color)] text-base md:text-lg font-normal outline-none border-none placeholder:text-white/35 resize-none overflow-hidden leading-6"
                                 />
@@ -2423,7 +2425,7 @@ const CreateWorkoutSessionModal = ({
                                 onClick={() => moveExerciseUp(exerciseIndex)}
                                 disabled={isUpDisabled}
                                 className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors px-1 py-1.5 rounded"
-                                title="Monter l'exercice"
+                                title={t('create_modal.move_exercise_up_title')}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
                                   <path d="M169.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L192 205.3 54.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z" />
@@ -2434,7 +2436,7 @@ const CreateWorkoutSessionModal = ({
                                 onClick={() => moveExerciseDown(exerciseIndex)}
                                 disabled={isDownDisabled}
                                 className="text-white/40 hover:text-[#d4845a] disabled:opacity-20 disabled:cursor-not-allowed transition-colors py-1.5 pl-1 pr-1 rounded"
-                                title="Descendre l'exercice"
+                                title={t('create_modal.move_exercise_down_title')}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="h-4 w-4" fill="currentColor">
                                   <path d="M169.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 306.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z" />
@@ -2453,8 +2455,8 @@ const CreateWorkoutSessionModal = ({
                                 <button
                                   type="button"
                                   className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
-                                  title="Afficher ou masquer des colonnes"
-                                  aria-label="Afficher ou masquer des colonnes du tableau"
+                                  title={t('create_modal.toggle_columns_title')}
+                                  aria-label={t('create_modal.toggle_columns_aria')}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <svg
@@ -2583,7 +2585,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => handleDuplicateExercise(exerciseIndex)}
                               className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[10px] pr-[7px] rounded"
-                              title="Dupliquer l'exercice"
+                              title={t('create_modal.duplicate_exercise_title')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-4 w-4" fill="currentColor">
                                 <path d="M288 448l-224 0 0-224 48 0 0-64-48 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l224 0c35.3 0 64-28.7 64-64l0-48-64 0 0 48zm-64-96l224 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L224 0c-35.3 0-64 28.7-64 64l0 224c0 35.3 28.7 64 64 64z" />
@@ -2593,7 +2595,7 @@ const CreateWorkoutSessionModal = ({
                               type="button"
                               onClick={() => handleRemoveExercise(exercise.id)}
                               className="text-white/40 hover:text-[#d4845a] transition-colors py-1.5 pl-[7px] pr-[10px] rounded"
-                              title="Supprimer l'exercice"
+                              title={t('create_modal.delete_exercise_title')}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="h-4 w-4" fill="currentColor">
                                 <path d="M136.7 5.9L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-8.7-26.1C306.9-7.2 294.7-16 280.9-16L167.1-16c-13.8 0-26 8.8-30.4 21.9zM416 144L32 144 53.1 467.1C54.7 492.4 75.7 512 101 512L347 512c25.3 0 46.3-19.6 47.9-44.9L416 144z" />
@@ -2613,7 +2615,7 @@ const CreateWorkoutSessionModal = ({
                               >
                                 <thead className="sticky top-0 z-10" style={{ background: 'linear-gradient(90deg, rgb(10, 11, 13) 0%, rgb(18, 19, 22) 50%, rgb(24, 25, 28) 100%)' }}>
                                   <tr className="text-white/50 text-xs font-extralight">
-                                    <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Série</th>
+                                    <th className="text-center pb-[10px] font-extralight w-16" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{t('create_modal.table.set')}</th>
                                     {columnVisibility.repsHold && (
                                       <th
                                         className={`text-center pb-[10px] font-extralight ${repsChargeLayout.wideReps ? repsChargeLayout.colMinClass : repsChargeLayout.narrowColClass}`}
@@ -2670,9 +2672,9 @@ const CreateWorkoutSessionModal = ({
                                       </th>
                                     )}
                                     {columnVisibility.rest && (
-                                      <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Repos</th>
+                                      <th className="text-center pb-[10px] font-extralight min-w-24" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{t('create_modal.table.rest')}</th>
                                     )}
-                                    <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>Vidéo</th>
+                                    <th className="text-center pb-[10px] font-extralight w-20" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>{t('create_modal.table.video')}</th>
                                     <th className="pb-3"></th>
                                   </tr>
                                 </thead>

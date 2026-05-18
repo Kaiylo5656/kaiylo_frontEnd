@@ -1,0 +1,79 @@
+{
+  "details_modal": {
+    "default_title": "Training session",
+    "description_heading": "Description",
+    "exercises_label": "Exercises:",
+    "total_sets_label": "Total sets:",
+    "estimated_duration_label": "Estimated duration:",
+    "estimated_duration_value": "~45 min",
+    "start_time_label": "Start:",
+    "copy_button": "Copy",
+    "copy_button_aria": "Copy session",
+    "close_button": "Close",
+    "session_created_at": "Session created on {{datetime}}",
+    "notes_heading": "Notes",
+    "status": {
+      "completed": "Completed",
+      "in_progress": "In progress",
+      "not_started": "Not started"
+    },
+    "table": {
+      "set": "Set",
+      "reps": "Reps",
+      "rpe": "RPE",
+      "weight": "Weight (kg)",
+      "rest": "Rest",
+      "video": "Video"
+    }
+  },
+  "create_modal": {
+    "session_name_placeholder": "Enter session name",
+    "exercise_name_placeholder": "Exercise name",
+    "date_placeholder": "Session date",
+    "close_aria": "Close window",
+    "library_button_title": "Exercise library",
+    "library_button_aria": "Exercise library",
+    "show_library_aria": "Show exercise library",
+    "hide_library_aria": "Hide library",
+    "layout_button_title": "Exercise layout",
+    "show_layout_aria": "Show exercise layout",
+    "hide_layout_aria": "Hide layout",
+    "calendar_button_title": "Training calendar",
+    "show_calendar_aria": "Show training calendar",
+    "hide_calendar_aria": "Hide training calendar",
+    "previous_month_aria": "Previous month",
+    "next_month_aria": "Next month",
+    "show_full_month_aria": "Show full month",
+    "collapse_calendar_aria": "Collapse calendar",
+    "back_aria": "Back",
+    "quick_exercise_title": "Quick exercise",
+    "quick_exercise_aria": "Quick exercise",
+    "move_exercise_up_title": "Move exercise up",
+    "move_exercise_down_title": "Move exercise down",
+    "toggle_columns_title": "Show or hide columns",
+    "toggle_columns_aria": "Show or hide table columns",
+    "duplicate_exercise_title": "Duplicate exercise",
+    "delete_exercise_title": "Delete exercise",
+    "table": {
+      "set": "Set",
+      "rest": "Rest",
+      "video": "Video"
+    }
+  },
+  "review_modal": {
+    "default_title": "Training session",
+    "view_all_exercises_aria": "View all session exercises",
+    "show_exercises_aria": "Show exercises",
+    "hide_exercises_aria": "Hide exercises",
+    "close_aria": "Close window",
+    "session_notes_label": "Session notes:",
+    "add_comment_placeholder": "Add a comment ...",
+    "record_voice_title": "Record a voice message",
+    "super_set": "Super set"
+  },
+  "card": {
+    "session_default_title": "Session",
+    "exercises_count_one": "{{count}} exercise",
+    "exercises_count_other": "{{count}} exercises"
+  }
+}

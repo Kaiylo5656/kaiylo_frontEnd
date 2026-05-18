@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { X, PlayCircle, CheckCircle, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { useOverlayModal } from '../contexts/VideoModalContext';
 import { getTagColor } from '../utils/tagColors';
 
 const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, onCopySession }) => {
+  const { t } = useTranslation('workout');
   const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -41,11 +43,11 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
   const getStatusText = (status) => {
     switch (status) {
       case 'completed':
-        return 'Terminé';
+        return t('details_modal.status.completed');
       case 'in_progress':
-        return 'En cours';
+        return t('details_modal.status.in_progress');
       default:
-        return 'Pas commencé';
+        return t('details_modal.status.not_started');
     }
   };
 
@@ -65,7 +67,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
       <DialogContent className={`dialog-content overflow-hidden ${isMobile ? 'w-[calc(100vw-2rem)] max-w-none h-[calc(100dvh-4rem)] max-h-none my-4 rounded-xl' : 'max-w-4xl max-h-[90vh]'}`}>
         <DialogHeader className="workout-modal-header">
           <DialogTitle className="text-lg font-medium text-white">
-            {session.title || 'Séance d\'entraînement'}
+            {session.title || t('details_modal.default_title')}
           </DialogTitle>
           <DialogDescription className="text-xs text-gray-400">
             {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
@@ -88,17 +90,17 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                     type="button"
                     onClick={() => onCopySession(session, format(selectedDate, 'yyyy-MM-dd'))}
                     className="px-3 py-2 text-sm text-white font-light hover:bg-[rgba(212,132,89,0.2)] hover:text-[#D48459] hover:font-normal transition-colors flex items-center gap-2 rounded-lg"
-                    aria-label="Copier la séance"
+                    aria-label={t('details_modal.copy_button_aria')}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4" fill="currentColor">
                       <path d="M352 512L128 512L128 288L176 288L176 224L128 224C92.7 224 64 252.7 64 288L64 512C64 547.3 92.7 576 128 576L352 576C387.3 576 416 547.3 416 512L416 464L352 464L352 512zM288 416L512 416C547.3 416 576 387.3 576 352L576 128C576 92.7 547.3 64 512 64L288 64C252.7 64 224 92.7 224 128L224 352C224 387.3 252.7 416 288 416z" />
                     </svg>
-                    Copier
+                    {t('details_modal.copy_button')}
                   </button>
                 )}
                 {session.startTime && (
                   <div className="text-sm text-gray-400">
-                    Début: {format(new Date(session.startTime), 'HH:mm')}
+                    {t('details_modal.start_time_label')} {format(new Date(session.startTime), 'HH:mm')}
                   </div>
                 )}
               </div>
@@ -106,25 +108,25 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
 
             {session.description && (
               <div className="mb-4">
-                <h3 className="text-sm font-medium text-gray-300 mb-2">Description</h3>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">{t('details_modal.description_heading')}</h3>
                 <p className="text-sm text-gray-400">{session.description}</p>
               </div>
             )}
 
             <div className={`grid gap-4 text-sm ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3'}`}>
               <div>
-                <span className="text-gray-400">Exercices:</span>
+                <span className="text-gray-400">{t('details_modal.exercises_label')}</span>
                 <span className="text-white ml-2">{session.exercises?.length || 0}</span>
               </div>
               <div>
-                <span className="text-gray-400">Séries totales:</span>
+                <span className="text-gray-400">{t('details_modal.total_sets_label')}</span>
                 <span className="text-white ml-2">
                   {session.exercises?.reduce((total, exercise) => total + (exercise.sets?.length || 0), 0) || 0}
                 </span>
               </div>
               <div>
-                <span className="text-gray-400">Durée estimée:</span>
-                <span className="text-white ml-2">~45 min</span>
+                <span className="text-gray-400">{t('details_modal.estimated_duration_label')}</span>
+                <span className="text-white ml-2">{t('details_modal.estimated_duration_value')}</span>
               </div>
             </div>
           </div>
@@ -163,11 +165,11 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="text-gray-400 text-xs border-b border-[#262626]">
-                              <th className="text-left pb-3">Série</th>
-                              <th className="text-center pb-3">Reps</th>
-                              <th className="text-center pb-3 font-extralight">{exercise.useRir ? 'RPE' : 'Charge (kg)'}</th>
-                              <th className="text-center pb-3">Repos</th>
-                              <th className="text-center pb-3">Vidéo</th>
+                              <th className="text-left pb-3">{t('details_modal.table.set')}</th>
+                              <th className="text-center pb-3">{t('details_modal.table.reps')}</th>
+                              <th className="text-center pb-3 font-extralight">{exercise.useRir ? t('details_modal.table.rpe') : t('details_modal.table.weight')}</th>
+                              <th className="text-center pb-3">{t('details_modal.table.rest')}</th>
+                              <th className="text-center pb-3">{t('details_modal.table.video')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -220,7 +222,7 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
                       {/* Exercise Notes */}
                       {exercise.notes && (
                         <div className="mt-4 pt-4 border-t border-[#262626]">
-                          <h4 className="text-sm font-medium text-gray-300 mb-2">Notes</h4>
+                          <h4 className="text-sm font-medium text-gray-300 mb-2">{t('details_modal.notes_heading')}</h4>
                           <p className="text-sm text-gray-400">{exercise.notes}</p>
                         </div>
                       )}
@@ -235,13 +237,13 @@ const WorkoutSessionDetailsModal = ({ isOpen, onClose, session, selectedDate, on
           <div className="workout-modal-footer">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-400">
-                Séance créée le {format(new Date(session.created_at || Date.now()), 'dd/MM/yyyy à HH:mm')}
+                {t('details_modal.session_created_at', { datetime: format(new Date(session.created_at || Date.now()), 'dd/MM/yyyy à HH:mm') })}
               </div>
               <button
                 onClick={onClose}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
               >
-                Fermer
+                {t('details_modal.close_button')}
               </button>
             </div>
           </div>

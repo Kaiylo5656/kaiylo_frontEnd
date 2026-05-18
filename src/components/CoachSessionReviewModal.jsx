@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { X, Play, Volume2, Maximize, Mic } from 'lucide-react';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
@@ -12,6 +13,7 @@ import VoiceRecorder from './VoiceRecorder';
 import VoiceMessage from './VoiceMessage';
 
 const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, studentId }) => {
+  const { t } = useTranslation('workout');
   const { getAuthToken, refreshAuthToken } = useAuth();
   const { registerModalOpen, registerModalClose } = useOverlayModal();
   const [sessionVideos, setSessionVideos] = useState([]);
@@ -577,7 +579,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 e.stopPropagation();
               }}
               aria-expanded={isOpen}
-              aria-label="Voir tous les exercices de la séance"
+              aria-label={t('review_modal.view_all_exercises_aria')}
               disabled={true}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 scale-95 opacity-60 cursor-not-allowed"
               style={{
@@ -659,7 +661,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5 flex-shrink-0" style={{ color: 'var(--kaiylo-primary-hex)' }} fill="currentColor">
                       <path d="M256.5 37.6C265.8 29.8 279.5 30.1 288.4 38.5C300.7 50.1 311.7 62.9 322.3 75.9C335.8 92.4 352 114.2 367.6 140.1C372.8 133.3 377.6 127.3 381.8 122.2C382.9 120.9 384 119.5 385.1 118.1C393 108.3 402.8 96 415.9 96C429.3 96 438.7 107.9 446.7 118.1C448 119.8 449.3 121.4 450.6 122.9C460.9 135.3 474.6 153.2 488.3 175.3C515.5 219.2 543.9 281.7 543.9 351.9C543.9 475.6 443.6 575.9 319.9 575.9C196.2 575.9 96 475.7 96 352C96 260.9 137.1 182 176.5 127C196.4 99.3 216.2 77.1 231.1 61.9C239.3 53.5 247.6 45.2 256.6 37.7zM321.7 480C347 480 369.4 473 390.5 459C432.6 429.6 443.9 370.8 418.6 324.6C414.1 315.6 402.6 315 396.1 322.6L370.9 351.9C364.3 359.5 352.4 359.3 346.2 351.4C328.9 329.3 297.1 289 280.9 268.4C275.5 261.5 265.7 260.4 259.4 266.5C241.1 284.3 207.9 323.3 207.9 370.8C207.9 439.4 258.5 480 321.6 480z" />
                     </svg>
-                    <span className={isMobile ? 'block min-w-0 truncate' : ''}>{session.title || 'Séance d\'entraînement'}</span>
+                    <span className={isMobile ? 'block min-w-0 truncate' : ''}>{session.title || t('review_modal.default_title')}</span>
                   </h2>
                   {!isMobile && <span className="text-xl font-extralight" style={{ color: 'var(--kaiylo-primary-hex)' }}> - </span>}
                   <p className={`hidden md:block text-xl font-extralight`} style={{ color: 'var(--kaiylo-primary-hex)' }}>
@@ -689,7 +691,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                       handleToggleExercises();
                     }}
                     aria-expanded={showExercises}
-                    aria-label={showExercises ? "Masquer les exercices" : "Voir les exercices"}
+                    aria-label={showExercises ? t('review_modal.hide_exercises_aria') : t('review_modal.show_exercises_aria')}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 bg-white/15 hover:scale-105"
                     style={{
                       backgroundColor: showExercises ? 'var(--kaiylo-primary-hex)' : undefined,
@@ -710,7 +712,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 <button
                   onClick={onClose}
                   className="text-white/50 hover:text-white transition-colors p-1"
-                  aria-label="Close modal"
+                  aria-label={t('review_modal.close_aria')}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-5 w-5" fill="currentColor">
                     <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
@@ -780,7 +782,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                     const groupNames = selectedExerciseGroup?.map(({ exercise }) => exercise?.name).filter(Boolean) ?? [];
                     if (groupNames.length > 1) {
                       return (
-                        <span className="font-normal min-w-0 break-words">Super set</span>
+                        <span className="font-normal min-w-0 break-words">{t('review_modal.super_set')}</span>
                       );
                     }
 
@@ -1205,7 +1207,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                 {/* Coach Notes for this Exercise */}
                 {selectedExercise?.notes && (
                   <div className="mt-[12px] pt-[12px] border-t border-white/10">
-                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">Notes de séance :</div>
+                    <div className="text-[14px] font-extralight text-white/50 mb-[12px]">{t('review_modal.session_notes_label')}</div>
                     <div className="text-[14px] font-normal bg-black/25 rounded-[10px] px-[12px] py-[12px] break-words max-h-[102px] overflow-y-auto text-white">
                       {selectedExercise.notes}
                     </div>
@@ -1295,7 +1297,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                                 }
                               }
                             }}
-                            placeholder="Ajouter un commentaire ..."
+                            placeholder={t('review_modal.add_comment_placeholder')}
                             rows={1}
                             className="flex-1 bg-transparent text-sm font-light text-white placeholder-white/50 outline-none resize-none overflow-hidden leading-normal"
                             style={{
@@ -1312,7 +1314,7 @@ const CoachSessionReviewModal = ({ isOpen, onClose, session, selectedDate, stude
                             onClick={() => setIsRecordingVoice(true)}
                             disabled={savingFeedback || !currentSetVideo}
                             className="flex items-center justify-center cursor-pointer p-1.5 w-[28px] h-[28px] flex-shrink-0 disabled:cursor-not-allowed rounded-md hover:bg-white/5 transition-colors"
-                            title="Enregistrer un message vocal"
+                            title={t('review_modal.record_voice_title')}
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"

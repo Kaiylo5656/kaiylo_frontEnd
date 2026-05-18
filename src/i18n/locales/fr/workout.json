@@ -1,0 +1,79 @@
+{
+  "details_modal": {
+    "default_title": "Séance d'entraînement",
+    "description_heading": "Description",
+    "exercises_label": "Exercices:",
+    "total_sets_label": "Séries totales:",
+    "estimated_duration_label": "Durée estimée:",
+    "estimated_duration_value": "~45 min",
+    "start_time_label": "Début:",
+    "copy_button": "Copier",
+    "copy_button_aria": "Copier la séance",
+    "close_button": "Fermer",
+    "session_created_at": "Séance créée le {{datetime}}",
+    "notes_heading": "Notes",
+    "status": {
+      "completed": "Terminé",
+      "in_progress": "En cours",
+      "not_started": "Pas commencé"
+    },
+    "table": {
+      "set": "Série",
+      "reps": "Reps",
+      "rpe": "RPE",
+      "weight": "Charge (kg)",
+      "rest": "Repos",
+      "video": "Vidéo"
+    }
+  },
+  "create_modal": {
+    "session_name_placeholder": "Saisir le nom de la séance",
+    "exercise_name_placeholder": "Nom de l'exercice",
+    "date_placeholder": "Date de la séance",
+    "close_aria": "Fermer la fenêtre",
+    "library_button_title": "Bibliothèque d'exercices",
+    "library_button_aria": "Bibliothèque d'exercices",
+    "show_library_aria": "Afficher la bibliothèque d'exercices",
+    "hide_library_aria": "Masquer la bibliothèque",
+    "layout_button_title": "Agencement des exercices",
+    "show_layout_aria": "Afficher l'agencement des exercices",
+    "hide_layout_aria": "Masquer l'agencement",
+    "calendar_button_title": "Calendrier d'entraînement",
+    "show_calendar_aria": "Afficher le calendrier d'entraînement",
+    "hide_calendar_aria": "Masquer le calendrier d'entraînement",
+    "previous_month_aria": "Mois précédent",
+    "next_month_aria": "Mois suivant",
+    "show_full_month_aria": "Afficher tout le mois",
+    "collapse_calendar_aria": "Réduire le calendrier",
+    "back_aria": "Retour",
+    "quick_exercise_title": "Exercice rapide",
+    "quick_exercise_aria": "Exercice rapide",
+    "move_exercise_up_title": "Monter l'exercice",
+    "move_exercise_down_title": "Descendre l'exercice",
+    "toggle_columns_title": "Afficher ou masquer des colonnes",
+    "toggle_columns_aria": "Afficher ou masquer des colonnes du tableau",
+    "duplicate_exercise_title": "Dupliquer l'exercice",
+    "delete_exercise_title": "Supprimer l'exercice",
+    "table": {
+      "set": "Série",
+      "rest": "Repos",
+      "video": "Vidéo"
+    }
+  },
+  "review_modal": {
+    "default_title": "Séance d'entraînement",
+    "view_all_exercises_aria": "Voir tous les exercices de la séance",
+    "show_exercises_aria": "Voir les exercices",
+    "hide_exercises_aria": "Masquer les exercices",
+    "close_aria": "Fermer la fenêtre",
+    "session_notes_label": "Notes de séance :",
+    "add_comment_placeholder": "Ajouter un commentaire ...",
+    "record_voice_title": "Enregistrer un message vocal",
+    "super_set": "Super set"
+  },
+  "card": {
+    "session_default_title": "Séance",
+    "exercises_count_one": "{{count}} exercice",
+    "exercises_count_other": "{{count}} exercices"
+  }
+}
