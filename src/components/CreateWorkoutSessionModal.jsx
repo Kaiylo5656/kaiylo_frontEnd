@@ -2187,7 +2187,7 @@ const CreateWorkoutSessionModal = ({
             <div className="workout-modal-main flex-1 min-h-0 space-y-4 md:space-y-6">
               <div className="space-y-2">
                 <label className="block text-xs md:text-sm font-extralight text-white/50">
-                  Nom de la séance
+                  {t('create_modal.name_label')}
                 </label>
                 <div className="relative flex items-center">
                   <svg
@@ -3058,7 +3058,7 @@ const CreateWorkoutSessionModal = ({
                                     }}
                                     className="text-[11px] md:text-[12px] font-light text-white/50 cursor-pointer whitespace-nowrap leading-[29px]"
                                   >
-                                    Charge par côté
+                                    {t('create_modal.weight_per_side_label')}
                                   </label>
                                 </div>
 
@@ -3172,7 +3172,7 @@ const CreateWorkoutSessionModal = ({
                                   borderWidth: '1px'
                                 }}
                               >
-                                Ajouter une série
+                                {t('create_modal.add_set_button')}
                               </button>
                             </div>
 
@@ -3501,7 +3501,7 @@ const CreateWorkoutSessionModal = ({
                           <p className="text-[12px] font-light text-white/50">
                             {firstExercise.tempo ? `Tempo : ${firstExercise.tempo}` : ''}
                             {firstExercise.tempo && firstExercise.per_side ? ' | ' : ''}
-                            {firstExercise.per_side ? 'Charge par côté' : ''}
+                            {firstExercise.per_side ? t('create_modal.weight_per_side_label') : ''}
                           </p>
                         </div>
                       )}
