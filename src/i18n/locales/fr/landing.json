@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "features": "Fonctionnalités",
+    "interface": "Interface",
+    "pricing": "Tarif",
+    "login": "Connexion"
+  },
+  "hero": {
+    "badge": "Disponible maintenant",
+    "title_line_1": "Enfin un outil professionnel pour",
+    "title_line_2_prefix": "coacher en",
+    "title_highlight": "streetlifting",
+    "subtitle_prefix": "Kaiylo centralise tout ce dont tu as besoin pour coacher",
+    "subtitle_highlight": "efficacement",
+    "subtitle_suffix": ": programmes, feedbacks vidéos, suivi.",
+    "subtitle_extra": " Passe moins de temps à gérer, plus de temps à coacher."
+  },
+  "cta": {
+    "primary": "Créer mon compte gratuitement",
+    "primary_note": "3 élèves gratuits",
+    "secondary": "Demander une démo"
+  }
+}

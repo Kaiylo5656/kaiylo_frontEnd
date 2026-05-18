@@ -1,12 +1,14 @@
 import logger from '../utils/logger';
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import { ChevronDown, Check } from 'lucide-react';
 import Logo from '../components/Logo';
 
 const OnboardingPage = () => {
+  const { t } = useTranslation('onboarding');
   const navigate = useNavigate();
   const { user, getAuthToken } = useAuth();
   const dateInputRef = useRef(null);
@@ -32,13 +34,13 @@ const OnboardingPage = () => {
   const handleSubmit = async () => {
     if (!user) {
       logger.error('❌ No user found');
-      alert('Vous devez être connecté pour continuer');
+      alert(t('errors.not_authenticated'));
       return;
     }
-    
+
     // Basic validation
     if (!formData.gender || !formData.birthDate || !formData.height || !formData.weight || !formData.discipline) {
-      alert("Veuillez remplir tous les champs");
+      alert(t('errors.fill_all_fields'));
       return;
     }
 
@@ -48,7 +50,7 @@ const OnboardingPage = () => {
       
       if (!token) {
         logger.error('❌ No auth token found');
-        alert('Vous devez être connecté pour continuer');
+        alert(t('errors.not_authenticated'));
         return;
       }
 
@@ -79,9 +81,9 @@ const OnboardingPage = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Erreur inconnue' }));
+        const errorData = await response.json().catch(() => ({ message: t('errors.unknown') }));
         logger.error('❌ Error updating profile:', errorData);
-        throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
+        throw new Error(errorData.message || t('errors.http_error', { status: response.status }));
       }
 
       const result = await response.json();
@@ -89,7 +91,7 @@ const OnboardingPage = () => {
       navigate('/student/dashboard');
     } catch (error) {
       logger.error('❌ Error updating profile:', error);
-      alert(`Erreur lors de la mise à jour du profil: ${error.message || 'Erreur inconnue'}`);
+      alert(t('errors.update_failed', { detail: error.message || t('errors.unknown') }));
     } finally {
       setLoading(false);
     }
@@ -184,10 +186,10 @@ const OnboardingPage = () => {
             {/* Header */}
             <div className="text-center mb-12 relative z-10 px-6">
               <h1 className="text-3xl font-thin text-foreground mb-4" style={{ fontSize: '30px' }}>
-                Informations physiques
+                {t('title')}
               </h1>
               <p className="text-xs text-[rgba(255,255,255,0.5)] font-light">
-                Votre coach utilise ces données pour personnaliser votre suivi
+                {t('subtitle')}
               </p>
             </div>
 
@@ -212,7 +214,7 @@ const OnboardingPage = () => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className={`w-5 h-5 ${formData.gender === 'Femme' ? '' : 'opacity-50'}`} fill="currentColor">
                 <path d="M80 176a112 112 0 1 1 224 0 112 112 0 1 1 -224 0zM223.9 349.1C305.9 334.1 368 262.3 368 176 368 78.8 289.2 0 192 0S16 78.8 16 176c0 86.3 62.1 158.1 144.1 173.1-.1 1-.1 1.9-.1 2.9l0 64-32 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l32 0 0 32c0 17.7 14.3 32 32 32s32-14.3 32-32l0-32 32 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-32 0 0-64c0-1 0-1.9-.1-2.9z"/>
               </svg>
-              <span className={`text-sm font-light ${formData.gender === 'Femme' ? 'text-white' : 'text-white/50'}`}>Femme</span>
+              <span className={`text-sm font-light ${formData.gender === 'Femme' ? 'text-white' : 'text-white/50'}`}>{t('gender.female_label')}</span>
             </button>
             
             <button
@@ -231,7 +233,7 @@ const OnboardingPage = () => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className={`w-5 h-5 ${formData.gender === 'Homme' ? '' : 'opacity-50'}`} fill="currentColor">
                 <path d="M320 32c0-17.7 14.3-32 32-32L480 0c17.7 0 32 14.3 32 32l0 128c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-50.7-95 95c19.5 28.4 31 62.7 31 99.8 0 97.2-78.8 176-176 176S32 401.2 32 304 110.8 128 208 128c37 0 71.4 11.4 99.8 31l95-95-50.7 0c-17.7 0-32-14.3-32-32zM208 416a112 112 0 1 0 0-224 112 112 0 1 0 0 224z"/>
               </svg>
-              <span className={`text-sm font-light ${formData.gender === 'Homme' ? 'text-white' : 'text-white/50'}`}>Homme</span>
+              <span className={`text-sm font-light ${formData.gender === 'Homme' ? 'text-white' : 'text-white/50'}`}>{t('gender.male_label')}</span>
             </button>
               </div>
 
@@ -255,7 +257,7 @@ const OnboardingPage = () => {
                       return `${day}/${month}/${year}`;
                     })()
                   ) : (
-                    <span className="text-[rgba(255,255,255,0.5)]">Date de naissance</span>
+                    <span className="text-[rgba(255,255,255,0.5)]">{t('fields.birth_date_placeholder')}</span>
                   )}
                 </div>
 
@@ -288,7 +290,7 @@ const OnboardingPage = () => {
                   value={formData.height}
                   onChange={handleChange}
                   className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full font-light placeholder-[rgba(255,255,255,0.5)]"
-                  placeholder="Taille (cm)"
+                  placeholder={t('fields.height_placeholder')}
                 />
               </div>
 
@@ -309,7 +311,7 @@ const OnboardingPage = () => {
                   value={formData.weight}
                   onChange={handleChange}
                   className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full font-light placeholder-[rgba(255,255,255,0.5)]"
-                  placeholder="Poids (kg)"
+                  placeholder={t('fields.weight_placeholder')}
                 />
               </div>
 
@@ -331,7 +333,7 @@ const OnboardingPage = () => {
                     disabled={true}
                     className="bg-transparent border-none outline-none text-[rgba(255,255,255,1)] text-xs w-full appearance-none z-10 font-light cursor-not-allowed"
                   >
-                    <option value="Street Lifting" className="bg-[#1a1a1a]">Street Lifting</option>
+                    <option value="Street Lifting" className="bg-[#1a1a1a]">{t('discipline.street_lifting')}</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.5)] absolute right-5 pointer-events-none" />
                 </div>
@@ -351,7 +353,7 @@ const OnboardingPage = () => {
                   paddingBottom: '12px'
                 }}
               >
-                {loading ? 'Enregistrement...' : 'Terminer'}
+                {loading ? t('submitting') : t('submit')}
               </button>
             </div>
 

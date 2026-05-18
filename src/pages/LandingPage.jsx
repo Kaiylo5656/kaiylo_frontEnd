@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { buildApiUrl } from '@/config/api';
 import DashboardShowcase from '../components/DashboardShowcase';
@@ -18,6 +19,7 @@ const CALENDLY_WIDGET_CSS_HREF =
   'https://assets.calendly.com/assets/external/widget.css';
 
 const LandingPage = () => {
+  const { t } = useTranslation('landing');
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [isHeaderCompact, setIsHeaderCompact] = React.useState(false);
 
@@ -295,27 +297,27 @@ const LandingPage = () => {
           onClick={(e) => handleNavScroll(e, 'interface')}
           className="h-9 px-4 rounded-full bg-black/35 backdrop-blur-md text-white/50 hover:bg-[#D4845A]/10 hover:text-[#D4845A] text-sm font-['Inter'] font-normal transition-all duration-300 flex items-center justify-center"
         >
-          Fonctionnalites
+          {t('nav.features')}
         </a>
         <a
           href="#interface-showcase"
           onClick={(e) => handleNavScroll(e, 'interface-showcase')}
           className="h-9 px-4 rounded-full bg-black/35 backdrop-blur-md text-white/50 hover:bg-[#D4845A]/10 hover:text-[#D4845A] text-sm font-['Inter'] font-normal transition-all duration-300 flex items-center justify-center"
         >
-          Interface
+          {t('nav.interface')}
         </a>
         <a
           href="#tarif"
           onClick={(e) => handleNavScroll(e, 'tarif')}
           className="h-9 px-4 rounded-full bg-black/35 backdrop-blur-md text-white/50 hover:bg-[#D4845A]/10 hover:text-[#D4845A] text-sm font-['Inter'] font-normal transition-all duration-300 flex items-center justify-center"
         >
-          Tarif
+          {t('nav.pricing')}
         </a>
         <Link
           to="/login"
           className="h-9 px-5 rounded-full bg-[#D4845A] text-white hover:bg-[#bf7348] text-sm font-['Inter'] transition-all flex items-center justify-center"
         >
-          Connexion
+          {t('nav.login')}
         </Link>
       </div>
 
@@ -330,7 +332,7 @@ const LandingPage = () => {
             className={`mb-12 transition-all duration-1000 ease-out delay-100 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
             <span className="px-3 py-1 rounded-full border border-white/10 text-xs text-zinc-400 font-['Inter'] tracking-wide">
-              Disponible maintenant
+              {t('hero.badge')}
             </span>
           </div>
 
@@ -338,8 +340,8 @@ const LandingPage = () => {
           <h1
             className={`mb-12 font-['Inter'] font-light text-2xl sm:text-3xl md:text-4xl lg:text-5xl tracking-tight leading-[1.2] text-white transition-all duration-1000 ease-out delay-200 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
-            <span className="block">Enfin un outil professionnel pour</span>
-            <span className="block">coacher en <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">streetlifting</span></span>
+            <span className="block">{t('hero.title_line_1')}</span>
+            <span className="block">{t('hero.title_line_2_prefix')} <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-normal">{t('hero.title_highlight')}</span></span>
           </h1>
 
           {/* Subtext */}
@@ -347,7 +349,7 @@ const LandingPage = () => {
             className={`mb-12 font-['Inter'] font-light text-sm md:text-base lg:text-base text-white/50 max-w-2xl leading-relaxed transition-all duration-1000 ease-out delay-300 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ opacity: 1 }}
           >
-            Kaiylo centralise tout ce dont tu as besoin pour coacher <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">efficacement</span> : programmes, feedbacks vidéos, suivi.<span className="hidden md:inline"> Passe moins de temps à gérer, plus de temps à coacher.</span>
+            {t('hero.subtitle_prefix')} <span className="bg-gradient-to-r from-[#D4845A] to-[#A05A3A] bg-clip-text text-transparent font-medium">{t('hero.subtitle_highlight')}</span>{t('hero.subtitle_suffix')}<span className="hidden md:inline">{t('hero.subtitle_extra')}</span>
           </p>
 
           {/* CTA Section */}
@@ -360,11 +362,11 @@ const LandingPage = () => {
                   to="/login"
                   className="w-full h-12 px-8 bg-[#D4845A] text-white hover:bg-[#bf7348] rounded-full text-base transition-all whitespace-nowrap overflow-hidden flex items-center justify-center group/btn relative"
                 >
-                  <span className="relative z-10 font-normal">Créer mon compte gratuitement</span>
+                  <span className="relative z-10 font-normal">{t('cta.primary')}</span>
                   <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-[-25deg] group-hover/btn:left-[100%] transition-[left] duration-700 ease-in-out" />
                 </Link>
                 <p className="mt-4 text-xs md:text-sm text-[rgba(212,132,90,1)] font-['Inter'] font-normal text-center">
-                  3 élèves gratuits
+                  {t('cta.primary_note')}
                 </p>
               </div>
 
@@ -377,7 +379,7 @@ const LandingPage = () => {
                   onClick={openCalendlyDemo}
                   className="w-full h-full px-8 bg-[#0a0a0a] hover:bg-[#111111] text-white rounded-full text-base transition-all duration-300 whitespace-nowrap flex items-center justify-center relative overflow-hidden group/demo"
                 >
-                  <span className="relative z-10">Demander une démo</span>
+                  <span className="relative z-10">{t('cta.secondary')}</span>
                   <div className="absolute top-0 left-[-100%] h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] group-hover/demo:left-[100%] transition-[left] duration-700 ease-in-out" />
                 </button>
                 <BorderBeam

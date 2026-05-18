@@ -1,0 +1,27 @@
+{
+  "title": "Physical information",
+  "subtitle": "Your coach uses this data to personalize your follow-up",
+  "gender": {
+    "female_label": "Female",
+    "male_label": "Male",
+    "female_value": "Femme",
+    "male_value": "Homme"
+  },
+  "fields": {
+    "birth_date_placeholder": "Date of birth",
+    "height_placeholder": "Height (cm)",
+    "weight_placeholder": "Weight (kg)"
+  },
+  "discipline": {
+    "street_lifting": "Street Lifting"
+  },
+  "submit": "Finish",
+  "submitting": "Saving...",
+  "errors": {
+    "not_authenticated": "You must be signed in to continue",
+    "fill_all_fields": "Please fill in all fields",
+    "unknown": "Unknown error",
+    "http_error": "HTTP error: {{status}}",
+    "update_failed": "Failed to update profile: {{detail}}"
+  }
+}
