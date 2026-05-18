@@ -1,6 +1,17 @@
 import logger from './logger';
-import { formatDistanceToNow, format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import i18next from 'i18next';
+import { formatDistanceToNow } from 'date-fns';
+import { fr, enUS } from 'date-fns/locale';
+
+/**
+ * Resolve the active date-fns locale from the active i18next language.
+ * Defaults to French to match the project's fallback language.
+ */
+const getDateFnsLocale = () => {
+  const lng = i18next.language || 'fr';
+  if (lng.startsWith('en')) return enUS;
+  return fr;
+};
 
 /**
  * Format a date to relative time (e.g., "3 days ago")
@@ -9,14 +20,14 @@ import { fr } from 'date-fns/locale';
  */
 export const formatRelative = (date) => {
   if (!date) return 'Unknown';
-  
+
   try {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(dateObj.getTime())) return 'Invalid date';
-    
-    return formatDistanceToNow(dateObj, { 
-      addSuffix: true, 
-      locale: fr 
+
+    return formatDistanceToNow(dateObj, {
+      addSuffix: true,
+      locale: getDateFnsLocale()
     });
   } catch (error) {
     logger.error('Error formatting relative date:', error);
@@ -31,12 +42,21 @@ export const formatRelative = (date) => {
  */
 export const formatAbsolute = (date) => {
   if (!date) return 'Unknown';
-  
+
   try {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(dateObj.getTime())) return 'Invalid date';
-    
-    return format(dateObj, 'PPP p', { locale: fr });
+
+    // Use Intl.DateTimeFormat with the active i18next language so dates
+    // render in the user's chosen locale (FR vs EN).
+    const lng = i18next.language || 'fr';
+    return new Intl.DateTimeFormat(lng, {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(dateObj);
   } catch (error) {
     logger.error('Error formatting absolute date:', error);
     return 'Unknown';
@@ -50,10 +70,10 @@ export const formatAbsolute = (date) => {
  */
 export const formatDuration = (seconds) => {
   if (!seconds || isNaN(seconds)) return 'Unknown';
-  
+
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
-  
+
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
@@ -64,16 +84,16 @@ export const formatDuration = (seconds) => {
  */
 export const formatFileSize = (bytes) => {
   if (!bytes || isNaN(bytes)) return 'Unknown';
-  
+
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = bytes;
   let unitIndex = 0;
-  
+
   while (size >= 1024 && unitIndex < units.length - 1) {
     size /= 1024;
     unitIndex++;
   }
-  
+
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
 
@@ -114,4 +134,3 @@ export const formatPlural = (count, singular, plural = null) => {
   if (count === 1) return `1 ${singular}`;
   return `${count} ${plural || singular + 's'}`;
 };
-
