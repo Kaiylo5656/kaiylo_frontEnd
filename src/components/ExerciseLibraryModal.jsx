@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import ExerciseLibraryPanel from './exercises/ExerciseLibraryPanel';
 import ExerciseHistory from './ExerciseHistory';
@@ -17,6 +18,7 @@ const ExerciseLibraryModal = ({
   focusSearch = false,
   isMobile = false
 }) => {
+  const { t } = useTranslation('workout');
   const [selectedExercise, setSelectedExercise] = useState(null);
 
   if (!isOpen) return null;
@@ -46,7 +48,7 @@ const ExerciseLibraryModal = ({
   return (
     <div
       role="region"
-      aria-label="Bibliothèque d'exercices"
+      aria-label={t('create_modal.library.panel_title')}
       className="fixed z-[1001] text-white pointer-events-auto"
       style={style}
     >
@@ -64,7 +66,7 @@ const ExerciseLibraryModal = ({
                 <button
                   onClick={selectedExercise ? handleBackToList : onClose}
                   className="text-white/50 hover:text-white transition-colors p-1"
-                  aria-label="Retour"
+                  aria-label={t('create_modal.library.back_aria')}
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
@@ -73,7 +75,7 @@ const ExerciseLibraryModal = ({
                 <path d="M384 512L96 512c-53 0-96-43-96-96L0 96C0 43 43 0 96 0L400 0c26.5 0 48 21.5 48 48l0 288c0 20.9-13.4 38.7-32 45.3l0 66.7c17.7 0 32 14.3 32 32s-14.3 32-32 32l-32 0zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0 0-64-256 0zm32-232c0 13.3 10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0c-13.3 0-24 10.7-24 24zm24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24l176 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-176 0z" />
               </svg>
               <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                {selectedExercise ? selectedExercise.title : 'Bibliothèque d\'exercices'}
+                {selectedExercise ? selectedExercise.title : t('create_modal.library.panel_title')}
               </h2>
             </div>
           </div>
@@ -96,7 +98,7 @@ const ExerciseLibraryModal = ({
                   className="w-full py-2.5 text-sm font-normal text-white rounded-[10px] hover:opacity-90 transition-colors"
                   style={{ backgroundColor: 'var(--kaiylo-primary-hex)' }}
                 >
-                  Ajouter à la séance
+                  {t('create_modal.library.add_to_session')}
                 </button>
               </div>
             </div>

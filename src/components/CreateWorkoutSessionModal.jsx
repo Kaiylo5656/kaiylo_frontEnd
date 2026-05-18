@@ -1703,7 +1703,7 @@ const CreateWorkoutSessionModal = ({
               {showSidebar && (
                 <div
                   role="region"
-                  aria-label={rightPanelView === 'planning' ? "Planning d'entrainement" : "Agencement des exercices"}
+                  aria-label={rightPanelView === 'planning' ? t('create_modal.planning_aria') : t('create_modal.layout_heading')}
                   className={`relative z-[1001] text-white pointer-events-auto flex flex-col ${isMobile ? '!fixed !inset-4 !w-[calc(100vw-2rem)] !h-[calc(100dvh-2rem)] !max-h-[calc(100dvh-2rem)] !rounded-2xl' : 'w-[340px] overflow-hidden rounded-2xl shadow-2xl'}`}
                   style={isMobile ? { background: '#131416' } : {
                     ...(arrangementPosition && {
@@ -1735,7 +1735,7 @@ const CreateWorkoutSessionModal = ({
                             <path d="M0 72C0 58.8 10.7 48 24 48l48 0c13.3 0 24 10.7 24 24l0 104 24 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-96 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-80-24 0C10.7 96 0 85.3 0 72zM30.4 301.2C41.8 292.6 55.7 288 70 288l4.9 0c33.7 0 61.1 27.4 61.1 61.1 0 19.6-9.4 37.9-25.2 49.4l-24 17.5 33.2 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-90.7 0C13.1 464 0 450.9 0 434.7 0 425.3 4.5 416.5 12.1 411l70.5-51.3c3.4-2.5 5.4-6.4 5.4-10.6 0-7.2-5.9-13.1-13.1-13.1L70 336c-3.9 0-7.7 1.3-10.8 3.6L38.4 355.2c-10.6 8-25.6 5.8-33.6-4.8S-1 324.8 9.6 316.8l20.8-15.6zM224 64l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zm0 160l256 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-256 0c-17.7 0-32-14.3-32-32s14.3-32 32-32z" />
                           </svg>
                           <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                            Agencement des exercices
+                            {t('create_modal.layout_heading')}
                           </h2>
                         </div>
                       ) : (
@@ -1744,7 +1744,7 @@ const CreateWorkoutSessionModal = ({
                             <path d="M128 0C110.3 0 96 14.3 96 32l0 32-32 0C28.7 64 0 92.7 0 128l0 48 448 0 0-48c0-35.3-28.7-64-64-64l-32 0 0-32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 32-128 0 0-32c0-17.7-14.3-32-32-32zM0 224L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192-448 0z" />
                           </svg>
                           <h2 className="text-xl font-normal text-white flex items-center gap-2" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                            Planning d'entraînement
+                            {t('create_modal.planning_heading')}
                           </h2>
                         </div>
                       )}
@@ -2106,7 +2106,7 @@ const CreateWorkoutSessionModal = ({
                 <path d="M352.9 21.2L308 66.1 445.9 204 490.8 159.1C504.4 145.6 512 127.2 512 108s-7.6-37.6-21.2-51.1L455.1 21.2C441.6 7.6 423.2 0 404 0s-37.6 7.6-51.1 21.2zM274.1 100L58.9 315.1c-10.7 10.7-18.5 24.1-22.6 38.7L.9 481.6c-2.3 8.3 0 17.3 6.2 23.4s15.1 8.5 23.4 6.2l127.8-35.5c14.6-4.1 27.9-11.8 38.7-22.6L412 237.9 274.1 100z" />
               </svg>
               <h2 className="text-base md:text-xl font-normal text-white flex items-center gap-1 md:gap-2 min-w-0" style={{ color: 'var(--kaiylo-primary-hex)' }}>
-                <span className="truncate">{existingSession ? 'Modifier la séance' : 'Nouvelle séance'}</span>
+                <span className="truncate">{existingSession ? t('create_modal.edit_session_title') : t('create_modal.new_session_title')}</span>
                 <span className="hidden sm:inline font-light"> - </span>
                 <span className="font-light truncate hidden sm:inline">
                   {(() => {
@@ -2211,7 +2211,7 @@ const CreateWorkoutSessionModal = ({
 
               <div className="space-y-2">
                 <label className="block text-xs md:text-sm font-extralight text-white/50">
-                  Date de la séance
+                  {t('create_modal.date_label')}
                 </label>
                 <div
                   onClick={() => { try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); } }}
@@ -3329,7 +3329,7 @@ const CreateWorkoutSessionModal = ({
                     className="w-full sm:w-auto px-6 md:px-8 bg-[rgba(212,132,90,0.15)] hover:bg-[rgba(212,132,90,0.25)] text-[#d4845a] py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-medium text-xs md:text-sm focus:outline-none focus-visible:ring-0"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    Ajouter exercice
+                    {t('create_modal.add_exercise_button')}
                   </button>
                   <button
                     type="button"
@@ -3337,7 +3337,7 @@ const CreateWorkoutSessionModal = ({
                     className="w-full sm:w-[195px] px-6 md:px-8 bg-white/[0.06] hover:bg-white/[0.12] text-white/80 py-2.5 md:py-3 rounded-[10px] flex items-center justify-center gap-2 transition-colors font-normal text-xs md:text-sm focus:outline-none focus-visible:ring-0"
                   >
                     <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    Exercice rapide
+                    {t('create_modal.quick_exercise_button')}
                   </button>
                   </div>
                 </div>
