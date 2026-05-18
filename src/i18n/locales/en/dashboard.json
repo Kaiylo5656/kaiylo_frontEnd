@@ -1,0 +1,39 @@
+{
+  "student": {
+    "read_only_badge": "Limited access",
+    "read_only_explainer": "You're currently in read-only mode following your coach's plan change. You can view your planning, but you can no longer start or validate sessions. Contact your coach to restore full access.",
+    "session_card": {
+      "default_title": "Session",
+      "estimated_duration": "Estimated duration: 1h30",
+      "exercises_count_one": "{{count}} exercise",
+      "exercises_count_other": "{{count}} exercises",
+      "view_session": "View session",
+      "preview_session": "Session preview"
+    },
+    "empty_states": {
+      "no_session_today": "No session today"
+    },
+    "navigation": {
+      "previous_week_aria": "Previous week",
+      "next_week_aria": "Next week",
+      "go_to_session_aria": "Go to session {{index}}"
+    }
+  },
+  "coach": {
+    "search": {
+      "placeholder": "Search for a client"
+    },
+    "active_clients_label": "Active clients",
+    "filters": "Filters",
+    "new_button_title": "New",
+    "new_button_label": "New",
+    "empty_states": {
+      "no_upcoming_session": "No upcoming session",
+      "no_students_yet": "No students yet",
+      "no_students_match": "No students found",
+      "no_students_match_search": "No students match your search criteria",
+      "no_students_yet_hint": "Start by inviting students to join your coaching program",
+      "invite_first_student": "Invite your first student"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import logger from '../utils/logger';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useStudentPlanning } from '../contexts/StudentPlanningContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -17,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
 const StudentDashboard = () => {
+  const { t } = useTranslation('dashboard');
   const { user, getAuthToken, refreshAuthToken, logout } = useAuth();
   const planningContext = useStudentPlanning();
   const assignments = planningContext?.assignments ?? [];
@@ -699,12 +701,12 @@ const StudentDashboard = () => {
               >
                 <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
               </svg>
-              <span>Accès limité</span>
+              <span>{t('student.read_only_badge')}</span>
               <ChevronDown className={`h-4 w-4 transition-transform ${isReadOnlyBannerOpen ? 'rotate-180' : ''}`} />
             </button>
             {isReadOnlyBannerOpen && (
               <p id="student-read-only-access-details" className="mt-1 text-xs text-[var(--kaiylo-primary-hex)]/80">
-                Vous êtes actuellement en mode lecture seule suite au changement de plan de votre coach. Vous pouvez consulter votre planning, mais vous ne pouvez plus démarrer ou valider vos séances. Contactez votre coach pour retrouver un accès complet.
+                {t('student.read_only_explainer')}
               </p>
             )}
           </div>
@@ -729,7 +731,7 @@ const StudentDashboard = () => {
             <button
               onClick={() => changeWeek('prev')}
               className="flex items-center justify-center min-w-[32px] w-[32px] min-[376px]:min-w-[36px] min-[376px]:w-[36px] md:min-w-[44px] md:w-[44px] min-h-[36px] md:min-h-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pl-2 min-[376px]:pl-3 md:pl-[25px]"
-              aria-label="Semaine précédente"
+              aria-label={t('student.navigation.previous_week_aria')}
             >
               <ChevronLeft className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
@@ -832,7 +834,7 @@ const StudentDashboard = () => {
             <button
               onClick={() => changeWeek('next')}
               className="flex items-center justify-center min-w-[32px] w-[32px] min-[376px]:min-w-[36px] min-[376px]:w-[36px] md:min-w-[44px] md:w-[44px] min-h-[36px] md:min-h-[44px] h-[36px] md:h-[44px] flex-shrink-0 touch-target pr-2 min-[376px]:pr-3 md:pr-[25px]"
-              aria-label="Semaine suivante"
+              aria-label={t('student.navigation.next_week_aria')}
             >
               <ChevronRight className="w-4 h-4 md:w-5 md:h-5 text-white/50" style={{ strokeWidth: 2.5 }} />
             </button>
@@ -917,14 +919,14 @@ const StudentDashboard = () => {
                         }}>
                           <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
                             <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0 flex items-center gap-2">
-                              <span>{assignment.workout_sessions?.title || 'Workout'}</span>
+                              <span>{assignment.workout_sessions?.title || t('student.session_card.default_title')}</span>
                               {selectedAssignments.length > 1 && (
                                 <span className="text-white/40 text-[14px] font-light">
                                   {index + 1}/{selectedAssignments.length}
                                 </span>
                               )}
                             </CardTitle>
-                            <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                            <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>{t('student.session_card.estimated_duration')}</p>
                           </CardHeader>
                           <CardContent className="px-4 mx-5 flex flex-col">
                             <div className="space-y-3 mb-0 pt-5 pb-5">
@@ -943,7 +945,7 @@ const StudentDashboard = () => {
                               ))}
                             </div>
                             <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
-                              {assignment.workout_sessions?.exercises?.length || 0} exercices
+                              {t('student.session_card.exercises_count', { count: assignment.workout_sessions?.exercises?.length || 0 })}
                             </p>
                             <Button
                               className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
@@ -952,7 +954,7 @@ const StudentDashboard = () => {
                                 }`}
                               onClick={() => handleStartSession(assignment)}
                             >
-                              {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
+                              {assignment.status === 'completed' ? t('student.session_card.view_session') : t('student.session_card.preview_session')}
                             </Button>
                           </CardContent>
                         </Card>
@@ -984,7 +986,7 @@ const StudentDashboard = () => {
                             boxShadow: index === currentCardIndex ? '0 0 10px rgba(232, 124, 62, 0.6)' : '0 0 4px rgba(255, 255, 255, 0.2)',
                             fontWeight: index === currentCardIndex ? 300 : undefined
                           }}
-                          aria-label={`Aller à la séance ${index + 1}`}
+                          aria-label={t('student.navigation.go_to_session_aria', { index: index + 1 })}
                         />
                       ))}
                     </div>
@@ -996,9 +998,9 @@ const StudentDashboard = () => {
                       <Card key={assignment.id || index} className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col" style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
                         <CardHeader className="pb-0 px-4 space-y-0 pt-6 mx-5">
                           <CardTitle className="text-[#e87c3e] text-[19px] font-normal px-0">
-                            {assignment.workout_sessions?.title || 'Workout'}
+                            {assignment.workout_sessions?.title || t('student.session_card.default_title')}
                           </CardTitle>
-                          <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>Durée estimée : 1h30</p>
+                          <p className="text-sm text-gray-400" style={{ color: 'rgba(255, 255, 255, 0.5)', fontWeight: 200, fontSize: '11px' }}>{t('student.session_card.estimated_duration')}</p>
                         </CardHeader>
                         <CardContent className="px-4 mx-5 flex-1 flex flex-col min-h-0">
                           <div className="space-y-3 mb-0 pt-5 pb-5 flex-1 overflow-y-auto min-h-0">
@@ -1017,7 +1019,7 @@ const StudentDashboard = () => {
                             ))}
                           </div>
                           <p className="text-xs text-white/25 font-light mb-4 pt-3 border-t border-border">
-                            {assignment.workout_sessions?.exercises?.length || 0} exercices
+                            {t('student.session_card.exercises_count', { count: assignment.workout_sessions?.exercises?.length || 0 })}
                           </p>
                           <Button
                             className={`w-full py-2 rounded-lg font-normal ${assignment.status === 'completed'
@@ -1026,7 +1028,7 @@ const StudentDashboard = () => {
                               }`}
                             onClick={() => handleStartSession(assignment)}
                           >
-                            {assignment.status === 'completed' ? 'Consulter la séance' : 'Aperçu de la séance'}
+                            {assignment.status === 'completed' ? t('student.session_card.view_session') : t('student.session_card.preview_session')}
                           </Button>
                         </CardContent>
                       </Card>
@@ -1038,7 +1040,7 @@ const StudentDashboard = () => {
                   <Card className="border-border rounded-[22px] w-full border-0 flex-1 flex flex-col items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderImage: 'none', borderColor: 'transparent', marginBottom: '50px' }}>
                     <CardContent className="px-4 mx-5 flex-1 flex items-center justify-center">
                       <p className="text-white/25 font-light text-sm text-center" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: 100, fontSize: '13px' }}>
-                        Aucune séance aujourd'hui
+                        {t('student.empty_states.no_session_today')}
                       </p>
                     </CardContent>
                   </Card>

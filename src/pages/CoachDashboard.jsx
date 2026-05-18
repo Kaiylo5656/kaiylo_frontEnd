@@ -1,6 +1,7 @@
 import logger from '../utils/logger';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi, buildApiUrl } from '../config/api';
 import axios from 'axios';
@@ -20,6 +21,7 @@ import {
 } from '../components/ui/dropdown-menu';
 
 const CoachDashboard = () => {
+  const { t } = useTranslation('dashboard');
   const { user, getAuthToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -761,7 +763,7 @@ const CoachDashboard = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Rechercher un client"
+                placeholder={t('coach.search.placeholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
@@ -774,7 +776,7 @@ const CoachDashboard = () => {
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 shrink-0 min-w-0">
-                <span className="text-xs font-light text-white/50 whitespace-nowrap">Clients actifs</span>
+                <span className="text-xs font-light text-white/50 whitespace-nowrap">{t('coach.active_clients_label')}</span>
                 <span
                   className="text-xs font-medium tabular-nums shrink-0"
                   title={`${activeStudentCount} élève${activeStudentCount !== 1 ? 's' : ''} actif${activeStudentCount !== 1 ? 's' : ''} · ${clientLimit} autorisé${clientLimit !== 1 ? 's' : ''} par l’abonnement${isOverClientLimit ? ' — Dépassement de la limite.' : ''}`}
@@ -797,7 +799,7 @@ const CoachDashboard = () => {
               <button
                 onClick={handleOpenInviteModal}
                 className="group bg-[#d4845a] hover:bg-[#bf7348] text-white font-normal p-2.5 rounded-[8px] transition-colors flex items-center justify-center"
-                title="Nouveau"
+                title={t('coach.new_button_title')}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
                   <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z" />
@@ -813,7 +815,7 @@ const CoachDashboard = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/75 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Rechercher un client"
+                placeholder={t('coach.search.placeholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 bg-input border border-border rounded-[50px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring w-full"
@@ -835,7 +837,7 @@ const CoachDashboard = () => {
                     style={{
                       color: isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
                     }}
-                    title="Filtres"
+                    title={t('coach.filters')}
                   >
                     <span
                       className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isFilterDropdownOpenDesktop || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
@@ -847,7 +849,7 @@ const CoachDashboard = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
                       <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z" />
                     </svg>
-                    <span className="relative z-10">Filtres</span>
+                    <span className="relative z-10">{t('coach.filters')}</span>
                     {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
                       <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
                         {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
@@ -989,7 +991,7 @@ const CoachDashboard = () => {
                         </svg>
                       )}
                     </div>
-                    <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>Aucune séance à venir</span>
+                    <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>{t('coach.empty_states.no_upcoming_session')}</span>
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1032,7 +1034,7 @@ const CoachDashboard = () => {
                   style={{
                     color: isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions ? '#D48459' : 'rgba(250, 250, 250, 0.75)'
                   }}
-                  title="Filtres"
+                  title={t('coach.filters')}
                 >
                   <span
                     className={`absolute inset-0 rounded-[50px] transition-[background-color] duration-200 ${isFilterDropdownOpenMobile || filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions
@@ -1044,7 +1046,7 @@ const CoachDashboard = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" className="h-4 w-4 relative z-10">
                     <path fill="currentColor" d="M96 128C83.1 128 71.4 135.8 66.4 147.8C61.4 159.8 64.2 173.5 73.4 182.6L256 365.3L256 480C256 488.5 259.4 496.6 265.4 502.6L329.4 566.6C338.6 575.8 352.3 578.5 364.3 573.5C376.3 568.5 384 556.9 384 544L384 365.3L566.6 182.7C575.8 173.5 578.5 159.8 573.5 147.8C568.5 135.8 556.9 128 544 128L96 128z" />
                   </svg>
-                  <span className="relative z-10">Filtres</span>
+                  <span className="relative z-10">{t('coach.filters')}</span>
                   {(filterPendingFeedback || filterPendingMessages || filterNoUpcomingSessions) && (
                     <span className="ml-1 bg-primary-foreground/20 text-primary-foreground px-2 py-0.5 rounded-full text-xs font-normal relative z-10">
                       {(filterPendingFeedback ? 1 : 0) + (filterPendingMessages ? 1 : 0) + (filterNoUpcomingSessions ? 1 : 0)}
@@ -1187,7 +1189,7 @@ const CoachDashboard = () => {
                       </svg>
                     )}
                   </div>
-                  <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>Aucune séance à venir</span>
+                  <span className={filterNoUpcomingSessions ? 'text-primary' : 'text-foreground'}>{t('coach.empty_states.no_upcoming_session')}</span>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1209,7 +1211,7 @@ const CoachDashboard = () => {
           {/* Action Buttons - Desktop: Right side */}
           <div className="hidden md:flex items-center space-x-3 order-3">
             <div className="flex items-center gap-2 shrink-0 min-w-0">
-              <span className="text-sm font-light text-white/50 whitespace-nowrap">Clients actifs</span>
+              <span className="text-sm font-light text-white/50 whitespace-nowrap">{t('coach.active_clients_label')}</span>
               <span
                 className="text-sm font-medium tabular-nums shrink-0"
                 title={`${activeStudentCount} élève${activeStudentCount !== 1 ? 's' : ''} actif${activeStudentCount !== 1 ? 's' : ''} · ${clientLimit} autorisé${clientLimit !== 1 ? 's' : ''} par l’abonnement${isOverClientLimit ? ' — Dépassement de la limite.' : ''}`}
@@ -1236,7 +1238,7 @@ const CoachDashboard = () => {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="w-4 h-4 fill-current transition-transform duration-200 group-hover:rotate-45">
                 <path d="M256 64c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 160-160 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l160 0 0 160c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160 160 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-160 0 0-160z" />
               </svg>
-              Nouveau
+              {t('coach.new_button_label')}
             </button>
           </div>
         </div>
@@ -1330,13 +1332,13 @@ const CoachDashboard = () => {
                   <div className="px-6 py-8 text-center font-light flex flex-col items-center gap-4" style={{ color: 'rgba(255, 255, 255, 0.25)' }}>
                     <span>
                       <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '18px', fontWeight: '400' }}>
-                        {students.length === 0 ? 'Aucun étudiant pour le moment' : 'Aucun étudiant trouvé'}
+                        {students.length === 0 ? t('coach.empty_states.no_students_yet') : t('coach.empty_states.no_students_match')}
                       </span>
                       <br />
                       <span style={{ color: 'rgba(255, 255, 255, 0.25)', marginTop: '8px', display: 'block' }}>
                         {students.length === 0
-                          ? 'Commencez par inviter des étudiants à rejoindre votre programme de coaching'
-                          : 'Aucun étudiant ne correspond à vos critères de recherche'}
+                          ? t('coach.empty_states.no_students_yet_hint')
+                          : t('coach.empty_states.no_students_match_search')}
                       </span>
                     </span>
                     {students.length === 0 ? (
@@ -1348,7 +1350,7 @@ const CoachDashboard = () => {
                           color: 'var(--tw-ring-offset-color)'
                         }}
                       >
-                        Inviter votre premier étudiant
+                        {t('coach.empty_states.invite_first_student')}
                       </button>
                     ) : (
                       <button

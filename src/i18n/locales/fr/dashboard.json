@@ -1,0 +1,39 @@
+{
+  "student": {
+    "read_only_badge": "Accès limité",
+    "read_only_explainer": "Vous êtes actuellement en mode lecture seule suite au changement de plan de votre coach. Vous pouvez consulter votre planning, mais vous ne pouvez plus démarrer ou valider vos séances. Contactez votre coach pour retrouver un accès complet.",
+    "session_card": {
+      "default_title": "Séance",
+      "estimated_duration": "Durée estimée : 1h30",
+      "exercises_count_one": "{{count}} exercice",
+      "exercises_count_other": "{{count}} exercices",
+      "view_session": "Consulter la séance",
+      "preview_session": "Aperçu de la séance"
+    },
+    "empty_states": {
+      "no_session_today": "Aucune séance aujourd'hui"
+    },
+    "navigation": {
+      "previous_week_aria": "Semaine précédente",
+      "next_week_aria": "Semaine suivante",
+      "go_to_session_aria": "Aller à la séance {{index}}"
+    }
+  },
+  "coach": {
+    "search": {
+      "placeholder": "Rechercher un client"
+    },
+    "active_clients_label": "Clients actifs",
+    "filters": "Filtres",
+    "new_button_title": "Nouveau",
+    "new_button_label": "Nouveau",
+    "empty_states": {
+      "no_upcoming_session": "Aucune séance à venir",
+      "no_students_yet": "Aucun étudiant pour le moment",
+      "no_students_match": "Aucun étudiant trouvé",
+      "no_students_match_search": "Aucun étudiant ne correspond à vos critères de recherche",
+      "no_students_yet_hint": "Commencez par inviter des étudiants à rejoindre votre programme de coaching",
+      "invite_first_student": "Inviter votre premier étudiant"
+    }
+  }
+}
