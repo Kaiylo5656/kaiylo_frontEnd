@@ -26,7 +26,15 @@ i18n
     react: { useSuspense: false },
     saveMissing: import.meta.env.DEV,
     missingKeyHandler: import.meta.env.DEV
-      ? (lngs, ns, key) => console.warn(`[i18n] missing ${lngs[0]}:${ns}:${key}`)
+      ? (lngs, ns, key) => {
+          // Only warn when the ACTIVE language is missing the key.
+          // i18next also reports "missing" for fallback languages whose
+          // resource bundle hasn't been lazy-loaded yet — those are noise
+          // (e.g., active=en, fallback=fr; fr/auth.json never loaded
+          // because nothing rendered FR). Suppress those.
+          if (lngs[0] !== i18n.language) return;
+          console.warn(`[i18n] missing ${lngs[0]}:${ns}:${key}`);
+        }
       : undefined,
     initImmediate: false,
   });
