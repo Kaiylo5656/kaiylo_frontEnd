@@ -2,9 +2,11 @@ import logger from '../utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import Logo from './Logo';
-import { 
+import LanguageToggle from './LanguageToggle';
+import {
   LogOut,
   ChevronRight
 } from 'lucide-react';
@@ -147,6 +149,7 @@ const FeedbackIcon = ({ className, style }) => (
 );
 
 const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
+  const { t } = useTranslation('common');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const drawerRef = useRef(null);
@@ -339,6 +342,12 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
                 Facturation
               </NavLink>
             )}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                {t('settings.language_label')}
+              </span>
+              <LanguageToggle />
+            </div>
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <span className="font-bold text-primary-foreground">
