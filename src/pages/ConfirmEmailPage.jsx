@@ -1,12 +1,14 @@
 import logger from '../utils/logger';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ConfirmEmailPage = () => {
+  const { t } = useTranslation('auth');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); // 'loading', 'success', 'error'
@@ -29,11 +31,11 @@ const ConfirmEmailPage = () => {
           logger.error('Email confirmation error from hash:', { error, errorCode, errorDescription });
           
           if (errorCode === 'otp_expired' || errorDescription?.includes('expired')) {
-            setMessage('Ce lien de confirmation a expiré. Veuillez demander un nouveau lien de confirmation depuis la page de connexion.');
+            setMessage(t('confirm_email.errors.expired_link'));
           } else if (errorCode === 'access_denied') {
-            setMessage('Lien de confirmation invalide ou expiré. Veuillez demander un nouveau lien de confirmation.');
+            setMessage(t('confirm_email.errors.access_denied'));
           } else {
-            setMessage(`Erreur de confirmation : ${errorDescription || error}. Veuillez réessayer ou contacter le support.`);
+            setMessage(t('confirm_email.errors.generic_prefix', { detail: errorDescription || error }));
           }
           return;
         }
@@ -57,15 +59,15 @@ const ConfirmEmailPage = () => {
             if (tokenType === 'recovery') {
               // This might be a password reset token, not email confirmation
               setStatus('error');
-              setMessage('Type de lien incorrect. Ce lien ne correspond pas à une confirmation d\'email.');
+              setMessage(t('confirm_email.errors.wrong_link_type'));
               return;
             }
 
             // Implicit Flow Success: Supabase has already confirmed the email and provided a session
-            // The supabase-js client might pick this up automatically from the URL hash, 
+            // The supabase-js client might pick this up automatically from the URL hash,
             // but we can manually confirm success here.
             setStatus('success');
-            setMessage('Votre email a été confirmé avec succès ! Vous pouvez maintenant vous connecter.');
+            setMessage(t('confirm_email.success_default_message'));
             
             // Redirect to login page after 3 seconds
             setTimeout(() => {
@@ -77,7 +79,7 @@ const ConfirmEmailPage = () => {
 
         if (!tokenHash) {
           setStatus('error');
-          setMessage('Lien de confirmation invalide. Le token est manquant.');
+          setMessage(t('confirm_email.errors.token_missing'));
           return;
         }
 
@@ -93,18 +95,18 @@ const ConfirmEmailPage = () => {
           
           // Provide user-friendly error messages
           if (verifyError.message?.includes('expired') || verifyError.message?.includes('invalid') || verifyError.message?.includes('expiré')) {
-            setMessage('Ce lien de confirmation a expiré ou est invalide. Veuillez demander un nouveau lien de confirmation depuis la page de connexion.');
+            setMessage(t('confirm_email.errors.expired_or_invalid'));
           } else if (verifyError.message?.includes('already') || verifyError.message?.includes('déjà')) {
-            setMessage('Votre email a déjà été confirmé. Vous pouvez vous connecter.');
+            setMessage(t('confirm_email.errors.already_confirmed'));
           } else {
-            setMessage(`Erreur lors de la confirmation de l'email : ${verifyError.message || 'Veuillez réessayer.'}`);
+            setMessage(t('confirm_email.errors.verify_failed', { detail: verifyError.message || t('confirm_email.errors.retry_default') }));
           }
           return;
         }
 
         if (data?.user) {
           setStatus('success');
-          setMessage('Votre email a été confirmé avec succès ! Vous pouvez maintenant vous connecter.');
+          setMessage(t('confirm_email.success_default_message'));
           
           // Redirect to login page after 3 seconds
           setTimeout(() => {
@@ -112,17 +114,17 @@ const ConfirmEmailPage = () => {
           }, 3000);
         } else {
           setStatus('error');
-          setMessage('Erreur lors de la confirmation. Aucune donnée utilisateur retournée.');
+          setMessage(t('confirm_email.errors.no_user_data'));
         }
       } catch (error) {
         logger.error('Unexpected error during email confirmation:', error);
         setStatus('error');
-        setMessage('Une erreur inattendue s\'est produite. Veuillez réessayer.');
+        setMessage(t('confirm_email.errors.unexpected'));
       }
     };
 
     confirmEmail();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, t]);
 
   return (
     <div className="min-h-screen flex flex-col antialiased relative" style={{ backgroundColor: '#0a0a0a' }}>
@@ -226,10 +228,10 @@ const ConfirmEmailPage = () => {
               >
                 <LoadingSpinner />
                 <h2 className="mt-6 text-2xl font-light text-white">
-                  Confirmation en cours...
+                  {t('confirm_email.loading_title')}
                 </h2>
                 <p className="mt-2 text-white/70 font-light">
-                  Veuillez patienter pendant que nous confirmons votre adresse email.
+                  {t('confirm_email.loading_body')}
                 </p>
               </div>
             )}
@@ -249,13 +251,13 @@ const ConfirmEmailPage = () => {
                 }}
               >
                 <h2 className="text-2xl font-light text-white mb-4">
-                  Email confirmé avec succès !
+                  {t('confirm_email.success_title')}
                 </h2>
                 <p className="text-white/70 font-light mb-6">
                   {message}
                 </p>
                 <p className="text-sm text-white/50 font-light mb-8">
-                  Redirection vers la connexion dans quelques secondes...
+                  {t('confirm_email.success_redirect')}
                 </p>
                 <button
                   onClick={() => navigate('/login', { replace: true })}
@@ -268,7 +270,7 @@ const ConfirmEmailPage = () => {
                   }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Aller à la page de connexion
+                  {t('confirm_email.go_to_login')}
                 </button>
               </div>
             )}
@@ -288,11 +290,11 @@ const ConfirmEmailPage = () => {
                     marginBottom: '30px'
                   }}
                 >
-                  <h2 
+                  <h2
                     className="text-2xl font-normal mb-4"
                     style={{ color: 'rgb(239, 68, 68)' }}
                   >
-                    Erreur de confirmation
+                    {t('confirm_email.error_title')}
                   </h2>
                   <p className="text-white/70 font-light mb-0 text-sm">
                     {message}
@@ -308,7 +310,7 @@ const ConfirmEmailPage = () => {
                   }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Aller à la page de connexion
+                  {t('confirm_email.go_to_login')}
                 </button>
               </>
             )}

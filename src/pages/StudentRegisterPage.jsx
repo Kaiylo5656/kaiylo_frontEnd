@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getApiBaseUrlWithApi } from '../config/api';
 import axios from 'axios';
@@ -11,6 +12,7 @@ import Logo from '../components/Logo';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const StudentRegisterPage = () => {
+  const { t } = useTranslation('auth');
   const [isLoading, setIsLoading] = useState(false);
   const [invitationData, setInvitationData] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
@@ -64,7 +66,7 @@ const StudentRegisterPage = () => {
         setInvitationError(null);
       }
     } catch (error) {
-      setInvitationError(error.response?.data?.message || 'Code d\'invitation invalide');
+      setInvitationError(error.response?.data?.message || t('student_register.errors.invitation_code_invalid'));
       setInvitationData(null);
     }
   };
@@ -98,7 +100,7 @@ const StudentRegisterPage = () => {
       if (data.password !== data.confirmPassword) {
         setError('confirmPassword', {
           type: 'manual',
-          message: 'Les mots de passe ne correspondent pas'
+          message: t('student_register.errors.password_mismatch')
         });
         setIsLoading(false);
         return;
@@ -113,7 +115,7 @@ const StudentRegisterPage = () => {
       if (!invitationCodeValue || invitationCodeValue.length !== 8) {
         setError('invitationCode', {
           type: 'manual',
-          message: 'Le code d\'invitation est requis (8 caractères)'
+          message: t('student_register.errors.invitation_code_required_strict')
         });
         setIsLoading(false);
         return;
@@ -125,7 +127,7 @@ const StudentRegisterPage = () => {
         if (invitationError || !invitationData) {
           setError('root', {
             type: 'manual',
-            message: 'Code d\'invitation invalide ou expiré'
+            message: t('student_register.errors.invitation_code_invalid_or_expired')
           });
           setIsLoading(false);
           return;
@@ -140,7 +142,7 @@ const StudentRegisterPage = () => {
       }).catch(error => {
         logger.error('Student registration error:', error);
         logger.error('Error response:', error.response?.data);
-        const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
+        const errorMessage = error.response?.data?.message || error.message || t('student_register.errors.registration_failed');
         throw new Error(errorMessage);
       });
 
@@ -163,13 +165,13 @@ const StudentRegisterPage = () => {
       } else {
         setError('root', {
           type: 'manual',
-          message: result.error || result.message || 'Registration failed'
+          message: result.error || result.message || t('student_register.errors.registration_failed_short')
         });
       }
     } catch (error) {
       setError('root', {
         type: 'manual',
-        message: error.message || 'An unexpected error occurred. Please try again.'
+        message: error.message || t('student_register.errors.unexpected')
       });
     } finally {
       setIsLoading(false);
@@ -381,7 +383,7 @@ const StudentRegisterPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center pt-16 pb-16">
           <div className="w-full px-4">
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Inscription Élève
+              {t('student_register.title')}
             </h1>
 
             {/* Information section - Accordion */}
@@ -403,7 +405,7 @@ const StudentRegisterPage = () => {
                 }}
               >
                 <h2 className="text-sm font-normal text-[#d4845a]">
-                  Comment fonctionne l'inscription élève ?
+                  {t('student_register.info_toggle')}
                 </h2>
                 <div className="flex-shrink-0 ml-4">
                   {isInfoExpanded ? (
@@ -421,13 +423,13 @@ const StudentRegisterPage = () => {
               >
                 <div className="px-4 pb-4 space-y-3" style={{ paddingLeft: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', borderRight: 'none', borderBottom: 'none', borderLeft: 'none', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                   <p className="text-xs text-[rgba(255,255,255,1)] text-left font-light">
-                    Les élèves peuvent uniquement rejoindre Kaiylo via une invitation de leur coach.
+                    {t('student_register.info_body_1')}
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,1)] font-light text-left">
-                    Si vous n'avez pas de code d'invitation, contactez votre coach pour en recevoir un.
+                    {t('student_register.info_body_2')}
                   </p>
                   <p className="text-xs text-[rgba(212,132,90,1)] text-left font-medium">
-                    <span className="text-[#d4845a]">Note :</span> Chaque code d'invitation ne peut être utilisé qu'une seule fois.
+                    <span className="text-[#d4845a]">{t('student_register.info_note_prefix')}</span> {t('student_register.info_note_body')}
                   </p>
                 </div>
               </div>
@@ -441,14 +443,14 @@ const StudentRegisterPage = () => {
                   id="invitationCode"
                   type="text"
                   {...register('invitationCode', {
-                    required: 'Le code d\'invitation est requis',
+                    required: t('student_register.errors.invitation_code_required'),
                     minLength: {
                       value: 8,
-                      message: 'Le code doit contenir 8 caractères'
+                      message: t('student_register.errors.invitation_code_length')
                     },
                     maxLength: {
                       value: 8,
-                      message: 'Le code doit contenir 8 caractères'
+                      message: t('student_register.errors.invitation_code_length')
                     }
                   })}
                   onChange={handleInvitationCodeChange}
@@ -472,7 +474,7 @@ const StudentRegisterPage = () => {
                     paddingTop: '10px',
                     paddingBottom: '10px'
                   }}
-                  placeholder="Code d'invitation"
+                  placeholder={t('student_register.invitation_code_placeholder')}
                   maxLength={8}
                   aria-invalid={errors.invitationCode || invitationError ? 'true' : 'false'}
                 />
@@ -484,7 +486,7 @@ const StudentRegisterPage = () => {
                 )}
                 {invitationData && !invitationError && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(212, 132, 90, 1)' }}>
-                    ✅ Invitation valide pour {invitationData.student_email}
+                    {t('student_register.invitation_valid_for', { email: invitationData.student_email })}
                   </p>
                 )}
               </div>
@@ -495,10 +497,10 @@ const StudentRegisterPage = () => {
                   id="email"
                   type="email"
                   {...register('email', {
-                    required: 'Adresse mail est requise',
+                    required: t('student_register.errors.email_required'),
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Adresse mail invalide'
+                      message: t('student_register.errors.email_invalid')
                     }
                   })}
                   disabled={true}
@@ -521,7 +523,7 @@ const StudentRegisterPage = () => {
                     opacity: 0.6,
                     cursor: 'not-allowed'
                   }}
-                  placeholder="L'email sera défini par l'invitation"
+                  placeholder={t('student_register.email_placeholder')}
                   aria-invalid={errors.email ? 'true' : 'false'}
                 />
                 {errors.email && (
@@ -529,7 +531,7 @@ const StudentRegisterPage = () => {
                 )}
                 {invitationData && (
                   <p className="text-xs mt-1" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                    L'email est automatiquement défini par votre invitation
+                    {t('student_register.email_set_by_invitation')}
                   </p>
                 )}
               </div>
@@ -540,10 +542,10 @@ const StudentRegisterPage = () => {
                   id="firstName"
                   type="text"
                   {...register('firstName', {
-                    required: 'Prénom est requis',
+                    required: t('student_register.errors.first_name_required'),
                     minLength: {
                       value: 2,
-                      message: 'Le prénom doit contenir au moins 2 caractères'
+                      message: t('student_register.errors.first_name_min')
                     }
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
@@ -562,7 +564,7 @@ const StudentRegisterPage = () => {
                     paddingTop: '10px',
                     paddingBottom: '10px',
                   }}
-                  placeholder="Prénom"
+                  placeholder={t('student_register.first_name_placeholder')}
                   aria-invalid={errors.firstName ? 'true' : 'false'}
                 />
                 {errors.firstName && (
@@ -576,10 +578,10 @@ const StudentRegisterPage = () => {
                   id="lastName"
                   type="text"
                   {...register('lastName', {
-                    required: 'Nom est requis',
+                    required: t('student_register.errors.last_name_required'),
                     minLength: {
                       value: 2,
-                      message: 'Le nom doit contenir au moins 2 caractères'
+                      message: t('student_register.errors.last_name_min')
                     }
                   })}
                   className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
@@ -598,7 +600,7 @@ const StudentRegisterPage = () => {
                     paddingTop: '10px',
                     paddingBottom: '10px',
                   }}
-                  placeholder="Nom"
+                  placeholder={t('student_register.last_name_placeholder')}
                   aria-invalid={errors.lastName ? 'true' : 'false'}
                 />
                 {errors.lastName && (
@@ -613,14 +615,14 @@ const StudentRegisterPage = () => {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     {...register('password', {
-                      required: 'Mot de passe requis',
+                      required: t('student_register.errors.password_required'),
                       minLength: {
                         value: 6,
-                        message: 'Le mot de passe doit contenir au moins 6 caractères'
+                        message: t('student_register.errors.password_min')
                       },
                       pattern: {
                         value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-                        message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
+                        message: t('student_register.errors.password_pattern')
                       }
                     })}
                     className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
@@ -639,7 +641,7 @@ const StudentRegisterPage = () => {
                       paddingTop: '10px',
                       paddingBottom: '10px',
                     }}
-                    placeholder="Mot de passe"
+                    placeholder={t('student_register.password_placeholder')}
                     aria-invalid={errors.password ? 'true' : 'false'}
                   />
                   <button
@@ -647,7 +649,7 @@ const StudentRegisterPage = () => {
                     onClick={() => setShowPassword((prev) => !prev)}
                     className="absolute inset-y-0 right-0 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
                     style={{ paddingLeft: '15px', paddingRight: '15px', zIndex: 10, width: '50px' }}
-                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    aria-label={showPassword ? t('student_register.hide_password') : t('student_register.show_password')}
                   >
                     {showPassword ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
@@ -672,10 +674,10 @@ const StudentRegisterPage = () => {
                     id="confirmPassword"
                     type={showConfirmPassword ? 'text' : 'password'}
                     {...register('confirmPassword', {
-                      required: 'Confirmation du mot de passe requise',
+                      required: t('student_register.errors.confirm_password_required'),
                       validate: (value) => {
                         if (value !== password) {
-                          return 'Les mots de passe ne correspondent pas';
+                          return t('student_register.errors.password_mismatch');
                         }
                         return true;
                       }
@@ -696,7 +698,7 @@ const StudentRegisterPage = () => {
                       paddingTop: '10px',
                       paddingBottom: '10px',
                     }}
-                    placeholder="Confirmer le mot de passe"
+                    placeholder={t('student_register.confirm_password_placeholder')}
                     aria-invalid={errors.confirmPassword ? 'true' : 'false'}
                   />
                   <button
@@ -704,7 +706,7 @@ const StudentRegisterPage = () => {
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
                     className="absolute inset-y-0 right-0 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
                     style={{ paddingLeft: '15px', paddingRight: '15px', zIndex: 10, width: '50px' }}
-                    aria-label={showConfirmPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    aria-label={showConfirmPassword ? t('student_register.hide_password') : t('student_register.show_password')}
                   >
                     {showConfirmPassword ? (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
@@ -742,24 +744,24 @@ const StudentRegisterPage = () => {
                   <input
                     type="checkbox"
                     {...register('acceptCGU', {
-                      required: 'Vous devez accepter les CGU pour vous inscrire'
+                      required: t('student_register.errors.accept_cgu_required')
                     })}
                     className="kaiylo-checkbox"
                   />
                   <span style={{ fontSize: '13px', fontWeight: 300, color: 'rgba(255,255,255,0.65)', lineHeight: '1.5' }}>
-                    J'accepte les{' '}
+                    {t('student_register.accept_cgu_prefix')}{' '}
                     <Link
                       to="/cgu"
                       style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none', fontWeight: 400 }}
                     >
-                      CGU
+                      {t('student_register.accept_cgu_link')}
                     </Link>
-                    {' '}et la{' '}
+                    {' '}{t('student_register.accept_cgu_and')}{' '}
                     <Link
                       to="/politique-confidentialite"
                       style={{ color: 'rgba(212,132,90,1)', textDecoration: 'none', fontWeight: 400 }}
                     >
-                      Politique de confidentialité
+                      {t('student_register.accept_privacy_link')}
                     </Link>
                   </span>
                 </label>
@@ -784,17 +786,17 @@ const StudentRegisterPage = () => {
                 }}
                 disabled={isLoading || !invitationData}
               >
-                {isLoading ? 'Inscription en cours...' : 'Rejoindre le programme'}
+                {isLoading ? t('student_register.submitting') : t('student_register.submit')}
               </button>
             </form>
 
             {/* Back to coach registration */}
             <div className="mt-6 mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)]">
               <h2 className="text-sm font-medium text-[#d4845a] mb-2 text-left">
-                Vous êtes coach ?
+                {t('student_register.coach_block_title')}
               </h2>
               <p className="text-xs text-[rgba(255,255,255,0.8)] mb-3 text-left font-light">
-                Inscrivez-vous en tant que coach pour créer et gérer vos programmes d'entraînement :
+                {t('student_register.coach_block_body')}
               </p>
               <Link
                 to="/register"
@@ -810,14 +812,14 @@ const StudentRegisterPage = () => {
                   paddingRight: '12px'
                 }}
               >
-                Inscrivez-vous en tant que coach
+                {t('student_register.coach_block_button')}
               </Link>
             </div>
 
             <p className="mt-6 text-sm text-muted-foreground" style={{ fontWeight: '300', color: 'rgba(255, 255, 255, 0.75)' }}>
-              Déjà un compte ?{' '}
+              {t('student_register.have_account')}{' '}
               <Link to="/login" className="text-primary hover:underline font-semibold">
-                Connectez-vous
+                {t('student_register.login_link')}
               </Link>
             </p>
           </div>

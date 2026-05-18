@@ -1,8 +1,10 @@
 import { Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '../components/Logo';
 
 const RegistrationSuccessPage = () => {
+  const { t } = useTranslation('auth');
   const [searchParams] = useSearchParams();
   const email = searchParams.get('email');
 
@@ -108,24 +110,24 @@ const RegistrationSuccessPage = () => {
               {/* Message */}
               <div className="space-y-4 mb-0">
                 <div className="flex items-center justify-center">
-                  <p 
+                  <p
                     className="text-xl leading-relaxed"
                     style={{ color: 'rgb(74, 222, 128)' }}
                   >
-                    Votre compte a été créé avec succès !
+                    {t('registration_success.title')}
                   </p>
                 </div>
-                
-                <div 
+
+                <div
                   className="rounded-lg p-0 flex items-start gap-3"
                 >
-                  <p 
+                  <p
                     className="text-xs leading-relaxed text-center font-light"
                     style={{ color: 'rgba(255, 255, 255, 0.75)' }}
                   >
-                    Vérifiez votre boîte de réception{email ? (
+                    {t('registration_success.check_inbox')}{email ? (
                       <span style={{ color: 'rgba(255, 255, 255, 1)', fontWeight: 400 }}> ({email})</span>
-                    ) : ''} et confirmez votre compte.
+                    ) : ''} {t('registration_success.check_inbox_with_email')}
                   </p>
                 </div>
               </div>
@@ -146,17 +148,17 @@ const RegistrationSuccessPage = () => {
                   }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Retourner à la page de connexion
+                  {t('registration_success.back_to_login')}
                 </button>
               </Link>
             </div>
 
             {/* Help Text */}
-            <p 
+            <p
               className="text-xs mt-4 font-extralight"
               style={{ color: 'rgba(255, 255, 255, 0.5)' }}
             >
-              Vous n'avez pas reçu l'email ? Vérifiez votre dossier spam ou contactez le support.
+              {t('registration_success.spam_help')}
             </p>
           </div>
         </div>

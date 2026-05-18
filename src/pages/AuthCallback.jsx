@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +10,7 @@ import { getApiBaseUrlWithApi } from '../config/api';
 import { isDesktopViewport } from '../utils/device';
 
 const AuthCallback = () => {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { checkAuthStatus } = useAuth();
@@ -42,7 +44,7 @@ const AuthCallback = () => {
     
     if (!code) {
       logger.error('❌ No OAuth code found in URL');
-      setError('Code OAuth manquant');
+      setError(t('auth_callback.errors.no_code'));
       setTimeout(() => {
         navigate('/login?error=no_code', { replace: true });
       }, 2000);
@@ -60,7 +62,7 @@ const AuthCallback = () => {
     } else if (!window.location.hash) {
       logger.warn('⚠️ No OAuth code or hash found in URL');
       logger.warn('⚠️ URL:', window.location.href);
-      setError('Aucun code OAuth trouvé dans l\'URL');
+      setError(t('auth_callback.errors.no_oauth_code'));
       setTimeout(() => {
         navigate('/login?error=no_oauth_code', { replace: true });
       }, 2000);
@@ -137,7 +139,7 @@ const AuthCallback = () => {
                 logger.debug('🚫 Beta test: new OAuth user blocked by backend');
                 await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
                 try { localStorage.removeItem('authToken'); localStorage.removeItem('supabaseRefreshToken'); localStorage.removeItem('sb-auth-token'); } catch (e) { /* ignore */ }
-                const msg = encodeURIComponent(profileError?.response?.data?.message || 'Les inscriptions publiques sont temporairement fermées.');
+                const msg = encodeURIComponent(profileError?.response?.data?.message || t('auth_callback.errors.beta_closed'));
                 navigate(`/login?error=${msg}`, { replace: true });
                 return;
               }
@@ -159,7 +161,7 @@ const AuthCallback = () => {
                   localStorage.removeItem('sb-auth-token');
                 }
               } catch (e) { /* ignore */ }
-              const msg = encodeURIComponent('L\'accès élève n\'est disponible que sur mobile ou tablette. Utilisez un appareil mobile pour vous connecter.');
+              const msg = encodeURIComponent(t('auth_callback.errors.student_desktop_blocked'));
               navigate(`/login?error=${msg}`, { replace: true });
               return;
             }
@@ -179,7 +181,7 @@ const AuthCallback = () => {
             navigate(targetPath, { replace: true });
           } catch (err) {
             logger.error('❌ Error processing OAuth session:', err);
-            setError('Erreur lors du traitement de la session');
+            setError(t('auth_callback.errors.session_processing'));
             setTimeout(() => {
               navigate('/login?error=session_processing_error', { replace: true });
             }, 2000);
@@ -192,7 +194,7 @@ const AuthCallback = () => {
     const timeoutId = setTimeout(() => {
       if (!sessionProcessedRef.current) {
         logger.error('⏰ Timeout: OAuth callback took too long, onAuthStateChange did not fire');
-        setError('La connexion Google a pris trop de temps');
+        setError(t('auth_callback.errors.timeout'));
         navigate('/login?error=callback_timeout', { replace: true });
       }
     }, 5000); // 5 seconds timeout
@@ -202,7 +204,7 @@ const AuthCallback = () => {
       subscription.unsubscribe();
       clearTimeout(timeoutId);
     };
-  }, [navigate, searchParams, checkAuthStatus]);
+  }, [navigate, searchParams, checkAuthStatus, t]);
 
   // Show error if any
   if (error) {
@@ -210,9 +212,9 @@ const AuthCallback = () => {
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <div className="text-center p-6">
           <div className="text-red-500 text-xl mb-4">❌</div>
-          <h2 className="text-white text-lg mb-2">Erreur de connexion</h2>
+          <h2 className="text-white text-lg mb-2">{t('auth_callback.error_title')}</h2>
           <p className="text-white/70 text-sm mb-4">{error}</p>
-          <p className="text-white/50 text-xs">Redirection en cours...</p>
+          <p className="text-white/50 text-xs">{t('auth_callback.redirecting')}</p>
         </div>
       </div>
     );

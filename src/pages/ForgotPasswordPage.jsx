@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
 
 const ForgotPasswordPage = () => {
+  const { t } = useTranslation('auth');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState(null);
@@ -23,10 +25,10 @@ const ForgotPasswordPage = () => {
       if (result.success) {
         setIsSuccess(true);
       } else {
-        setError(result.error || 'Une erreur est survenue. Veuillez réessayer.');
+        setError(result.error || t('forgot_password.errors.generic'));
       }
     } catch (err) {
-      const errorMessage = err.message || 'Une erreur est survenue. Veuillez réessayer.';
+      const errorMessage = err.message || t('forgot_password.errors.generic');
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -211,17 +213,17 @@ const ForgotPasswordPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center">
           <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
             <h1 className="text-3xl font-extralight text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Réinitialiser votre mot de passe
+              {t('forgot_password.title')}
             </h1>
 
             {isSuccess ? (
               <>
                 <div className="mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)] text-left">
                   <p className="text-sm text-[rgba(255,255,255,0.8)] mb-4 font-light">
-                    Si un compte existe avec cette adresse email, vous recevrez un lien pour réinitialiser votre mot de passe.
+                    {t('forgot_password.success_body')}
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,0.6)] font-light">
-                    Vérifiez votre boîte de réception et votre dossier de spam.
+                    {t('forgot_password.success_help')}
                   </p>
                 </div>
                 <Link
@@ -230,7 +232,7 @@ const ForgotPasswordPage = () => {
                   style={{ color: 'rgba(212, 132, 90, 1)' }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Retour à la connexion
+                  {t('forgot_password.back_to_login')}
                 </Link>
               </>
             ) : (
@@ -245,14 +247,14 @@ const ForgotPasswordPage = () => {
                   <div style={{ marginBottom: '3px' }}>
                     <input
                       {...register('email', {
-                        required: 'Adresse mail requise',
+                        required: t('forgot_password.errors.email_required'),
                         pattern: {
                           value: /^\S+@\S+$/i,
-                          message: 'Adresse mail invalide',
+                          message: t('forgot_password.errors.email_invalid'),
                         },
                       })}
                       type="email"
-                      placeholder="Adresse mail"
+                      placeholder={t('forgot_password.email_placeholder')}
                       className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                       style={{
                         color: 'rgba(255, 255, 255, 1)',
@@ -287,7 +289,7 @@ const ForgotPasswordPage = () => {
                     }}
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
+                    {isLoading ? t('forgot_password.submitting') : t('forgot_password.submit')}
                   </button>
                 </form>
 
@@ -297,7 +299,7 @@ const ForgotPasswordPage = () => {
                   style={{ color: 'rgba(212, 132, 90, 1)' }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Retour à la connexion
+                  {t('forgot_password.back_to_login')}
                 </Link>
               </>
             )}

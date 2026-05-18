@@ -1,12 +1,14 @@
 import logger from '../utils/logger';
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import Logo from '../components/Logo'; // Import the new Logo component
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const LoginPage = () => {
+  const { t } = useTranslation('auth');
   const { register, handleSubmit, formState: { errors } } = useForm();
   const { login, error: authError, loading, user, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -345,7 +347,7 @@ const LoginPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center px-4 max-md:translate-y-8 md:translate-y-0" style={{ position: 'relative', zIndex: 21 }}>
           <div className="w-full" style={{ position: 'relative', zIndex: 22 }}>
             <h1 className="text-3xl font-extralight text-foreground" style={{ fontSize: 'clamp(28px, 5vw, 35px)', marginBottom: 'clamp(30px, 8vw, 50px)' }}>
-              Connexion
+              {t('login.title')}
             </h1>
 
             {displayError && (
@@ -358,14 +360,14 @@ const LoginPage = () => {
               <div style={{ marginBottom: '3px' }}>
                 <input
                   {...register('email', {
-                    required: 'Adresse mail requise',
+                    required: t('login.errors.email_required'),
                     pattern: {
                       value: /^\S+@\S+$/i,
-                      message: 'Adresse mail invalide',
+                      message: t('login.errors.email_invalid'),
                     },
                   })}
                   type="email"
-                  placeholder="Adresse mail"
+                  placeholder={t('login.email_placeholder')}
                   className="p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
                     width: '384px',
@@ -391,10 +393,10 @@ const LoginPage = () => {
 
               <div className="relative" style={{ position: 'relative', zIndex: 1 }}>
                 <input
-                  {...register('password', { required: 'Mot de passe requis' })}
+                  {...register('password', { required: t('login.errors.password_required') })}
                   ref={passwordInputRef}
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Mot de passe"
+                  placeholder={t('login.password_placeholder')}
                   className="w-full p-3 pr-12 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                   style={{
                     width: '384px',
@@ -424,7 +426,7 @@ const LoginPage = () => {
                   }}
                   className="absolute inset-y-0 right-0 flex items-center text-muted-foreground hover:text-primary transition-colors"
                   style={{ marginLeft: '10px', paddingLeft: '15px', paddingRight: '15px', zIndex: 2, pointerEvents: 'auto' }}
-                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  aria-label={showPassword ? t('login.hide_password') : t('login.show_password')}
                 >
                   {showPassword ? (
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" className="h-5 w-5" style={{ color: isAutofilled ? 'rgba(0, 0, 0, 1)' : 'rgba(255, 255, 255, 0.25)', fontWeight: '200' }} fill="currentColor">
@@ -444,7 +446,7 @@ const LoginPage = () => {
                   className="text-sm text-muted-foreground transition-colors font-light forgot-password-link"
                   style={{ opacity: 0.6 }}
                 >
-                  Mot de passe oublié ?
+                  {t('login.forgot_password')}
                 </Link>
               </div>
 
@@ -479,14 +481,14 @@ const LoginPage = () => {
                   e.stopPropagation();
                 }}
               >
-                {loading ? 'Connexion en cours...' : 'Se connecter'}
+                {loading ? t('login.submitting') : t('login.submit')}
               </button>
             </form>
 
             {/* Divider: two line segments so "Ou" is not cut */}
             <div className="relative my-6 flex items-center gap-0 text-sm" style={{ width: '384px', maxWidth: '100%', margin: '24px auto' }}>
               <div className="flex-1 h-px shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
-              <span className="px-2 font-light shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Ou</span>
+              <span className="px-2 font-light shrink-0" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>{t('login.divider_or')}</span>
               <div className="flex-1 h-px shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
             </div>
 
@@ -547,14 +549,14 @@ const LoginPage = () => {
                 />
               </svg>
               <span style={{ fontWeight: '300' }}>
-                {loading ? 'Connexion...' : 'Continuer avec Google'}
+                {loading ? t('login.google_button_loading') : t('login.google_button')}
               </span>
             </button>
 
             <p className="mt-6 text-sm text-muted-foreground text-center" style={{ fontWeight: '300', color: 'rgba(255, 255, 255, 0.75)' }}>
-              Pas encore de compte ?{' '}
+              {t('login.no_account')}{' '}
               <Link to="/register" className="text-primary hover:underline font-semibold">
-                Inscrivez-vous
+                {t('login.sign_up_link')}
               </Link>
             </p>
           </div>

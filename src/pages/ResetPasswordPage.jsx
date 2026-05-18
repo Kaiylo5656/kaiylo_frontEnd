@@ -2,6 +2,7 @@ import logger from '../utils/logger';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import Logo from '../components/Logo';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ResetPasswordPage = () => {
+  const { t } = useTranslation('auth');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState(null);
@@ -50,7 +52,7 @@ const ResetPasswordPage = () => {
 
   const onSubmit = async (data) => {
     if (data.password !== data.confirmPassword) {
-      setError('Les mots de passe ne correspondent pas');
+      setError(t('reset_password.errors.password_mismatch'));
       return;
     }
 
@@ -76,10 +78,10 @@ const ResetPasswordPage = () => {
           navigate('/login');
         }, 3000);
       } else {
-        setError(result.error || 'Une erreur est survenue. Veuillez réessayer.');
+        setError(result.error || t('reset_password.errors.generic'));
       }
     } catch (err) {
-      const errorMessage = err.message || 'Une erreur est survenue. Veuillez réessayer.';
+      const errorMessage = err.message || t('reset_password.errors.generic');
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -99,16 +101,16 @@ const ResetPasswordPage = () => {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center" style={{ backgroundColor: '#0a0a0a', color: 'white' }}>
         <Logo />
         <div className="mt-8 max-w-md w-full bg-[rgba(255,255,255,0.05)] p-6 rounded-xl border border-[rgba(255,255,255,0.1)]">
-          <h2 className="text-xl font-semibold mb-4 text-destructive">Lien invalide ou expiré</h2>
+          <h2 className="text-xl font-semibold mb-4 text-destructive">{t('reset_password.invalid_link_title')}</h2>
           <p className="text-gray-300 mb-6">
-            {error || "Nous n'avons pas pu vérifier votre session. Le lien de réinitialisation est peut-être expiré ou a déjà été utilisé."}
+            {error || t('reset_password.invalid_link_body')}
           </p>
           <Link
             to="/login"
             className="inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
             style={{ backgroundColor: 'rgba(212, 132, 89, 1)' }}
           >
-            Retour à la connexion
+            {t('reset_password.back_to_login')}
           </Link>
         </div>
       </div>
@@ -293,17 +295,17 @@ const ResetPasswordPage = () => {
         <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center">
           <div className="w-full" style={{ paddingLeft: '16px', paddingRight: '16px' }}>
             <h1 className="text-3xl font-thin text-foreground" style={{ fontSize: '35px', marginBottom: '50px' }}>
-              Nouveau mot de passe
+              {t('reset_password.title')}
             </h1>
 
             {isSuccess ? (
               <>
                 <div className="mb-6 p-4 rounded-[10px] bg-[rgba(255,255,255,0.02)] border border-[rgba(212,132,90,0.05)] text-left">
                   <p className="text-sm text-[rgba(255,255,255,0.8)] mb-4 font-light">
-                    Votre mot de passe a été mis à jour avec succès.
+                    {t('reset_password.success_body')}
                   </p>
                   <p className="text-xs text-[rgba(255,255,255,0.6)] font-light">
-                    Vous allez être redirigé vers la page de connexion...
+                    {t('reset_password.success_redirect')}
                   </p>
                 </div>
                 <Link
@@ -312,7 +314,7 @@ const ResetPasswordPage = () => {
                   style={{ color: 'rgba(212, 132, 90, 1)' }}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Retour à la connexion
+                  {t('reset_password.back_to_login')}
                 </Link>
               </>
             ) : (
@@ -327,14 +329,14 @@ const ResetPasswordPage = () => {
                   <div style={{ marginBottom: '3px' }}>
                     <input
                       {...register('password', {
-                        required: 'Nouveau mot de passe requis',
+                        required: t('reset_password.errors.password_required'),
                         minLength: {
                           value: 6,
-                          message: 'Le mot de passe doit contenir au moins 6 caractères'
+                          message: t('reset_password.errors.password_min')
                         }
                       })}
                       type="password"
-                      placeholder="Nouveau mot de passe"
+                      placeholder={t('reset_password.password_placeholder')}
                       className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                       style={{
                         color: 'rgba(255, 255, 255, 1)',
@@ -358,15 +360,15 @@ const ResetPasswordPage = () => {
                   <div style={{ marginBottom: '3px' }}>
                     <input
                       {...register('confirmPassword', {
-                        required: 'Confirmation requise',
+                        required: t('reset_password.errors.confirm_required'),
                         validate: (val) => {
                           if (watch('password') != val) {
-                            return "Les mots de passe ne correspondent pas";
+                            return t('reset_password.errors.password_mismatch');
                           }
                         }
                       })}
                       type="password"
-                      placeholder="Confirmer le mot de passe"
+                      placeholder={t('reset_password.confirm_password_placeholder')}
                       className="w-full p-3 bg-input text-foreground rounded-md border border-border focus:ring-1 focus:ring-ring focus:outline-none"
                       style={{
                         color: 'rgba(255, 255, 255, 1)',
@@ -400,7 +402,7 @@ const ResetPasswordPage = () => {
                     }}
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+                    {isLoading ? t('reset_password.submitting') : t('reset_password.submit')}
                   </button>
                 </form>
               </>
