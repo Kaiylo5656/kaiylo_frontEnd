@@ -339,7 +339,7 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
                 icon={ReceiptIcon}
                 onLinkClick={onClose}
               >
-                Facturation
+                {t('nav.billing')}
               </NavLink>
             )}
             <div className="flex flex-col gap-1">
@@ -360,11 +360,11 @@ const MobileNavigationDrawer = ({ isOpen, onClose, onOpenFeedback }) => {
                 </p>
                 <p className="text-xs text-muted-foreground">{user?.role}</p>
               </div>
-              <button 
-                onClick={handleLogout} 
-                className="text-muted-foreground hover:text-foreground flex-shrink-0" 
-                title="Déconnexion"
-                aria-label="Déconnexion"
+              <button
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                title={t('nav.logout')}
+                aria-label={t('nav.logout')}
               >
                 <LogOut className="h-5 w-5" />
               </button>

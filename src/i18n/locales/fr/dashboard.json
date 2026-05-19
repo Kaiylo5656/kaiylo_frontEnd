@@ -43,6 +43,11 @@
       "no_students_match_search": "Aucun étudiant ne correspond à vos critères de recherche",
       "no_students_yet_hint": "Commencez par inviter des étudiants à rejoindre votre programme de coaching",
       "invite_first_student": "Inviter votre premier étudiant"
+    },
+    "billing": {
+      "cancellation_message": "Votre abonnement {{plan}} se termine le {{date}}. Vos étudiants conservent leur accès jusqu'à cette date.",
+      "manage_subscription": "Gérer mon abonnement",
+      "loading": "..."
     }
   }
 }

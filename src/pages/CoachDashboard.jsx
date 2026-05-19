@@ -710,18 +710,17 @@ const CoachDashboard = () => {
             <path d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z" />
           </svg>
           <div className="flex-1 text-sm text-[var(--kaiylo-primary-hex)]">
-            Votre abonnement {billing?.plan ? billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1) : 'Pro'} se termine le{' '}
-            <span className="font-medium">
-              {new Date(billing.currentPeriodEnd).toLocaleDateString(i18next.language || 'fr', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-            . Vos étudiants conservent leur accès jusqu'à cette date.
+            {t('coach.billing.cancellation_message', {
+              plan: billing?.plan ? billing.plan.charAt(0).toUpperCase() + billing.plan.slice(1) : 'Pro',
+              date: new Date(billing.currentPeriodEnd).toLocaleDateString(i18next.language || 'fr', { day: 'numeric', month: 'long', year: 'numeric' })
+            })}
           </div>
           <button
             onClick={handleManageSubscription}
             disabled={portalLoading}
             className="shrink-0 rounded-lg bg-[var(--kaiylo-primary-hex)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {portalLoading ? '...' : 'Gérer mon abonnement'}
+            {portalLoading ? t('coach.billing.loading') : t('coach.billing.manage_subscription')}
           </button>
         </div>
       )}

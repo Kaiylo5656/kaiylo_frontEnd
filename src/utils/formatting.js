@@ -19,11 +19,11 @@ const getDateFnsLocale = () => {
  * @returns {string} - Formatted relative time
  */
 export const formatRelative = (date) => {
-  if (!date) return 'Unknown';
+  if (!date) return i18next.t('common:fallback.unknown');
 
   try {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(dateObj.getTime())) return 'Invalid date';
+    if (isNaN(dateObj.getTime())) return i18next.t('common:fallback.invalid_date');
 
     return formatDistanceToNow(dateObj, {
       addSuffix: true,
@@ -31,7 +31,7 @@ export const formatRelative = (date) => {
     });
   } catch (error) {
     logger.error('Error formatting relative date:', error);
-    return 'Unknown';
+    return i18next.t('common:fallback.unknown');
   }
 };
 
@@ -41,11 +41,11 @@ export const formatRelative = (date) => {
  * @returns {string} - Formatted absolute time
  */
 export const formatAbsolute = (date) => {
-  if (!date) return 'Unknown';
+  if (!date) return i18next.t('common:fallback.unknown');
 
   try {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(dateObj.getTime())) return 'Invalid date';
+    if (isNaN(dateObj.getTime())) return i18next.t('common:fallback.invalid_date');
 
     // Use Intl.DateTimeFormat with the active i18next language so dates
     // render in the user's chosen locale (FR vs EN).
@@ -59,7 +59,7 @@ export const formatAbsolute = (date) => {
     }).format(dateObj);
   } catch (error) {
     logger.error('Error formatting absolute date:', error);
-    return 'Unknown';
+    return i18next.t('common:fallback.unknown');
   }
 };
 
@@ -69,7 +69,7 @@ export const formatAbsolute = (date) => {
  * @returns {string} - Formatted duration (e.g., "2:30")
  */
 export const formatDuration = (seconds) => {
-  if (!seconds || isNaN(seconds)) return 'Unknown';
+  if (!seconds || isNaN(seconds)) return i18next.t('common:fallback.unknown');
 
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
@@ -83,7 +83,7 @@ export const formatDuration = (seconds) => {
  * @returns {string} - Formatted size (e.g., "2.5 MB")
  */
 export const formatFileSize = (bytes) => {
-  if (!bytes || isNaN(bytes)) return 'Unknown';
+  if (!bytes || isNaN(bytes)) return i18next.t('common:fallback.unknown');
 
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = bytes;

@@ -13,5 +13,13 @@
     "confirm": "Confirmer",
     "close": "Fermer",
     "delete": "Supprimer"
+  },
+  "nav": {
+    "billing": "Facturation",
+    "logout": "Déconnexion"
+  },
+  "fallback": {
+    "unknown": "Inconnu",
+    "invalid_date": "Date invalide"
   }
 }

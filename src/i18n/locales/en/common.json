@@ -13,5 +13,13 @@
     "confirm": "Confirm",
     "close": "Close",
     "delete": "Delete"
+  },
+  "nav": {
+    "billing": "Billing",
+    "logout": "Log out"
+  },
+  "fallback": {
+    "unknown": "Unknown",
+    "invalid_date": "Invalid date"
   }
 }

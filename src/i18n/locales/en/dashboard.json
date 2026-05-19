@@ -43,6 +43,11 @@
       "no_students_match_search": "No students match your search criteria",
       "no_students_yet_hint": "Start by inviting students to join your coaching program",
       "invite_first_student": "Invite your first student"
+    },
+    "billing": {
+      "cancellation_message": "Your {{plan}} subscription ends on {{date}}. Your students keep their access until that date.",
+      "manage_subscription": "Manage subscription",
+      "loading": "..."
     }
   }
 }
